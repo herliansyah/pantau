@@ -148,7 +148,7 @@ func TestTicket02_PeriodicInspectionAndLifecycle(t *testing.T) {
 	})
 
 	// Mock batch metrics output for Ubuntu 18.04 (EOL)
-	env.mockRunner.Handlers[`uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; df -Pk / 2>/dev/null; echo "---"; dmesg --level=err,crit 2>/dev/null | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l`] = func() (string, string, int, error) {
+	env.mockRunner.Handlers[inspector.SystemMetricsBatchCmd] = func() (string, string, int, error) {
 		out := "5.4.0-42-generic\n---\nPRETTY_NAME=\"Ubuntu 18.04.6 LTS\"\nVERSION=\"18.04.6 LTS\"\n---\n 15:00:00 up 45 days, 1:12, load average: 1.20, 0.80, 0.50\n---\nMem: 16777216000 8388608000 8388608000\n---\n/dev/sda1 104857600 41943040 62914560 40% /\n---\n0"
 		return out, "", 0, nil
 	}
@@ -755,4 +755,122 @@ func TestTicket11_CrossHostTransfer(t *testing.T) {
 	}
 	cancelResp.Body.Close()
 }
+
+// Test Ticket 12: Network & Security Observability (Bandwidth, Internet Egress, Sockets, Exposure)
+func TestTicket12_NetworkAndSecurityObservability(t *testing.T) {
+	env := setupTestEnv(t)
+	client := loginClient(t, env)
+
+	hostID, _ := env.db.CreateHost(&store.Host{
+		Name: "Production Web & DB",
+		Host: "192.168.1.100",
+		Port: 22,
+		User: "root",
+	})
+
+	// Mock batch metrics output with all 12 sections
+	env.mockRunner.Handlers[inspector.SystemMetricsBatchCmd] = func() (string, string, int, error) {
+		sections := []string{
+			"6.1.0-21-amd64",                                                        // 0: uname -r
+			"PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nVERSION=\"12\"",          // 1: os-release
+			" 16:30:00 up 10 days, 2:00, load average: 0.25, 0.35, 0.40",            // 2: uptime
+			"Mem: 8388608000 4194304000 4194304000",                                  // 3: free
+			"/dev/sda1 52428800 20971520 31457280 40% /",                             // 4: df
+			"0",                                                                      // 5: dmesg errors
+			"10485760 20971520",                                                      // 6: /proc/net/dev (rx tx bytes)
+			"12.8",                                                                   // 7: ping 1.1.1.1 time=12.8ms
+			"103.145.22.8\n",                                                         // 8: public IP
+			"192.168.1.100:80 203.0.113.1:54321\n192.168.1.100:80 203.0.113.1:54322\n192.168.1.100:443 198.51.100.5:41234", // 9: established sockets
+			"LISTEN 0.0.0.0:80 users:((\"nginx\",pid=100,fd=3))\nLISTEN 127.0.0.1:3306 users:((\"mysqld\",pid=101,fd=4))\nLISTEN 0.0.0.0:6379 users:((\"redis-server\",pid=102,fd=5))", // 10: listening ports
+			"14\n", // 11: failed logins
+		}
+		return strings.Join(sections, "\n---\n"), "", 0, nil
+	}
+
+	err := env.inspector.InspectHost(hostID)
+	if err != nil {
+		t.Fatalf("inspect host failed: %v", err)
+	}
+
+	h, err := env.db.GetHost(hostID)
+	if err != nil || h == nil {
+		t.Fatalf("get host failed: %v", err)
+	}
+
+	// 1. Verify Bandwidth
+	if h.NetRxBytes != 10485760 || h.NetTxBytes != 20971520 {
+		t.Fatalf("unexpected net bytes: rx=%d, tx=%d", h.NetRxBytes, h.NetTxBytes)
+	}
+
+	// 2. Verify Internet Egress & Latency
+	if !h.InternetOnline {
+		t.Fatalf("expected InternetOnline to be true")
+	}
+	if h.InternetLatencyMs != 13 {
+		t.Fatalf("expected InternetLatencyMs 13 (rounded from 12.8), got %d", h.InternetLatencyMs)
+	}
+	if h.PublicIP != "103.145.22.8" {
+		t.Fatalf("expected public IP '103.145.22.8', got %q", h.PublicIP)
+	}
+
+	// 3. Verify Active Connections & Top Remote IPs
+	if h.ActiveConnCount != 3 {
+		t.Fatalf("expected 3 active established conns, got %d", h.ActiveConnCount)
+	}
+	var topConns []store.TopConn
+	if err := json.Unmarshal([]byte(h.TopConnections), &topConns); err != nil {
+		t.Fatalf("unmarshal top connections: %v", err)
+	}
+	if len(topConns) < 2 {
+		t.Fatalf("expected at least 2 top remote IPs, got %d", len(topConns))
+	}
+	if topConns[0].RemoteIP != "203.0.113.1" || topConns[0].Count != 2 {
+		t.Fatalf("expected top IP 203.0.113.1 with count 2, got %+v", topConns[0])
+	}
+	if topConns[1].RemoteIP != "198.51.100.5" || topConns[1].Count != 1 {
+		t.Fatalf("expected second IP 198.51.100.5 with count 1, got %+v", topConns[1])
+	}
+
+	// 4. Verify Listening Ports & Security Exposure Risk
+	var ports []store.ListeningPort
+	if err := json.Unmarshal([]byte(h.ListeningPorts), &ports); err != nil {
+		t.Fatalf("unmarshal listening ports: %v", err)
+	}
+	if len(ports) != 3 {
+		t.Fatalf("expected 3 listening ports, got %d", len(ports))
+	}
+	// Port 80 (nginx): Public, low risk
+	if ports[0].Port != "80" || !ports[0].Public || ports[0].Risk != "low" {
+		t.Fatalf("unexpected port 80 status: %+v", ports[0])
+	}
+	// Port 3306 (mysql): Localhost, low risk
+	if ports[1].Port != "3306" || ports[1].Public || ports[1].Risk != "low" {
+		t.Fatalf("unexpected port 3306 status: %+v", ports[1])
+	}
+	// Port 6379 (redis): Public 0.0.0.0, high risk!
+	if ports[2].Port != "6379" || !ports[2].Public || ports[2].Risk != "high" {
+		t.Fatalf("expected port 6379 to have high risk, got: %+v", ports[2])
+	}
+
+	// 5. Verify Failed Logins
+	if h.FailedLoginsCount != 14 {
+		t.Fatalf("expected 14 failed logins, got %d", h.FailedLoginsCount)
+	}
+
+	// 6. Verify Web API returns all network details
+	resp, err := client.Get(fmt.Sprintf("%s/api/hosts/%d", env.httpServer.URL, hostID))
+	if err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("api get host failed: %v", err)
+	}
+	var apiData struct {
+		Host store.Host `json:"host"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&apiData)
+	resp.Body.Close()
+
+	if !apiData.Host.InternetOnline || apiData.Host.PublicIP != "103.145.22.8" {
+		t.Fatalf("api host missing network data: %+v", apiData.Host)
+	}
+}
+
 

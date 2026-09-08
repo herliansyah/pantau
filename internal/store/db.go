@@ -34,12 +34,40 @@ type Host struct {
 	CPULoad        string    `json:"cpu_load"`
 	RAMUsedBytes   int64     `json:"ram_used_bytes"`
 	RAMTotalBytes  int64     `json:"ram_total_bytes"`
-	DiskUsedBytes  int64     `json:"disk_used_bytes"`
-	DiskTotalBytes int64     `json:"disk_total_bytes"`
-	LifecycleScore int       `json:"lifecycle_score"`
-	LifecycleNotes string    `json:"lifecycle_notes"`
-	LastInspected  *time.Time `json:"last_inspected"`
-	CreatedAt      time.Time `json:"created_at"`
+	DiskUsedBytes     int64      `json:"disk_used_bytes"`
+	DiskTotalBytes    int64      `json:"disk_total_bytes"`
+	LifecycleScore    int        `json:"lifecycle_score"`
+	LifecycleNotes    string     `json:"lifecycle_notes"`
+	LastInspected     *time.Time `json:"last_inspected"`
+	CreatedAt         time.Time  `json:"created_at"`
+
+	// Network & Security Observability
+	NetRxBytes        int64  `json:"net_rx_bytes"`
+	NetTxBytes        int64  `json:"net_tx_bytes"`
+	NetRxSpeedBps     int64  `json:"net_rx_speed_bps"`
+	NetTxSpeedBps     int64  `json:"net_tx_speed_bps"`
+	InternetOnline    bool   `json:"internet_online"`
+	InternetLatencyMs int64  `json:"internet_latency_ms"`
+	PublicIP          string `json:"public_ip"`
+	ActiveConnCount   int    `json:"active_conn_count"`
+	FailedLoginsCount int    `json:"failed_logins_count"`
+	TopConnections    string `json:"top_connections"` // JSON serialized array of TopConn
+	ListeningPorts    string `json:"listening_ports"` // JSON serialized array of ListeningPort
+}
+
+type TopConn struct {
+	RemoteIP string `json:"remote_ip"`
+	Port     string `json:"port"`
+	Count    int    `json:"count"`
+}
+
+type ListeningPort struct {
+	Proto   string `json:"proto"`
+	Port    string `json:"port"`
+	Address string `json:"address"`
+	Public  bool   `json:"public"`
+	Process string `json:"process"`
+	Risk    string `json:"risk"` // "low", "high"
 }
 
 type DesiredRule struct {
@@ -134,7 +162,18 @@ func (d *DB) migrate() error {
 		lifecycle_score INTEGER DEFAULT 100,
 		lifecycle_notes TEXT DEFAULT '',
 		last_inspected DATETIME,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		net_rx_bytes INTEGER DEFAULT 0,
+		net_tx_bytes INTEGER DEFAULT 0,
+		net_rx_speed_bps INTEGER DEFAULT 0,
+		net_tx_speed_bps INTEGER DEFAULT 0,
+		internet_online INTEGER DEFAULT 0,
+		internet_latency_ms INTEGER DEFAULT 0,
+		public_ip TEXT DEFAULT '',
+		active_conn_count INTEGER DEFAULT 0,
+		failed_logins_count INTEGER DEFAULT 0,
+		top_connections TEXT DEFAULT '',
+		listening_ports TEXT DEFAULT ''
 	);
 
 	CREATE TABLE IF NOT EXISTS desired_rules (
@@ -181,6 +220,28 @@ func (d *DB) migrate() error {
 	);
 	`
 	_, err := d.Exec(schema)
+	if err != nil {
+		return err
+	}
+
+	// Idempotent column additions for existing databases
+	_ = d.alterAddColumn("hosts", "net_rx_bytes", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "net_tx_bytes", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "net_rx_speed_bps", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "net_tx_speed_bps", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "internet_online", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "internet_latency_ms", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "public_ip", "TEXT DEFAULT ''")
+	_ = d.alterAddColumn("hosts", "active_conn_count", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "failed_logins_count", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "top_connections", "TEXT DEFAULT ''")
+	_ = d.alterAddColumn("hosts", "listening_ports", "TEXT DEFAULT ''")
+
+	return nil
+}
+
+func (d *DB) alterAddColumn(table, column, colType string) error {
+	_, err := d.Exec(fmt.Sprintf(`ALTER TABLE %s ADD COLUMN %s %s`, table, column, colType))
 	return err
 }
 
@@ -258,7 +319,11 @@ func (d *DB) SetSetting(key, val string) error {
 
 // Host operations
 func (d *DB) ListHosts() ([]Host, error) {
-	rows, err := d.Query(`SELECT id, name, host, port, user, COALESCE(custom_key,''), status, os_info, kernel, uptime, cpu_load, ram_used_bytes, ram_total_bytes, disk_used_bytes, disk_total_bytes, lifecycle_score, lifecycle_notes, last_inspected, created_at FROM hosts ORDER BY id ASC`)
+	rows, err := d.Query(`SELECT id, name, host, port, user, COALESCE(custom_key,''), status, os_info, kernel, uptime, cpu_load, ram_used_bytes, ram_total_bytes, disk_used_bytes, disk_total_bytes, lifecycle_score, lifecycle_notes, last_inspected, created_at,
+		COALESCE(net_rx_bytes, 0), COALESCE(net_tx_bytes, 0), COALESCE(net_rx_speed_bps, 0), COALESCE(net_tx_speed_bps, 0),
+		COALESCE(internet_online, 0), COALESCE(internet_latency_ms, 0), COALESCE(public_ip, ''), COALESCE(active_conn_count, 0),
+		COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, '')
+		FROM hosts ORDER BY id ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -268,9 +333,14 @@ func (d *DB) ListHosts() ([]Host, error) {
 	for rows.Next() {
 		var h Host
 		var inspected sql.NullTime
-		if err := rows.Scan(&h.ID, &h.Name, &h.Host, &h.Port, &h.User, &h.CustomKey, &h.Status, &h.OSInfo, &h.Kernel, &h.Uptime, &h.CPULoad, &h.RAMUsedBytes, &h.RAMTotalBytes, &h.DiskUsedBytes, &h.DiskTotalBytes, &h.LifecycleScore, &h.LifecycleNotes, &inspected, &h.CreatedAt); err != nil {
+		var online int
+		if err := rows.Scan(&h.ID, &h.Name, &h.Host, &h.Port, &h.User, &h.CustomKey, &h.Status, &h.OSInfo, &h.Kernel, &h.Uptime, &h.CPULoad, &h.RAMUsedBytes, &h.RAMTotalBytes, &h.DiskUsedBytes, &h.DiskTotalBytes, &h.LifecycleScore, &h.LifecycleNotes, &inspected, &h.CreatedAt,
+			&h.NetRxBytes, &h.NetTxBytes, &h.NetRxSpeedBps, &h.NetTxSpeedBps,
+			&online, &h.InternetLatencyMs, &h.PublicIP, &h.ActiveConnCount,
+			&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts); err != nil {
 			return nil, err
 		}
+		h.InternetOnline = online == 1
 		if inspected.Valid {
 			h.LastInspected = &inspected.Time
 		}
@@ -282,8 +352,16 @@ func (d *DB) ListHosts() ([]Host, error) {
 func (d *DB) GetHost(id int64) (*Host, error) {
 	var h Host
 	var inspected sql.NullTime
-	err := d.QueryRow(`SELECT id, name, host, port, user, COALESCE(custom_key,''), status, os_info, kernel, uptime, cpu_load, ram_used_bytes, ram_total_bytes, disk_used_bytes, disk_total_bytes, lifecycle_score, lifecycle_notes, last_inspected, created_at FROM hosts WHERE id = ?`, id).Scan(
+	var online int
+	err := d.QueryRow(`SELECT id, name, host, port, user, COALESCE(custom_key,''), status, os_info, kernel, uptime, cpu_load, ram_used_bytes, ram_total_bytes, disk_used_bytes, disk_total_bytes, lifecycle_score, lifecycle_notes, last_inspected, created_at,
+		COALESCE(net_rx_bytes, 0), COALESCE(net_tx_bytes, 0), COALESCE(net_rx_speed_bps, 0), COALESCE(net_tx_speed_bps, 0),
+		COALESCE(internet_online, 0), COALESCE(internet_latency_ms, 0), COALESCE(public_ip, ''), COALESCE(active_conn_count, 0),
+		COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, '')
+		FROM hosts WHERE id = ?`, id).Scan(
 		&h.ID, &h.Name, &h.Host, &h.Port, &h.User, &h.CustomKey, &h.Status, &h.OSInfo, &h.Kernel, &h.Uptime, &h.CPULoad, &h.RAMUsedBytes, &h.RAMTotalBytes, &h.DiskUsedBytes, &h.DiskTotalBytes, &h.LifecycleScore, &h.LifecycleNotes, &inspected, &h.CreatedAt,
+		&h.NetRxBytes, &h.NetTxBytes, &h.NetRxSpeedBps, &h.NetTxSpeedBps,
+		&online, &h.InternetLatencyMs, &h.PublicIP, &h.ActiveConnCount,
+		&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -291,6 +369,7 @@ func (d *DB) GetHost(id int64) (*Host, error) {
 	if err != nil {
 		return nil, err
 	}
+	h.InternetOnline = online == 1
 	if inspected.Valid {
 		h.LastInspected = &inspected.Time
 	}
@@ -317,8 +396,14 @@ func (d *DB) DeleteHost(id int64) error {
 
 func (d *DB) UpdateHostInspection(h *Host) error {
 	now := time.Now()
-	_, err := d.Exec(`UPDATE hosts SET status=?, os_info=?, kernel=?, uptime=?, cpu_load=?, ram_used_bytes=?, ram_total_bytes=?, disk_used_bytes=?, disk_total_bytes=?, lifecycle_score=?, lifecycle_notes=?, last_inspected=? WHERE id=?`,
-		h.Status, h.OSInfo, h.Kernel, h.Uptime, h.CPULoad, h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, h.LifecycleScore, h.LifecycleNotes, now, h.ID)
+	onlineInt := 0
+	if h.InternetOnline {
+		onlineInt = 1
+	}
+	_, err := d.Exec(`UPDATE hosts SET status=?, os_info=?, kernel=?, uptime=?, cpu_load=?, ram_used_bytes=?, ram_total_bytes=?, disk_used_bytes=?, disk_total_bytes=?, lifecycle_score=?, lifecycle_notes=?, last_inspected=?, net_rx_bytes=?, net_tx_bytes=?, net_rx_speed_bps=?, net_tx_speed_bps=?, internet_online=?, internet_latency_ms=?, public_ip=?, active_conn_count=?, failed_logins_count=?, top_connections=?, listening_ports=? WHERE id=?`,
+		h.Status, h.OSInfo, h.Kernel, h.Uptime, h.CPULoad, h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, h.LifecycleScore, h.LifecycleNotes, now,
+		h.NetRxBytes, h.NetTxBytes, h.NetRxSpeedBps, h.NetTxSpeedBps, onlineInt, h.InternetLatencyMs, h.PublicIP, h.ActiveConnCount, h.FailedLoginsCount, h.TopConnections, h.ListeningPorts,
+		h.ID)
 	return err
 }
 

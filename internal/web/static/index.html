@@ -160,6 +160,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
     <div style="padding: 0 20px;">
       <div class="tabs">
         <div class="tab active" onclick="switchTab('overview')">Overview</div>
+        <div class="tab" onclick="switchTab('network')">Network & Security</div>
         <div class="tab" onclick="switchTab('desired')">Desired State (Drift)</div>
         <div class="tab" onclick="switchTab('docker')">Docker</div>
         <div class="tab" onclick="switchTab('timeline')">Incident Timeline</div>
@@ -379,6 +380,14 @@ async function loadHosts() {
         <span>Lifecycle Score:</span>
         <span class="score-badge" style="color: ${scoreColor}">${h.lifecycle_score}/100</span>
       </div>
+      <div class="stat-row" style="align-items: center;">
+        <span>Internet:</span>
+        <span style="font-size: 0.8rem;">${h.internet_online ? '🟢 Online (' + h.internet_latency_ms + 'ms)' : '🔴 Offline'}</span>
+      </div>
+      <div class="stat-row">
+        <span>Traffic Live:</span>
+        <span>⬇️ ${formatBytes(h.net_rx_speed_bps)}/s | ⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</span>
+      </div>
       <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
         <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">🔍 View</button>
         <button class="btn btn-sm" onclick="inspectHost(${h.id})">⚡ Inspect</button>
@@ -548,6 +557,98 @@ function switchTab(tab) {
       </div>
       <div style="margin-top: 10px;">
         <button class="btn btn-primary" onclick="inspectHost(${d.host.id})">⚡ Run Immediate Inspection</button>
+      </div>
+    `;
+  } else if (tab === 'network') {
+    const h = d.host;
+    let topConns = [];
+    try { topConns = JSON.parse(h.top_connections || '[]'); } catch(e) {}
+    let ports = [];
+    try { ports = JSON.parse(h.listening_ports || '[]'); } catch(e) {}
+
+    const rxSpeed = formatBytes(h.net_rx_speed_bps || 0) + '/s';
+    const txSpeed = formatBytes(h.net_tx_speed_bps || 0) + '/s';
+    const totalRx = formatBytes(h.net_rx_bytes || 0);
+    const totalTx = formatBytes(h.net_tx_bytes || 0);
+
+    content.innerHTML = `
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px;">
+        <div class="card" style="padding: 14px;">
+          <div style="font-size: 0.8rem; color: var(--text-muted);">🌐 Internet Egress</div>
+          <div style="font-size: 1.1rem; font-weight: 700; margin: 4px 0; color: ${h.internet_online ? '#34d399' : '#f87171'};">
+            ${h.internet_online ? '🟢 Connected (' + h.internet_latency_ms + ' ms)' : '🔴 No Internet Access'}
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">Public IP: <b>${escapeHtml(h.public_ip || 'NAT / Private')}</b></div>
+        </div>
+        <div class="card" style="padding: 14px;">
+          <div style="font-size: 0.8rem; color: var(--text-muted);">📶 Live Bandwidth Speed</div>
+          <div style="font-size: 1.1rem; font-weight: 700; margin: 4px 0; color: #38bdf8;">
+            ⬇️ ${rxSpeed} | ⬆️ ${txSpeed}
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">Total: In ${totalRx} | Out ${totalTx}</div>
+        </div>
+        <div class="card" style="padding: 14px;">
+          <div style="font-size: 0.8rem; color: var(--text-muted);">🔌 Active Sockets</div>
+          <div style="font-size: 1.1rem; font-weight: 700; margin: 4px 0; color: #a78bfa;">
+            ${h.active_conn_count || 0} Established
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">${topConns.length} External IPs Active</div>
+        </div>
+        <div class="card" style="padding: 14px;">
+          <div style="font-size: 0.8rem; color: var(--text-muted);">🛡️ Security & Brute-Force</div>
+          <div style="font-size: 1.1rem; font-weight: 700; margin: 4px 0; color: ${h.failed_logins_count > 10 ? '#f87171' : '#34d399'};">
+            ${h.failed_logins_count || 0} Failed Logins
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">${h.failed_logins_count > 10 ? '⚠️ High failed attempts' : 'Normal authentication state'}</div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="card" style="padding: 16px;">
+          <h4 style="margin-bottom: 10px;">👥 Top Connected Remote IPs (Active Sockets)</h4>
+          <table>
+            <thead>
+              <tr><th>Remote IP Address</th><th>Connections</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              ${topConns.length === 0 ? '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 20px;">No active external connections</td></tr>' : ''}
+              ${topConns.map(c => `
+                <tr>
+                  <td><b>${escapeHtml(c.remote_ip)}</b></td>
+                  <td>${c.count} conn</td>
+                  <td><span class="badge" style="background: rgba(56,189,248,0.15); color: #38bdf8;">Established</span></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card" style="padding: 16px;">
+          <h4 style="margin-bottom: 10px;">🚪 Open Listening Ports & Attack Surface</h4>
+          <table>
+            <thead>
+              <tr><th>Port / Proto</th><th>Binding</th><th>Exposure</th><th>Risk</th></tr>
+            </thead>
+            <tbody>
+              ${ports.length === 0 ? '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">No listening ports detected</td></tr>' : ''}
+              ${ports.map(p => {
+                const isHigh = p.risk === 'high';
+                const riskBadge = isHigh ? '<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">🚨 HIGH RISK</span>' : '<span class="badge" style="background: rgba(52,211,153,0.15); color: #34d399;">Safe / Low</span>';
+                const expBadge = p.public 
+                  ? '<span class="badge" style="background: rgba(251,191,36,0.15); color: #fbbf24;">🌐 Public Internet</span>' 
+                  : '<span class="badge" style="background: rgba(148,163,184,0.15); color: #94a3b8;">🔒 Localhost Only</span>';
+                return `
+                  <tr>
+                    <td><b>${escapeHtml(p.port)}</b> <span style="font-size: 0.75rem; color: var(--text-muted);">(${escapeHtml(p.proto)})</span></td>
+                    <td style="font-family: monospace; font-size: 0.8rem;">${escapeHtml(p.address)}</td>
+                    <td>${expBadge}</td>
+                    <td>${riskBadge}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
       </div>
     `;
   } else if (tab === 'desired') {

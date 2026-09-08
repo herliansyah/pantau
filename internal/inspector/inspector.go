@@ -1,8 +1,12 @@
 package inspector
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
+	"net"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -85,11 +89,12 @@ func (ins *Inspector) InspectHost(hostID int64) error {
 	return ins.db.UpdateHostInspection(host)
 }
 
+// SystemMetricsBatchCmd is the single-shot batch command to gather system, network, and security metrics.
+// ponytail: Batching commands into a single roundtrip keeps agentless overhead near zero.
+const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; df -Pk / 2>/dev/null; echo "---"; dmesg --level=err,crit 2>/dev/null | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; ss -H -nt state established 2>/dev/null | awk '{print $4, $5}' | head -n 50; echo "---"; ss -H -tlpn 2>/dev/null | awk '{print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l`
+
 func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner) error {
-	// Combined single-shot command to minimize SSH roundtrips
-	// ponytail: Batching commands into a single roundtrip keeps agentless overhead near zero.
-	batchCmd := `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; df -Pk / 2>/dev/null; echo "---"; dmesg --level=err,crit 2>/dev/null | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l`
-	stdout, _, _, err := runner.Exec(batchCmd)
+	stdout, _, _, err := runner.Exec(SystemMetricsBatchCmd)
 	if err != nil {
 		return fmt.Errorf("exec metrics batch: %w", err)
 	}
@@ -122,7 +127,160 @@ func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner
 	h.LifecycleScore = score
 	h.LifecycleNotes = notes
 
+	// Parse Network & Security Observability Metrics
+	var netDevSec, pingSec, pubIPSec, estSec, listenSec, failedSec string
+	if len(sections) >= 7 {
+		netDevSec = sections[6]
+	}
+	if len(sections) >= 8 {
+		pingSec = sections[7]
+	}
+	if len(sections) >= 9 {
+		pubIPSec = sections[8]
+	}
+	if len(sections) >= 10 {
+		estSec = sections[9]
+	}
+	if len(sections) >= 11 {
+		listenSec = sections[10]
+	}
+	if len(sections) >= 12 {
+		failedSec = sections[11]
+	}
+	parseNetworkMetrics(h, netDevSec, pingSec, pubIPSec, estSec, listenSec, failedSec)
+
 	return nil
+}
+
+func parseNetworkMetrics(h *store.Host, netDevSec, pingSec, pubIPSec, estSec, listenSec, failedSec string) {
+	// 1. Bandwidth & Transfer
+	fields := strings.Fields(strings.TrimSpace(netDevSec))
+	if len(fields) >= 2 {
+		rx, _ := strconv.ParseInt(fields[0], 10, 64)
+		tx, _ := strconv.ParseInt(fields[1], 10, 64)
+
+		if h.LastInspected != nil && h.NetRxBytes > 0 {
+			elapsed := time.Since(*h.LastInspected).Seconds()
+			if elapsed > 0 {
+				deltaRx := rx - h.NetRxBytes
+				deltaTx := tx - h.NetTxBytes
+				if deltaRx >= 0 {
+					h.NetRxSpeedBps = int64(float64(deltaRx) / elapsed)
+				}
+				if deltaTx >= 0 {
+					h.NetTxSpeedBps = int64(float64(deltaTx) / elapsed)
+				}
+			}
+		}
+		h.NetRxBytes = rx
+		h.NetTxBytes = tx
+	}
+
+	// 2. Internet Egress & Latency
+	pingOut := strings.TrimSpace(pingSec)
+	if pingOut == "" || strings.EqualFold(pingOut, "OFFLINE") {
+		h.InternetOnline = false
+		h.InternetLatencyMs = 0
+	} else {
+		h.InternetOnline = true
+		latFloat, _ := strconv.ParseFloat(pingOut, 64)
+		h.InternetLatencyMs = int64(math.Round(latFloat))
+	}
+
+	// 3. Public IP
+	h.PublicIP = strings.TrimSpace(pubIPSec)
+
+	// 4. Established Connections & Top Remote IPs
+	ipCounts := make(map[string]int)
+	totalActive := 0
+	for _, line := range strings.Split(estSec, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			totalActive++
+			remote := parts[1]
+			host, _, err := net.SplitHostPort(remote)
+			if err != nil {
+				host = remote
+			}
+			if host != "" {
+				ipCounts[host]++
+			}
+		}
+	}
+	h.ActiveConnCount = totalActive
+
+	type ipCountPair struct {
+		ip    string
+		count int
+	}
+	var pairs []ipCountPair
+	for ip, count := range ipCounts {
+		pairs = append(pairs, ipCountPair{ip: ip, count: count})
+	}
+	sort.Slice(pairs, func(i, j int) bool {
+		return pairs[i].count > pairs[j].count
+	})
+
+	var topConns []store.TopConn
+	limit := 10
+	if len(pairs) < limit {
+		limit = len(pairs)
+	}
+	for i := 0; i < limit; i++ {
+		topConns = append(topConns, store.TopConn{
+			RemoteIP: pairs[i].ip,
+			Count:    pairs[i].count,
+		})
+	}
+	topBytes, _ := json.Marshal(topConns)
+	h.TopConnections = string(topBytes)
+
+	// 5. Listening Ports & Public Exposure
+	sensitivePorts := map[string]bool{
+		"3306": true, "5432": true, "6379": true, "27017": true,
+		"9200": true, "2375": true, "11211": true,
+	}
+	var listening []store.ListeningPort
+	for _, line := range strings.Split(listenSec, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) >= 2 {
+			addr := parts[1] // e.g. 0.0.0.0:80, *:22, 127.0.0.1:3306
+			proc := ""
+			if len(parts) >= 3 {
+				proc = parts[2]
+			}
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				continue
+			}
+			isPublic := host == "0.0.0.0" || host == "*" || host == "::" || host == ""
+			risk := "low"
+			if isPublic && sensitivePorts[port] {
+				risk = "high"
+			}
+			listening = append(listening, store.ListeningPort{
+				Proto:   "tcp",
+				Port:    port,
+				Address: addr,
+				Public:  isPublic,
+				Process: proc,
+				Risk:    risk,
+			})
+		}
+	}
+	listenBytes, _ := json.Marshal(listening)
+	h.ListeningPorts = string(listenBytes)
+
+	// 6. Failed Logins Count
+	h.FailedLoginsCount, _ = strconv.Atoi(strings.TrimSpace(failedSec))
 }
 
 func parseOSInfo(osRelease string) string {

@@ -56,4 +56,16 @@ _Avoid_: Copy task, sync process
 Proses pengaliran arsip direktori secara on-the-fly langsung dari Host ke response browser pengguna (menggunakan zip jika terpasang di remote atau tar.gz) tanpa menyimpan file arsip di disk master Pantau.
 _Avoid_: Folder export, zip dump
 
+**Network Egress**:
+Status keterhubungan keluar Host ke internet publik dan pengukuran latensi roundtrip (ms) ke resolver global.
+_Avoid_: Internet status, ping check
+
+**Port Exposure**:
+Klasifikasi tingkat keterbukaan listening port pada Host (apakah terikat pada interface publik `0.0.0.0`/`*` atau terisolasi lokal `127.0.0.1`) beserta penilaian risiko keamanan service sensitif.
+_Avoid_: Open port list, firewall rule
+
+**Socket Profile**:
+Ringkasan koneksi TCP/UDP aktif pada Host yang memetakan alamat IP klien eksternal teratas, port tujuan, dan proses yang melayaninya.
+_Avoid_: Netstat dump, raw connections
+
 
