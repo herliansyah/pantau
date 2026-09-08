@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pantau — Server Monitoring & Management</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/nord.min.css" />
+<style>
+:root {
+  --bg: #0f172a;
+  --card-bg: #1e293b;
+  --card-border: #334155;
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --success: #10b981;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+header { background: var(--card-bg); border-bottom: 1px solid var(--card-border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+.logo { font-size: 1.25rem; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 8px; }
+.btn { background: var(--card-border); color: var(--text); border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.15s; }
+.btn:hover { opacity: 0.9; }
+.btn-primary { background: var(--primary); }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-danger { background: var(--danger); }
+.btn-success { background: var(--success); }
+.btn-warning { background: var(--warning); color: #000; }
+.btn-sm { padding: 4px 8px; font-size: 0.75rem; }
+.badge { padding: 3px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+.badge-healthy { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+.badge-degraded { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+.badge-down { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+.badge-unknown { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
+.container { max-width: 1400px; margin: 0 auto; padding: 24px; width: 100%; flex: 1; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+.card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.card-title { font-size: 1.1rem; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+.stat-row { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); }
+.progress { background: #334155; border-radius: 4px; height: 6px; overflow: hidden; margin-top: 4px; }
+.progress-fill { background: var(--primary); height: 100%; }
+.progress-fill.warn { background: var(--warning); }
+.progress-fill.danger { background: var(--danger); }
+.score-badge { font-weight: 700; font-size: 1rem; color: #38bdf8; }
+.modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); z-index: 50; align-items: center; justify-content: center; padding: 20px; }
+.modal.open { display: flex; }
+.modal-content { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; width: 100%; max-width: 1000px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+.modal-header { padding: 16px 20px; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center; }
+.modal-body { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px; }
+.tabs { display: flex; border-bottom: 1px solid var(--card-border); gap: 8px; margin-bottom: 16px; }
+.tab { padding: 8px 16px; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; font-weight: 500; border-bottom: 2px solid transparent; }
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--card-border); }
+th { color: var(--text-muted); font-weight: 600; }
+input, select, textarea { background: #0f172a; border: 1px solid var(--card-border); color: #fff; padding: 8px 12px; border-radius: 6px; width: 100%; font-size: 0.9rem; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.alert-bar { background: rgba(239, 68, 68, 0.15); border-left: 4px solid var(--danger); padding: 12px 16px; margin-bottom: 16px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; overflow-x: auto; color: #38bdf8; max-height: 250px; }
+.terminal-container { height: 450px; background: #000; border-radius: 8px; padding: 8px; }
+.CodeMirror { height: 450px; font-size: 13px; border-radius: 6px; }
+</style>
+</head>
+<body>
+
+<div id="loginView" style="display: none; height: 100vh; align-items: center; justify-content: center;">
+  <div style="background: var(--card-bg); border: 1px solid var(--card-border); padding: 32px; border-radius: 12px; width: 340px; display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="text-align: center; color: #60a5fa;">PANTAU</h2>
+    <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">Agentless Server Management</p>
+    <div class="form-group">
+      <input type="password" id="loginPassword" placeholder="Admin Password" onkeyup="if(event.key==='Enter') doLogin()" />
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">Login</button>
+    <div id="loginErr" style="color: var(--danger); font-size: 0.8rem; text-align: center;"></div>
+  </div>
+</div>
+
+<div id="appView" style="display: none; flex-direction: column; flex: 1;">
+  <header>
+    <div class="logo">
+      <span>🛡️</span> PANTAU
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <span id="activeAlertBadge" style="display: none;" class="badge badge-down">0 ALERTS</span>
+      <button class="btn btn-primary" onclick="openAddHostModal()">+ Add Host</button>
+      <button class="btn" onclick="openSettingsModal()">⚙️ Settings</button>
+      <button class="btn" onclick="doLogout()">Logout</button>
+    </div>
+  </header>
+
+  <div class="container">
+    <div id="alertBannerArea"></div>
+    <div id="hostGrid" class="grid"></div>
+  </div>
+</div>
+
+<!-- Add/Edit Host Modal -->
+<div id="hostModal" class="modal">
+  <div class="modal-content" style="max-width: 500px;">
+    <div class="modal-header">
+      <h3 id="hostModalTitle">Add Host</h3>
+      <button class="btn btn-sm" onclick="closeModal('hostModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editHostId" />
+      <div class="form-group">
+        <label>Display Name</label>
+        <input type="text" id="hostName" placeholder="e.g. Production Web" />
+      </div>
+      <div class="form-group">
+        <label>Hostname or IP</label>
+        <input type="text" id="hostAddr" placeholder="192.168.1.100 or vps.domain.com" />
+      </div>
+      <div style="display: flex; gap: 12px;">
+        <div class="form-group" style="flex: 1;">
+          <label>SSH Port</label>
+          <input type="number" id="hostPort" value="22" />
+        </div>
+        <div class="form-group" style="flex: 1;">
+          <label>SSH User</label>
+          <input type="text" id="hostUser" value="root" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Custom SSH Private Key (Optional, leave blank to use global key)</label>
+        <textarea id="hostCustomKey" rows="3" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+        <button class="btn" onclick="closeModal('hostModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveHost()">Save Host</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Host Details Modal -->
+<div id="hostDetailModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <h3 id="detailHostName">Host</h3>
+        <span id="detailHostBadge" class="badge">UNKNOWN</span>
+      </div>
+      <button class="btn btn-sm" onclick="closeModal('hostDetailModal')">✕</button>
+    </div>
+    <div style="padding: 0 20px;">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('overview')">Overview</div>
+        <div class="tab" onclick="switchTab('desired')">Desired State (Drift)</div>
+        <div class="tab" onclick="switchTab('docker')">Docker</div>
+        <div class="tab" onclick="switchTab('timeline')">Incident Timeline</div>
+        <div class="tab" onclick="switchTab('files')">File Manager</div>
+        <div class="tab" onclick="switchTab('terminal')">Terminal</div>
+      </div>
+    </div>
+    <div class="modal-body" id="tabContent"></div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="modal">
+  <div class="modal-content" style="max-width: 600px;">
+    <div class="modal-header">
+      <h3>Settings</h3>
+      <button class="btn btn-sm" onclick="closeModal('settingsModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Global Pantau SSH Public Key (Paste into target server ~/.ssh/authorized_keys)</label>
+        <textarea id="settingPubKey" rows="3" readonly style="font-family: monospace; font-size: 0.8rem;"></textarea>
+        <button class="btn btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('settingPubKey').value); alert('Public key copied!')">📋 Copy Key</button>
+      </div>
+      <hr style="border-color: var(--card-border); margin: 8px 0;" />
+      <h4>Notification Dispatcher</h4>
+      <div class="form-group">
+        <label>Telegram Bot Token</label>
+        <input type="text" id="settingTgToken" placeholder="123456789:ABCdef..." />
+      </div>
+      <div class="form-group">
+        <label>Telegram Chat ID</label>
+        <input type="text" id="settingTgChat" placeholder="-100123456789 or user ID" />
+      </div>
+      <div class="form-group">
+        <label>Webhook URL (HTTP POST JSON)</label>
+        <input type="text" id="settingWebhook" placeholder="https://webhook.site/..." />
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-primary" onclick="saveSettings()">Save Notification Settings</button>
+        <button class="btn" onclick="testNotification()">🔔 Test Notification</button>
+      </div>
+      <hr style="border-color: var(--card-border); margin: 8px 0;" />
+      <h4>Change Admin Password</h4>
+      <div class="form-group">
+        <input type="password" id="oldPass" placeholder="Current Password" />
+        <input type="password" id="newPass" placeholder="New Password" />
+        <button class="btn btn-warning btn-sm" onclick="changePassword()">Update Password</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Code Editor Modal -->
+<div id="editorModal" class="modal">
+  <div class="modal-content" style="max-width: 900px;">
+    <div class="modal-header">
+      <h3 id="editorFilePath">Edit File</h3>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-success btn-sm" onclick="saveEditorFile()">💾 Save</button>
+        <button class="btn btn-sm" onclick="closeModal('editorModal')">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" style="padding: 0;">
+      <textarea id="codeEditorArea"></textarea>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/php/php.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/shell/shell.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
+
+<script>
+let currentHost = null;
+let currentTab = 'overview';
+let terminalSocket = null;
+let activeTerm = null;
+let codeEditor = null;
+
+async function checkAuth() {
+  const res = await fetch('/api/me');
+  const data = await res.json();
+  if (data.authenticated) {
+    document.getElementById('loginView').style.display = 'none';
+    document.getElementById('appView').style.display = 'flex';
+    loadHosts();
+    loadAlerts();
+    setInterval(loadAlerts, 15000);
+  } else {
+    document.getElementById('loginView').style.display = 'flex';
+    document.getElementById('appView').style.display = 'none';
+  }
+}
+
+async function doLogin() {
+  const pass = document.getElementById('loginPassword').value;
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pass })
+  });
+  if (res.ok) {
+    checkAuth();
+  } else {
+    document.getElementById('loginErr').innerText = 'Password salah';
+  }
+}
+
+async function doLogout() {
+  await fetch('/api/logout', { method: 'POST' });
+  location.reload();
+}
+
+async function loadHosts() {
+  const res = await fetch('/api/hosts');
+  if (!res.ok) return;
+  const hosts = await res.json();
+  const grid = document.getElementById('hostGrid');
+  grid.innerHTML = '';
+  if (!hosts || hosts.length === 0) {
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">No hosts configured yet. Click "+ Add Host" to begin.</div>';
+    return;
+  }
+  hosts.forEach(h => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const ramPct = h.ram_total_bytes > 0 ? Math.round((h.ram_used_bytes / h.ram_total_bytes) * 100) : 0;
+    const diskPct = h.disk_total_bytes > 0 ? Math.round((h.disk_used_bytes / h.disk_total_bytes) * 100) : 0;
+
+    let scoreColor = '#34d399';
+    if (h.lifecycle_score < 50) scoreColor = '#f87171';
+    else if (h.lifecycle_score < 80) scoreColor = '#fbbf24';
+
+    card.innerHTML = `
+      <div class="card-title">
+        <span>${escapeHtml(h.name)}</span>
+        <span class="badge badge-${h.status}">${h.status}</span>
+      </div>
+      <div class="stat-row"><span>Address:</span> <span>${h.host}:${h.port} (${h.user})</span></div>
+      <div class="stat-row"><span>OS:</span> <span>${escapeHtml(h.os_info || 'Unknown')}</span></div>
+      <div class="stat-row"><span>Uptime:</span> <span>${escapeHtml(h.uptime || '-')}</span></div>
+      <div>
+        <div class="stat-row"><span>RAM Usage</span> <span>${ramPct}%</span></div>
+        <div class="progress"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
+      </div>
+      <div>
+        <div class="stat-row"><span>Disk Usage</span> <span>${diskPct}%</span></div>
+        <div class="progress"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
+      </div>
+      <div class="stat-row" style="align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px;">
+        <span>Lifecycle Score:</span>
+        <span class="score-badge" style="color: ${scoreColor}">${h.lifecycle_score}/100</span>
+      </div>
+      <div style="display: flex; gap: 6px; margin-top: 6px;">
+        <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">🔍 View</button>
+        <button class="btn btn-sm" onclick="inspectHost(${h.id})">⚡ Inspect</button>
+        <button class="btn btn-sm" onclick="testHostSSH(${h.id})">🔌 Test</button>
+        <button class="btn btn-danger btn-sm" style="margin-left: auto;" onclick="deleteHost(${h.id})">🗑️</button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+async function loadAlerts() {
+  const res = await fetch('/api/alerts');
+  if (!res.ok) return;
+  const alerts = await res.json();
+  const badge = document.getElementById('activeAlertBadge');
+  const banner = document.getElementById('alertBannerArea');
+  if (alerts && alerts.length > 0) {
+    badge.innerText = alerts.length + ' ALERTS';
+    badge.style.display = 'inline-block';
+    banner.innerHTML = alerts.map(a => `
+      <div class="alert-bar">
+        <div>
+          <b>[${escapeHtml(a.host_name)}]</b> ${escapeHtml(a.message)}
+        </div>
+        <button class="btn btn-sm" onclick="ackAlert(${a.id})">Dismiss</button>
+      </div>
+    `).join('');
+  } else {
+    badge.style.display = 'none';
+    banner.innerHTML = '';
+  }
+}
+
+async function ackAlert(id) {
+  await fetch('/api/alerts/' + id + '/ack', { method: 'POST' });
+  loadAlerts();
+}
+
+function openAddHostModal() {
+  document.getElementById('hostModalTitle').innerText = 'Add Host';
+  document.getElementById('editHostId').value = '';
+  document.getElementById('hostName').value = '';
+  document.getElementById('hostAddr').value = '';
+  document.getElementById('hostPort').value = 22;
+  document.getElementById('hostUser').value = 'root';
+  document.getElementById('hostCustomKey').value = '';
+  document.getElementById('hostModal').classList.add('open');
+}
+
+async function saveHost() {
+  const id = document.getElementById('editHostId').value;
+  const payload = {
+    name: document.getElementById('hostName').value,
+    host: document.getElementById('hostAddr').value,
+    port: parseInt(document.getElementById('hostPort').value) || 22,
+    user: document.getElementById('hostUser').value,
+    custom_key: document.getElementById('hostCustomKey').value,
+  };
+  const method = id ? 'PUT' : 'POST';
+  const url = id ? '/api/hosts/' + id : '/api/hosts';
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (res.ok) {
+    closeModal('hostModal');
+    loadHosts();
+  } else {
+    alert('Failed to save host');
+  }
+}
+
+async function deleteHost(id) {
+  if (!confirm('Hapus host ini?')) return;
+  await fetch('/api/hosts/' + id, { method: 'DELETE' });
+  loadHosts();
+}
+
+async function testHostSSH(id) {
+  const res = await fetch('/api/hosts/' + id + '/test', { method: 'POST' });
+  const data = await res.json();
+  if (data.ok) {
+    alert('SSH Connection SUCCESS:\n' + data.output);
+  } else {
+    alert('SSH Connection FAILED:\n' + data.error);
+  }
+}
+
+async function inspectHost(id) {
+  const res = await fetch('/api/hosts/' + id + '/inspect', { method: 'POST' });
+  const data = await res.json();
+  if (data.ok) {
+    loadHosts();
+    if (currentHost && currentHost.id === id) {
+      openHostDetail(id);
+    }
+  } else {
+    alert('Inspection failed: ' + data.error);
+  }
+}
+
+async function openHostDetail(id) {
+  const res = await fetch('/api/hosts/' + id);
+  if (!res.ok) return;
+  const data = await res.json();
+  currentHost = data.host;
+  window.detailData = data;
+  document.getElementById('detailHostName').innerText = currentHost.name + ' (' + currentHost.host + ')';
+  const badge = document.getElementById('detailHostBadge');
+  badge.className = 'badge badge-' + currentHost.status;
+  badge.innerText = currentHost.status;
+  document.getElementById('hostDetailModal').classList.add('open');
+  switchTab(currentTab);
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => {
+    if (t.innerText.toLowerCase().includes(tab)) t.classList.add('active');
+  });
+
+  const content = document.getElementById('tabContent');
+  const d = window.detailData;
+  if (!d) return;
+
+  if (tab === 'overview') {
+    content.innerHTML = `
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="card">
+          <h4>System Information</h4>
+          <div class="stat-row"><span>OS:</span> <span>${escapeHtml(d.host.os_info)}</span></div>
+          <div class="stat-row"><span>Kernel:</span> <span>${escapeHtml(d.host.kernel)}</span></div>
+          <div class="stat-row"><span>Uptime:</span> <span>${escapeHtml(d.host.uptime)}</span></div>
+          <div class="stat-row"><span>Load Average:</span> <span>${escapeHtml(d.host.cpu_load)}</span></div>
+        </div>
+        <div class="card">
+          <h4>Lifecycle Assessment</h4>
+          <div class="stat-row"><span>Lifecycle Score:</span> <span class="score-badge">${d.host.lifecycle_score}/100</span></div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">${escapeHtml(d.host.lifecycle_notes)}</p>
+          ${d.host.lifecycle_score < 60 ? '<div style="color: var(--danger); font-size: 0.8rem; margin-top: 6px;">⚠️ Server ini disarankan untuk upgrade / penggantian hardware!</div>' : ''}
+        </div>
+      </div>
+      <div style="margin-top: 10px;">
+        <button class="btn btn-primary" onclick="inspectHost(${d.host.id})">⚡ Run Immediate Inspection</button>
+      </div>
+    `;
+  } else if (tab === 'desired') {
+    const rules = d.rules || [];
+    content.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h4>Desired State Rules</h4>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-warning btn-sm" onclick="generateBaseline(${d.host.id})">⚡ Auto-Detect Baseline</button>
+          <button class="btn btn-primary btn-sm" onclick="addRulePrompt(${d.host.id})">+ Add Rule</button>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Kind</th><th>Target</th><th>Expected</th><th>Current Actual</th><th>Status</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          ${rules.length === 0 ? '<tr><td colspan="6" style="text-align: center;">Belum ada aturan. Klik "Auto-Detect Baseline" untuk generate otomatis.</td></tr>' : ''}
+          ${rules.map(r => {
+            const actual = (d.actual_items || []).find(it => it.kind === r.kind && it.target === r.target);
+            const status = actual ? actual.status : 'unknown';
+            const current = actual ? actual.current : '-';
+            return `
+              <tr>
+                <td><b>${r.kind}</b></td>
+                <td>${escapeHtml(r.target)}</td>
+                <td>${escapeHtml(r.expected)}</td>
+                <td>${escapeHtml(current)}</td>
+                <td><span class="badge badge-${status === 'ok' ? 'healthy' : 'down'}">${status}</span></td>
+                <td><button class="btn btn-danger btn-sm" onclick="deleteRule(${r.id})">✕</button></td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  } else if (tab === 'docker') {
+    const containers = (d.actual_items || []).filter(it => it.kind === 'container');
+    content.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h4>Docker Containers</h4>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Container Name</th><th>Status</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          ${containers.length === 0 ? '<tr><td colspan="3" style="text-align: center;">Tidak ada container Docker yang terdeteksi.</td></tr>' : ''}
+          ${containers.map(c => `
+            <tr>
+              <td><b>${escapeHtml(c.target)}</b></td>
+              <td><span class="badge badge-${c.status === 'ok' ? 'healthy' : 'down'}">${escapeHtml(c.current)}</span></td>
+              <td>
+                <button class="btn btn-success btn-sm" onclick="dockerAction('${c.target}', 'start')">▶ Start</button>
+                <button class="btn btn-warning btn-sm" onclick="dockerAction('${c.target}', 'restart')">🔄 Restart</button>
+                <button class="btn btn-danger btn-sm" onclick="dockerAction('${c.target}', 'stop')">⏹ Stop</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } else if (tab === 'timeline') {
+    const incidents = d.incidents || [];
+    content.innerHTML = `
+      <h4>Incident & Drift Timeline</h4>
+      <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+        ${incidents.length === 0 ? '<p style="color: var(--text-muted);">Belum ada insiden drift yang tercatat.</p>' : ''}
+        ${incidents.map(inc => `
+          <div class="card" style="padding: 14px; border-left: 4px solid ${inc.event_type === 'drift_detected' ? 'var(--danger)' : 'var(--success)'}">
+            <div style="display: flex; justify-content: space-between;">
+              <b>${escapeHtml(inc.summary)}</b>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">${inc.created_at}</span>
+            </div>
+            ${inc.root_cause_excerpt ? `
+              <div style="margin-top: 8px;">
+                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">ROOT CAUSE EXCERPT:</span>
+                <pre>${escapeHtml(inc.root_cause_excerpt)}</pre>
+              </div>
+            ` : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } else if (tab === 'files') {
+    loadFiles('/');
+  } else if (tab === 'terminal') {
+    initTerminal(d.host.id);
+  }
+}
+
+async function generateBaseline(hostID) {
+  const res = await fetch('/api/hosts/' + hostID + '/baseline', { method: 'POST' });
+  if (res.ok) {
+    inspectHost(hostID);
+  }
+}
+
+async function addRulePrompt(hostID) {
+  const kind = prompt('Kind (container, disk, backup, cron, service):', 'container');
+  if (!kind) return;
+  const target = prompt('Target (e.g. nginx, /, /var/backups/db.sql.gz):');
+  if (!target) return;
+  const expected = prompt('Expected (e.g. running, <85%, fresh_24h, active):', 'running');
+  if (!expected) return;
+
+  await fetch('/api/hosts/' + hostID + '/rules', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, target, expected, enabled: true })
+  });
+  inspectHost(hostID);
+}
+
+async function deleteRule(id) {
+  if (!confirm('Hapus aturan ini?')) return;
+  await fetch('/api/rules/' + id, { method: 'DELETE' });
+  inspectHost(currentHost.id);
+}
+
+async function dockerAction(container, action) {
+  const res = await fetch('/api/hosts/' + currentHost.id + '/docker/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ container, action })
+  });
+  const data = await res.json();
+  if (data.ok) {
+    alert('Docker ' + action + ' berhasil');
+    inspectHost(currentHost.id);
+  } else {
+    alert('Error: ' + data.error);
+  }
+}
+
+// SFTP File Manager
+async function loadFiles(path) {
+  const content = document.getElementById('tabContent');
+  content.innerHTML = '<p>Loading files...</p>';
+  const res = await fetch('/api/hosts/' + currentHost.id + '/files/list?path=' + encodeURIComponent(path));
+  if (!res.ok) {
+    content.innerHTML = '<p style="color: var(--danger);">Gagal membuka path: ' + path + '</p>';
+    return;
+  }
+  const data = await res.json();
+  const parent = path === '/' ? '/' : path.substring(0, path.lastIndexOf('/')) || '/';
+  content.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <div style="font-weight: 600; font-family: monospace;">📁 Path: ${escapeHtml(data.path)}</div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-sm" onclick="loadFiles('${parent}')">⬆ Up</button>
+        <input type="file" id="fileUploadInput" style="display: none;" onchange="uploadFile('${data.path}')" />
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('fileUploadInput').click()">📤 Upload File</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>Name</th><th>Size</th><th>Perms</th><th>Modified</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${(data.files || []).map(f => `
+          <tr>
+            <td>
+              ${f.is_dir ? '📁 <a href="javascript:void(0)" onclick="loadFiles(\'' + (data.path === '/' ? '/' + f.name : data.path + '/' + f.name) + '\')"><b>' + escapeHtml(f.name) + '</b></a>' : '📄 ' + escapeHtml(f.name)}
+            </td>
+            <td>${f.size} B</td>
+            <td>${f.mode}</td>
+            <td>${f.mod_time}</td>
+            <td>
+              ${!f.is_dir ? '<button class="btn btn-primary btn-sm" onclick="openEditor(\'' + (data.path === '/' ? '/' + f.name : data.path + '/' + f.name) + '\')">✏️ Edit</button> ' : ''}
+              ${!f.is_dir ? '<a class="btn btn-sm" href="/api/hosts/' + currentHost.id + '/files/download?path=' + encodeURIComponent(data.path === '/' ? '/' + f.name : data.path + '/' + f.name) + '">⬇️</a> ' : ''}
+              <button class="btn btn-danger btn-sm" onclick="deleteRemoteFile(\'' + (data.path === '/' ? '/' + f.name : data.path + '/' + f.name) + '\', \'' + data.path + '\')">🗑️</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+async function uploadFile(targetDir) {
+  const input = document.getElementById('fileUploadInput');
+  if (!input.files.length) return;
+  const formData = new FormData();
+  formData.append('file', input.files[0]);
+  await fetch('/api/hosts/' + currentHost.id + '/files/upload?dir=' + encodeURIComponent(targetDir), {
+    method: 'POST',
+    body: formData
+  });
+  loadFiles(targetDir);
+}
+
+async function deleteRemoteFile(path, parentDir) {
+  if (!confirm('Hapus ' + path + '?')) return;
+  await fetch('/api/hosts/' + currentHost.id + '/files/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path })
+  });
+  loadFiles(parentDir);
+}
+
+async function openEditor(path) {
+  const res = await fetch('/api/hosts/' + currentHost.id + '/files/read?path=' + encodeURIComponent(path));
+  if (!res.ok) { alert('Gagal membaca file'); return; }
+  const data = await res.json();
+  document.getElementById('editorFilePath').innerText = path;
+  document.getElementById('editorModal').classList.add('open');
+
+  if (!codeEditor) {
+    codeEditor = CodeMirror.fromTextArea(document.getElementById('codeEditorArea'), {
+      lineNumbers: true,
+      theme: 'nord',
+      mode: 'php'
+    });
+  }
+  codeEditor.setValue(data.content);
+  setTimeout(() => codeEditor.refresh(), 100);
+}
+
+async function saveEditorFile() {
+  const path = document.getElementById('editorFilePath').innerText;
+  const content = codeEditor.getValue();
+  const res = await fetch('/api/hosts/' + currentHost.id + '/files/write', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, content })
+  });
+  if (res.ok) {
+    alert('File saved successfully!');
+    closeModal('editorModal');
+  } else {
+    alert('Failed to save file');
+  }
+}
+
+// Web Terminal (xterm.js)
+function initTerminal(hostID) {
+  const content = document.getElementById('tabContent');
+  content.innerHTML = '<div id="termDiv" class="terminal-container"></div>';
+
+  if (terminalSocket) {
+    terminalSocket.close();
+  }
+  if (activeTerm) {
+    activeTerm.dispose();
+  }
+
+  const term = new Terminal({
+    cursorBlink: true,
+    fontFamily: 'monospace',
+    fontSize: 13,
+    theme: { background: '#000000', foreground: '#ffffff' }
+  });
+  activeTerm = term;
+  const fitAddon = new FitAddon.FitAddon();
+  term.loadAddon(fitAddon);
+  term.open(document.getElementById('termDiv'));
+  fitAddon.fit();
+
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = protocol + '//' + location.host + '/ws/terminal?host_id=' + hostID;
+  const ws = new WebSocket(wsUrl);
+  terminalSocket = ws;
+
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => {
+    term.write('\r\n\x1b[32m[Pantau SSH Bridge Connected]\x1b[0m\r\n\r\n');
+  };
+  ws.onmessage = (ev) => {
+    if (typeof ev.data === 'string') {
+      term.write(ev.data);
+    } else {
+      term.write(new Uint8Array(ev.data));
+    }
+  };
+  ws.onclose = () => {
+    term.write('\r\n\x1b[31m[Session Disconnected]\x1b[0m\r\n');
+  };
+  term.onData(data => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(data);
+    }
+  });
+}
+
+// Settings
+async function openSettingsModal() {
+  const res = await fetch('/api/settings');
+  const data = await res.json();
+  document.getElementById('settingPubKey').value = data.ssh_public_key;
+  document.getElementById('settingTgToken').value = data.telegram_token;
+  document.getElementById('settingTgChat').value = data.telegram_chat_id;
+  document.getElementById('settingWebhook').value = data.webhook_url;
+  document.getElementById('settingsModal').classList.add('open');
+}
+
+async function saveSettings() {
+  const payload = {
+    telegram_token: document.getElementById('settingTgToken').value,
+    telegram_chat_id: document.getElementById('settingTgChat').value,
+    webhook_url: document.getElementById('settingWebhook').value,
+  };
+  await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  alert('Settings saved!');
+}
+
+async function testNotification() {
+  const res = await fetch('/api/settings/test-notify', { method: 'POST' });
+  const data = await res.json();
+  if (data.ok) {
+    alert('Test notification sent successfully!');
+  } else {
+    alert('Failed to send test notification: ' + data.error);
+  }
+}
+
+async function changePassword() {
+  const old_password = document.getElementById('oldPass').value;
+  const new_password = document.getElementById('newPass').value;
+  const res = await fetch('/api/password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_password, new_password })
+  });
+  if (res.ok) {
+    alert('Password updated!');
+  } else {
+    alert('Failed to update password');
+  }
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+checkAuth();
+</script>
+</body>
+</html>

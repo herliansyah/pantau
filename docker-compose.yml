@@ -1,0 +1,12 @@
+services:
+  pantau:
+    build: .
+    container_name: pantau
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PANTAU_PORT=8080
+      - PANTAU_DB=/app/data/pantau.db
