@@ -39,3 +39,8 @@ _Avoid_: Backup validation, dump check
 **Notification Channel**:
 Saluran pengiriman peringatan saat terdeteksi Drift (seperti Telegram bot, webhook, atau in-app dashboard).
 _Avoid_: Alert sink, message publisher
+
+**Key Provisioning**:
+Proses penyisipan otomatis SSH Public Key Pantau ke dalam `~/.ssh/authorized_keys` di Host target menggunakan autentikasi password sementara (one-time).
+_Avoid_: Password sync, credential push
+

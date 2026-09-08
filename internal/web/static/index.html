@@ -126,9 +126,13 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
           <input type="text" id="hostUser" value="root" />
         </div>
       </div>
+      <div class="form-group" id="passGroup">
+        <label>SSH Password (One-Time: auto-injects Pantau public key)</label>
+        <input type="password" id="hostPassword" placeholder="e.g. root password (never stored in database)" />
+      </div>
       <div class="form-group">
         <label>Custom SSH Private Key (Optional, leave blank to use global key)</label>
-        <textarea id="hostCustomKey" rows="3" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+        <textarea id="hostCustomKey" rows="2" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
         <button class="btn" onclick="closeModal('hostModal')">Cancel</button>
@@ -313,10 +317,11 @@ async function loadHosts() {
         <span>Lifecycle Score:</span>
         <span class="score-badge" style="color: ${scoreColor}">${h.lifecycle_score}/100</span>
       </div>
-      <div style="display: flex; gap: 6px; margin-top: 6px;">
+      <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
         <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">🔍 View</button>
         <button class="btn btn-sm" onclick="inspectHost(${h.id})">⚡ Inspect</button>
         <button class="btn btn-sm" onclick="testHostSSH(${h.id})">🔌 Test</button>
+        <button class="btn btn-warning btn-sm" onclick="promptInjectKey(${h.id}, '${escapeHtml(h.name)}')">🔑 Inject Key</button>
         <button class="btn btn-danger btn-sm" style="margin-left: auto;" onclick="deleteHost(${h.id})">🗑️</button>
       </div>
     `;
@@ -359,7 +364,9 @@ function openAddHostModal() {
   document.getElementById('hostAddr').value = '';
   document.getElementById('hostPort').value = 22;
   document.getElementById('hostUser').value = 'root';
+  document.getElementById('hostPassword').value = '';
   document.getElementById('hostCustomKey').value = '';
+  document.getElementById('passGroup').style.display = 'flex';
   document.getElementById('hostModal').classList.add('open');
 }
 
@@ -370,6 +377,7 @@ async function saveHost() {
     host: document.getElementById('hostAddr').value,
     port: parseInt(document.getElementById('hostPort').value) || 22,
     user: document.getElementById('hostUser').value,
+    password: document.getElementById('hostPassword').value,
     custom_key: document.getElementById('hostCustomKey').value,
   };
   const method = id ? 'PUT' : 'POST';
@@ -379,11 +387,29 @@ async function saveHost() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
+  const data = await res.json();
   if (res.ok) {
     closeModal('hostModal');
     loadHosts();
   } else {
-    alert('Failed to save host');
+    alert('Gagal menyimpan host: ' + (data.error || 'Terjadi kesalahan'));
+  }
+}
+
+async function promptInjectKey(id, name) {
+  const pass = prompt('Masukkan password SSH untuk server "' + name + '"\n\n(Password hanya digunakan sekali di RAM untuk menyalin public key Pantau ke ~/.ssh/authorized_keys dan TIDAK disimpan ke database):');
+  if (!pass) return;
+  const res = await fetch('/api/hosts/' + id + '/inject-key', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pass })
+  });
+  const data = await res.json();
+  if (data.ok) {
+    alert('✅ ' + data.message);
+    inspectHost(id);
+  } else {
+    alert('❌ Gagal: ' + (data.error || 'Terjadi kesalahan'));
   }
 }
 

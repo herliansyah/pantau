@@ -55,6 +55,42 @@ func Connect(host string, port int, user, privateKeyPEM string, timeout time.Dur
 	return &LiveSSHRunner{client: client}, nil
 }
 
+type KeyProvisioner func(host string, port int, user, password, pubKey string) error
+
+func DefaultKeyProvisioner(host string, port int, user, password, pubKey string) error {
+	config := &ssh.ClientConfig{
+		User: user,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(password),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         8 * time.Second,
+	}
+
+	addr := fmt.Sprintf("%s:%d", host, port)
+	client, err := ssh.Dial("tcp", addr, config)
+	if err != nil {
+		return fmt.Errorf("ssh password authentication failed: %w", err)
+	}
+	defer client.Close()
+
+	session, err := client.NewSession()
+	if err != nil {
+		return fmt.Errorf("create session: %w", err)
+	}
+	defer session.Close()
+
+	cleanKey := strings.TrimSpace(pubKey)
+	injectCmd := fmt.Sprintf(`sh -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && (grep -qxF %q ~/.ssh/authorized_keys || echo %q >> ~/.ssh/authorized_keys)'`, cleanKey, cleanKey)
+
+	out, err := session.CombinedOutput(injectCmd)
+	if err != nil {
+		return fmt.Errorf("injected command failed: %s (%w)", string(out), err)
+	}
+
+	return nil
+}
+
 func (r *LiveSSHRunner) Exec(cmd string) (stdout, stderr string, exitCode int, err error) {
 	session, err := r.client.NewSession()
 	if err != nil {

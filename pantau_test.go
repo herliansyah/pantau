@@ -490,3 +490,65 @@ func TestTicket09_SFTPFileManagerAndEditor(t *testing.T) {
 		t.Fatalf("expected test_script.php in file list, got %+v", listData.Files)
 	}
 }
+
+// Test Key Provisioning (Auto-Inject SSH Key)
+func TestTicket10_KeyProvisioning(t *testing.T) {
+	env := setupTestEnv(t)
+	client := loginClient(t, env)
+
+	var lastProvisionedHost string
+	var lastProvisionedPass string
+	var lastProvisionedKey string
+
+	env.server.SetKeyProvisioner(func(host string, port int, user, password, pubKey string) error {
+		lastProvisionedHost = host
+		lastProvisionedPass = password
+		lastProvisionedKey = pubKey
+		return nil
+	})
+
+	// 1. Add host with one-time password to auto-inject
+	payload := map[string]interface{}{
+		"name":     "Target With Password",
+		"host":     "10.0.0.20",
+		"port":     22,
+		"user":     "root",
+		"password": "initial_root_password_123",
+	}
+	body, _ := json.Marshal(payload)
+	resp, err := client.Post(env.httpServer.URL+"/api/hosts", "application/json", bytes.NewReader(body))
+	if err != nil || resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create host with auto-inject failed: %v, status: %d", err, resp.StatusCode)
+	}
+	var created store.Host
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	resp.Body.Close()
+
+	if lastProvisionedHost != "10.0.0.20" || lastProvisionedPass != "initial_root_password_123" {
+		t.Fatalf("provisioner not called correctly: host=%s, pass=%s", lastProvisionedHost, lastProvisionedPass)
+	}
+	if !strings.HasPrefix(lastProvisionedKey, "ssh-ed25519") {
+		t.Fatalf("expected ed25519 pubkey in provisioner, got %s", lastProvisionedKey)
+	}
+
+	// 2. Separate inject-key endpoint
+	env.mockRunner.Handlers["uname -srm"] = func() (string, string, int, error) {
+		return "Linux 5.15.0-x86_64", "", 0, nil
+	}
+
+	injectBody, _ := json.Marshal(map[string]string{"password": "second_password_456"})
+	injectResp, err := client.Post(fmt.Sprintf("%s/api/hosts/%d/inject-key", env.httpServer.URL, created.ID), "application/json", bytes.NewReader(injectBody))
+	if err != nil || injectResp.StatusCode != http.StatusOK {
+		t.Fatalf("inject-key failed: %v, status: %d", err, injectResp.StatusCode)
+	}
+	var injectResult map[string]interface{}
+	_ = json.NewDecoder(injectResp.Body).Decode(&injectResult)
+	injectResp.Body.Close()
+
+	if injectResult["ok"] != true {
+		t.Fatalf("expected ok: true, got %+v", injectResult)
+	}
+	if lastProvisionedPass != "second_password_456" {
+		t.Fatalf("expected provisioner password updated, got %s", lastProvisionedPass)
+	}
+}

@@ -17,6 +17,7 @@ import (
 
 	"pantau/internal/inspector"
 	"pantau/internal/notify"
+	"pantau/internal/sshrunner"
 	"pantau/internal/store"
 )
 
@@ -27,22 +28,28 @@ var upgrader = websocket.Upgrader{
 }
 
 type Server struct {
-	db         *store.DB
-	inspector  *inspector.Inspector
-	dispatcher *notify.Dispatcher
-	mux        *http.ServeMux
-	sessions   sync.Map // token -> expiry
+	db          *store.DB
+	inspector   *inspector.Inspector
+	dispatcher  *notify.Dispatcher
+	provisioner sshrunner.KeyProvisioner
+	mux         *http.ServeMux
+	sessions    sync.Map // token -> expiry
 }
 
 func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) *Server {
 	s := &Server{
-		db:         db,
-		inspector:  ins,
-		dispatcher: disp,
-		mux:        http.NewServeMux(),
+		db:          db,
+		inspector:   ins,
+		dispatcher:  disp,
+		provisioner: sshrunner.DefaultKeyProvisioner,
+		mux:         http.NewServeMux(),
 	}
 	s.routes()
 	return s
+}
+
+func (s *Server) SetKeyProvisioner(p sshrunner.KeyProvisioner) {
+	s.provisioner = p
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -203,11 +210,15 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, hosts)
 	case http.MethodPost:
-		var h store.Host
-		if err := json.NewDecoder(r.Body).Decode(&h); err != nil {
+		var req struct {
+			store.Host
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
+		h := req.Host
 		if h.Name == "" || h.Host == "" {
 			http.Error(w, "name and host are required", http.StatusBadRequest)
 			return
@@ -218,6 +229,22 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 		if h.User == "" {
 			h.User = "root"
 		}
+
+		// If one-time password provided, attempt key provisioning
+		if strings.TrimSpace(req.Password) != "" {
+			pubKey, err := s.db.GetSetting("ssh_public_key")
+			if err != nil || pubKey == "" {
+				http.Error(w, "global ssh public key not found", http.StatusInternalServerError)
+				return
+			}
+			if err := s.provisioner(h.Host, h.Port, h.User, req.Password, pubKey); err != nil {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{
+					"error": fmt.Sprintf("Injeksi SSH Key gagal: %v", err),
+				})
+				return
+			}
+		}
+
 		id, err := s.db.CreateHost(&h)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -307,6 +334,56 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "output": strings.TrimSpace(stdout)})
+
+	case "inject-key":
+		// POST /api/hosts/{id}/inject-key
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Password) == "" {
+			http.Error(w, "password required", http.StatusBadRequest)
+			return
+		}
+		host, err := s.db.GetHost(hostID)
+		if err != nil || host == nil {
+			http.Error(w, "host not found", http.StatusNotFound)
+			return
+		}
+
+		pubKey, err := s.db.GetSetting("ssh_public_key")
+		if err != nil || pubKey == "" {
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": "global public key missing"})
+			return
+		}
+
+		if err := s.provisioner(host.Host, host.Port, host.User, req.Password, pubKey); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": fmt.Sprintf("injeksi gagal: %v", err)})
+			return
+		}
+
+		// Test connection immediately with key to confirm
+		runner, err := s.inspector.GetRunnerForHost(host)
+		if err != nil {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "error": fmt.Sprintf("key injected but verify connection failed: %v", err)})
+			return
+		}
+		defer runner.Close()
+
+		stdout, _, _, err := runner.Exec("uname -srm")
+		if err != nil {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "error": fmt.Sprintf("verify failed: %v", err)})
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"ok":      true,
+			"message": fmt.Sprintf("Public key berhasil di-inject ke %s! Verifikasi SSH sukses: %s", host.Host, strings.TrimSpace(stdout)),
+		})
+		return
 
 	case "inspect":
 		// POST /api/hosts/{id}/inspect
