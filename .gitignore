@@ -3,3 +3,5 @@ data/
 *.db
 *.db-wal
 *.db-shm
+*.tar.gz
+dist/
