@@ -20,6 +20,7 @@ import (
 	"pantau/internal/notify"
 	"pantau/internal/sshrunner"
 	"pantau/internal/store"
+	"pantau/internal/transfer"
 	"pantau/internal/web"
 )
 
@@ -54,6 +55,7 @@ func setupTestEnv(t *testing.T) *testEnv {
 	dispatcher := notify.New(db)
 	ins := inspector.New(db, factory, dispatcher)
 	srv := web.NewServer(db, ins, dispatcher)
+	srv.SetTransferManager(transfer.NewManager(db, factory))
 	httpSrv := httptest.NewServer(srv)
 
 	t.Cleanup(func() {
@@ -552,3 +554,144 @@ func TestTicket10_KeyProvisioning(t *testing.T) {
 		t.Fatalf("expected provisioner password updated, got %s", lastProvisionedPass)
 	}
 }
+
+// Test Ticket 11: Cross-Host Transfer (Fast Stream & Verified)
+func TestTicket11_CrossHostTransfer(t *testing.T) {
+	env := setupTestEnv(t)
+	client := loginClient(t, env)
+
+	// Create Host 1 (Source) and Host 2 (Dest)
+	h1Payload, _ := json.Marshal(map[string]interface{}{
+		"name": "Source Server",
+		"host": "192.168.1.10",
+		"port": 22,
+		"user": "root",
+	})
+	resp1, err := client.Post(env.httpServer.URL+"/api/hosts", "application/json", bytes.NewReader(h1Payload))
+	if err != nil || resp1.StatusCode != http.StatusCreated {
+		t.Fatalf("create host 1 failed: %v", err)
+	}
+	var h1 store.Host
+	_ = json.NewDecoder(resp1.Body).Decode(&h1)
+	resp1.Body.Close()
+
+	h2Payload, _ := json.Marshal(map[string]interface{}{
+		"name": "Dest Server",
+		"host": "192.168.1.20",
+		"port": 22,
+		"user": "root",
+	})
+	resp2, err := client.Post(env.httpServer.URL+"/api/hosts", "application/json", bytes.NewReader(h2Payload))
+	if err != nil || resp2.StatusCode != http.StatusCreated {
+		t.Fatalf("create host 2 failed: %v", err)
+	}
+	var h2 store.Host
+	_ = json.NewDecoder(resp2.Body).Decode(&h2)
+	resp2.Body.Close()
+
+	// 1. Fast stream directory transfer
+	dummyPayload := strings.Repeat("A", 4096)
+	env.mockRunner.Handlers[`test -d "/var/bigdata" && echo "DIR" || echo "FILE"`] = func() (string, string, int, error) {
+		return "DIR\n", "", 0, nil
+	}
+	env.mockRunner.Handlers[`du -sb "/var/bigdata" 2>/dev/null | cut -f1`] = func() (string, string, int, error) {
+		return "4096\n", "", 0, nil
+	}
+	env.mockRunner.Handlers[`tar -cf - -C "/var" "bigdata"`] = func() (string, string, int, error) {
+		return dummyPayload, "", 0, nil
+	}
+
+	transferReq, _ := json.Marshal(map[string]interface{}{
+		"source_host_id": h1.ID,
+		"source_path":   "/var/bigdata",
+		"dest_host_id":   h2.ID,
+		"dest_path":     "/mnt/backup",
+		"mode":          "fast",
+	})
+	startResp, err := client.Post(env.httpServer.URL+"/api/transfers", "application/json", bytes.NewReader(transferReq))
+	if err != nil || startResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("start transfer failed: %v, status: %d", err, startResp.StatusCode)
+	}
+	var startedJob transfer.TransferJob
+	_ = json.NewDecoder(startResp.Body).Decode(&startedJob)
+	startResp.Body.Close()
+
+	// Poll until completed
+	var finishedJob transfer.TransferJob
+	for i := 0; i < 20; i++ {
+		time.Sleep(100 * time.Millisecond)
+		detailResp, err := client.Get(fmt.Sprintf("%s/api/transfers/%d", env.httpServer.URL, startedJob.ID))
+		if err != nil {
+			continue
+		}
+		_ = json.NewDecoder(detailResp.Body).Decode(&finishedJob)
+		detailResp.Body.Close()
+
+		if finishedJob.Status == "completed" || finishedJob.Status == "failed" {
+			break
+		}
+	}
+
+	if finishedJob.Status != "completed" {
+		t.Fatalf("expected job status 'completed', got %q (error: %s)", finishedJob.Status, finishedJob.Error)
+	}
+	if finishedJob.TransferredBytes != 4096 {
+		t.Fatalf("expected 4096 transferred bytes, got %d", finishedJob.TransferredBytes)
+	}
+
+	// 2. Verified File Transfer
+	fileContent := "config_secret_content_data_12345"
+	env.mockRunner.Handlers[`test -d "/etc/pantau.conf" && echo "DIR" || echo "FILE"`] = func() (string, string, int, error) {
+		return "FILE\n", "", 0, nil
+	}
+	env.mockRunner.Handlers[`du -sb "/etc/pantau.conf" 2>/dev/null | cut -f1`] = func() (string, string, int, error) {
+		return fmt.Sprintf("%d\n", len(fileContent)), "", 0, nil
+	}
+	env.mockRunner.Handlers[`cat "/etc/pantau.conf"`] = func() (string, string, int, error) {
+		return fileContent, "", 0, nil
+	}
+	env.mockRunner.Handlers[`sha256sum "/etc/pantau.conf" | cut -d' ' -f1`] = func() (string, string, int, error) {
+		return "a1b2c3d4e5f6\n", "", 0, nil
+	}
+	env.mockRunner.Handlers[`sha256sum "/tmp/pantau.conf" | cut -d' ' -f1`] = func() (string, string, int, error) {
+		return "a1b2c3d4e5f6\n", "", 0, nil
+	}
+
+	verifiedReq, _ := json.Marshal(map[string]interface{}{
+		"source_host_id": h1.ID,
+		"source_path":   "/etc/pantau.conf",
+		"dest_host_id":   h2.ID,
+		"dest_path":     "/tmp/pantau.conf",
+		"mode":          "verified",
+	})
+	vResp, err := client.Post(env.httpServer.URL+"/api/transfers", "application/json", bytes.NewReader(verifiedReq))
+	if err != nil || vResp.StatusCode != http.StatusAccepted {
+		t.Fatalf("start verified transfer failed: %v", err)
+	}
+	var vJob transfer.TransferJob
+	_ = json.NewDecoder(vResp.Body).Decode(&vJob)
+	vResp.Body.Close()
+
+	for i := 0; i < 20; i++ {
+		time.Sleep(100 * time.Millisecond)
+		detailResp, _ := client.Get(fmt.Sprintf("%s/api/transfers/%d", env.httpServer.URL, vJob.ID))
+		_ = json.NewDecoder(detailResp.Body).Decode(&finishedJob)
+		detailResp.Body.Close()
+
+		if finishedJob.Status == "completed" || finishedJob.Status == "failed" {
+			break
+		}
+	}
+
+	if finishedJob.Status != "completed" {
+		t.Fatalf("expected verified job status 'completed', got %q (error: %s)", finishedJob.Status, finishedJob.Error)
+	}
+
+	// 3. Cancel transfer endpoint check
+	cancelResp, err := client.Post(fmt.Sprintf("%s/api/transfers/%d/cancel", env.httpServer.URL, finishedJob.ID), "application/json", nil)
+	if err != nil || cancelResp.StatusCode != http.StatusOK {
+		t.Fatalf("cancel transfer request failed: %v", err)
+	}
+	cancelResp.Body.Close()
+}
+

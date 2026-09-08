@@ -16,6 +16,7 @@ import (
 type Runner interface {
 	Exec(cmd string) (stdout, stderr string, exitCode int, err error)
 	Stream(cmd string, out io.Writer) error
+	PipeCommand(cmd string, in io.Reader, out io.Writer) error
 	SFTP() (*sftp.Client, error)
 	Terminal(in io.Reader, out io.Writer, cols, rows int, resizeChan <-chan [2]int) error
 	Close() error
@@ -129,6 +130,22 @@ func (r *LiveSSHRunner) Stream(cmd string, out io.Writer) error {
 	return session.Run(cmd)
 }
 
+func (r *LiveSSHRunner) PipeCommand(cmd string, in io.Reader, out io.Writer) error {
+	session, err := r.client.NewSession()
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	if in != nil {
+		session.Stdin = in
+	}
+	if out != nil {
+		session.Stdout = out
+	}
+	return session.Run(cmd)
+}
+
 func (r *LiveSSHRunner) SFTP() (*sftp.Client, error) {
 	return sftp.NewClient(r.client)
 }
@@ -229,6 +246,30 @@ func (m *MockRunner) Stream(cmd string, out io.Writer) error {
 	stdout, _, _, _ := m.Exec(cmd)
 	_, _ = io.WriteString(out, stdout)
 	return nil
+}
+
+func (m *MockRunner) PipeCommand(cmd string, in io.Reader, out io.Writer) error {
+	if in != nil && out != nil {
+		_, err := io.Copy(out, in)
+		return err
+	}
+	if in != nil {
+		buf := make([]byte, 2048)
+		for {
+			_, err := in.Read(buf)
+			if err != nil {
+				break
+			}
+		}
+		return nil
+	}
+	if out != nil {
+		stdout, _, _, _ := m.Exec(cmd)
+		_, err := io.WriteString(out, stdout)
+		return err
+	}
+	_, _, _, err := m.Exec(cmd)
+	return err
 }
 
 func (m *MockRunner) SFTP() (*sftp.Client, error) {

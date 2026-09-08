@@ -19,6 +19,7 @@ import (
 	"pantau/internal/notify"
 	"pantau/internal/sshrunner"
 	"pantau/internal/store"
+	"pantau/internal/transfer"
 )
 
 var upgrader = websocket.Upgrader{
@@ -32,6 +33,7 @@ type Server struct {
 	inspector   *inspector.Inspector
 	dispatcher  *notify.Dispatcher
 	provisioner sshrunner.KeyProvisioner
+	transferMgr *transfer.Manager
 	mux         *http.ServeMux
 	sessions    sync.Map // token -> expiry
 }
@@ -42,6 +44,7 @@ func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) 
 		inspector:   ins,
 		dispatcher:  disp,
 		provisioner: sshrunner.DefaultKeyProvisioner,
+		transferMgr: transfer.NewManager(db, nil),
 		mux:         http.NewServeMux(),
 	}
 	s.routes()
@@ -50,6 +53,10 @@ func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) 
 
 func (s *Server) SetKeyProvisioner(p sshrunner.KeyProvisioner) {
 	s.provisioner = p
+}
+
+func (s *Server) SetTransferManager(tm *transfer.Manager) {
+	s.transferMgr = tm
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -78,6 +85,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/settings/test-notify", s.authMiddleware(s.handleTestNotify))
 	s.mux.HandleFunc("/api/alerts", s.authMiddleware(s.handleAlerts))
 	s.mux.HandleFunc("/api/alerts/", s.authMiddleware(s.handleAlertDetail))
+
+	// Cross-Host Transfers
+	s.mux.HandleFunc("/api/transfers", s.authMiddleware(s.handleTransfers))
+	s.mux.HandleFunc("/api/transfers/", s.authMiddleware(s.handleTransferDetail))
 
 	// WebSockets (Terminal & Docker Logs)
 	s.mux.HandleFunc("/ws/terminal", s.handleWSTerminal)
@@ -859,4 +870,68 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(embeddedHTML))
+}
+
+func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		jobs := s.transferMgr.ListJobs()
+		writeJSON(w, http.StatusOK, jobs)
+	case http.MethodPost:
+		var req struct {
+			SourceHostID int64  `json:"source_host_id"`
+			SourcePath   string `json:"source_path"`
+			DestHostID   int64  `json:"dest_host_id"`
+			DestPath     string `json:"dest_path"`
+			Mode         string `json:"mode"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if req.SourceHostID <= 0 || req.DestHostID <= 0 || req.SourcePath == "" || req.DestPath == "" {
+			http.Error(w, "source and destination host and path are required", http.StatusBadRequest)
+			return
+		}
+		job, err := s.transferMgr.StartTransfer(req.SourceHostID, req.SourcePath, req.DestHostID, req.DestPath, req.Mode)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusAccepted, job)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleTransferDetail(w http.ResponseWriter, r *http.Request) {
+	subpath := strings.TrimPrefix(r.URL.Path, "/api/transfers/")
+	parts := strings.Split(subpath, "/")
+	if len(parts) == 0 || parts[0] == "" {
+		http.Error(w, "job id required", http.StatusBadRequest)
+		return
+	}
+	jobID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		http.Error(w, "invalid job id", http.StatusBadRequest)
+		return
+	}
+
+	if len(parts) == 1 {
+		job := s.transferMgr.GetJob(jobID)
+		if job == nil {
+			http.Error(w, "job not found", http.StatusNotFound)
+			return
+		}
+		writeJSON(w, http.StatusOK, job)
+		return
+	}
+
+	if len(parts) >= 2 && parts[1] == "cancel" && r.Method == http.MethodPost {
+		_ = s.transferMgr.CancelTransfer(jobID)
+		writeJSON(w, http.StatusOK, map[string]string{"status": "cancelled"})
+		return
+	}
+
+	http.Error(w, "not found", http.StatusNotFound)
 }

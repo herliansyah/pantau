@@ -86,6 +86,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <span>🛡️</span> PANTAU
     </div>
     <div style="display: flex; gap: 10px; align-items: center;">
+      <button class="btn" onclick="openTransfersModal()">📦 Transfers <span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 4px;">0</span></button>
       <span id="activeAlertBadge" style="display: none;" class="badge badge-down">0 ALERTS</span>
       <button class="btn btn-primary" onclick="openAddHostModal()">+ Add Host</button>
       <button class="btn" onclick="openSettingsModal()">⚙️ Settings</button>
@@ -224,6 +225,61 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
   </div>
 </div>
 
+<!-- Cross-Host Transfer Modal -->
+<div id="transferModal" class="modal">
+  <div class="modal-content" style="max-width: 540px;">
+    <div class="modal-header">
+      <h3>🚀 Copy File / Folder to Another Host</h3>
+      <button class="btn btn-sm" onclick="closeModal('transferModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Source Host & Item</label>
+        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;" id="transferSourceHost"></div>
+        <input type="text" id="transferSourcePath" readonly style="background: var(--bg-card); cursor: not-allowed;" />
+      </div>
+      <div class="form-group">
+        <label>Destination Host</label>
+        <select id="transferDestHost" class="form-control" style="width: 100%; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--card-border); padding: 8px; border-radius: 4px;"></select>
+      </div>
+      <div class="form-group">
+        <label>Destination Directory</label>
+        <input type="text" id="transferDestPath" placeholder="/var/www or /opt/data" value="/tmp" />
+      </div>
+      <div class="form-group">
+        <label>Transfer Mode</label>
+        <select id="transferMode" class="form-control" style="width: 100%; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--card-border); padding: 8px; border-radius: 4px;">
+          <option value="fast">⚡ Fast Stream (Direct in-memory pipe, max speed for 500GB+)</option>
+          <option value="verified">🛡️ Verified (Piped stream + SHA256 integrity check)</option>
+        </select>
+      </div>
+      <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px; line-height: 1.4;">
+        💡 Piped streaming streams directly between servers via Pantau in-memory bridge. Zero temporary master disk space used.
+      </div>
+    </div>
+    <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--card-border);">
+      <button class="btn" onclick="closeModal('transferModal')">Cancel</button>
+      <button class="btn btn-warning" id="btnStartTransfer" onclick="submitTransfer()">Start Transfer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Transfers List Modal -->
+<div id="transfersListModal" class="modal">
+  <div class="modal-content" style="max-width: 850px;">
+    <div class="modal-header">
+      <h3>📦 Cross-Host Transfers</h3>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-sm" onclick="loadTransfers()">🔄 Refresh</button>
+        <button class="btn btn-sm" onclick="closeModal('transfersListModal')">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" id="transfersListBody" style="max-height: 550px; overflow-y: auto;">
+      <div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading transfers...</div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
@@ -251,7 +307,9 @@ async function checkAuth() {
     document.getElementById('appView').style.display = 'flex';
     loadHosts();
     loadAlerts();
+    loadTransfers();
     setInterval(loadAlerts, 15000);
+    setInterval(loadTransfers, 15000);
   } else {
     document.getElementById('loginView').style.display = 'flex';
     document.getElementById('appView').style.display = 'none';
@@ -655,6 +713,7 @@ async function loadFiles(path) {
             <td>
               ${!f.is_dir ? '<button class="btn btn-primary btn-sm" onclick="openEditor(\'' + (data.path === '/' ? '/' + f.name : data.path + '/' + f.name) + '\')">✏️ Edit</button> ' : ''}
               ${!f.is_dir ? '<a class="btn btn-sm" href="/api/hosts/' + currentHost.id + '/files/download?path=' + encodeURIComponent(data.path === '/' ? '/' + f.name : data.path + '/' + f.name) + '">⬇️</a> ' : ''}
+              <button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(data.path === '/' ? '/' + f.name : data.path + '/' + f.name)}', ${f.is_dir})">🚀 Copy to Host</button>
               <button class="btn btn-danger btn-sm" onclick="deleteRemoteFile(\'' + (data.path === '/' ? '/' + f.name : data.path + '/' + f.name) + '\', \'' + data.path + '\')">🗑️</button>
             </td>
           </tr>
@@ -820,7 +879,175 @@ async function changePassword() {
   }
 }
 
+// Cross-Host Transfer
+let transferPollInterval = null;
+
+function formatBytes(bytes) {
+  if (bytes === 0 || !bytes) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+async function openTransferDialog(srcPath, isDir) {
+  if (!currentHost) return;
+  document.getElementById('transferSourceHost').innerText = 'From: ' + currentHost.name + ' (' + currentHost.host + ')';
+  document.getElementById('transferSourcePath').value = srcPath;
+  
+  const res = await fetch('/api/hosts');
+  if (!res.ok) return;
+  const hosts = await res.json();
+  const select = document.getElementById('transferDestHost');
+  select.innerHTML = '';
+  const availableHosts = hosts.filter(h => h.id !== currentHost.id);
+  if (availableHosts.length === 0) {
+    alert('No other target host available. Add at least one more host first.');
+    return;
+  }
+  availableHosts.forEach(h => {
+    const opt = document.createElement('option');
+    opt.value = h.id;
+    opt.innerText = h.name + ' (' + h.host + ')';
+    select.appendChild(opt);
+  });
+  
+  document.getElementById('transferDestPath').value = '/tmp';
+  document.getElementById('transferModal').classList.add('open');
+}
+
+async function submitTransfer() {
+  const destHostID = parseInt(document.getElementById('transferDestHost').value, 10);
+  const srcPath = document.getElementById('transferSourcePath').value;
+  const destPath = document.getElementById('transferDestPath').value.trim();
+  const mode = document.getElementById('transferMode').value;
+  
+  if (!destHostID || !srcPath || !destPath) {
+    alert('Please fill in all fields');
+    return;
+  }
+  
+  const btn = document.getElementById('btnStartTransfer');
+  btn.disabled = true;
+  btn.innerText = 'Starting...';
+  
+  try {
+    const res = await fetch('/api/transfers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source_host_id: currentHost.id,
+        source_path: srcPath,
+        dest_host_id: destHostID,
+        dest_path: destPath,
+        mode: mode
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert('Failed to start transfer: ' + (data.error || res.statusText));
+      return;
+    }
+    closeModal('transferModal');
+    openTransfersModal();
+  } catch (err) {
+    alert('Error starting transfer: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerText = 'Start Transfer';
+  }
+}
+
+function openTransfersModal() {
+  document.getElementById('transfersListModal').classList.add('open');
+  loadTransfers();
+  if (transferPollInterval) clearInterval(transferPollInterval);
+  transferPollInterval = setInterval(loadTransfers, 2000);
+}
+
+async function cancelTransfer(jobID) {
+  if (!confirm('Cancel this transfer?')) return;
+  const res = await fetch('/api/transfers/' + jobID + '/cancel', { method: 'POST' });
+  if (res.ok) {
+    loadTransfers();
+  } else {
+    alert('Failed to cancel transfer');
+  }
+}
+
+async function loadTransfers() {
+  try {
+    const res = await fetch('/api/transfers');
+    if (!res.ok) return;
+    const jobs = await res.json();
+    const container = document.getElementById('transfersListBody');
+    const badge = document.getElementById('activeTransferBadge');
+    
+    const activeJobs = (jobs || []).filter(j => j.status === 'transferring' || j.status === 'queued');
+    if (badge) {
+      if (activeJobs.length > 0) {
+        badge.innerText = activeJobs.length;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+    
+    if (!jobs || jobs.length === 0) {
+      container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 30px;">No transfers initiated yet.</div>';
+      return;
+    }
+    
+    container.innerHTML = jobs.map(j => {
+      let statusColor = '#34d399';
+      if (j.status === 'failed') statusColor = '#f87171';
+      else if (j.status === 'cancelled') statusColor = '#94a3b8';
+      else if (j.status === 'transferring' || j.status === 'queued') statusColor = '#38bdf8';
+      
+      const speedStr = j.speed_bytes_per_sec > 0 ? formatBytes(j.speed_bytes_per_sec) + '/s' : '';
+      const transferredStr = formatBytes(j.transferred_bytes);
+      const totalStr = j.total_bytes > 0 ? formatBytes(j.total_bytes) : '';
+      const etaStr = j.eta_seconds > 0 ? (j.eta_seconds > 60 ? Math.floor(j.eta_seconds / 60) + 'm ' + (j.eta_seconds % 60) + 's' : j.eta_seconds + 's') : '';
+      
+      const pct = j.percentage ? Math.min(100, Math.max(0, j.percentage)).toFixed(1) : (j.status === 'completed' ? '100' : '0');
+      
+      return `
+        <div class="card" style="margin-bottom: 12px; background: var(--bg-card); border: 1px solid var(--card-border); padding: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div>
+              <span style="font-weight: 600;">Job #${j.id}</span>
+              <span class="badge" style="background: rgba(255,255,255,0.1); margin-left: 6px;">${j.mode === 'verified' ? '🛡️ Verified' : '⚡ Fast Stream'}</span>
+              <span class="badge" style="color: ${statusColor}; border: 1px solid ${statusColor}; margin-left: 6px;">${j.status}</span>
+            </div>
+            <div>
+              ${(j.status === 'transferring' || j.status === 'queued') ? '<button class="btn btn-danger btn-sm" onclick="cancelTransfer(' + j.id + ')">🛑 Cancel</button>' : ''}
+            </div>
+          </div>
+          <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 6px;">
+            <b>${escapeHtml(j.source_host_name || 'Source')}</b>:<code>${escapeHtml(j.source_path)}</code> ➔ 
+            <b>${escapeHtml(j.dest_host_name || 'Dest')}</b>:<code>${escapeHtml(j.dest_path)}</code>
+          </div>
+          <div class="progress" style="height: 8px; margin: 8px 0; background: var(--bg-main);">
+            <div class="progress-fill" style="width: ${j.status === 'completed' ? '100' : pct}%; background: ${statusColor};"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted);">
+            <span>Transferred: <b>${transferredStr}</b>${totalStr ? ' / ' + totalStr + ' (' + pct + '%)' : ''}</span>
+            <span>${speedStr ? '⚡ ' + speedStr : ''} ${etaStr ? ' | ETA: ' + etaStr : ''}</span>
+          </div>
+          ${j.error ? '<div style="color: #f87171; font-size: 12px; margin-top: 6px;">⚠️ Error: ' + escapeHtml(j.error) + '</div>' : ''}
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    console.error('loadTransfers error:', e);
+  }
+}
+
 function closeModal(id) {
+  if (id === 'transfersListModal' && transferPollInterval) {
+    clearInterval(transferPollInterval);
+    transferPollInterval = null;
+  }
   document.getElementById(id).classList.remove('open');
 }
 

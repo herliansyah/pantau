@@ -44,3 +44,12 @@ _Avoid_: Alert sink, message publisher
 Proses penyisipan otomatis SSH Public Key Pantau ke dalam `~/.ssh/authorized_keys` di Host target menggunakan autentikasi password sementara (one-time).
 _Avoid_: Password sync, credential push
 
+**Cross-Host Transfer**:
+Proses pemindahan file atau folder langsung dari Host sumber ke Host tujuan melalui stream pipa relay Pantau tanpa penyimpanan file sementara pada disk master.
+_Avoid_: File sync, remote copy, direct scp
+
+**Transfer Job**:
+Tugas pemindahan asinkron di latar belakang yang melacak status, akumulasi byte terkirim, kecepatan (MB/s), dan estimasi waktu tersisa (ETA).
+_Avoid_: Copy task, sync process
+
+
