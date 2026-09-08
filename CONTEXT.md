@@ -52,4 +52,8 @@ _Avoid_: File sync, remote copy, direct scp
 Tugas pemindahan asinkron di latar belakang yang melacak status, akumulasi byte terkirim, kecepatan (MB/s), dan estimasi waktu tersisa (ETA).
 _Avoid_: Copy task, sync process
 
+**Folder Streaming Download**:
+Proses pengaliran arsip direktori secara on-the-fly langsung dari Host ke response browser pengguna (menggunakan zip jika terpasang di remote atau tar.gz) tanpa menyimpan file arsip di disk master Pantau.
+_Avoid_: Folder export, zip dump
+
 

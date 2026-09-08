@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -490,6 +492,65 @@ func TestTicket09_SFTPFileManagerAndEditor(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("expected test_script.php in file list, got %+v", listData.Files)
+	}
+
+	// 4. Check folder size API
+	env.mockRunner.Handlers[fmt.Sprintf(`du -sb %q 2>/dev/null | cut -f1`, tmpDir)] = func() (string, string, int, error) {
+		return "5242880\n", "", 0, nil
+	}
+	sizeResp, err := client.Get(fmt.Sprintf("%s/api/hosts/%d/files/size?path=%s", env.httpServer.URL, hostID, tmpDir))
+	if err != nil || sizeResp.StatusCode != http.StatusOK {
+		t.Fatalf("folder size check failed: %v, status: %d", err, sizeResp.StatusCode)
+	}
+	var sizeData map[string]int64
+	_ = json.NewDecoder(sizeResp.Body).Decode(&sizeData)
+	sizeResp.Body.Close()
+	if sizeData["size"] != 5242880 {
+		t.Fatalf("expected folder size 5242880, got %d", sizeData["size"])
+	}
+
+	// 5. Folder streaming download (ZIP when zip available)
+	env.mockRunner.Handlers["which zip 2>/dev/null"] = func() (string, string, int, error) {
+		return "/usr/bin/zip\n", "", 0, nil
+	}
+	zipCmd := fmt.Sprintf(`cd %q && zip -r -q - %q`, filepath.Dir(tmpDir), filepath.Base(tmpDir))
+	env.mockRunner.Handlers[zipCmd] = func() (string, string, int, error) {
+		return "PK_mock_zip_stream_data", "", 0, nil
+	}
+
+	dlZipResp, err := client.Get(fmt.Sprintf("%s/api/hosts/%d/files/download?path=%s", env.httpServer.URL, hostID, tmpDir))
+	if err != nil || dlZipResp.StatusCode != http.StatusOK {
+		t.Fatalf("folder download zip failed: %v, status: %d", err, dlZipResp.StatusCode)
+	}
+	if ct := dlZipResp.Header.Get("Content-Type"); ct != "application/zip" {
+		t.Fatalf("expected application/zip, got %s", ct)
+	}
+	zipBody, _ := io.ReadAll(dlZipResp.Body)
+	dlZipResp.Body.Close()
+	if string(zipBody) != "PK_mock_zip_stream_data" {
+		t.Fatalf("unexpected zip body: %s", string(zipBody))
+	}
+
+	// 6. Folder streaming download (tar.gz fallback when zip unavailable)
+	env.mockRunner.Handlers["which zip 2>/dev/null"] = func() (string, string, int, error) {
+		return "", "", 1, nil
+	}
+	tarCmd := fmt.Sprintf(`tar -czf - -C %q %q`, filepath.Dir(tmpDir), filepath.Base(tmpDir))
+	env.mockRunner.Handlers[tarCmd] = func() (string, string, int, error) {
+		return "tar_gz_mock_stream_data", "", 0, nil
+	}
+
+	dlTarResp, err := client.Get(fmt.Sprintf("%s/api/hosts/%d/files/download?path=%s", env.httpServer.URL, hostID, tmpDir))
+	if err != nil || dlTarResp.StatusCode != http.StatusOK {
+		t.Fatalf("folder download tar failed: %v, status: %d", err, dlTarResp.StatusCode)
+	}
+	if ct := dlTarResp.Header.Get("Content-Type"); ct != "application/gzip" {
+		t.Fatalf("expected application/gzip, got %s", ct)
+	}
+	tarBody, _ := io.ReadAll(dlTarResp.Body)
+	dlTarResp.Body.Close()
+	if string(tarBody) != "tar_gz_mock_stream_data" {
+		t.Fatalf("unexpected tar body: %s", string(tarBody))
 	}
 }
 

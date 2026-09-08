@@ -59,6 +59,10 @@ table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--card-border); }
 th { color: var(--text-muted); font-weight: 600; }
 input, select, textarea { background: #0f172a; border: 1px solid var(--card-border); color: #fff; padding: 8px 12px; border-radius: 6px; width: 100%; font-size: 0.9rem; }
+select, select option { background-color: #1e293b !important; color: #f8fafc !important; }
+.folder-link { color: #38bdf8 !important; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.folder-link:hover { color: #7dd3fc !important; text-decoration: underline; }
+.action-grid { display: inline-grid; grid-template-columns: 65px 38px 122px 38px; gap: 6px; align-items: center; }
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .alert-bar { background: rgba(239, 68, 68, 0.15); border-left: 4px solid var(--danger); padding: 12px 16px; margin-bottom: 16px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
 pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; overflow-x: auto; color: #38bdf8; max-height: 250px; }
@@ -248,9 +252,9 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       </div>
       <div class="form-group">
         <label>Transfer Mode</label>
-        <select id="transferMode" class="form-control" style="width: 100%; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--card-border); padding: 8px; border-radius: 4px;">
-          <option value="fast">⚡ Fast Stream (Direct in-memory pipe, max speed for 500GB+)</option>
-          <option value="verified">🛡️ Verified (Piped stream + SHA256 integrity check)</option>
+        <select id="transferMode" class="form-control" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid var(--card-border); padding: 8px; border-radius: 4px;">
+          <option value="fast" style="background: #1e293b; color: #f8fafc;">⚡ Fast Stream (Direct in-memory pipe, max speed for 500GB+)</option>
+          <option value="verified" style="background: #1e293b; color: #f8fafc;">🛡️ Verified (Piped stream + SHA256 integrity check)</option>
         </select>
       </div>
       <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px; line-height: 1.4;">
@@ -702,25 +706,52 @@ async function loadFiles(path) {
     <table>
       <thead><tr><th>Name</th><th>Size</th><th>Perms</th><th>Modified</th><th>Actions</th></tr></thead>
       <tbody>
-        ${(data.files || []).map(f => `
+        ${(data.files || []).map(f => {
+          const fullPath = data.path === '/' ? '/' + f.name : data.path + '/' + f.name;
+          return `
           <tr>
             <td>
-              ${f.is_dir ? '📁 <a href="javascript:void(0)" onclick="loadFiles(\'' + (data.path === '/' ? '/' + f.name : data.path + '/' + f.name) + '\')"><b>' + escapeHtml(f.name) + '</b></a>' : '📄 ' + escapeHtml(f.name)}
+              ${f.is_dir 
+                ? '<a class="folder-link" href="javascript:void(0)" onclick="loadFiles(\'' + fullPath + '\')"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>' + escapeHtml(f.name) + '</b></a>' 
+                : '📄 ' + escapeHtml(f.name)}
             </td>
-            <td>${f.size} B</td>
+            <td>${f.is_dir ? '-' : formatBytes(f.size)}</td>
             <td>${f.mode}</td>
             <td>${f.mod_time}</td>
-            <td>
-              ${!f.is_dir ? '<button class="btn btn-primary btn-sm" onclick="openEditor(\'' + (data.path === '/' ? '/' + f.name : data.path + '/' + f.name) + '\')">✏️ Edit</button> ' : ''}
-              ${!f.is_dir ? '<a class="btn btn-sm" href="/api/hosts/' + currentHost.id + '/files/download?path=' + encodeURIComponent(data.path === '/' ? '/' + f.name : data.path + '/' + f.name) + '">⬇️</a> ' : ''}
-              <button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(data.path === '/' ? '/' + f.name : data.path + '/' + f.name)}', ${f.is_dir})">🚀 Copy to Host</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteRemoteFile(\'' + (data.path === '/' ? '/' + f.name : data.path + '/' + f.name) + '\', \'' + data.path + '\')">🗑️</button>
+            <td style="white-space: nowrap;">
+              <div class="action-grid">
+                ${!f.is_dir 
+                  ? '<button class="btn btn-primary btn-sm" onclick="openEditor(\'' + fullPath + '\')">✏️ Edit</button>' 
+                  : '<span style="display:inline-block;"></span>'}
+                ${f.is_dir 
+                  ? '<button class="btn btn-sm" title="Download Folder Archive" onclick="downloadFolder(\'' + fullPath + '\')">⬇️</button>' 
+                  : '<a class="btn btn-sm" title="Download File" href="/api/hosts/' + currentHost.id + '/files/download?path=' + encodeURIComponent(fullPath) + '">⬇️</a>'}
+                <button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(fullPath)}', ${f.is_dir})">🚀 Copy to Host</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteRemoteFile('${escapeHtml(fullPath)}', '${escapeHtml(data.path)}')">🗑️</button>
+              </div>
             </td>
           </tr>
-        `).join('')}
+        `;}).join('')}
       </tbody>
     </table>
   `;
+}
+
+async function downloadFolder(path) {
+  try {
+    const res = await fetch('/api/hosts/' + currentHost.id + '/files/size?path=' + encodeURIComponent(path));
+    if (res.ok) {
+      const data = await res.json();
+      if (data.size > 2 * 1024 * 1024 * 1024) {
+        if (!confirm('Folder ini berukuran ' + formatBytes(data.size) + ' (> 2 GB). Download langsung via browser rentan putus jika koneksi tidak stabil.\n\nTetap lanjutkan download?')) {
+          return;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('size check error:', e);
+  }
+  window.location.href = '/api/hosts/' + currentHost.id + '/files/download?path=' + encodeURIComponent(path);
 }
 
 async function uploadFile(targetDir) {
@@ -909,6 +940,8 @@ async function openTransferDialog(srcPath, isDir) {
     const opt = document.createElement('option');
     opt.value = h.id;
     opt.innerText = h.name + ' (' + h.host + ')';
+    opt.style.backgroundColor = '#1e293b';
+    opt.style.color = '#f8fafc';
     select.appendChild(opt);
   });
   

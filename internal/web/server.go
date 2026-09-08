@@ -617,8 +617,49 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "uploaded", "path": destPath})
 
+	case "size":
+		path := r.URL.Query().Get("path")
+		if path == "" {
+			http.Error(w, "path required", http.StatusBadRequest)
+			return
+		}
+		out, _, _, _ := runner.Exec(fmt.Sprintf(`du -sb %q 2>/dev/null | cut -f1`, path))
+		size, _ := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
+		writeJSON(w, http.StatusOK, map[string]int64{"size": size})
+
 	case "download":
 		path := r.URL.Query().Get("path")
+		if path == "" {
+			http.Error(w, "path required", http.StatusBadRequest)
+			return
+		}
+		st, err := sftpClient.Stat(path)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if st.IsDir() {
+			base := filepath.Base(path)
+			parent := filepath.Dir(path)
+
+			hasZipOut, _, _, _ := runner.Exec("which zip 2>/dev/null")
+			hasZip := strings.TrimSpace(hasZipOut) != ""
+
+			if hasZip {
+				w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", base+".zip"))
+				w.Header().Set("Content-Type", "application/zip")
+				cmd := fmt.Sprintf(`cd %q && zip -r -q - %q`, parent, base)
+				_ = runner.PipeCommand(cmd, nil, w)
+			} else {
+				w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", base+".tar.gz"))
+				w.Header().Set("Content-Type", "application/gzip")
+				cmd := fmt.Sprintf(`tar -czf - -C %q %q`, parent, base)
+				_ = runner.PipeCommand(cmd, nil, w)
+			}
+			return
+		}
+
 		f, err := sftpClient.Open(path)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
