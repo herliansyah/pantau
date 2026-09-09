@@ -108,3 +108,7 @@ _Avoid_: Layout style, display type, presentation format
 **Protected Path**:
 Lokasi direktori sistem operasi atau file inti pada Host Linux yang dibatasi secara permanen dari operasi manipulasi (tulis, ubah, unggah, dan hapus) melalui antarmuka manajemen file.
 _Avoid_: Blocked folder, blacklisted path, system lock
+
+**Terminal Preset**:
+Konfigurasi pintasan perintah terminal interaktif (nama label, perintah shell, target Host opsional, dan preferensi persistensi sesi) yang tersimpan di basis data Pantau untuk eksekusi instan melalui antarmuka web.
+_Avoid_: Terminal shortcut, terminal macro, saved command, quick command
