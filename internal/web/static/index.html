@@ -81,6 +81,9 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
     </div>
     <button class="btn btn-primary" onclick="doLogin()">Login</button>
     <div id="loginErr" style="color: var(--danger); font-size: 0.8rem; text-align: center;"></div>
+    <div style="border-top: 1px solid var(--card-border); padding-top: 12px; text-align: center;">
+      <a href="javascript:void(0)" onclick="openRestoreModal()" style="font-size: 0.8rem; color: #38bdf8; text-decoration: none;">🔄 Restore dari Backup (GitHub / File .enc)</a>
+    </div>
   </div>
 </div>
 
@@ -210,6 +213,113 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <input type="password" id="newPass" placeholder="New Password" />
         <button class="btn btn-warning btn-sm" onclick="changePassword()">Update Password</button>
       </div>
+      <hr style="border-color: var(--card-border); margin: 8px 0;" />
+      <h4>System Snapshot & GitHub Backup</h4>
+      <div id="snapshotBackupStatus" style="font-size: 0.8rem; color: var(--text-muted); background: #090d16; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px;">
+        Status: <span id="backupStatusText">Belum dikonfigurasi</span>
+      </div>
+      <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+        <button class="btn btn-sm" onclick="exportSnapshotPrompt()">💾 Download Snapshot (.enc)</button>
+        <button class="btn btn-sm" onclick="openRestoreModal()">📂 Restore Snapshot</button>
+      </div>
+
+      <div style="font-size: 0.85rem; font-weight: 600; color: #60a5fa; margin-top: 6px;">GitHub Sync (Private Repo)</div>
+      <div class="form-group" style="margin-top: 4px;">
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem;">
+          <input type="checkbox" id="settingGhEnabled" style="width: auto;" />
+          Aktifkan Otomatis Backup ke GitHub
+        </label>
+      </div>
+      <div class="form-group">
+        <label>Repository (owner/repo)</label>
+        <input type="text" id="settingGhRepo" placeholder="username/pantau-backup" />
+      </div>
+      <div class="form-group">
+        <label>Personal Access Token (PAT dengan izin repo)</label>
+        <input type="password" id="settingGhToken" placeholder="ghp_... atau github_pat_..." />
+      </div>
+      <div class="form-group">
+        <label>Snapshot Passphrase (Kunci Enkripsi AES-256)</label>
+        <input type="password" id="settingGhPassphrase" placeholder="Frasa sandi rahasia untuk enkripsi" />
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="form-group">
+          <label>Interval Backup (Jam)</label>
+          <input type="number" id="settingGhInterval" value="24" min="1" max="168" />
+        </div>
+        <div class="form-group">
+          <label>File Path di Repo</label>
+          <input type="text" id="settingGhPath" value="pantau-state.enc" />
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 6px;">
+        <button class="btn btn-primary btn-sm" onclick="saveGitHubBackupSettings()">💾 Simpan Konfigurasi</button>
+        <button class="btn btn-success btn-sm" onclick="syncGitHubNow()">🚀 Sync ke GitHub Sekarang</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- First-Boot / Restore Wizard Modal -->
+<div id="restoreModal" class="modal">
+  <div class="modal-content" style="max-width: 580px;">
+    <div class="modal-header">
+      <h3 id="restoreModalTitle">🔄 Restore Pantau dari Backup</h3>
+      <button class="btn btn-sm" onclick="closeModal('restoreModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="tabs" style="margin-bottom: 12px;">
+        <div class="tab active" id="tabRestoreGh" onclick="switchRestoreTab('github')">🐙 Dari GitHub Private</div>
+        <div class="tab" id="tabRestoreFile" onclick="switchRestoreTab('file')">📁 Dari File Lokal (.enc)</div>
+        <div class="tab" id="tabRestoreFresh" onclick="switchRestoreTab('fresh')">🚀 Mulai Baru</div>
+      </div>
+
+      <!-- Tab GitHub -->
+      <div id="restoreViewGithub" style="display: flex; flex-direction: column; gap: 12px;">
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Tarik database terenkripsi langsung dari repositori GitHub private Anda via REST API.</p>
+        <div class="form-group">
+          <label>GitHub Repository (owner/repo)</label>
+          <input type="text" id="restoreGhRepo" placeholder="username/pantau-backup" />
+        </div>
+        <div class="form-group">
+          <label>Personal Access Token (PAT)</label>
+          <input type="password" id="restoreGhToken" placeholder="ghp_... atau github_pat_..." />
+        </div>
+        <div class="form-group">
+          <label>File Path di Repo</label>
+          <input type="text" id="restoreGhPath" value="pantau-state.enc" />
+        </div>
+        <div class="form-group">
+          <label>Snapshot Passphrase</label>
+          <input type="password" id="restoreGhPass" placeholder="Frasa sandi enkripsi saat backup" />
+        </div>
+        <button class="btn btn-primary" onclick="doRestoreFromGitHub()">📥 Tarik & Restore dari GitHub</button>
+        <div id="restoreGhMsg" style="font-size: 0.85rem; margin-top: 4px;"></div>
+      </div>
+
+      <!-- Tab File -->
+      <div id="restoreViewFile" style="display: none; flex-direction: column; gap: 12px;">
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Pilih file snapshot terenkripsi (<code>.enc</code>) dari komputer Anda.</p>
+        <div class="form-group">
+          <label>Pilih File (.enc)</label>
+          <input type="file" id="restoreFileInput" accept=".enc" style="padding: 6px;" />
+        </div>
+        <div class="form-group">
+          <label>Snapshot Passphrase</label>
+          <input type="password" id="restoreFilePass" placeholder="Frasa sandi enkripsi file" />
+        </div>
+        <button class="btn btn-primary" onclick="doRestoreFromFile()">📂 Upload & Restore</button>
+        <div id="restoreFileMsg" style="font-size: 0.85rem; margin-top: 4px;"></div>
+      </div>
+
+      <!-- Tab Fresh -->
+      <div id="restoreViewFresh" style="display: none; flex-direction: column; gap: 12px;">
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Mulai Pantau dengan instalasi baru tanpa memulihkan konfigurasi lama.</p>
+        <button class="btn btn-success" onclick="doStartFresh()">Mulai dari Awal (Fresh)</button>
+      </div>
+    </div>
+  </div>
+</div>
     </div>
   </div>
 </div>
@@ -315,6 +425,7 @@ async function checkAuth() {
     loadTransfers();
     setInterval(loadAlerts, 15000);
     setInterval(loadTransfers, 15000);
+    checkFreshStatus();
   } else {
     document.getElementById('loginView').style.display = 'flex';
     document.getElementById('appView').style.display = 'none';
@@ -971,10 +1082,27 @@ function initTerminal(hostID) {
 async function openSettingsModal() {
   const res = await fetch('/api/settings');
   const data = await res.json();
-  document.getElementById('settingPubKey').value = data.ssh_public_key;
-  document.getElementById('settingTgToken').value = data.telegram_token;
-  document.getElementById('settingTgChat').value = data.telegram_chat_id;
-  document.getElementById('settingWebhook').value = data.webhook_url;
+  document.getElementById('settingPubKey').value = data.ssh_public_key || '';
+  document.getElementById('settingTgToken').value = data.telegram_token || '';
+  document.getElementById('settingTgChat').value = data.telegram_chat_id || '';
+  document.getElementById('settingWebhook').value = data.webhook_url || '';
+
+  document.getElementById('settingGhEnabled').checked = data.github_backup_enabled === '1';
+  document.getElementById('settingGhRepo').value = data.github_repo || '';
+  document.getElementById('settingGhToken').value = data.github_token || '';
+  document.getElementById('settingGhPassphrase').value = data.snapshot_passphrase || '';
+  document.getElementById('settingGhInterval').value = data.backup_interval_hours || '24';
+  document.getElementById('settingGhPath').value = data.github_file_path || 'pantau-state.enc';
+
+  let statusText = 'Belum dikonfigurasi';
+  if (data.github_repo) {
+    statusText = (data.github_backup_enabled === '1' ? '🟢 Aktif' : '⚪ Nonaktif') + ' | Repo: ' + data.github_repo;
+    if (data.last_backup_time) {
+      statusText += ' | Terakhir: ' + data.last_backup_time + ' (' + (data.last_backup_status || 'ok') + ')';
+    }
+  }
+  document.getElementById('backupStatusText').innerText = statusText;
+
   document.getElementById('settingsModal').classList.add('open');
 }
 
@@ -1014,6 +1142,173 @@ async function changePassword() {
     alert('Password updated!');
   } else {
     alert('Failed to update password');
+  }
+}
+
+async function saveGitHubBackupSettings() {
+  const payload = {
+    github_backup_enabled: document.getElementById('settingGhEnabled').checked ? '1' : '0',
+    github_repo: document.getElementById('settingGhRepo').value.trim(),
+    github_token: document.getElementById('settingGhToken').value.trim(),
+    snapshot_passphrase: document.getElementById('settingGhPassphrase').value.trim(),
+    backup_interval_hours: document.getElementById('settingGhInterval').value.trim() || '24',
+    github_file_path: document.getElementById('settingGhPath').value.trim() || 'pantau-state.enc',
+  };
+  await fetch('/api/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  alert('Konfigurasi backup GitHub berhasil disimpan!');
+  openSettingsModal();
+}
+
+async function syncGitHubNow() {
+  const res = await fetch('/api/snapshot/github/sync', { method: 'POST' });
+  const data = await res.json();
+  if (data.ok) {
+    alert('✅ ' + data.message);
+    openSettingsModal();
+  } else {
+    alert('❌ Gagal sync ke GitHub: ' + (data.error || 'Unknown error'));
+  }
+}
+
+async function exportSnapshotPrompt() {
+  const pass = prompt('Masukkan Snapshot Passphrase untuk mengenkripsi backup:');
+  if (!pass) return;
+  try {
+    const res = await fetch('/api/snapshot/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passphrase: pass })
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      alert('Gagal export snapshot: ' + err);
+      return;
+    }
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pantau-state.enc';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Error export: ' + e);
+  }
+}
+
+function openRestoreModal() {
+  document.getElementById('restoreGhMsg').innerText = '';
+  document.getElementById('restoreFileMsg').innerText = '';
+  document.getElementById('restoreModal').classList.add('open');
+}
+
+function switchRestoreTab(tab) {
+  document.getElementById('tabRestoreGh').classList.remove('active');
+  document.getElementById('tabRestoreFile').classList.remove('active');
+  document.getElementById('tabRestoreFresh').classList.remove('active');
+  document.getElementById('restoreViewGithub').style.display = 'none';
+  document.getElementById('restoreViewFile').style.display = 'none';
+  document.getElementById('restoreViewFresh').style.display = 'none';
+
+  if (tab === 'github') {
+    document.getElementById('tabRestoreGh').classList.add('active');
+    document.getElementById('restoreViewGithub').style.display = 'flex';
+  } else if (tab === 'file') {
+    document.getElementById('tabRestoreFile').classList.add('active');
+    document.getElementById('restoreViewFile').style.display = 'flex';
+  } else if (tab === 'fresh') {
+    document.getElementById('tabRestoreFresh').classList.add('active');
+    document.getElementById('restoreViewFresh').style.display = 'flex';
+  }
+}
+
+async function doRestoreFromGitHub() {
+  const repo = document.getElementById('restoreGhRepo').value.trim();
+  const token = document.getElementById('restoreGhToken').value.trim();
+  const path = document.getElementById('restoreGhPath').value.trim();
+  const passphrase = document.getElementById('restoreGhPass').value;
+  const msgEl = document.getElementById('restoreGhMsg');
+
+  if (!repo || !token || !passphrase) {
+    msgEl.innerHTML = '<span style="color: var(--danger);">Semua field wajib diisi!</span>';
+    return;
+  }
+
+  msgEl.innerHTML = '<span style="color: #60a5fa;">Mengunduh dan mendekripsi dari GitHub...</span>';
+  try {
+    const res = await fetch('/api/snapshot/github/restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo, token, path, passphrase })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      msgEl.innerHTML = '<span style="color: var(--success);">Berhasil dipulihkan! Me-refresh halaman...</span>';
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      msgEl.innerHTML = '<span style="color: var(--danger);">Gagal: ' + escapeHtml(data.error) + '</span>';
+    }
+  } catch (e) {
+    msgEl.innerHTML = '<span style="color: var(--danger);">Error: ' + escapeHtml(e.message) + '</span>';
+  }
+}
+
+async function doRestoreFromFile() {
+  const fileInput = document.getElementById('restoreFileInput');
+  const pass = document.getElementById('restoreFilePass').value;
+  const msgEl = document.getElementById('restoreFileMsg');
+
+  if (!fileInput.files || fileInput.files.length === 0) {
+    msgEl.innerHTML = '<span style="color: var(--danger);">Pilih file snapshot (.enc) terlebih dahulu!</span>';
+    return;
+  }
+  if (!pass) {
+    msgEl.innerHTML = '<span style="color: var(--danger);">Passphrase wajib diisi!</span>';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  formData.append('passphrase', pass);
+
+  msgEl.innerHTML = '<span style="color: #60a5fa;">Mendekripsi dan memulihkan snapshot...</span>';
+  try {
+    const res = await fetch('/api/snapshot/import', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (data.ok) {
+      msgEl.innerHTML = '<span style="color: var(--success);">Berhasil memulihkan ' + data.hosts_imported + ' host! Me-refresh...</span>';
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      msgEl.innerHTML = '<span style="color: var(--danger);">Gagal: ' + escapeHtml(data.error) + '</span>';
+    }
+  } catch (e) {
+    msgEl.innerHTML = '<span style="color: var(--danger);">Error: ' + escapeHtml(e.message) + '</span>';
+  }
+}
+
+async function doStartFresh() {
+  await fetch('/api/snapshot/bootstrap/start-fresh', { method: 'POST' });
+  closeModal('restoreModal');
+}
+
+async function checkFreshStatus() {
+  try {
+    const res = await fetch('/api/snapshot/status');
+    const data = await res.json();
+    if (data.fresh) {
+      openRestoreModal();
+    }
+  } catch (e) {
+    console.error('checkFreshStatus error:', e);
   }
 }
 

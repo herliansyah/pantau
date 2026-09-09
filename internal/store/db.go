@@ -581,3 +581,137 @@ func (d *DB) AcknowledgeAlert(id int64) error {
 	_, err := d.Exec(`UPDATE alerts SET acknowledged = 1 WHERE id = ?`, id)
 	return err
 }
+
+// SnapshotPayload holds the sanitized system configuration for backup and restore.
+type SnapshotPayload struct {
+	Version      int               `json:"version"`
+	CreatedAt    time.Time         `json:"created_at"`
+	Settings     map[string]string `json:"settings"`
+	Hosts        []Host            `json:"hosts"`
+	DesiredRules []DesiredRule     `json:"desired_rules"`
+}
+
+func (d *DB) IsFresh() (bool, error) {
+	var count int
+	if err := d.QueryRow("SELECT COUNT(*) FROM hosts").Scan(&count); err != nil {
+		return false, err
+	}
+	if count > 0 {
+		return false, nil
+	}
+	var completed string
+	err := d.QueryRow("SELECT value FROM settings WHERE key = 'bootstrap_completed'").Scan(&completed)
+	if err == sql.ErrNoRows {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return completed != "1", nil
+}
+
+func (d *DB) MarkBootstrapCompleted() error {
+	return d.SetSetting("bootstrap_completed", "1")
+}
+
+func (d *DB) ExportSnapshot() (*SnapshotPayload, error) {
+	hosts, err := d.ListHosts()
+	if err != nil {
+		return nil, fmt.Errorf("list hosts: %w", err)
+	}
+
+	var allRules []DesiredRule
+	for _, h := range hosts {
+		rules, err := d.ListDesiredRules(h.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list rules for host %d: %w", h.ID, err)
+		}
+		allRules = append(allRules, rules...)
+	}
+
+	settings := make(map[string]string)
+	rows, err := d.Query("SELECT key, value FROM settings")
+	if err != nil {
+		return nil, fmt.Errorf("select settings: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		settings[k] = v
+	}
+
+	return &SnapshotPayload{
+		Version:      1,
+		CreatedAt:    time.Now().UTC(),
+		Settings:     settings,
+		Hosts:        hosts,
+		DesiredRules: allRules,
+	}, nil
+}
+
+func (d *DB) ImportSnapshot(payload *SnapshotPayload) error {
+	if payload == nil {
+		return fmt.Errorf("empty snapshot payload")
+	}
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	tables := []string{"alerts", "incidents", "actual_items", "desired_rules", "hosts"}
+	for _, t := range tables {
+		if _, err := tx.Exec("DELETE FROM " + t); err != nil {
+			return fmt.Errorf("clear %s: %w", t, err)
+		}
+	}
+
+	for _, h := range payload.Hosts {
+		onlineInt := 0
+		if h.InternetOnline {
+			onlineInt = 1
+		}
+		_, err := tx.Exec(`INSERT INTO hosts (
+			id, name, host, port, user, custom_key, status, os_info, kernel, uptime, cpu_load,
+			ram_used_bytes, ram_total_bytes, disk_used_bytes, disk_total_bytes, lifecycle_score, lifecycle_notes,
+			created_at, net_rx_bytes, net_tx_bytes, net_rx_speed_bps, net_tx_speed_bps,
+			internet_online, internet_latency_ms, public_ip, active_conn_count, failed_logins_count,
+			top_connections, listening_ports
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			h.ID, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Status, h.OSInfo, h.Kernel, h.Uptime, h.CPULoad,
+			h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, h.LifecycleScore, h.LifecycleNotes,
+			h.CreatedAt, h.NetRxBytes, h.NetTxBytes, h.NetRxSpeedBps, h.NetTxSpeedBps,
+			onlineInt, h.InternetLatencyMs, h.PublicIP, h.ActiveConnCount, h.FailedLoginsCount,
+			h.TopConnections, h.ListeningPorts,
+		)
+		if err != nil {
+			return fmt.Errorf("insert host %d: %w", h.ID, err)
+		}
+	}
+
+	for _, r := range payload.DesiredRules {
+		enabledInt := 0
+		if r.Enabled {
+			enabledInt = 1
+		}
+		_, err := tx.Exec(`INSERT INTO desired_rules (id, host_id, kind, target, expected, enabled) VALUES (?, ?, ?, ?, ?, ?)`,
+			r.ID, r.HostID, r.Kind, r.Target, r.Expected, enabledInt)
+		if err != nil {
+			return fmt.Errorf("insert desired rule %d: %w", r.ID, err)
+		}
+	}
+
+	for k, v := range payload.Settings {
+		_, err := tx.Exec(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, k, v)
+		if err != nil {
+			return fmt.Errorf("insert setting %s: %w", k, err)
+		}
+	}
+
+	_, _ = tx.Exec(`INSERT INTO settings (key, value) VALUES ('bootstrap_completed', '1') ON CONFLICT(key) DO UPDATE SET value = '1'`)
+
+	return tx.Commit()
+}

@@ -20,6 +20,7 @@ import (
 
 	"pantau/internal/inspector"
 	"pantau/internal/notify"
+	"pantau/internal/snapshot"
 	"pantau/internal/sshrunner"
 	"pantau/internal/store"
 	"pantau/internal/transfer"
@@ -987,6 +988,124 @@ func TestTicket13_LegacyServerCompatibility(t *testing.T) {
 	}
 	if !foundAlert {
 		t.Fatalf("expected alert for stopped mysqld service on CentOS 6 host")
+	}
+}
+
+func TestTicket14_EncryptedSystemSnapshotAndGitHubSyncAPI(t *testing.T) {
+	env1 := setupTestEnv(t)
+	client1 := loginClient(t, env1)
+
+	// 1. Status on fresh DB
+	resp, err := http.Get(env1.httpServer.URL + "/api/snapshot/status")
+	if err != nil {
+		t.Fatalf("status get: %v", err)
+	}
+	var statusResp struct {
+		Fresh     bool `json:"fresh"`
+		HostCount int  `json:"host_count"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&statusResp)
+	resp.Body.Close()
+	if !statusResp.Fresh || statusResp.HostCount != 0 {
+		t.Fatalf("expected fresh=true, host_count=0, got fresh=%v, count=%d", statusResp.Fresh, statusResp.HostCount)
+	}
+
+	// 2. Add host to env1
+	hID, err := env1.db.CreateHost(&store.Host{
+		Name: "Backup-Target-Host",
+		Host: "192.168.10.50",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatalf("create host: %v", err)
+	}
+	_ = env1.db.SaveDesiredRule(&store.DesiredRule{
+		HostID:   hID,
+		Kind:     "container",
+		Target:   "postgres",
+		Expected: "running",
+		Enabled:  true,
+	})
+
+	// Verify no longer fresh
+	resp2, _ := http.Get(env1.httpServer.URL + "/api/snapshot/status")
+	_ = json.NewDecoder(resp2.Body).Decode(&statusResp)
+	resp2.Body.Close()
+	if statusResp.Fresh || statusResp.HostCount != 1 {
+		t.Fatalf("expected fresh=false, host_count=1, got fresh=%v, count=%d", statusResp.Fresh, statusResp.HostCount)
+	}
+
+	// 3. Export snapshot via API
+	exportPayload, _ := json.Marshal(map[string]string{"passphrase": "VaultSecretKey99!"})
+	expResp, err := client1.Post(env1.httpServer.URL+"/api/snapshot/export", "application/json", bytes.NewReader(exportPayload))
+	if err != nil {
+		t.Fatalf("export post: %v", err)
+	}
+	encryptedData, err := io.ReadAll(expResp.Body)
+	expResp.Body.Close()
+	if err != nil || len(encryptedData) == 0 {
+		t.Fatalf("expected non-empty encrypted data from export: %v", err)
+	}
+	if !bytes.HasPrefix(encryptedData, snapshot.MagicHeader) {
+		t.Fatalf("expected encrypted data to have snapshot.MagicHeader")
+	}
+
+	// 4. Create fresh second environment
+	env2 := setupTestEnv(t)
+
+	// Verify env2 starts fresh
+	fresh2, _ := env2.db.IsFresh()
+	if !fresh2 {
+		t.Fatalf("expected env2 to start fresh")
+	}
+
+	// 5. Import into env2 using multipart form (unauthenticated allowed since env2 is fresh)
+	var b bytes.Buffer
+	w := io.MultiWriter(&b)
+	boundary := "---------------------------pantauBoundary123"
+	w.Write([]byte("--" + boundary + "\r\n"))
+	w.Write([]byte("Content-Disposition: form-data; name=\"passphrase\"\r\n\r\n"))
+	w.Write([]byte("VaultSecretKey99!\r\n"))
+	w.Write([]byte("--" + boundary + "\r\n"))
+	w.Write([]byte("Content-Disposition: form-data; name=\"file\"; filename=\"pantau-state.enc\"\r\n"))
+	w.Write([]byte("Content-Type: application/octet-stream\r\n\r\n"))
+	w.Write(encryptedData)
+	w.Write([]byte("\r\n--" + boundary + "--\r\n"))
+
+	importReq, err := http.NewRequest(http.MethodPost, env2.httpServer.URL+"/api/snapshot/import", &b)
+	if err != nil {
+		t.Fatalf("new import req: %v", err)
+	}
+	importReq.Header.Set("Content-Type", "multipart/form-data; boundary="+boundary)
+
+	impResp, err := http.DefaultClient.Do(importReq)
+	if err != nil {
+		t.Fatalf("import do: %v", err)
+	}
+	defer impResp.Body.Close()
+	if impResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(impResp.Body)
+		t.Fatalf("import failed (%d): %s", impResp.StatusCode, string(body))
+	}
+
+	// Verify env2 now has the restored host and rule
+	hosts2, err := env2.db.ListHosts()
+	if err != nil || len(hosts2) != 1 {
+		t.Fatalf("expected 1 host in env2 after restore, got %d, err=%v", len(hosts2), err)
+	}
+	if hosts2[0].Name != "Backup-Target-Host" || hosts2[0].Host != "192.168.10.50" {
+		t.Fatalf("host mismatch in env2: %+v", hosts2[0])
+	}
+
+	rules2, _ := env2.db.ListDesiredRules(hosts2[0].ID)
+	if len(rules2) != 1 || rules2[0].Target != "postgres" {
+		t.Fatalf("rules mismatch in env2: %+v", rules2)
+	}
+
+	fresh2After, _ := env2.db.IsFresh()
+	if fresh2After {
+		t.Fatalf("expected env2 to no longer be fresh after import")
 	}
 }
 
