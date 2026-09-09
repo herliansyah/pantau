@@ -11,9 +11,12 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/mattn/go-isatty"
 
 	"pantau/internal/inspector"
 	"pantau/internal/notify"
@@ -23,11 +26,78 @@ import (
 	"pantau/internal/web"
 )
 
+var Version = "dev"
+
+func resolveVersion() string {
+	if Version != "" && Version != "dev" {
+		return Version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		var rev, mod string
+		for _, s := range info.Settings {
+			switch s.Key {
+			case "vcs.revision":
+				rev = s.Value
+			case "vcs.modified":
+				if s.Value == "true" {
+					mod = "-dirty"
+				}
+			}
+		}
+		if rev != "" {
+			if len(rev) > 7 {
+				rev = rev[:7]
+			}
+			return rev + mod
+		}
+	}
+	return "dev"
+}
+
+func printBanner(version string) {
+	isTTY := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	if os.Getenv("NO_COLOR") != "" {
+		isTTY = false
+	}
+
+	cyan := ""
+	dim := ""
+	reset := ""
+	if isTTY {
+		cyan = "\033[36m"
+		dim = "\033[2m"
+		reset = "\033[0m"
+	}
+
+	fmt.Printf(`%s  ____              _             
+ |  _ \ __ _ _ __ | |_ __ _ _   _ 
+ | |_) / _`+"`"+` | '_ \| __/ _`+"`"+` | | | |
+ |  __/ (_| | | | | || (_| | |_| |
+ |_|   \__,_|_| |_|\__\__,_|\__,_|%s
+ %sSingle binary. Zero remote daemons. Embedded SQLite. Native SSH.%s
+
+ • %sVersion%s : %s
+ • %sAuthor%s  : Herliansyah
+ • %sGitHub%s  : https://github.com/herliansyah/pantau
+
+`, cyan, reset, dim, reset, dim, reset, version, dim, reset, dim, reset)
+}
+
 func main() {
+	versionFlag := flag.Bool("version", false, "Print version and exit")
+	flag.BoolVar(versionFlag, "v", false, "Print version and exit (shorthand)")
 	portFlag := flag.Int("port", 8080, "HTTP server port")
 	dbFlag := flag.String("db", "pantau.db", "SQLite database file path")
 	openBrowserFlag := flag.Bool("open", runtime.GOOS == "windows", "Open default browser on start")
 	flag.Parse()
+
+	ver := resolveVersion()
+	if *versionFlag {
+		printBanner(ver)
+		os.Exit(0)
+	}
+
+	printBanner(ver)
 	portExplicit := false
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name == "port" {
@@ -48,7 +118,7 @@ func main() {
 		dbPath = envDB
 	}
 
-	log.Printf("Starting Pantau...")
+	log.Printf("Starting Pantau %s...", ver)
 	log.Printf("Database path: %s", dbPath)
 
 	db, err := store.Open(dbPath)
@@ -71,6 +141,7 @@ func main() {
 
 
 	server := web.NewServer(db, ins, dispatcher)
+	server.SetVersion(ver)
 	server.SetSnapshotManager(snapshotMgr)
 	var listener net.Listener
 	if !portExplicit {
