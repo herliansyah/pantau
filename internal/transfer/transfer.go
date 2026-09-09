@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"path/filepath"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -156,7 +156,7 @@ func (m *Manager) runTransfer(ctx context.Context, job *TransferJob, srcHost, ds
 	if isDir {
 		destDir = job.DestPath
 	} else {
-		destDir = filepath.Dir(job.DestPath)
+		destDir = path.Dir(job.DestPath)
 		destFile = job.DestPath
 	}
 	_, _, _, _ = dstRunner.Exec(fmt.Sprintf(`mkdir -p %q`, destDir))
@@ -221,8 +221,8 @@ func (m *Manager) runTransfer(ctx context.Context, job *TransferJob, srcHost, ds
 	var dstCmd string
 
 	if isDir {
-		srcParent := filepath.Dir(job.SourcePath)
-		srcBase := filepath.Base(job.SourcePath)
+		srcParent := path.Dir(job.SourcePath)
+		srcBase := path.Base(job.SourcePath)
 		srcCmd = fmt.Sprintf(`tar -cf - -C %q %q`, srcParent, srcBase)
 		dstCmd = fmt.Sprintf(`tar -xf - -C %q`, job.DestPath)
 	} else {
