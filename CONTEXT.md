@@ -112,3 +112,11 @@ _Avoid_: Blocked folder, blacklisted path, system lock
 **Terminal Preset**:
 Konfigurasi pintasan perintah terminal interaktif (nama label, perintah shell, target Host opsional, dan preferensi persistensi sesi) yang tersimpan di basis data Pantau untuk eksekusi instan melalui antarmuka web.
 _Avoid_: Terminal shortcut, terminal macro, saved command, quick command
+
+**Toast Notification**:
+Pemberitahuan mengambang non-blocking di pojok antarmuka Pantau dengan ikon status (sukses, peringatan, error) dan penghilangan otomatis (*auto-dismiss*) untuk mengeliminasi pemblokiran UI thread dari modal dialog bawaan peramban.
+_Avoid_: Alert popup, banner alert, notification snackbar
+
+**Confirmation Dialog**:
+Dialog aksi ringkas berbasis Promise yang menyajikan konfirmasi eksplisit sebelum eksekusi aksi destruktif atau peringatan batas sistem, menggantikan dialog konfirmasi bawaan peramban.
+_Avoid_: Confirm popup, prompt dialog, native confirmation

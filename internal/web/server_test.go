@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -176,5 +177,62 @@ func TestTerminalPresetsAPI(t *testing.T) {
 	srv.ServeHTTP(rr5, req5)
 	if rr5.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr5.Code)
+	}
+}
+
+func TestShellStaticHTML(t *testing.T) {
+	html := string(embeddedHTML)
+	requiredStrings := []string{
+		"btn-icon",
+		`data-i18n-title="transfers_title"`,
+		`data-i18n-title="global_notes_title"`,
+		`data-i18n-title="settings_title"`,
+		`data-i18n-title="logout_title"`,
+		"logout_confirm",
+		"footerEngineDot",
+		"footerHostMetrics",
+		"footer-pill",
+		"v1.0.0",
+		"btn-inspect-quick",
+		"injectKeyModal",
+		"confirmModal",
+		"ruleModal",
+		"snapshotExportModal",
+		"toastContainer",
+		"toggleDropdown",
+		"showConfirm",
+		"showToast",
+		"openModal",
+		"closeModal",
+	}
+	for _, s := range requiredStrings {
+		if !strings.Contains(html, s) {
+			t.Errorf("expected embedded index.html to contain %q", s)
+		}
+	}
+
+	forbiddenPatterns := []string{
+		"alert(",
+		"prompt(",
+		"confirm(",
+	}
+	for _, p := range forbiddenPatterns {
+		if strings.Contains(html, p) {
+			t.Errorf("embedded index.html should not contain native dialog call %q", p)
+		}
+	}
+
+	// Validate JS syntax using node if available in PATH
+	if nodePath, err := exec.LookPath("node"); err == nil && nodePath != "" {
+		start := strings.Index(html, "<script>")
+		end := strings.LastIndex(html, "</script>")
+		if start != -1 && end != -1 && end > start {
+			jsCode := html[start+len("<script>") : end]
+			cmd := exec.Command(nodePath, "--check")
+			cmd.Stdin = strings.NewReader(jsCode)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Errorf("JavaScript syntax check failed: %v\nOutput: %s", err, string(out))
+			}
+		}
 	}
 }
