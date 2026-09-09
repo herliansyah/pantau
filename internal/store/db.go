@@ -115,6 +115,16 @@ type Alert struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+type TerminalPreset struct {
+	ID        int64     `json:"id"`
+	HostID    *int64    `json:"host_id"` // nil indicates a global preset
+	Name      string    `json:"name"`
+	Command   string    `json:"command"`
+	SortOrder int       `json:"sort_order"`
+	UseTmux   bool      `json:"use_tmux"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 func Open(dbPath string) (*DB, error) {
 	if dir := filepath.Dir(dbPath); dir != "." && dir != "" {
 		_ = os.MkdirAll(dir, 0755)
@@ -223,6 +233,16 @@ func (d *DB) migrate() error {
 		acknowledged INTEGER DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
+
+	CREATE TABLE IF NOT EXISTS terminal_presets (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		host_id INTEGER REFERENCES hosts(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		command TEXT NOT NULL,
+		sort_order INTEGER DEFAULT 0,
+		use_tmux INTEGER DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
 	`
 	_, err := d.Exec(schema)
 	if err != nil {
@@ -288,7 +308,9 @@ func (d *DB) initDefaults() error {
 		if _, err := tx.Exec("INSERT INTO settings(key, value) VALUES ('ssh_public_key', ?)", pubAuthorized); err != nil {
 			return err
 		}
-		return tx.Commit()
+		if err := tx.Commit(); err != nil {
+			return err
+		}
 	} else if err == nil {
 		var pubKey string
 		_ = d.QueryRow("SELECT value FROM settings WHERE key = 'ssh_public_key'").Scan(&pubKey)
@@ -307,6 +329,24 @@ func (d *DB) initDefaults() error {
 					_ = tx.Commit()
 				}
 			}
+		}
+	}
+
+	// 3. Ensure essential default global terminal presets exist
+	var presetCount int
+	_ = d.QueryRow("SELECT COUNT(*) FROM terminal_presets").Scan(&presetCount)
+	if presetCount == 0 {
+		defaultPresets := []struct {
+			name    string
+			command string
+			sort    int
+		}{
+			{"htop", "htop", 1},
+			{"docker stats", "docker stats", 2},
+			{"journalctl -f", "journalctl -n 100 -f", 3},
+		}
+		for _, p := range defaultPresets {
+			_, _ = d.Exec("INSERT INTO terminal_presets(name, command, sort_order, use_tmux) VALUES (?, ?, ?, 0)", p.name, p.command, p.sort)
 		}
 	}
 
@@ -628,13 +668,129 @@ func (d *DB) AcknowledgeAlert(id int64) error {
 	return err
 }
 
+// Terminal Preset operations
+func (d *DB) ListTerminalPresets(hostID *int64) ([]TerminalPreset, error) {
+	var query string
+	var args []interface{}
+	if hostID == nil {
+		query = `SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets WHERE host_id IS NULL ORDER BY sort_order ASC, id ASC`
+	} else {
+		query = `SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets WHERE host_id IS NULL OR host_id = ? ORDER BY sort_order ASC, id ASC`
+		args = append(args, *hostID)
+	}
+
+	rows, err := d.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var presets []TerminalPreset
+	for rows.Next() {
+		var p TerminalPreset
+		var rawHostID sql.NullInt64
+		var useTmux int
+		if err := rows.Scan(&p.ID, &rawHostID, &p.Name, &p.Command, &p.SortOrder, &useTmux, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		if rawHostID.Valid {
+			hid := rawHostID.Int64
+			p.HostID = &hid
+		}
+		p.UseTmux = useTmux == 1
+		presets = append(presets, p)
+	}
+	return presets, nil
+}
+
+func (d *DB) ListAllTerminalPresets() ([]TerminalPreset, error) {
+	rows, err := d.Query(`SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets ORDER BY sort_order ASC, id ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var presets []TerminalPreset
+	for rows.Next() {
+		var p TerminalPreset
+		var rawHostID sql.NullInt64
+		var useTmux int
+		if err := rows.Scan(&p.ID, &rawHostID, &p.Name, &p.Command, &p.SortOrder, &useTmux, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		if rawHostID.Valid {
+			hid := rawHostID.Int64
+			p.HostID = &hid
+		}
+		p.UseTmux = useTmux == 1
+		presets = append(presets, p)
+	}
+	return presets, nil
+}
+
+func (d *DB) GetTerminalPreset(id int64) (*TerminalPreset, error) {
+	row := d.QueryRow(`SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets WHERE id = ?`, id)
+	var p TerminalPreset
+	var rawHostID sql.NullInt64
+	var useTmux int
+	if err := row.Scan(&p.ID, &rawHostID, &p.Name, &p.Command, &p.SortOrder, &useTmux, &p.CreatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if rawHostID.Valid {
+		hid := rawHostID.Int64
+		p.HostID = &hid
+	}
+	p.UseTmux = useTmux == 1
+	return &p, nil
+}
+
+func (d *DB) CreateTerminalPreset(p *TerminalPreset) (int64, error) {
+	useTmuxInt := 0
+	if p.UseTmux {
+		useTmuxInt = 1
+	}
+	var rawHostID interface{} = nil
+	if p.HostID != nil {
+		rawHostID = *p.HostID
+	}
+	res, err := d.Exec(`INSERT INTO terminal_presets (host_id, name, command, sort_order, use_tmux) VALUES (?, ?, ?, ?, ?)`,
+		rawHostID, p.Name, p.Command, p.SortOrder, useTmuxInt)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func (d *DB) UpdateTerminalPreset(p *TerminalPreset) error {
+	useTmuxInt := 0
+	if p.UseTmux {
+		useTmuxInt = 1
+	}
+	var rawHostID interface{} = nil
+	if p.HostID != nil {
+		rawHostID = *p.HostID
+	}
+	_, err := d.Exec(`UPDATE terminal_presets SET host_id = ?, name = ?, command = ?, sort_order = ?, use_tmux = ? WHERE id = ?`,
+		rawHostID, p.Name, p.Command, p.SortOrder, useTmuxInt, p.ID)
+	return err
+}
+
+func (d *DB) DeleteTerminalPreset(id int64) error {
+	_, err := d.Exec(`DELETE FROM terminal_presets WHERE id = ?`, id)
+	return err
+}
+
 // SnapshotPayload holds the sanitized system configuration for backup and restore.
 type SnapshotPayload struct {
-	Version      int               `json:"version"`
-	CreatedAt    time.Time         `json:"created_at"`
-	Settings     map[string]string `json:"settings"`
-	Hosts        []Host            `json:"hosts"`
-	DesiredRules []DesiredRule     `json:"desired_rules"`
+	Version         int               `json:"version"`
+	CreatedAt       time.Time         `json:"created_at"`
+	Settings        map[string]string `json:"settings"`
+	Hosts           []Host            `json:"hosts"`
+	DesiredRules    []DesiredRule     `json:"desired_rules"`
+	TerminalPresets []TerminalPreset  `json:"terminal_presets,omitempty"`
 }
 
 func (d *DB) IsFresh() (bool, error) {
@@ -689,12 +845,32 @@ func (d *DB) ExportSnapshot() (*SnapshotPayload, error) {
 		settings[k] = v
 	}
 
+	var allPresets []TerminalPreset
+	pRows, err := d.Query("SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets ORDER BY sort_order ASC, id ASC")
+	if err == nil {
+		defer pRows.Close()
+		for pRows.Next() {
+			var p TerminalPreset
+			var rawHostID sql.NullInt64
+			var useTmux int
+			if err := pRows.Scan(&p.ID, &rawHostID, &p.Name, &p.Command, &p.SortOrder, &useTmux, &p.CreatedAt); err == nil {
+				if rawHostID.Valid {
+					hid := rawHostID.Int64
+					p.HostID = &hid
+				}
+				p.UseTmux = useTmux == 1
+				allPresets = append(allPresets, p)
+			}
+		}
+	}
+
 	return &SnapshotPayload{
-		Version:      1,
-		CreatedAt:    time.Now().UTC(),
-		Settings:     settings,
-		Hosts:        hosts,
-		DesiredRules: allRules,
+		Version:         1,
+		CreatedAt:       time.Now().UTC(),
+		Settings:        settings,
+		Hosts:           hosts,
+		DesiredRules:    allRules,
+		TerminalPresets: allPresets,
 	}, nil
 }
 
@@ -708,7 +884,7 @@ func (d *DB) ImportSnapshot(payload *SnapshotPayload) error {
 	}
 	defer tx.Rollback()
 
-	tables := []string{"alerts", "incidents", "actual_items", "desired_rules", "hosts"}
+	tables := []string{"alerts", "incidents", "actual_items", "desired_rules", "hosts", "terminal_presets"}
 	for _, t := range tables {
 		if _, err := tx.Exec("DELETE FROM " + t); err != nil {
 			return fmt.Errorf("clear %s: %w", t, err)
@@ -748,6 +924,19 @@ func (d *DB) ImportSnapshot(payload *SnapshotPayload) error {
 		if err != nil {
 			return fmt.Errorf("insert desired rule %d: %w", r.ID, err)
 		}
+	}
+
+	for _, p := range payload.TerminalPresets {
+		useTmuxInt := 0
+		if p.UseTmux {
+			useTmuxInt = 1
+		}
+		var hid interface{} = nil
+		if p.HostID != nil {
+			hid = *p.HostID
+		}
+		_, _ = tx.Exec(`INSERT INTO terminal_presets (id, host_id, name, command, sort_order, use_tmux) VALUES (?, ?, ?, ?, ?, ?)`,
+			p.ID, hid, p.Name, p.Command, p.SortOrder, useTmuxInt)
 	}
 
 	for k, v := range payload.Settings {

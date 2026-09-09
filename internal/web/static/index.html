@@ -113,6 +113,27 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 .card.dragging { opacity: 0.4; }
 .host-list-table tr.drag-target td { background: rgba(56, 189, 248, 0.15) !important; }
 .host-list-table tr.dragging td { opacity: 0.4; }
+.terminal-pane { transition: border-color 0.15s ease, box-shadow 0.15s ease; border: 1px solid var(--card-border); }
+.terminal-pane.active-pane { border-color: #38bdf8 !important; box-shadow: 0 0 0 1px #38bdf8; }
+.preset-btn {
+  background: #1e293b;
+  border: 1px solid var(--card-border);
+  color: #cbd5e1;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-family: monospace;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.preset-btn:hover {
+  background: #334155;
+  color: #fff;
+  border-color: #64748b;
+}
 </style>
 </head>
 <body>
@@ -338,6 +359,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <div class="tab active" id="tabSettingsGeneral" onclick="switchSettingsTab('general')" data-i18n="tab_settings_general">🔑 General & Access</div>
         <div class="tab" id="tabSettingsNotif" onclick="switchSettingsTab('notif')" data-i18n="tab_settings_notif">🔔 Notification Channels</div>
         <div class="tab" id="tabSettingsBackup" onclick="switchSettingsTab('backup')" data-i18n="tab_settings_backup">💾 Backup & Snapshot</div>
+        <div class="tab" id="tabSettingsPresets" onclick="switchSettingsTab('presets')" data-i18n="tab_settings_presets">💻 Terminal Presets</div>
       </div>
     </div>
     <div class="modal-body">
@@ -435,6 +457,14 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
             <button class="btn btn-success btn-sm" onclick="syncGitHubNow()" data-i18n="sync_gh_now">🚀 Sync to GitHub Now</button>
           </div>
         </div>
+      </div>
+      <!-- Terminal Presets Tab -->
+      <div id="settingsPanelPresets" style="display: none; flex-direction: column; gap: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Configure global and host-specific command shortcuts for web terminal.</p>
+          <button class="btn btn-primary btn-sm" onclick="openCreatePresetModal()">➕ New Preset</button>
+        </div>
+        <div id="settingsPresetsList">Loading presets...</div>
       </div>
     </div>
   </div>
@@ -579,6 +609,65 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
   </div>
 </div>
 
+<!-- Terminal Preset Modal (Action Dialog) -->
+<div id="presetModal" class="modal">
+  <div class="modal-content modal-dialog">
+    <div class="modal-header">
+      <h3 id="presetModalTitle" data-i18n="add_preset">Add Terminal Preset</h3>
+      <button class="btn btn-sm" onclick="closeModal('presetModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editPresetId" />
+      <div class="form-group">
+        <label data-i18n="preset_name">Preset Name</label>
+        <input type="text" id="presetNameInput" placeholder="e.g. mytop or Nginx Logs" />
+      </div>
+      <div class="form-group">
+        <label data-i18n="command">Shell Command</label>
+        <input type="text" id="presetCommandInput" placeholder="e.g. mytop -u root -p or tail -f /var/log/nginx/error.log" style="font-family: monospace;" />
+      </div>
+      <div class="form-group">
+        <label data-i18n="scope">Scope</label>
+        <select id="presetScopeSelect" class="input">
+          <option value="global" data-i18n="scope_global">🌐 All Hosts (Global)</option>
+          <option value="host" id="presetScopeHostOption" data-i18n="scope_host">🎯 This Host Only</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-top: 4px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem;">
+          <input type="checkbox" id="presetTmuxCheckbox" style="width: 16px; height: 16px; accent-color: #2563eb;" />
+          <span data-i18n="use_tmux">Keep session persistent with tmux if available</span>
+        </label>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px;">
+        <button class="btn" onclick="closeModal('presetModal')" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-primary" onclick="submitPresetForm()" data-i18n="save_preset">Save Preset</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Preset Manager Modal (Action Dialog) -->
+<div id="presetManagerModal" class="modal">
+  <div class="modal-content modal-dialog-md">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span>💻</span>
+        <h3 data-i18n="manage_presets">Manage Terminal Presets</h3>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-primary btn-sm" onclick="openCreatePresetModal()">➕ Add Preset</button>
+        <button class="btn btn-sm" onclick="closeModal('presetManagerModal')">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" style="padding: 16px;">
+      <div id="presetManagerListContainer" style="max-height: 60vh; overflow-y: auto;">
+        <!-- Table populated dynamically -->
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
@@ -637,6 +726,20 @@ const I18N = {
     "btn_inspect": "\u26a1 Inspect",
     "btn_test": "\ud83d\udd0c Test",
     "btn_inject_key": "\ud83d\udd11 Inject Key",
+    "tab_settings_presets": "💻 Terminal Presets",
+    "manage_presets": "Manage Terminal Presets",
+    "add_preset": "Add Terminal Preset",
+    "edit_preset": "Edit Terminal Preset",
+    "preset_name": "Preset Name",
+    "command": "Shell Command",
+    "scope": "Scope",
+    "scope_global": "🌐 All Hosts (Global)",
+    "scope_host": "🎯 This Host Only",
+    "use_tmux": "Keep session persistent with tmux if available",
+    "save_preset": "Save Preset",
+    "split_terminal": "Split (Alt+\\)",
+    "unsplit_terminal": "Unsplit (Alt+\\)",
+    "btn_terminal": "Terminal",
     "confirm_delete_host": "Delete this host?",
     "ssh_test_success": "SSH Connection Successful!",
     "ssh_test_failed": "SSH Connection FAILED:\n",
@@ -905,6 +1008,20 @@ const I18N = {
     "btn_inspect": "\u26a1 Inspeksi",
     "btn_test": "\ud83d\udd0c Uji",
     "btn_inject_key": "\ud83d\udd11 Inject Key",
+    "tab_settings_presets": "💻 Terminal Preset",
+    "manage_presets": "Kelola Terminal Preset",
+    "add_preset": "Tambah Terminal Preset",
+    "edit_preset": "Edit Terminal Preset",
+    "preset_name": "Nama Preset",
+    "command": "Perintah Shell",
+    "scope": "Cakupan",
+    "scope_global": "🌐 Semua Host (Global)",
+    "scope_host": "🎯 Hanya Host Ini",
+    "use_tmux": "Gunakan sesi tmux persisten jika tersedia",
+    "save_preset": "Simpan Preset",
+    "split_terminal": "Bagi Panel (Alt+\\)",
+    "unsplit_terminal": "Tutup Panel (Alt+\\)",
+    "btn_terminal": "Terminal",
     "confirm_delete_host": "Hapus host ini?",
     "ssh_test_success": "Koneksi SSH Berhasil!",
     "ssh_test_failed": "Koneksi SSH GAGAL:\n",
@@ -1611,6 +1728,7 @@ function renderGridView(grid, isManualSort) {
       </div>
       <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
         <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
+        <button class="btn btn-sm" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}">💻</button>
         <button class="btn btn-sm" onclick="inspectHost(${h.id})">${t('btn_inspect')}</button>
         <button class="btn btn-sm" onclick="testHostSSH(${h.id})">${t('btn_test')}</button>
         <button class="btn btn-warning btn-sm" onclick="promptInjectKey(${h.id}, '${escapeHtml(h.name)}')">${t('btn_inject_key')}</button>
@@ -1733,10 +1851,10 @@ function renderListView(listContainer, isManualSort) {
       <td style="text-align: right;">
         <div style="display: inline-flex; gap: 4px;">
           <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
+          <button class="btn btn-sm" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}">💻</button>
           <button class="btn btn-sm" onclick="inspectHost(${h.id})">${t('btn_inspect')}</button>
           <button class="btn btn-sm" onclick="testHostSSH(${h.id})">${t('btn_test')}</button>
           <button class="btn btn-danger btn-sm" onclick="deleteHost(${h.id})">🗑️</button>
-        </div>
       </td>
     `;
     tbody.appendChild(tr);
@@ -1880,7 +1998,21 @@ async function openHostDetail(id) {
   switchTab(currentTab);
 }
 
-function switchTab(tab) {
+async function openHostTerminal(hostID, presetID) {
+  const res = await fetch('/api/hosts/' + hostID);
+  if (!res.ok) return;
+  const data = await res.json();
+  currentHost = data.host;
+  window.detailData = data;
+  document.getElementById('detailHostName').innerText = currentHost.name + ' (' + currentHost.host + ')';
+  const badge = document.getElementById('detailHostBadge');
+  badge.className = 'badge badge-' + currentHost.status;
+  badge.innerText = currentHost.status;
+  document.getElementById('hostDetailModal').classList.add('open');
+  switchTab('terminal', presetID);
+}
+
+function switchTab(tab, presetID) {
   currentTab = tab;
   document.querySelectorAll('#hostDetailTabs .tab').forEach(t => {
     t.classList.toggle('active', t.getAttribute('data-tab') === tab);
@@ -2128,7 +2260,7 @@ function switchTab(tab) {
   } else if (tab === 'files') {
     loadFiles('/');
   } else if (tab === 'terminal') {
-    initTerminal(d.host.id);
+    initTerminal(d.host.id, presetID);
   }
 }
 
@@ -2339,17 +2471,112 @@ async function saveEditorFile() {
   }
 }
 
-// Web Terminal (xterm.js)
-function initTerminal(hostID) {
-  const content = document.getElementById('tabContent');
-  content.innerHTML = '<div id="termDiv" class="terminal-container"></div>';
+// Web Terminal & Preset State
+let terminalSocketLeft = null;
+let activeTermLeft = null;
+let fitAddonLeft = null;
 
-  if (terminalSocket) {
-    terminalSocket.close();
+let terminalSocketRight = null;
+let activeTermRight = null;
+let fitAddonRight = null;
+
+let isTerminalSplit = false;
+let focusedPane = 'left';
+let currentPresetList = [];
+let terminalHostLeft = null;
+let terminalHostRight = null;
+
+function cleanUpTerminals() {
+  if (terminalSocketLeft) {
+    terminalSocketLeft.close();
+    terminalSocketLeft = null;
   }
-  if (activeTerm) {
-    activeTerm.dispose();
+  if (activeTermLeft) {
+    activeTermLeft.dispose();
+    activeTermLeft = null;
   }
+  if (terminalSocketRight) {
+    terminalSocketRight.close();
+    terminalSocketRight = null;
+  }
+  if (activeTermRight) {
+    activeTermRight.dispose();
+    activeTermRight = null;
+  }
+}
+
+async function initTerminal(hostID, initialPresetID) {
+  terminalHostLeft = hostID;
+  terminalHostRight = hostID;
+  isTerminalSplit = false;
+  focusedPane = 'left';
+
+  const content = document.getElementById('tabContent');
+  content.innerHTML = `
+    <div class="terminal-workspace-wrapper" style="display: flex; flex-direction: column; height: 100%; width: 100%; flex: 1; min-height: 0; gap: 8px;">
+      <div class="terminal-toolbar" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; background: #0f172a; border: 1px solid var(--card-border); padding: 8px 12px; border-radius: 8px;">
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1;">
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">⚡ Presets:</span>
+          <div id="presetButtonsList" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Loading...</span>
+          </div>
+          <button class="btn btn-sm" onclick="openCreatePresetModal()" title="Add new preset" style="padding: 2px 8px; font-size: 0.75rem;">➕ New</button>
+          <button class="btn btn-sm" onclick="openPresetManagerModal()" title="Manage presets" style="padding: 2px 8px; font-size: 0.75rem;">⚙️</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button id="btnToggleSplit" class="btn btn-sm" onclick="toggleTerminalSplit()" title="Split Terminal (Alt+\\)" style="padding: 4px 10px; font-size: 0.75rem;">
+            🪟 <span id="lblToggleSplit">${t('split_terminal')}</span>
+          </button>
+          <button class="btn btn-sm" onclick="clearActiveTerminal()" title="Clear screen" style="padding: 4px 8px; font-size: 0.75rem;">🧹 Clear</button>
+          <button class="btn btn-sm" onclick="reconnectActiveTerminal()" title="Reconnect SSH" style="padding: 4px 8px; font-size: 0.75rem;">🔄 Reconnect</button>
+        </div>
+      </div>
+
+      <div id="terminalPanesContainer" style="display: flex; flex: 1; min-height: 380px; gap: 8px; height: 100%;">
+        <div id="paneLeft" class="terminal-pane active-pane" onclick="focusPane('left')" style="flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100%; border-radius: 8px; overflow: hidden; background: #000; position: relative;">
+          <div id="paneLeftHeader" style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #0f172a; border-bottom: 1px solid var(--card-border); font-size: 0.75rem;">
+            <span id="paneLeftTitle" style="color: #38bdf8; font-family: monospace; font-weight: 600;">💻 ${escapeHtml(currentHost?.name || 'Host')}</span>
+            <span id="paneLeftStatus" style="color: #34d399; font-size: 0.7rem;">● Connected</span>
+          </div>
+          <div id="termDivLeft" class="terminal-container" style="flex: 1; height: 100%; padding: 4px;"></div>
+        </div>
+
+        <div id="paneRight" class="terminal-pane" onclick="focusPane('right')" style="display: none; flex: 1; flex-direction: column; min-width: 0; height: 100%; border-radius: 8px; overflow: hidden; background: #000; position: relative;">
+          <div id="paneRightHeader" style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #0f172a; border-bottom: 1px solid var(--card-border); font-size: 0.75rem; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="color: #a78bfa; font-family: monospace; font-weight: 600;">💻 Secondary:</span>
+              <select id="splitHostSelect" class="input" style="padding: 2px 6px; font-size: 0.75rem; width: auto; max-width: 180px;" onchange="onSplitHostChange()">
+              </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span id="paneRightStatus" style="color: #34d399; font-size: 0.7rem;">● Connected</span>
+              <button class="btn btn-sm" onclick="closeTerminalSplit()" title="Close Split" style="padding: 0 5px; font-size: 0.7rem; line-height: 1.2;">✕</button>
+            </div>
+          </div>
+          <div id="termDivRight" class="terminal-container" style="flex: 1; height: 100%; padding: 4px;"></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  cleanUpTerminals();
+  await loadTerminalPresets(hostID);
+  initLeftTerminal(hostID, initialPresetID);
+}
+
+function initLeftTerminal(hostID, presetID) {
+  if (terminalSocketLeft) {
+    terminalSocketLeft.close();
+    terminalSocketLeft = null;
+  }
+  if (activeTermLeft) {
+    activeTermLeft.dispose();
+    activeTermLeft = null;
+  }
+
+  const container = document.getElementById('termDivLeft');
+  if (!container) return;
+  container.innerHTML = '';
 
   const term = new Terminal({
     cursorBlink: true,
@@ -2357,19 +2584,25 @@ function initTerminal(hostID) {
     fontSize: 13,
     theme: { background: '#000000', foreground: '#ffffff' }
   });
-  activeTerm = term;
-  const fitAddon = new FitAddon.FitAddon();
-  term.loadAddon(fitAddon);
-  term.open(document.getElementById('termDiv'));
-  fitAddon.fit();
-  setTimeout(() => fitAddon.fit(), 60);
+  activeTermLeft = term;
+  fitAddonLeft = new FitAddon.FitAddon();
+  term.loadAddon(fitAddonLeft);
+  term.open(container);
+  fitAddonLeft.fit();
+  setTimeout(() => fitAddonLeft && fitAddonLeft.fit(), 60);
+
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = protocol + '//' + location.host + '/ws/terminal?host_id=' + hostID;
+  let wsUrl = protocol + '//' + location.host + '/ws/terminal?host_id=' + hostID;
+  if (presetID) {
+    wsUrl += '&preset_id=' + presetID;
+  }
   const ws = new WebSocket(wsUrl);
-  terminalSocket = ws;
+  terminalSocketLeft = ws;
 
   ws.binaryType = 'arraybuffer';
   ws.onopen = () => {
+    const status = document.getElementById('paneLeftStatus');
+    if (status) status.innerHTML = '<span style="color: #34d399;">● Connected</span>';
     term.write('\r\n\x1b[32m[Pantau SSH Bridge Connected]\x1b[0m\r\n\r\n');
   };
   ws.onmessage = (ev) => {
@@ -2380,6 +2613,8 @@ function initTerminal(hostID) {
     }
   };
   ws.onclose = () => {
+    const status = document.getElementById('paneLeftStatus');
+    if (status) status.innerHTML = '<span style="color: #f87171;">● Disconnected</span>';
     term.write('\r\n\x1b[31m[Session Disconnected]\x1b[0m\r\n');
   };
   term.onData(data => {
@@ -2387,7 +2622,427 @@ function initTerminal(hostID) {
       ws.send(data);
     }
   });
+  term.onResize(sz => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ cols: sz.cols, rows: sz.rows }));
+    }
+  });
 }
+
+function initRightTerminal(hostID, presetID) {
+  if (terminalSocketRight) {
+    terminalSocketRight.close();
+    terminalSocketRight = null;
+  }
+  if (activeTermRight) {
+    activeTermRight.dispose();
+    activeTermRight = null;
+  }
+
+  const container = document.getElementById('termDivRight');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const term = new Terminal({
+    cursorBlink: true,
+    fontFamily: 'monospace',
+    fontSize: 13,
+    theme: { background: '#000000', foreground: '#ffffff' }
+  });
+  activeTermRight = term;
+  fitAddonRight = new FitAddon.FitAddon();
+  term.loadAddon(fitAddonRight);
+  term.open(container);
+  fitAddonRight.fit();
+  setTimeout(() => fitAddonRight && fitAddonRight.fit(), 60);
+
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  let wsUrl = protocol + '//' + location.host + '/ws/terminal?host_id=' + hostID;
+  if (presetID) {
+    wsUrl += '&preset_id=' + presetID;
+  }
+  const ws = new WebSocket(wsUrl);
+  terminalSocketRight = ws;
+
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => {
+    const status = document.getElementById('paneRightStatus');
+    if (status) status.innerHTML = '<span style="color: #34d399;">● Connected</span>';
+    term.write('\r\n\x1b[32m[Pantau SSH Bridge Connected]\x1b[0m\r\n\r\n');
+  };
+  ws.onmessage = (ev) => {
+    if (typeof ev.data === 'string') {
+      term.write(ev.data);
+    } else {
+      term.write(new Uint8Array(ev.data));
+    }
+  };
+  ws.onclose = () => {
+    const status = document.getElementById('paneRightStatus');
+    if (status) status.innerHTML = '<span style="color: #f87171;">● Disconnected</span>';
+    term.write('\r\n\x1b[31m[Session Disconnected]\x1b[0m\r\n');
+  };
+  term.onData(data => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(data);
+    }
+  });
+  term.onResize(sz => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ cols: sz.cols, rows: sz.rows }));
+    }
+  });
+}
+
+function toggleTerminalSplit() {
+  if (isTerminalSplit) {
+    closeTerminalSplit();
+  } else {
+    openTerminalSplit();
+  }
+}
+
+function openTerminalSplit() {
+  isTerminalSplit = true;
+  const paneRight = document.getElementById('paneRight');
+  const btn = document.getElementById('lblToggleSplit');
+  if (btn) btn.innerText = t('unsplit_terminal');
+
+  if (paneRight) {
+    paneRight.style.display = 'flex';
+  }
+
+  const select = document.getElementById('splitHostSelect');
+  if (select) {
+    select.innerHTML = allRawHosts.map(h => `
+      <option value="${h.id}" ${h.id === terminalHostRight ? 'selected' : ''}>${escapeHtml(h.name)} (${escapeHtml(h.host)})</option>
+    `).join('');
+  }
+
+  initRightTerminal(terminalHostRight || terminalHostLeft);
+  setTimeout(() => {
+    if (fitAddonLeft) fitAddonLeft.fit();
+    if (fitAddonRight) fitAddonRight.fit();
+  }, 80);
+}
+
+function closeTerminalSplit() {
+  isTerminalSplit = false;
+  const paneRight = document.getElementById('paneRight');
+  const btn = document.getElementById('lblToggleSplit');
+  if (btn) btn.innerText = t('split_terminal');
+
+  if (terminalSocketRight) {
+    terminalSocketRight.close();
+    terminalSocketRight = null;
+  }
+  if (activeTermRight) {
+    activeTermRight.dispose();
+    activeTermRight = null;
+  }
+  if (paneRight) {
+    paneRight.style.display = 'none';
+  }
+  focusPane('left');
+  setTimeout(() => {
+    if (fitAddonLeft) fitAddonLeft.fit();
+  }, 80);
+}
+
+function onSplitHostChange() {
+  const select = document.getElementById('splitHostSelect');
+  if (!select) return;
+  const newHostId = parseInt(select.value, 10);
+  if (!newHostId) return;
+  terminalHostRight = newHostId;
+  initRightTerminal(terminalHostRight);
+}
+
+function focusPane(pane) {
+  focusedPane = pane;
+  const pL = document.getElementById('paneLeft');
+  const pR = document.getElementById('paneRight');
+  if (pL) pL.classList.toggle('active-pane', pane === 'left');
+  if (pR) pR.classList.toggle('active-pane', pane === 'right');
+}
+
+function clearActiveTerminal() {
+  const term = focusedPane === 'right' && isTerminalSplit ? activeTermRight : activeTermLeft;
+  if (term) term.clear();
+}
+
+function reconnectActiveTerminal() {
+  if (focusedPane === 'right' && isTerminalSplit) {
+    initRightTerminal(terminalHostRight);
+  } else {
+    initLeftTerminal(terminalHostLeft);
+  }
+}
+
+function sendCommandToActiveTerminal(cmd) {
+  const ws = (focusedPane === 'right' && isTerminalSplit) ? terminalSocketRight : terminalSocketLeft;
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(cmd + '\r');
+  }
+}
+
+async function loadTerminalPresets(hostID) {
+  const listContainer = document.getElementById('presetButtonsList');
+  if (!listContainer) return;
+  try {
+    const res = await fetch('/api/presets?host_id=' + hostID);
+    if (!res.ok) return;
+    currentPresetList = await res.json() || [];
+
+    if (currentPresetList.length === 0) {
+      listContainer.innerHTML = '<span style="font-size: 0.75rem; color: var(--text-muted);">No presets</span>';
+      return;
+    }
+
+    listContainer.innerHTML = currentPresetList.map(p => `
+      <button class="preset-btn" onclick="triggerPreset(${p.id})" title="${escapeHtml(p.command)} ${p.use_tmux ? '(tmux)' : ''}">
+        ▶ ${escapeHtml(p.name)}
+      </button>
+    `).join('');
+  } catch (err) {
+    listContainer.innerHTML = '<span style="font-size: 0.75rem; color: var(--danger);">Failed to load presets</span>';
+  }
+}
+
+function triggerPreset(presetId) {
+  const p = currentPresetList.find(x => x.id === presetId);
+  if (!p) return;
+  sendCommandToActiveTerminal(p.command);
+}
+
+function openCreatePresetModal(editPreset = null) {
+  document.getElementById('editPresetId').value = editPreset ? editPreset.id : '';
+  document.getElementById('presetModalTitle').innerText = editPreset ? t('edit_preset') : t('add_preset');
+  document.getElementById('presetNameInput').value = editPreset ? editPreset.name : '';
+  document.getElementById('presetCommandInput').value = editPreset ? editPreset.command : '';
+  document.getElementById('presetTmuxCheckbox').checked = editPreset ? editPreset.use_tmux : false;
+
+  const hostOpt = document.getElementById('presetScopeHostOption');
+  if (currentHost) {
+    hostOpt.style.display = 'block';
+    hostOpt.innerText = `🎯 ${t('scope_host')} (${currentHost.name})`;
+  } else {
+    hostOpt.style.display = 'none';
+  }
+
+  const scopeSelect = document.getElementById('presetScopeSelect');
+  if (editPreset && editPreset.host_id) {
+    scopeSelect.value = 'host';
+  } else {
+    scopeSelect.value = 'global';
+  }
+
+  document.getElementById('presetModal').classList.add('open');
+}
+
+async function submitPresetForm() {
+  const id = document.getElementById('editPresetId').value;
+  const name = document.getElementById('presetNameInput').value.trim();
+  const command = document.getElementById('presetCommandInput').value.trim();
+  const scope = document.getElementById('presetScopeSelect').value;
+  const useTmux = document.getElementById('presetTmuxCheckbox').checked;
+
+  if (!name || !command) {
+    alert('Name and command are required');
+    return;
+  }
+
+  let hostId = null;
+  if (scope === 'host' && currentHost) {
+    hostId = currentHost.id;
+  }
+
+  const payload = {
+    name: name,
+    command: command,
+    host_id: hostId,
+    use_tmux: useTmux,
+    sort_order: 10
+  };
+
+  const url = id ? '/api/presets/' + id : '/api/presets';
+  const method = id ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(url, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert('Failed to save preset: ' + (err.error || 'Server error'));
+      return;
+    }
+    closeModal('presetModal');
+
+    if (terminalHostLeft) {
+      loadTerminalPresets(terminalHostLeft);
+    }
+    const pm = document.getElementById('presetManagerModal');
+    if (pm && pm.classList.contains('open')) {
+      loadPresetManagerList();
+    }
+    loadSettingsPresets();
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+async function openPresetManagerModal() {
+  document.getElementById('presetManagerModal').classList.add('open');
+  loadPresetManagerList();
+}
+
+async function loadPresetManagerList() {
+  const container = document.getElementById('presetManagerListContainer');
+  if (!container) return;
+  container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 12px;">Loading...</div>';
+
+  try {
+    const res = await fetch('/api/presets?host_id=all');
+    if (!res.ok) return;
+    const presets = await res.json() || [];
+
+    if (presets.length === 0) {
+      container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">No presets defined yet.</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+        <thead>
+          <tr style="border-bottom: 1px solid var(--card-border); color: var(--text-muted); text-align: left;">
+            <th style="padding: 6px;">Scope</th>
+            <th style="padding: 6px;">Name</th>
+            <th style="padding: 6px;">Command</th>
+            <th style="padding: 6px;">Tmux</th>
+            <th style="padding: 6px; text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${presets.map(p => {
+            const hostObj = allRawHosts.find(h => h.id === p.host_id);
+            const scopeLabel = p.host_id ? (hostObj ? escapeHtml(hostObj.name) : 'Host #' + p.host_id) : '<span style="color: #38bdf8;">🌐 Global</span>';
+            return `
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 8px 6px;">${scopeLabel}</td>
+                <td style="padding: 8px 6px; font-weight: 600;">${escapeHtml(p.name)}</td>
+                <td style="padding: 8px 6px; font-family: monospace; color: #cbd5e1; font-size: 0.8rem;"><code>${escapeHtml(p.command)}</code></td>
+                <td style="padding: 8px 6px;">${p.use_tmux ? '✅' : '—'}</td>
+                <td style="padding: 8px 6px; text-align: right;">
+                  <button class="btn btn-sm" onclick="editPresetFromManager(${p.id})" style="padding: 2px 6px; font-size: 0.75rem;">✏️</button>
+                  <button class="btn btn-danger btn-sm" onclick="deletePreset(${p.id})" style="padding: 2px 6px; font-size: 0.75rem;">🗑️</button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) {
+    container.innerHTML = '<div style="color: var(--danger); padding: 12px;">Failed to load presets</div>';
+  }
+}
+
+async function editPresetFromManager(id) {
+  try {
+    const res = await fetch('/api/presets/' + id);
+    if (!res.ok) return;
+    const preset = await res.json();
+    openCreatePresetModal(preset);
+  } catch (e) {
+    alert('Error loading preset: ' + e.message);
+  }
+}
+
+async function deletePreset(id) {
+  if (!confirm('Delete this preset?')) return;
+  try {
+    const res = await fetch('/api/presets/' + id, { method: 'DELETE' });
+    if (res.ok) {
+      loadPresetManagerList();
+      loadSettingsPresets();
+      if (terminalHostLeft) loadTerminalPresets(terminalHostLeft);
+    } else {
+      alert('Delete failed');
+    }
+  } catch (e) {
+    alert('Network error');
+  }
+}
+
+async function loadSettingsPresets() {
+  const container = document.getElementById('settingsPresetsList');
+  if (!container) return;
+  container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 12px;">Loading...</div>';
+
+  try {
+    const res = await fetch('/api/presets?host_id=all');
+    if (!res.ok) return;
+    const presets = await res.json() || [];
+
+    if (presets.length === 0) {
+      container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">No presets defined yet.</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+        <thead>
+          <tr style="border-bottom: 1px solid var(--card-border); color: var(--text-muted); text-align: left;">
+            <th style="padding: 6px;">Scope</th>
+            <th style="padding: 6px;">Name</th>
+            <th style="padding: 6px;">Command</th>
+            <th style="padding: 6px;">Tmux</th>
+            <th style="padding: 6px; text-align: right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${presets.map(p => {
+            const hostObj = allRawHosts.find(h => h.id === p.host_id);
+            const scopeLabel = p.host_id ? (hostObj ? escapeHtml(hostObj.name) : 'Host #' + p.host_id) : '<span style="color: #38bdf8;">🌐 Global</span>';
+            return `
+              <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <td style="padding: 8px 6px;">${scopeLabel}</td>
+                <td style="padding: 8px 6px; font-weight: 600;">${escapeHtml(p.name)}</td>
+                <td style="padding: 8px 6px; font-family: monospace; color: #cbd5e1; font-size: 0.8rem;"><code>${escapeHtml(p.command)}</code></td>
+                <td style="padding: 8px 6px;">${p.use_tmux ? '✅' : '—'}</td>
+                <td style="padding: 8px 6px; text-align: right;">
+                  <button class="btn btn-sm" onclick="editPresetFromManager(${p.id})" style="padding: 2px 6px; font-size: 0.75rem;">✏️</button>
+                  <button class="btn btn-danger btn-sm" onclick="deletePreset(${p.id})" style="padding: 2px 6px; font-size: 0.75rem;">🗑️</button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) {
+    container.innerHTML = '<div style="color: var(--danger); padding: 12px;">Failed to load presets</div>';
+  }
+}
+
+// Global terminal listeners
+window.addEventListener('resize', () => {
+  if (fitAddonLeft) fitAddonLeft.fit();
+  if (fitAddonRight) fitAddonRight.fit();
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.altKey && (e.key === '\\' || e.code === 'Backslash')) {
+    const modal = document.getElementById('hostDetailModal');
+    if (modal && modal.classList.contains('open') && currentTab === 'terminal') {
+      e.preventDefault();
+      toggleTerminalSplit();
+    }
+  }
+});
 
 // Settings
 let currentSettingsTab = 'general';
@@ -2397,12 +3052,16 @@ function switchSettingsTab(tab) {
   if (tab === 'general') document.getElementById('tabSettingsGeneral').classList.add('active');
   else if (tab === 'notif') document.getElementById('tabSettingsNotif').classList.add('active');
   else if (tab === 'backup') document.getElementById('tabSettingsBackup').classList.add('active');
+  else if (tab === 'presets') document.getElementById('tabSettingsPresets').classList.add('active');
 
   document.getElementById('settingsPanelGeneral').style.display = tab === 'general' ? 'flex' : 'none';
   document.getElementById('settingsPanelNotif').style.display = tab === 'notif' ? 'flex' : 'none';
   document.getElementById('settingsPanelBackup').style.display = tab === 'backup' ? 'flex' : 'none';
+  document.getElementById('settingsPanelPresets').style.display = tab === 'presets' ? 'flex' : 'none';
 
-  if (tab === 'general') {
+  if (tab === 'presets') {
+    loadSettingsPresets();
+  } else if (tab === 'general') {
     setTimeout(() => {
       const pubKeyEl = document.getElementById('settingPubKey');
       if (pubKeyEl) {
@@ -2858,6 +3517,9 @@ function closeModal(id) {
   if (id === 'transfersListModal' && transferPollInterval) {
     clearInterval(transferPollInterval);
     transferPollInterval = null;
+  }
+  if (id === 'hostDetailModal') {
+    cleanUpTerminals();
   }
   document.getElementById(id).classList.remove('open');
 }

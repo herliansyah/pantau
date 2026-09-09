@@ -103,6 +103,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/transfers", s.authMiddleware(s.handleTransfers))
 	s.mux.HandleFunc("/api/transfers/", s.authMiddleware(s.handleTransferDetail))
 
+	// Terminal Presets
+	s.mux.HandleFunc("/api/presets", s.authMiddleware(s.handlePresets))
+	s.mux.HandleFunc("/api/presets/", s.authMiddleware(s.handlePresetDetail))
+
 	// WebSockets (Terminal & Docker Logs)
 	s.mux.HandleFunc("/ws/terminal", s.handleWSTerminal)
 	s.mux.HandleFunc("/ws/docker/logs", s.handleWSDockerLogs)
@@ -1005,6 +1009,22 @@ func (s *Server) handleWSTerminal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	presetIDStr := r.URL.Query().Get("preset_id")
+	cmdParam := r.URL.Query().Get("cmd")
+	var initialCmd string
+	var useTmux bool
+
+	if presetIDStr != "" {
+		if pid, err := strconv.ParseInt(presetIDStr, 10, 64); err == nil {
+			if preset, _ := s.db.GetTerminalPreset(pid); preset != nil {
+				initialCmd = preset.Command
+				useTmux = preset.UseTmux
+			}
+		}
+	} else if cmdParam != "" {
+		initialCmd = cmdParam
+	}
+
 	runner, err := s.inspector.GetRunnerForHost(host)
 	if err != nil {
 		_ = ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nSSH connect failed: %v\r\n", err)))
@@ -1053,7 +1073,184 @@ func (s *Server) handleWSTerminal(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	if strings.TrimSpace(initialCmd) != "" {
+		go func() {
+			time.Sleep(150 * time.Millisecond)
+			execPayload := formatPresetExecution(initialCmd, useTmux)
+			_, _ = inWriter.Write([]byte(execPayload + "\n"))
+		}()
+	}
+
 	_ = runner.Terminal(inReader, outWriter, 120, 40, resizeChan)
+}
+
+func formatPresetExecution(cmd string, useTmux bool) string {
+	cmd = strings.TrimSpace(cmd)
+	if cmd == "" {
+		return ""
+	}
+	parts := strings.Fields(cmd)
+	bin := parts[0]
+	if (bin == "sudo" || bin == "doas") && len(parts) > 1 {
+		bin = parts[1]
+	}
+	cleanBin := sanitizeSessionName(bin)
+
+	precheck := fmt.Sprintf(`if command -v %s >/dev/null 2>&1; then %s; else echo -e "\r\n\033[1;33m[Pantau] Binary '%s' not found on this host.\033[0m\r\n"; fi`, cleanBin, cmd, cleanBin)
+
+	if useTmux {
+		sessName := fmt.Sprintf("pantau-%s", cleanBin)
+		escapedCmd := strings.ReplaceAll(cmd, `"`, `\"`)
+		return fmt.Sprintf(`if command -v tmux >/dev/null 2>&1; then tmux new-session -A -s %s "%s"; else %s; fi`, sessName, escapedCmd, precheck)
+	}
+	return precheck
+}
+
+func sanitizeSessionName(s string) string {
+	var sb strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			sb.WriteRune(r)
+		}
+	}
+	if sb.Len() == 0 {
+		return "preset"
+	}
+	return sb.String()
+}
+
+func (s *Server) handlePresets(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		var presets []store.TerminalPreset
+		var err error
+		hostIDParam := r.URL.Query().Get("host_id")
+		if hostIDParam == "all" {
+			presets, err = s.db.ListAllTerminalPresets()
+		} else if hostIDParam == "" || hostIDParam == "global" {
+			presets, err = s.db.ListTerminalPresets(nil)
+		} else {
+			hid, parseErr := strconv.ParseInt(hostIDParam, 10, 64)
+			if parseErr != nil {
+				http.Error(w, "invalid host_id", http.StatusBadRequest)
+				return
+			}
+			presets, err = s.db.ListTerminalPresets(&hid)
+		}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, presets)
+
+	case http.MethodPost:
+		var req struct {
+			HostID    *int64 `json:"host_id"`
+			Name      string `json:"name"`
+			Command   string `json:"command"`
+			SortOrder int    `json:"sort_order"`
+			UseTmux   bool   `json:"use_tmux"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		req.Name = strings.TrimSpace(req.Name)
+		req.Command = strings.TrimSpace(req.Command)
+		if req.Name == "" || req.Command == "" {
+			http.Error(w, "name and command are required", http.StatusBadRequest)
+			return
+		}
+
+		preset := &store.TerminalPreset{
+			HostID:    req.HostID,
+			Name:      req.Name,
+			Command:   req.Command,
+			SortOrder: req.SortOrder,
+			UseTmux:   req.UseTmux,
+		}
+		id, err := s.db.CreateTerminalPreset(preset)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		preset.ID = id
+		writeJSON(w, http.StatusCreated, preset)
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handlePresetDetail(w http.ResponseWriter, r *http.Request) {
+	subpath := strings.TrimPrefix(r.URL.Path, "/api/presets/")
+	parts := strings.Split(subpath, "/")
+	if len(parts) == 0 || parts[0] == "" {
+		http.Error(w, "preset id required", http.StatusBadRequest)
+		return
+	}
+	id, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		http.Error(w, "invalid preset id", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		preset, err := s.db.GetTerminalPreset(id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if preset == nil {
+			http.Error(w, "preset not found", http.StatusNotFound)
+			return
+		}
+		writeJSON(w, http.StatusOK, preset)
+
+	case http.MethodPut:
+		var req struct {
+			HostID    *int64 `json:"host_id"`
+			Name      string `json:"name"`
+			Command   string `json:"command"`
+			SortOrder int    `json:"sort_order"`
+			UseTmux   bool   `json:"use_tmux"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
+		req.Name = strings.TrimSpace(req.Name)
+		req.Command = strings.TrimSpace(req.Command)
+		if req.Name == "" || req.Command == "" {
+			http.Error(w, "name and command are required", http.StatusBadRequest)
+			return
+		}
+
+		preset := &store.TerminalPreset{
+			ID:        id,
+			HostID:    req.HostID,
+			Name:      req.Name,
+			Command:   req.Command,
+			SortOrder: req.SortOrder,
+			UseTmux:   req.UseTmux,
+		}
+		if err := s.db.UpdateTerminalPreset(preset); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, preset)
+
+	case http.MethodDelete:
+		if err := s.db.DeleteTerminalPreset(id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // WebSocket Docker Log Stream
