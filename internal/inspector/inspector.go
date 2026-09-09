@@ -225,7 +225,7 @@ func parseNetworkMetrics(h *store.Host, netDevSec, pingSec, pubIPSec, estSec, li
 		return pairs[i].count > pairs[j].count
 	})
 
-	var topConns []store.TopConn
+	topConns := []store.TopConn{}
 	limit := 10
 	if len(pairs) < limit {
 		limit = len(pairs)
@@ -244,7 +244,7 @@ func parseNetworkMetrics(h *store.Host, netDevSec, pingSec, pubIPSec, estSec, li
 		"3306": true, "5432": true, "6379": true, "27017": true,
 		"9200": true, "2375": true, "11211": true,
 	}
-	var listening []store.ListeningPort
+	listening := []store.ListeningPort{}
 	for _, line := range strings.Split(listenSec, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {

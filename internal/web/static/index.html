@@ -562,9 +562,15 @@ function switchTab(tab) {
   } else if (tab === 'network') {
     const h = d.host;
     let topConns = [];
-    try { topConns = JSON.parse(h.top_connections || '[]'); } catch(e) {}
+    try {
+      const parsed = JSON.parse(h.top_connections);
+      if (Array.isArray(parsed)) topConns = parsed;
+    } catch(e) {}
     let ports = [];
-    try { ports = JSON.parse(h.listening_ports || '[]'); } catch(e) {}
+    try {
+      const parsed = JSON.parse(h.listening_ports);
+      if (Array.isArray(parsed)) ports = parsed;
+    } catch(e) {}
 
     const rxSpeed = formatBytes(h.net_rx_speed_bps || 0) + '/s';
     const txSpeed = formatBytes(h.net_tx_speed_bps || 0) + '/s';
@@ -1015,10 +1021,10 @@ async function changePassword() {
 let transferPollInterval = null;
 
 function formatBytes(bytes) {
-  if (bytes === 0 || !bytes) return '0 B';
+  if (!bytes || bytes <= 0 || isNaN(bytes)) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const i = Math.min(sizes.length - 1, Math.floor(Math.log(bytes) / Math.log(k)));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
