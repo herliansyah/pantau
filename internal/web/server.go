@@ -88,6 +88,9 @@ func (s *Server) routes() {
 	// Rules
 	s.mux.HandleFunc("/api/rules/", s.authMiddleware(s.handleRuleRoute))
 
+	// Notes
+	s.mux.HandleFunc("/api/notes", s.authMiddleware(s.handleGlobalNotes))
+
 	// Settings & Alerts
 	s.mux.HandleFunc("/api/settings", s.authMiddleware(s.handleSettings))
 	s.mux.HandleFunc("/api/settings/test-notify", s.authMiddleware(s.handleTestNotify))
@@ -295,12 +298,31 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "host id required", http.StatusBadRequest)
 		return
 	}
+	if parts[0] == "reorder" {
+		if r.Method != http.MethodPut && r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			IDs []int64 `json:"ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if err := s.db.ReorderHosts(req.IDs); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		return
+	}
+
 	hostID, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
 		http.Error(w, "invalid host id", http.StatusBadRequest)
 		return
 	}
-
 	if len(parts) == 1 {
 		// /api/hosts/{id}
 		switch r.Method {
@@ -348,6 +370,24 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 
 	action := parts[1]
 	switch action {
+	case "notes":
+		if r.Method != http.MethodPut && r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			Notes string `json:"notes"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if err := s.db.UpdateHostNotes(hostID, req.Notes); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+
 	case "test":
 		// POST /api/hosts/{id}/test
 		host, err := s.db.GetHost(hostID)
@@ -728,6 +768,33 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 
 	default:
 		http.Error(w, "unsupported file action", http.StatusBadRequest)
+	}
+}
+
+func (s *Server) handleGlobalNotes(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		notes, err := s.db.GetGlobalNotes()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"notes": notes})
+	case http.MethodPut, http.MethodPost:
+		var req struct {
+			Notes string `json:"notes"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if err := s.db.SetGlobalNotes(req.Notes); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 

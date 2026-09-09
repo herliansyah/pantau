@@ -1109,5 +1109,118 @@ func TestTicket14_EncryptedSystemSnapshotAndGitHubSyncAPI(t *testing.T) {
 	}
 }
 
+func TestTicket15_NotesSearchAndOrdering(t *testing.T) {
+	env := setupTestEnv(t)
+	client := loginClient(t, env)
+
+	// 1. Global Notes API (GET/PUT)
+	getResp, err := client.Get(env.httpServer.URL + "/api/notes")
+	if err != nil {
+		t.Fatalf("GET /api/notes failed: %v", err)
+	}
+	var noteRes struct {
+		Notes string `json:"notes"`
+	}
+	_ = json.NewDecoder(getResp.Body).Decode(&noteRes)
+	getResp.Body.Close()
+	if noteRes.Notes != "" {
+		t.Fatalf("expected empty initial global notes, got %q", noteRes.Notes)
+	}
+
+	setBody, _ := json.Marshal(map[string]string{"notes": "Emergency procedure: contact on-call #123"})
+	putReq, _ := http.NewRequest(http.MethodPut, env.httpServer.URL+"/api/notes", bytes.NewReader(setBody))
+	putReq.Header.Set("Content-Type", "application/json")
+	putResp, err := client.Do(putReq)
+	if err != nil || putResp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/notes failed: %v, code=%d", err, putResp.StatusCode)
+	}
+	putResp.Body.Close()
+
+	getResp2, _ := client.Get(env.httpServer.URL + "/api/notes")
+	_ = json.NewDecoder(getResp2.Body).Decode(&noteRes)
+	getResp2.Body.Close()
+	if noteRes.Notes != "Emergency procedure: contact on-call #123" {
+		t.Fatalf("unexpected global notes: %q", noteRes.Notes)
+	}
+
+	// 2. Create Host with Note
+	createPayload, _ := json.Marshal(map[string]interface{}{
+		"name":  "Server-Alpha",
+		"host":  "10.0.0.1",
+		"port":  22,
+		"user":  "root",
+		"notes": "Alpha host note",
+	})
+	cResp, err := client.Post(env.httpServer.URL+"/api/hosts", "application/json", bytes.NewReader(createPayload))
+	if err != nil || cResp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /api/hosts Alpha failed: %v, code=%d", err, cResp.StatusCode)
+	}
+	var hostAlpha store.Host
+	_ = json.NewDecoder(cResp.Body).Decode(&hostAlpha)
+	cResp.Body.Close()
+	if hostAlpha.Notes != "Alpha host note" {
+		t.Fatalf("expected notes 'Alpha host note', got %q", hostAlpha.Notes)
+	}
+
+	createBeta, _ := json.Marshal(map[string]interface{}{
+		"name":  "Server-Beta",
+		"host":  "10.0.0.2",
+		"port":  22,
+		"user":  "root",
+		"notes": "Beta host note",
+	})
+	cResp2, err := client.Post(env.httpServer.URL+"/api/hosts", "application/json", bytes.NewReader(createBeta))
+	if err != nil || cResp2.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /api/hosts Beta failed: %v", err)
+	}
+	var hostBeta store.Host
+	_ = json.NewDecoder(cResp2.Body).Decode(&hostBeta)
+	cResp2.Body.Close()
+
+	// 3. Update Host Note via dedicated endpoint
+	updateNotePayload, _ := json.Marshal(map[string]string{"notes": "Updated Alpha note"})
+	unReq, _ := http.NewRequest(http.MethodPut, fmt.Sprintf("%s/api/hosts/%d/notes", env.httpServer.URL, hostAlpha.ID), bytes.NewReader(updateNotePayload))
+	unReq.Header.Set("Content-Type", "application/json")
+	unResp, err := client.Do(unReq)
+	if err != nil || unResp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/hosts/{id}/notes failed: %v, code=%d", err, unResp.StatusCode)
+	}
+	unResp.Body.Close()
+
+	detailResp, _ := client.Get(fmt.Sprintf("%s/api/hosts/%d", env.httpServer.URL, hostAlpha.ID))
+	var detail struct {
+		Host store.Host `json:"host"`
+	}
+	_ = json.NewDecoder(detailResp.Body).Decode(&detail)
+	detailResp.Body.Close()
+	if detail.Host.Notes != "Updated Alpha note" {
+		t.Fatalf("expected 'Updated Alpha note', got %q", detail.Host.Notes)
+	}
+
+	// 4. Host Reordering
+	// Currently Alpha is sort_order 1, Beta is sort_order 2
+	reorderPayload, _ := json.Marshal(map[string]interface{}{
+		"ids": []int64{hostBeta.ID, hostAlpha.ID},
+	})
+	roReq, _ := http.NewRequest(http.MethodPut, env.httpServer.URL+"/api/hosts/reorder", bytes.NewReader(reorderPayload))
+	roReq.Header.Set("Content-Type", "application/json")
+	roResp, err := client.Do(roReq)
+	if err != nil || roResp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT /api/hosts/reorder failed: %v, code=%d", err, roResp.StatusCode)
+	}
+	roResp.Body.Close()
+
+	// List hosts and verify Beta is now first
+	listResp, _ := client.Get(env.httpServer.URL + "/api/hosts")
+	var hostsList []store.Host
+	_ = json.NewDecoder(listResp.Body).Decode(&hostsList)
+	listResp.Body.Close()
+	if len(hostsList) != 2 {
+		t.Fatalf("expected 2 hosts, got %d", len(hostsList))
+	}
+	if hostsList[0].ID != hostBeta.ID || hostsList[1].ID != hostAlpha.ID {
+		t.Fatalf("expected Beta first then Alpha, got: %+v", hostsList)
+	}
+}
 
 
