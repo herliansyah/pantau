@@ -23,9 +23,16 @@
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
 header { position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 40; background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--card-border); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
-footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 40; background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--card-border); box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); }
-footer a { color: #38bdf8; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-footer a:hover { color: #7dd3fc; text-decoration: underline; }
+footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 40; background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--card-border); box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4); padding: 0 20px; display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); }
+.footer-zone { display: flex; align-items: center; gap: 8px; }
+.footer-badge { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 1px 6px; border-radius: 4px; font-size: 0.7rem; font-family: monospace; color: var(--text-muted); }
+.footer-pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 9999px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); color: #f1f5f9; text-decoration: none; font-size: 0.72rem; transition: all 0.15s ease; }
+.footer-pill:hover { background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; text-decoration: none; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.status-dot.online { background: #34d399; box-shadow: 0 0 6px rgba(52, 211, 153, 0.6); animation: pulseDot 2.4s infinite ease-in-out; }
+.status-dot.offline { background: #f87171; box-shadow: 0 0 6px rgba(248, 113, 113, 0.6); }
+@keyframes pulseDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.85); } }
+@media (max-width: 768px) { .footer-center { display: none !important; } }
 .logo { font-size: 1.25rem; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 8px; }
 .btn { background: var(--card-border); color: var(--text); border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.15s; white-space: nowrap; }
 .btn:hover { opacity: 0.9; }
@@ -35,6 +42,25 @@ footer a:hover { color: #7dd3fc; text-decoration: underline; }
 .btn-success { background: var(--success); }
 .btn-warning { background: var(--warning); color: #000; }
 .btn-sm { padding: 4px 8px; font-size: 0.75rem; }
+.btn-icon { min-width: 32px; height: 32px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.btn-inspect-quick { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--card-border); color: var(--text-muted); border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+.btn-inspect-quick:hover { color: #60a5fa; border-color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.spinning { animation: spin 0.8s linear infinite; pointer-events: none; opacity: 0.7; }
+.dropdown { position: relative; display: inline-block; }
+.dropdown-menu { display: none; position: absolute; right: 0; bottom: 100%; margin-bottom: 6px; background: #1e293b; border: 1px solid var(--card-border); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); min-width: 180px; z-index: 60; padding: 4px; }
+.dropdown.open .dropdown-menu { display: block; }
+.dropdown-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; font-size: 0.8rem; color: var(--text); background: none; border: none; border-radius: 4px; text-align: left; cursor: pointer; transition: background 0.15s; font-family: inherit; }
+.dropdown-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.dropdown-item.danger { color: #f87171; }
+.dropdown-item.danger:hover { background: rgba(239,68,68,0.15); color: #fca5a5; }
+.dropdown-divider { height: 1px; background: var(--card-border); margin: 4px 0; }
+#toastContainer { position: fixed; top: 68px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast { pointer-events: auto; padding: 10px 16px; border-radius: 6px; font-size: 0.82rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); animation: toastIn 0.2s ease-out; transition: opacity 0.3s; max-width: 380px; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+.toast-success { background: #064e3b; border: 1px solid #059669; color: #34d399; }
+.toast-error { background: #7f1d1d; border: 1px solid #dc2626; color: #fca5a5; }
+.toast-info { background: #1e293b; border: 1px solid var(--card-border); color: #94a3b8; }
 .badge { padding: 3px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
 .badge-healthy { background: rgba(16, 185, 129, 0.2); color: #34d399; }
 .badge-degraded { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
@@ -170,13 +196,13 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <span>🛡️</span> PANTAU
     </div>
     <div style="display: flex; gap: 10px; align-items: center;">
-      <button class="btn" onclick="openTransfersModal()"><span data-i18n="transfers">📦 Transfers</span> <span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 4px;">0</span></button>
-      <button class="btn" onclick="openGlobalNotesModal()"><span data-i18n="global_notes_btn">📝 Notes</span></button>
+      <button class="btn btn-icon" onclick="openTransfersModal()" title="Cross-Host Transfers" data-i18n-title="transfers_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 6h18"/><path d="m7 22-4-4 4-4"/><path d="M21 18H3"/></svg><span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
+      <button class="btn btn-icon" onclick="openGlobalNotesModal()" title="Global Notes" data-i18n-title="global_notes_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>
       <span id="activeAlertBadge" style="display: none;" class="badge badge-down">0 ALERTS</span>
       <button class="btn btn-primary" onclick="openAddHostModal()" data-i18n="add_host">+ Add Host</button>
-      <button class="btn" onclick="openSettingsModal()" data-i18n="settings">⚙️ Settings</button>
+      <button class="btn btn-icon" onclick="openSettingsModal()" title="Settings" data-i18n-title="settings_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
       <button class="btn" id="langToggleBtn" onclick="toggleLanguage()" title="Switch Language">🌐 EN</button>
-      <button class="btn" onclick="doLogout()" data-i18n="logout">Logout</button>
+      <button class="btn btn-icon" onclick="doLogout()" title="Logout" data-i18n-title="logout_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
     </div>
   </header>
 
@@ -216,13 +242,125 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
   </div>
 
   <footer>
-    <div data-i18n="footer_license">Pantau is open-source under MIT License</div>
-    <div>
+    <div class="footer-zone">
+      <span class="status-dot online" id="footerEngineDot"></span>
+      <span id="footerEngineText" style="font-weight: 500;" data-i18n="footer_engine_active">Engine Active</span>
+      <span style="color: var(--card-border);">•</span>
+      <span class="footer-badge">v1.0.0</span>
+    </div>
+    <div class="footer-zone footer-center" id="footerHostMetrics" style="font-family: monospace; font-size: 0.74rem;">
+      <span id="footerMetricsText">0 Hosts • 0 Healthy • 0 Drift</span>
+    </div>
+    <div class="footer-zone">
+      <span data-i18n="footer_license">MIT License</span>
+      <span style="color: var(--card-border);">•</span>
       <span data-i18n="footer_created_by">Created by Herliansyah</span>
-      <span style="margin: 0 6px;">•</span>
-      <a href="https://github.com/herliansyah/pantau" target="_blank" rel="noopener noreferrer">GitHub (herliansyah/pantau) ↗</a>
+      <a href="https://github.com/herliansyah/pantau" target="_blank" rel="noopener noreferrer" class="footer-pill" title="GitHub Repository">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+        <span>GitHub</span>
+      </a>
     </div>
   </footer>
+</div>
+<div id="toastContainer"></div>
+
+<!-- Inject Key Modal (Action Dialog) -->
+<div id="injectKeyModal" class="modal">
+  <div class="modal-content modal-dialog">
+    <div class="modal-header">
+      <h3 id="injectKeyModalTitle" data-i18n="inject_key_title">Key Provisioning</h3>
+      <button class="btn btn-sm" onclick="closeModal('injectKeyModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="injectKeyHostId" />
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;" data-i18n="inject_key_desc">
+        One-time temporary root password to inject Pantau's SSH public key into <code>~/.ssh/authorized_keys</code>. Password is never saved.
+      </p>
+      <div class="form-group">
+        <label data-i18n="ssh_pass">SSH Password</label>
+        <input type="password" id="injectKeyPasswordInput" placeholder="Enter remote SSH password" data-i18n-placeholder="ssh_pass_ph" autocomplete="new-password" onkeyup="if(event.key==='Enter') submitInjectKey()" />
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+        <button class="btn" onclick="closeModal('injectKeyModal')" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-warning" id="btnSubmitInjectKey" onclick="submitInjectKey()">🔑 <span data-i18n="btn_inject_key">Inject Key</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Generic Confirmation Modal (Action Dialog) -->
+<div id="confirmModal" class="modal">
+  <div class="modal-content modal-dialog" style="max-width: 440px;">
+    <div class="modal-header">
+      <h3 id="confirmModalTitle" data-i18n="confirm">Confirm</h3>
+      <button class="btn btn-sm" onclick="resolveConfirm(false)">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="confirmModalMessage" style="font-size: 0.9rem; margin-bottom: 18px; line-height: 1.5; color: var(--text);"></p>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn" onclick="resolveConfirm(false)" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-danger" id="confirmModalBtn" onclick="resolveConfirm(true)">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Desired State Rule Modal (Action Dialog) -->
+<div id="ruleModal" class="modal">
+  <div class="modal-content modal-dialog" style="max-width: 480px;">
+    <div class="modal-header">
+      <h3 id="ruleModalTitle" data-i18n="add_rule_title">Add Desired State Rule</h3>
+      <button class="btn btn-sm" onclick="closeModal('ruleModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ruleHostId" />
+      <div class="form-group">
+        <label data-i18n="rule_kind">Rule Kind</label>
+        <select id="ruleKind" style="width: 100%; padding: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--card-border); border-radius: 6px;">
+          <option value="container">container</option>
+          <option value="service">service</option>
+          <option value="port">port</option>
+          <option value="disk">disk</option>
+          <option value="process">process</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label data-i18n="rule_target">Target Identifier</label>
+        <input type="text" id="ruleTarget" placeholder="e.g. nginx, 80, /var" data-i18n-placeholder="rule_target_ph" />
+      </div>
+      <div class="form-group">
+        <label data-i18n="rule_expected">Expected State</label>
+        <input type="text" id="ruleExpected" placeholder="e.g. running, listening, <80%" data-i18n-placeholder="rule_expected_ph" value="running" onkeyup="if(event.key==='Enter') submitRuleForm()" />
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+        <button class="btn" onclick="closeModal('ruleModal')" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-primary" id="btnSaveRule" onclick="submitRuleForm()" data-i18n="save_rule">Save Rule</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Snapshot Export Modal (Action Dialog) -->
+<div id="snapshotExportModal" class="modal">
+  <div class="modal-content modal-dialog" style="max-width: 460px;">
+    <div class="modal-header">
+      <h3 data-i18n="export_snapshot_title">Export System Snapshot</h3>
+      <button class="btn btn-sm" onclick="closeModal('snapshotExportModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;" data-i18n="snapshot_export_desc">
+        Snapshot will be encrypted with AES-GCM-256 using this password. Save this password safely.
+      </p>
+      <div class="form-group">
+        <label data-i18n="snapshot_pass_label">Encryption Password</label>
+        <input type="password" id="snapshotExportPassword" placeholder="Enter encryption password" data-i18n-placeholder="snapshot_pass_ph" autocomplete="new-password" onkeyup="if(event.key==='Enter') submitSnapshotExport()" />
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+        <button class="btn" onclick="closeModal('snapshotExportModal')" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-primary" id="btnSubmitSnapshotExport" onclick="submitSnapshotExport()" data-i18n="download_snapshot">Download Snapshot</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Add/Edit Host Modal -->
@@ -688,13 +826,23 @@ const I18N = {
     "login": "Login",
     "invalid_password": "Invalid password",
     "restore_link": "\ud83d\udd04 Restore from Backup (GitHub / .enc File)",
-    "transfers": "\ud83d\udce6 Transfers",
+    "transfers": "📦 Transfers",
+    "transfers_title": "Cross-Host Transfers",
+    "global_notes_title": "Global Notes",
     "alerts_badge": "ALERTS",
     "add_host": "+ Add Host",
-    "settings": "\u2699\ufe0f Settings",
+    "settings": "⚙️ Settings",
+    "settings_title": "Settings",
     "logout": "Logout",
-    "footer_license": "Pantau is open-source under MIT License",
+    "logout_title": "Logout",
+    "logout_confirm": "Are you sure you want to log out?",
+    "footer_license": "MIT License",
     "footer_created_by": "Created by Herliansyah",
+    "footer_engine_active": "Engine Active",
+    "footer_engine_disconnected": "Disconnected",
+    "footer_hosts": "Hosts",
+    "footer_healthy": "Healthy",
+    "footer_drift": "Drift",
     "lang_btn": "\ud83c\udf10 EN",
     "add_host_title": "Add Host",
     "edit_host_title": "Edit Host",
@@ -723,9 +871,19 @@ const I18N = {
     "offline": "Offline",
     "traffic_live": "Traffic Live:",
     "btn_view": "\ud83d\udd0d View",
-    "btn_inspect": "\u26a1 Inspect",
-    "btn_test": "\ud83d\udd0c Test",
-    "btn_inject_key": "\ud83d\udd11 Inject Key",
+    "btn_inspect": "⚡ Inspect",
+    "btn_inspect_title": "Run Inspection (Refresh)",
+    "btn_test": "🔌 Test",
+    "btn_inject_key": "Inject Key",
+    "more_actions": "More Actions",
+    "test_connection": "Test Connection",
+    "delete_host": "Delete Host",
+    "inject_key_title": "Key Provisioning",
+    "inject_key_desc": "One-time temporary root password to inject Pantau's SSH public key into authorized_keys. Password is never saved.",
+    "testing_ssh": "Testing SSH connection...",
+    "ssh_test_success": "SSH Connection Success: ",
+    "inspect_success": "Inspection completed for host",
+    "injecting_key": "Injecting Pantau public key...",
     "tab_settings_presets": "💻 Terminal Presets",
     "manage_presets": "Manage Terminal Presets",
     "add_preset": "Add Terminal Preset",
@@ -933,6 +1091,32 @@ const I18N = {
     "global_note_ph": "Enter system-wide operational notes, shift handovers, or emergency procedures...",
     "global_note_empty": "No global notes recorded. Click 'Edit' to add shared system notes.",
     "search_hosts_ph": "Search hosts by name, IP, OS, notes...",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "continue": "Continue",
+    "overwrite": "Overwrite",
+    "add_rule_title": "Add Desired State Rule",
+    "rule_kind": "Rule Kind",
+    "rule_target": "Target Identifier",
+    "rule_target_ph": "e.g. nginx, 80, /var",
+    "rule_expected": "Expected State",
+    "rule_expected_ph": "e.g. running, listening, <80%",
+    "save_rule": "Save Rule",
+    "rule_added": "Rule added successfully",
+    "rule_deleted": "Rule deleted successfully",
+    "confirm_delete_preset": "Delete this preset?",
+    "preset_deleted": "Preset deleted successfully",
+    "preset_saved": "Preset saved successfully",
+    "export_snapshot_title": "Export System Snapshot",
+    "snapshot_export_desc": "Snapshot will be encrypted with AES-GCM-256 using this password. Save this password safely.",
+    "snapshot_pass_label": "Encryption Password",
+    "snapshot_pass_ph": "Enter encryption password",
+    "download_snapshot": "Download Snapshot",
+    "snapshot_exported": "Snapshot exported successfully",
+    "docker_action_success": "Docker {action} completed successfully",
+    "file_uploaded": "File uploaded successfully",
+    "file_deleted": "File deleted successfully",
+    "file_saved": "File saved successfully",
     "filter_all": "All Status",
     "filter_healthy": "Healthy",
     "filter_degraded": "Degraded",
@@ -970,13 +1154,23 @@ const I18N = {
     "login": "Masuk",
     "invalid_password": "Password salah",
     "restore_link": "\ud83d\udd04 Restore dari Backup (GitHub / File .enc)",
-    "transfers": "\ud83d\udce6 Transfers",
+    "transfers": "📦 Transfers",
+    "transfers_title": "Transfer Lintas-Host",
+    "global_notes_title": "Catatan Global",
     "alerts_badge": "ALERTS",
     "add_host": "+ Tambah Host",
-    "settings": "\u2699\ufe0f Pengaturan",
+    "settings": "⚙️ Pengaturan",
+    "settings_title": "Pengaturan",
     "logout": "Keluar",
-    "footer_license": "Pantau adalah open-source di bawah Lisensi MIT",
+    "logout_title": "Keluar",
+    "logout_confirm": "Apakah Anda yakin ingin keluar?",
+    "footer_license": "Lisensi MIT",
     "footer_created_by": "Dibuat oleh Herliansyah",
+    "footer_engine_active": "Engine Aktif",
+    "footer_engine_disconnected": "Terputus",
+    "footer_hosts": "Host",
+    "footer_healthy": "Sehat",
+    "footer_drift": "Drift",
     "lang_btn": "\ud83c\udf10 ID",
     "add_host_title": "Tambah Host",
     "edit_host_title": "Edit Host",
@@ -1005,9 +1199,19 @@ const I18N = {
     "offline": "Offline",
     "traffic_live": "Traffic Live:",
     "btn_view": "\ud83d\udd0d Lihat",
-    "btn_inspect": "\u26a1 Inspeksi",
-    "btn_test": "\ud83d\udd0c Uji",
-    "btn_inject_key": "\ud83d\udd11 Inject Key",
+    "btn_inspect": "⚡ Inspeksi",
+    "btn_inspect_title": "Jalankan Inspeksi (Refresh)",
+    "btn_test": "🔌 Uji",
+    "btn_inject_key": "Inject Key",
+    "more_actions": "Aksi Lainnya",
+    "test_connection": "Uji Koneksi SSH",
+    "delete_host": "Hapus Host",
+    "inject_key_title": "Key Provisioning",
+    "inject_key_desc": "Password sementara satu kali untuk injeksi public key Pantau ke authorized_keys. Password tidak pernah disimpan.",
+    "testing_ssh": "Menguji koneksi SSH...",
+    "ssh_test_success": "Koneksi SSH Berhasil: ",
+    "inspect_success": "Inspeksi selesai untuk host",
+    "injecting_key": "Menginjeksi public key Pantau...",
     "tab_settings_presets": "💻 Terminal Preset",
     "manage_presets": "Kelola Terminal Preset",
     "add_preset": "Tambah Terminal Preset",
@@ -1244,7 +1448,33 @@ const I18N = {
     "edit": "✏️ Ubah",
     "save": "Simpan",
     "global_notes_btn": "📝 Catatan",
-    "close": "Tutup"
+    "close": "Tutup",
+    "confirm": "Konfirmasi",
+    "delete": "Hapus",
+    "continue": "Lanjutkan",
+    "overwrite": "Timpa",
+    "add_rule_title": "Tambah Aturan Desired State",
+    "rule_kind": "Jenis Aturan",
+    "rule_target": "Target Pengenal",
+    "rule_target_ph": "misal: nginx, 80, /var",
+    "rule_expected": "Kondisi Diharapkan",
+    "rule_expected_ph": "misal: running, listening, <80%",
+    "save_rule": "Simpan Aturan",
+    "rule_added": "Aturan berhasil ditambahkan",
+    "rule_deleted": "Aturan berhasil dihapus",
+    "confirm_delete_preset": "Hapus preset ini?",
+    "preset_deleted": "Preset berhasil dihapus",
+    "preset_saved": "Preset berhasil disimpan",
+    "export_snapshot_title": "Ekspor Snapshot Sistem",
+    "snapshot_export_desc": "Snapshot akan dienkripsi dengan AES-GCM-256 menggunakan password ini. Simpan password ini dengan aman.",
+    "snapshot_pass_label": "Password Enkripsi",
+    "snapshot_pass_ph": "Masukkan password enkripsi",
+    "download_snapshot": "Unduh Snapshot",
+    "snapshot_exported": "Snapshot berhasil diekspor",
+    "docker_action_success": "Docker {action} berhasil",
+    "file_uploaded": "File berhasil diunggah",
+    "file_deleted": "File berhasil dihapus",
+    "file_saved": "File berhasil disimpan",
   }
 };
 
@@ -1279,7 +1509,10 @@ function setLanguage(lang) {
   document.querySelectorAll('[data-i18n-title]').forEach(el => {
     const k = el.getAttribute('data-i18n-title');
     const v = t(k);
-    if (v) el.title = v;
+    if (v) {
+      el.title = v;
+      el.setAttribute('aria-label', v);
+    }
   });
 
   if (currentHost && window.detailData) {
@@ -1340,7 +1573,36 @@ async function doLogin() {
   }
 }
 
+let confirmResolver = null;
+function showConfirm(options) {
+  const opts = typeof options === 'string' ? { message: options } : (options || {});
+  return new Promise((resolve) => {
+    confirmResolver = resolve;
+    const titleEl = document.getElementById('confirmModalTitle');
+    if (titleEl) titleEl.innerText = opts.title || t('confirm', 'Confirm');
+    const msgEl = document.getElementById('confirmModalMessage');
+    if (msgEl) msgEl.innerText = opts.message || '';
+    const btn = document.getElementById('confirmModalBtn');
+    if (btn) {
+      btn.innerText = opts.confirmText || t('confirm', 'Confirm');
+      btn.className = 'btn ' + (opts.danger !== false ? 'btn-danger' : 'btn-primary');
+    }
+    openModal('confirmModal');
+  });
+}
+
+function resolveConfirm(val) {
+  const el = document.getElementById('confirmModal');
+  if (el) el.classList.remove('open');
+  if (confirmResolver) {
+    const res = confirmResolver;
+    confirmResolver = null;
+    res(Boolean(val));
+  }
+}
+
 async function doLogout() {
+  if (!await showConfirm({ message: t('logout_confirm', 'Are you sure you want to log out?'), confirmText: t('logout', 'Logout') })) return;
   await fetch('/api/logout', { method: 'POST' });
   location.reload();
 }
@@ -1434,11 +1696,12 @@ async function saveGlobalNotesModal() {
     if (res.ok) {
       globalNotesData = notes;
       showGlobalNotesViewMode();
+      showToast(t('global_note_saved', 'Global note saved successfully'), 'success');
     } else {
-      alert('Failed to save global note');
+      showToast(t('failed_save_global_note', 'Failed to save global note'), 'error');
     }
   } catch(e) {
-    alert('Failed to save global note: ' + e);
+    showToast(t('failed_save_global_note', 'Failed to save global note') + ': ' + e.message, 'error');
   }
 }
 
@@ -1467,12 +1730,13 @@ async function saveHostNote() {
         window.detailData.host.notes = notes;
         if (currentTab === 'overview') switchTab('overview');
       }
+      showToast(t('host_note_saved', 'Host note saved successfully'), 'success');
       loadHosts();
     } else {
-      alert('Failed to save host note');
+      showToast(t('failed_save_host_note', 'Failed to save host note'), 'error');
     }
   } catch(e) {
-    alert('Failed to save host note: ' + e);
+    showToast(t('failed_save_host_note', 'Failed to save host note') + ': ' + e.message, 'error');
   }
 }
 
@@ -1697,7 +1961,12 @@ function renderGridView(grid, isManualSort) {
           ${isManualSort ? `<span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span>` : ''}
           <span>${escapeHtml(h.name)}</span>
         </div>
-        <span class="badge badge-${h.status}">${h.status}</span>
+        <div style="display: inline-flex; align-items: center; gap: 6px;">
+          <span class="badge badge-${h.status}">${h.status}</span>
+          <button class="btn-inspect-quick" id="inspectBtn-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+          </button>
+        </div>
       </div>
       ${noteHtml}
       <div class="stat-row"><span>${t('address')}</span> <span>${h.host}:${h.port} (${h.user})</span></div>
@@ -1726,13 +1995,18 @@ function renderGridView(grid, isManualSort) {
           <div>⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
         </div>
       </div>
-      <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+      <div style="display: flex; gap: 6px; margin-top: 6px; align-items: center;">
         <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
         <button class="btn btn-sm" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}">💻</button>
-        <button class="btn btn-sm" onclick="inspectHost(${h.id})">${t('btn_inspect')}</button>
-        <button class="btn btn-sm" onclick="testHostSSH(${h.id})">${t('btn_test')}</button>
-        <button class="btn btn-warning btn-sm" onclick="promptInjectKey(${h.id}, '${escapeHtml(h.name)}')">${t('btn_inject_key')}</button>
-        <button class="btn btn-danger btn-sm" style="margin-left: auto;" onclick="deleteHost(${h.id})">🗑️</button>
+        <div class="dropdown" style="margin-left: auto;">
+          <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, ${h.id})" title="${t('more_actions', 'More Actions')}">⋮</button>
+          <div class="dropdown-menu" id="dropdown-${h.id}">
+            <button class="dropdown-item" onclick="testHostSSH(${h.id})">⚡ <span>${t('test_connection', 'Test Connection')}</span></button>
+            <button class="dropdown-item" onclick="openInjectKeyModal(${h.id}, '${escapeHtml(h.name)}')">🔑 <span>${t('btn_inject_key', 'Inject Key')}</span></button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item danger" onclick="deleteHost(${h.id})">🗑️ <span>${t('delete_host', 'Delete Host')}</span></button>
+          </div>
+        </div>
       </div>
     `;
     grid.appendChild(card);
@@ -1830,7 +2104,14 @@ function renderListView(listContainer, isManualSort) {
 
     tr.innerHTML = `
       ${isManualSort ? `<td style="text-align: center;"><span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span></td>` : ''}
-      <td><span class="badge badge-${h.status}">${h.status}</span></td>
+      <td>
+        <div style="display: inline-flex; align-items: center; gap: 6px;">
+          <span class="badge badge-${h.status}">${h.status}</span>
+          <button class="btn-inspect-quick" id="inspectBtnList-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+          </button>
+        </div>
+      </td>
       <td><b>${escapeHtml(h.name)}</b></td>
       <td>${h.host}:${h.port} <span style="color: var(--text-muted); font-size: 0.8rem;">(${h.user})</span></td>
       <td style="color: var(--text-muted);">${escapeHtml(h.os_info || '-')}</td>
@@ -1849,12 +2130,19 @@ function renderListView(listContainer, isManualSort) {
       </td>
       <td>${noteHtml}</td>
       <td style="text-align: right;">
-        <div style="display: inline-flex; gap: 4px;">
+        <div style="display: inline-flex; gap: 4px; align-items: center;">
           <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
           <button class="btn btn-sm" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}">💻</button>
-          <button class="btn btn-sm" onclick="inspectHost(${h.id})">${t('btn_inspect')}</button>
-          <button class="btn btn-sm" onclick="testHostSSH(${h.id})">${t('btn_test')}</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteHost(${h.id})">🗑️</button>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, 'list-${h.id}')" title="${t('more_actions', 'More Actions')}">⋮</button>
+            <div class="dropdown-menu" id="dropdown-list-${h.id}">
+              <button class="dropdown-item" onclick="testHostSSH(${h.id})">⚡ <span>${t('test_connection', 'Test Connection')}</span></button>
+              <button class="dropdown-item" onclick="openInjectKeyModal(${h.id}, '${escapeHtml(h.name)}')">🔑 <span>${t('btn_inject_key', 'Inject Key')}</span></button>
+              <div class="dropdown-divider"></div>
+              <button class="dropdown-item danger" onclick="deleteHost(${h.id})">🗑️ <span>${t('delete_host', 'Delete Host')}</span></button>
+            </div>
+          </div>
+        </div>
       </td>
     `;
     tbody.appendChild(tr);
@@ -1862,11 +2150,47 @@ function renderListView(listContainer, isManualSort) {
   listContainer.appendChild(table);
 }
 
+let lastEngineStatus = true;
+function setEngineStatus(online) {
+  lastEngineStatus = online;
+  const dot = document.getElementById('footerEngineDot');
+  const txt = document.getElementById('footerEngineText');
+  if (!dot || !txt) return;
+  if (online) {
+    dot.className = 'status-dot online';
+    txt.innerText = t('footer_engine_active', 'Engine Active');
+    txt.style.color = 'var(--text-muted)';
+  } else {
+    dot.className = 'status-dot offline';
+    txt.innerText = t('footer_engine_disconnected', 'Disconnected');
+    txt.style.color = '#f87171';
+  }
+}
+
+function updateFooterMetrics() {
+  const el = document.getElementById('footerMetricsText');
+  if (!el || !allRawHosts) return;
+  const total = allRawHosts.length;
+  const healthy = allRawHosts.filter(h => h.status === 'healthy').length;
+  const drift = allRawHosts.filter(h => h.drift || h.status === 'degraded' || h.status === 'down').length;
+  const driftColor = drift > 0 ? '#f87171' : 'var(--text-muted)';
+  el.innerHTML = `${total} ${t('footer_hosts', 'Hosts')} • <span style="color: #34d399;">${healthy} ${t('footer_healthy', 'Healthy')}</span> • <span style="color: ${driftColor}; font-weight: ${drift > 0 ? '600' : 'normal'};">${drift} ${t('footer_drift', 'Drift')}</span>`;
+}
+
 async function loadHosts() {
-  const res = await fetch('/api/hosts');
-  if (!res.ok) return;
-  allRawHosts = await res.json() || [];
-  renderHosts();
+  try {
+    const res = await fetch('/api/hosts');
+    if (!res.ok) {
+      setEngineStatus(false);
+      return;
+    }
+    allRawHosts = await res.json() || [];
+    setEngineStatus(true);
+    updateFooterMetrics();
+    renderHosts();
+  } catch(e) {
+    setEngineStatus(false);
+  }
 }
 
 async function loadAlerts() {
@@ -1932,55 +2256,134 @@ async function saveHost() {
   const data = await res.json();
   if (res.ok) {
     closeModal('hostModal');
+    showToast(t('save_host_success', 'Host saved successfully'), 'success');
     loadHosts();
   } else {
-    alert(t('save_host_failed') + (data.error || 'Unknown error'));
+    showToast(t('save_host_failed') + (data.error || 'Unknown error'), 'error');
   }
 }
 
-async function promptInjectKey(id, name) {
-  const pass = prompt(t('prompt_inject_key').replace('{name}', name));
+function showToast(message, type = 'info', duration = 4000) {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+  const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+  toast.innerHTML = `<span>${icon}</span><span>${escapeHtml(message)}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+function toggleDropdown(e, id) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('dropdown-' + id);
+  const isOpen = menu && menu.parentElement.classList.contains('open');
+  closeAllDropdowns();
+  if (menu && !isOpen) {
+    menu.parentElement.classList.add('open');
+  }
+}
+
+function closeAllDropdowns() {
+  document.querySelectorAll('.dropdown.open').forEach(el => el.classList.remove('open'));
+}
+window.addEventListener('click', closeAllDropdowns);
+
+function openInjectKeyModal(id, name) {
+  closeAllDropdowns();
+  document.getElementById('injectKeyHostId').value = id;
+  document.getElementById('injectKeyModalTitle').innerText = t('inject_key_title', 'Key Provisioning') + ': ' + name;
+  const input = document.getElementById('injectKeyPasswordInput');
+  input.value = '';
+  openModal('injectKeyModal');
+  setTimeout(() => input.focus(), 50);
+}
+
+async function submitInjectKey() {
+  const id = document.getElementById('injectKeyHostId').value;
+  const pass = document.getElementById('injectKeyPasswordInput').value;
   if (!pass) return;
-  const res = await fetch('/api/hosts/' + id + '/inject-key', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: pass })
-  });
-  const data = await res.json();
-  if (data.ok) {
-    alert(t('inject_key_success').replace('{name}', name));
-    inspectHost(id);
-  } else {
-    alert(t('inject_key_failed') + (data.error || 'Unknown error'));
+  const btn = document.getElementById('btnSubmitInjectKey');
+  if (btn) btn.disabled = true;
+  showToast(t('injecting_key', 'Injecting Pantau public key...'), 'info', 2500);
+  try {
+    const res = await fetch('/api/hosts/' + id + '/inject-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pass })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      closeModal('injectKeyModal');
+      showToast(t('inject_key_success', 'SSH key injected successfully for ') + (currentHost ? currentHost.name : 'host'), 'success');
+      inspectHost(id);
+    } else {
+      showToast(t('inject_key_failed', 'Key injection failed: ') + (data.error || 'Unknown error'), 'error', 6000);
+    }
+  } catch(err) {
+    showToast(t('inject_key_failed', 'Key injection failed: ') + err.message, 'error', 6000);
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
 async function deleteHost(id) {
-  if (!confirm(t('confirm_delete_host'))) return;
-  await fetch('/api/hosts/' + id, { method: 'DELETE' });
+  closeAllDropdowns();
+  if (!await showConfirm({ message: t('confirm_delete_host'), confirmText: t('delete_host', 'Delete Host') })) return;
+  const res = await fetch('/api/hosts/' + id, { method: 'DELETE' });
+  if (res.ok) {
+    showToast(t('host_deleted', 'Host deleted successfully'), 'success');
+  } else {
+    showToast(t('delete_host_failed', 'Failed to delete host'), 'error');
+  }
   loadHosts();
 }
 
 async function testHostSSH(id) {
-  const res = await fetch('/api/hosts/' + id + '/test', { method: 'POST' });
-  const data = await res.json();
-  if (data.ok) {
-    alert('SSH Connection SUCCESS:\n' + data.output);
-  } else {
-    alert(t('ssh_test_failed') + data.error);
+  closeAllDropdowns();
+  showToast(t('testing_ssh', 'Testing SSH connection...'), 'info', 2000);
+  try {
+    const res = await fetch('/api/hosts/' + id + '/test', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(t('ssh_test_success', 'SSH Connection Success: ') + (data.output || 'Authenticated'), 'success', 5000);
+    } else {
+      showToast(t('ssh_test_failed', 'SSH Test Failed: ') + (data.error || 'Connection refused'), 'error', 6000);
+    }
+  } catch(err) {
+    showToast(t('ssh_test_failed', 'SSH Test Failed: ') + err.message, 'error', 6000);
   }
 }
 
-async function inspectHost(id) {
-  const res = await fetch('/api/hosts/' + id + '/inspect', { method: 'POST' });
-  const data = await res.json();
-  if (data.ok) {
-    loadHosts();
-    if (currentHost && currentHost.id === id) {
-      openHostDetail(id);
+async function inspectHost(id, e) {
+  if (e) e.stopPropagation();
+  const btns = [document.getElementById('inspectBtn-' + id), document.getElementById('inspectBtnList-' + id)].filter(Boolean);
+  btns.forEach(b => {
+    b.classList.add('spinning');
+    b.disabled = true;
+  });
+  try {
+    const res = await fetch('/api/hosts/' + id + '/inspect', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(t('inspect_success', 'Inspection completed for host'), 'success');
+      loadHosts();
+      if (currentHost && currentHost.id === id) {
+        openHostDetail(id);
+      }
+    } else {
+      showToast(t('inspect_failed', 'Inspection failed: ') + (data.error || 'Unknown error'), 'error');
     }
-  } else {
-    alert(t('inspect_failed') + data.error);
+  } catch(err) {
+    showToast(t('inspect_failed', 'Inspection failed: ') + err.message, 'error');
+  } finally {
+    btns.forEach(b => {
+      b.classList.remove('spinning');
+      b.disabled = false;
+    });
   }
 }
 
@@ -2271,40 +2674,80 @@ async function generateBaseline(hostID) {
   }
 }
 
-async function addRulePrompt(hostID) {
-  const kind = prompt(t('prompt_kind'), 'container');
-  if (!kind) return;
-  const target = prompt(t('prompt_target'));
-  if (!target) return;
-  const expected = prompt(t('prompt_expected'), 'running');
-  if (!expected) return;
+function addRulePrompt(hostID) {
+  openAddRuleModal(hostID);
+}
 
-  await fetch('/api/hosts/' + hostID + '/rules', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kind, target, expected, enabled: true })
-  });
-  inspectHost(hostID);
+function openAddRuleModal(hostID) {
+  document.getElementById('ruleHostId').value = hostID;
+  document.getElementById('ruleKind').value = 'container';
+  document.getElementById('ruleTarget').value = '';
+  document.getElementById('ruleExpected').value = 'running';
+  openModal('ruleModal');
+  setTimeout(() => document.getElementById('ruleTarget')?.focus(), 50);
+}
+
+async function submitRuleForm() {
+  const hostID = document.getElementById('ruleHostId').value;
+  const kind = document.getElementById('ruleKind').value;
+  const target = document.getElementById('ruleTarget').value.trim();
+  const expected = document.getElementById('ruleExpected').value.trim();
+
+  if (!target || !expected) {
+    showToast(t('fill_all_fields', 'Please fill in all fields'), 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btnSaveRule');
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/hosts/' + hostID + '/rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, target, expected, enabled: true })
+    });
+    if (res.ok) {
+      closeModal('ruleModal');
+      showToast(t('rule_added', 'Rule added successfully'), 'success');
+      inspectHost(hostID);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showToast(t('failed_prefix', 'Failed: ') + (err.error || 'Server error'), 'error');
+    }
+  } catch(e) {
+    showToast(t('error_prefix', 'Error: ') + e.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function deleteRule(id) {
-  if (!confirm(t('confirm_delete_rule'))) return;
-  await fetch('/api/rules/' + id, { method: 'DELETE' });
-  inspectHost(currentHost.id);
+  if (!await showConfirm({ message: t('confirm_delete_rule'), confirmText: t('delete', 'Delete') })) return;
+  const res = await fetch('/api/rules/' + id, { method: 'DELETE' });
+  if (res.ok) {
+    showToast(t('rule_deleted', 'Rule deleted successfully'), 'success');
+    inspectHost(currentHost.id);
+  } else {
+    showToast(t('failed_prefix', 'Failed to delete rule'), 'error');
+  }
 }
 
 async function dockerAction(container, action) {
-  const res = await fetch('/api/hosts/' + currentHost.id + '/docker/action', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ container, action })
-  });
-  const data = await res.json();
-  if (data.ok) {
-    alert('Docker ' + action + ' berhasil');
-    inspectHost(currentHost.id);
-  } else {
-    alert('Error: ' + data.error);
+  try {
+    const res = await fetch('/api/hosts/' + currentHost.id + '/docker/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ container, action })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(t('docker_action_success', 'Docker {action} completed successfully').replace('{action}', action), 'success');
+      inspectHost(currentHost.id);
+    } else {
+      showToast(t('error_prefix', 'Error: ') + (data.error || 'Docker action failed'), 'error');
+    }
+  } catch(e) {
+    showToast(t('error_prefix', 'Error: ') + e.message, 'error');
   }
 }
 
@@ -2374,7 +2817,7 @@ async function downloadFolder(path) {
     if (res.ok) {
       const data = await res.json();
       if (data.size > 2 * 1024 * 1024 * 1024) {
-        if (!confirm(t('large_folder_warn').replace('{size}', formatBytes(data.size)))) {
+        if (!await showConfirm({ message: t('large_folder_warn').replace('{size}', formatBytes(data.size)), confirmText: t('continue', 'Continue'), danger: false })) {
           return;
         }
       }
@@ -2397,47 +2840,49 @@ async function uploadFile(targetDir, overwrite = false) {
     body: formData
   });
   if (res.status === 409) {
-    if (confirm(t('file_exists_overwrite').replace('{name}', file.name))) {
+    if (await showConfirm({ message: t('file_exists_overwrite').replace('{name}', file.name), confirmText: t('overwrite', 'Overwrite'), danger: true })) {
       return uploadFile(targetDir, true);
     }
     input.value = '';
     return;
   }
   if (res.status === 403) {
-    alert(t('cannot_upload_protected'));
+    showToast(t('cannot_upload_protected'), 'error');
     input.value = '';
     return;
   }
   if (!res.ok) {
-    alert('Failed to upload file');
+    showToast(t('failed_prefix', 'Failed: ') + 'Failed to upload file', 'error');
     input.value = '';
     return;
   }
+  showToast(t('file_uploaded', 'File uploaded successfully'), 'success');
   input.value = '';
   loadFiles(targetDir);
 }
 
 async function deleteRemoteFile(path, parentDir) {
-  if (!confirm(t('confirm_delete_file').replace('{path}', path))) return;
+  if (!await showConfirm({ message: t('confirm_delete_file').replace('{path}', path), confirmText: t('delete', 'Delete') })) return;
   const res = await fetch('/api/hosts/' + currentHost.id + '/files/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path })
   });
   if (res.status === 403) {
-    alert(t('cannot_delete_protected'));
+    showToast(t('cannot_delete_protected'), 'error');
     return;
   }
   if (!res.ok) {
-    alert('Failed to delete');
+    showToast(t('failed_prefix', 'Failed: ') + 'Failed to delete', 'error');
     return;
   }
+  showToast(t('file_deleted', 'File deleted successfully'), 'success');
   loadFiles(parentDir);
 }
 
 async function openEditor(path) {
   const res = await fetch('/api/hosts/' + currentHost.id + '/files/read?path=' + encodeURIComponent(path));
-  if (!res.ok) { alert(t('failed_read_file')); return; }
+  if (!res.ok) { showToast(t('failed_read_file'), 'error'); return; }
   const data = await res.json();
   document.getElementById('editorFilePath').innerText = path;
   document.getElementById('editorModal').classList.add('open');
@@ -2462,12 +2907,12 @@ async function saveEditorFile() {
     body: JSON.stringify({ path, content })
   });
   if (res.ok) {
-    alert('File saved successfully!');
+    showToast(t('file_saved', 'File saved successfully'), 'success');
     closeModal('editorModal');
   } else if (res.status === 403) {
-    alert(t('cannot_modify_protected'));
+    showToast(t('cannot_modify_protected'), 'error');
   } else {
-    alert('Failed to save file');
+    showToast(t('failed_prefix', 'Failed: ') + 'Failed to save file', 'error');
   }
 }
 
@@ -2848,7 +3293,7 @@ async function submitPresetForm() {
   const useTmux = document.getElementById('presetTmuxCheckbox').checked;
 
   if (!name || !command) {
-    alert('Name and command are required');
+    showToast(t('fill_all_fields', 'Name and command are required'), 'error');
     return;
   }
 
@@ -2876,10 +3321,11 @@ async function submitPresetForm() {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert('Failed to save preset: ' + (err.error || 'Server error'));
+      showToast(t('failed_prefix', 'Failed: ') + (err.error || 'Server error'), 'error');
       return;
     }
     closeModal('presetModal');
+    showToast(t('preset_saved', 'Preset saved successfully'), 'success');
 
     if (terminalHostLeft) {
       loadTerminalPresets(terminalHostLeft);
@@ -2890,7 +3336,7 @@ async function submitPresetForm() {
     }
     loadSettingsPresets();
   } catch (e) {
-    alert('Network error: ' + e.message);
+    showToast(t('error_prefix', 'Network error: ') + e.message, 'error');
   }
 }
 
@@ -2957,23 +3403,24 @@ async function editPresetFromManager(id) {
     const preset = await res.json();
     openCreatePresetModal(preset);
   } catch (e) {
-    alert('Error loading preset: ' + e.message);
+    showToast(t('error_prefix', 'Error: ') + e.message, 'error');
   }
 }
 
 async function deletePreset(id) {
-  if (!confirm('Delete this preset?')) return;
+  if (!await showConfirm({ message: t('confirm_delete_preset', 'Delete this preset?'), confirmText: t('delete', 'Delete') })) return;
   try {
     const res = await fetch('/api/presets/' + id, { method: 'DELETE' });
     if (res.ok) {
+      showToast(t('preset_deleted', 'Preset deleted successfully'), 'success');
       loadPresetManagerList();
       loadSettingsPresets();
       if (terminalHostLeft) loadTerminalPresets(terminalHostLeft);
     } else {
-      alert('Delete failed');
+      showToast(t('failed_prefix', 'Delete failed'), 'error');
     }
   } catch (e) {
-    alert('Network error');
+    showToast(t('error_prefix', 'Network error'), 'error');
   }
 }
 
@@ -3132,16 +3579,16 @@ async function saveSettings() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  alert(t('settings_saved'));
+  showToast(t('settings_saved'), 'success');
 }
 
 async function testNotification() {
   const res = await fetch('/api/settings/test-notify', { method: 'POST' });
   const data = await res.json();
   if (data.ok) {
-    alert(t('test_notif_success'));
+    showToast(t('test_notif_success'), 'success');
   } else {
-    alert(t('test_notif_failed') + data.error);
+    showToast(t('test_notif_failed') + (data.error || 'Unknown error'), 'error');
   }
 }
 
@@ -3154,9 +3601,9 @@ async function changePassword() {
     body: JSON.stringify({ old_password, new_password })
   });
   if (res.ok) {
-    alert(t('pass_updated'));
+    showToast(t('pass_updated'), 'success');
   } else {
-    alert(t('pass_update_failed'));
+    showToast(t('pass_update_failed'), 'error');
   }
 }
 
@@ -3174,7 +3621,7 @@ async function saveGitHubBackupSettings() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  alert(t('gh_config_saved'));
+  showToast(t('gh_config_saved'), 'success');
   openSettingsModal();
 }
 
@@ -3182,16 +3629,28 @@ async function syncGitHubNow() {
   const res = await fetch('/api/snapshot/github/sync', { method: 'POST' });
   const data = await res.json();
   if (data.ok) {
-    alert('✅ ' + data.message);
+    showToast('✅ ' + data.message, 'success');
     openSettingsModal();
   } else {
-    alert(t('sync_gh_failed') + (data.error || 'Unknown error'));
+    showToast(t('sync_gh_failed') + (data.error || 'Unknown error'), 'error');
   }
 }
 
-async function exportSnapshotPrompt() {
-  const pass = prompt(t('prompt_snapshot_pass'));
-  if (!pass) return;
+function exportSnapshotPrompt() {
+  const input = document.getElementById('snapshotExportPassword');
+  if (input) input.value = '';
+  openModal('snapshotExportModal');
+  setTimeout(() => input?.focus(), 50);
+}
+
+async function submitSnapshotExport() {
+  const pass = document.getElementById('snapshotExportPassword').value;
+  if (!pass) {
+    showToast(t('passphrase_required', 'Passphrase is required!'), 'error');
+    return;
+  }
+  const btn = document.getElementById('btnSubmitSnapshotExport');
+  if (btn) btn.disabled = true;
   try {
     const res = await fetch('/api/snapshot/export', {
       method: 'POST',
@@ -3200,7 +3659,7 @@ async function exportSnapshotPrompt() {
     });
     if (!res.ok) {
       const err = await res.text();
-      alert(t('export_snapshot_failed') + err);
+      showToast(t('export_snapshot_failed') + err, 'error');
       return;
     }
     const blob = await res.blob();
@@ -3212,8 +3671,12 @@ async function exportSnapshotPrompt() {
     a.click();
     a.remove();
     window.URL.revokeObjectURL(url);
+    closeModal('snapshotExportModal');
+    showToast(t('snapshot_exported', 'Snapshot exported successfully'), 'success');
   } catch (e) {
-    alert('Error export: ' + e);
+    showToast(t('error_prefix', 'Error: ') + e.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -3350,7 +3813,7 @@ async function openTransferDialog(srcPath, isDir) {
   select.innerHTML = '';
   const availableHosts = hosts.filter(h => h.id !== currentHost.id);
   if (availableHosts.length === 0) {
-    alert(t('no_other_dest_host'));
+    showToast(t('no_other_dest_host'), 'error');
     return;
   }
   availableHosts.forEach(h => {
@@ -3373,7 +3836,7 @@ async function submitTransfer() {
   const mode = document.getElementById('transferMode').value;
   
   if (!destHostID || !srcPath || !destPath) {
-    alert(t('fill_all_fields'));
+    showToast(t('fill_all_fields'), 'error');
     return;
   }
   
@@ -3395,13 +3858,13 @@ async function submitTransfer() {
     });
     const data = await res.json();
     if (!res.ok) {
-      alert(t('start_transfer_failed') + (data.error || res.statusText));
+      showToast(t('start_transfer_failed') + (data.error || res.statusText), 'error');
       return;
     }
     closeModal('transferModal');
     openTransfersModal();
   } catch (err) {
-    alert('Error starting transfer: ' + err.message);
+    showToast(t('error_prefix', 'Error: ') + err.message, 'error');
   } finally {
     btn.disabled = false;
     btn.innerText = t('start_transfer');
@@ -3416,12 +3879,12 @@ function openTransfersModal() {
 }
 
 async function cancelTransfer(jobID) {
-  if (!confirm(t('confirm_cancel_transfer'))) return;
+  if (!await showConfirm({ message: t('confirm_cancel_transfer'), confirmText: t('cancel_transfer_btn', 'Cancel'), danger: true })) return;
   const res = await fetch('/api/transfers/' + jobID + '/cancel', { method: 'POST' });
   if (res.ok) {
     loadTransfers();
   } else {
-    alert(t('cancel_transfer_failed'));
+    showToast(t('cancel_transfer_failed'), 'error');
   }
 }
 
@@ -3513,6 +3976,11 @@ async function loadTransfers() {
   }
 }
 
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.add('open');
+}
+
 function closeModal(id) {
   if (id === 'transfersListModal' && transferPollInterval) {
     clearInterval(transferPollInterval);
@@ -3521,8 +3989,37 @@ function closeModal(id) {
   if (id === 'hostDetailModal') {
     cleanUpTerminals();
   }
-  document.getElementById(id).classList.remove('open');
+  if (id === 'confirmModal' && confirmResolver) {
+    resolveConfirm(false);
+    return;
+  }
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('open');
 }
+
+window.addEventListener('click', (e) => {
+  if (e.target && e.target.classList && e.target.classList.contains('modal') && e.target.classList.contains('open')) {
+    if (e.target.id === 'confirmModal') {
+      resolveConfirm(false);
+    } else {
+      closeModal(e.target.id);
+    }
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const openModals = Array.from(document.querySelectorAll('.modal.open'));
+    if (openModals.length > 0) {
+      const topModal = openModals[openModals.length - 1];
+      if (topModal.id === 'confirmModal') {
+        resolveConfirm(false);
+      } else {
+        closeModal(topModal.id);
+      }
+    }
+  }
+});
 
 function escapeHtml(s) {
   if (!s) return '';
