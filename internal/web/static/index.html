@@ -98,18 +98,21 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 
 <div id="loginView" style="display: none; height: 100vh; align-items: center; justify-content: center;">
   <div style="background: var(--card-bg); border: 1px solid var(--card-border); padding: 32px; border-radius: 12px; width: 340px; display: flex; flex-direction: column; gap: 16px;">
-    <h2 style="text-align: center; color: #60a5fa;">PANTAU</h2>
-    <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">Agentless Server Management</p>
-    <div class="form-group">
-      <input type="password" id="loginPassword" placeholder="Admin Password" onkeyup="if(event.key==='Enter') doLogin()" />
+    <div style="display: flex; justify-content: flex-end;">
+      <button class="btn btn-sm" onclick="toggleLanguage()" id="loginLangBtn" title="Switch Language">🌐 EN</button>
     </div>
-    <button class="btn btn-primary" onclick="doLogin()">Login</button>
+    <h2 style="text-align: center; color: #60a5fa;">PANTAU</h2>
+    <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center;" data-i18n="brand_subtitle">Agentless Server Management</p>
+    <div class="form-group">
+      <input type="password" id="loginPassword" placeholder="Admin Password" data-i18n-placeholder="admin_password" onkeyup="if(event.key==='Enter') doLogin()" />
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()" data-i18n="login">Login</button>
     <div id="loginErr" style="color: var(--danger); font-size: 0.8rem; text-align: center;"></div>
     <div style="border-top: 1px solid var(--card-border); padding-top: 12px; text-align: center;">
-      <a href="javascript:void(0)" onclick="openRestoreModal()" style="font-size: 0.8rem; color: #38bdf8; text-decoration: none;">🔄 Restore dari Backup (GitHub / File .enc)</a>
+      <a href="javascript:void(0)" onclick="openRestoreModal()" style="font-size: 0.8rem; color: #38bdf8; text-decoration: none;" data-i18n="restore_link">🔄 Restore from Backup (GitHub / .enc File)</a>
     </div>
   </div>
-</div>
+</div>>
 
 <div id="appView" style="display: none; flex-direction: column; flex: 1;">
   <header>
@@ -117,11 +120,12 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <span>🛡️</span> PANTAU
     </div>
     <div style="display: flex; gap: 10px; align-items: center;">
-      <button class="btn" onclick="openTransfersModal()">📦 Transfers <span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 4px;">0</span></button>
+      <button class="btn" onclick="openTransfersModal()"><span data-i18n="transfers">📦 Transfers</span> <span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 4px;">0</span></button>
       <span id="activeAlertBadge" style="display: none;" class="badge badge-down">0 ALERTS</span>
-      <button class="btn btn-primary" onclick="openAddHostModal()">+ Add Host</button>
-      <button class="btn" onclick="openSettingsModal()">⚙️ Settings</button>
-      <button class="btn" onclick="doLogout()">Logout</button>
+      <button class="btn btn-primary" onclick="openAddHostModal()" data-i18n="add_host">+ Add Host</button>
+      <button class="btn" onclick="openSettingsModal()" data-i18n="settings">⚙️ Settings</button>
+      <button class="btn" id="langToggleBtn" onclick="toggleLanguage()" title="Switch Language">🌐 EN</button>
+      <button class="btn" onclick="doLogout()" data-i18n="logout">Logout</button>
     </div>
   </header>
 
@@ -131,9 +135,9 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
   </div>
 
   <footer>
-    <div>Pantau is open-source under MIT License</div>
+    <div data-i18n="footer_license">Pantau is open-source under MIT License</div>
     <div>
-      <span>Created by Herliansyah</span>
+      <span data-i18n="footer_created_by">Created by Herliansyah</span>
       <span style="margin: 0 6px;">•</span>
       <a href="https://github.com/herliansyah/pantau" target="_blank" rel="noopener noreferrer">GitHub (herliansyah/pantau) ↗</a>
     </div>
@@ -144,40 +148,40 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 <div id="hostModal" class="modal">
   <div class="modal-content modal-dialog">
     <div class="modal-header">
-      <h3 id="hostModalTitle">Add Host</h3>
+      <h3 id="hostModalTitle" data-i18n="add_host_title">Add Host</h3>
       <button class="btn btn-sm" onclick="closeModal('hostModal')">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="editHostId" />
       <div class="form-group">
-        <label>Display Name</label>
-        <input type="text" id="hostName" placeholder="e.g. Production Web" />
+        <label data-i18n="display_name">Display Name</label>
+        <input type="text" id="hostName" placeholder="e.g. Production Web" data-i18n-placeholder="display_name_ph" />
       </div>
       <div class="form-group">
-        <label>Hostname or IP</label>
-        <input type="text" id="hostAddr" placeholder="192.168.1.100 or vps.domain.com" />
+        <label data-i18n="addr_ip">Hostname or IP</label>
+        <input type="text" id="hostAddr" placeholder="192.168.1.100 or vps.domain.com" data-i18n-placeholder="addr_ip_ph" />
       </div>
       <div style="display: flex; gap: 12px;">
         <div class="form-group" style="flex: 1;">
-          <label>SSH Port</label>
+          <label data-i18n="ssh_port">SSH Port</label>
           <input type="number" id="hostPort" value="22" />
         </div>
         <div class="form-group" style="flex: 1;">
-          <label>SSH User</label>
+          <label data-i18n="ssh_user">SSH User</label>
           <input type="text" id="hostUser" value="root" />
         </div>
       </div>
       <div class="form-group" id="passGroup">
-        <label>SSH Password (One-Time: auto-injects Pantau public key)</label>
-        <input type="password" id="hostPassword" placeholder="e.g. root password (never stored in database)" />
+        <label data-i18n="ssh_pass">SSH Password (One-Time: auto-injects Pantau public key)</label>
+        <input type="password" id="hostPassword" placeholder="e.g. root password (never stored in database)" data-i18n-placeholder="ssh_pass_ph" />
       </div>
       <div class="form-group">
-        <label>Custom SSH Private Key (Optional, leave blank to use global key)</label>
-        <textarea id="hostCustomKey" rows="2" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+        <label data-i18n="custom_key">Custom SSH Private Key (Optional, leave blank to use global key)</label>
+        <textarea id="hostCustomKey" rows="2" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" data-i18n-placeholder="custom_key_ph"></textarea>
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
-        <button class="btn" onclick="closeModal('hostModal')">Cancel</button>
-        <button class="btn btn-primary" onclick="saveHost()">Save Host</button>
+        <button class="btn" onclick="closeModal('hostModal')" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-primary" onclick="saveHost()" data-i18n="save_host">Save Host</button>
       </div>
     </div>
   </div>
@@ -195,13 +199,13 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
     </div>
     <div class="modal-tabs-bar">
       <div class="tabs" id="hostDetailTabs">
-        <div class="tab active" onclick="switchTab('overview')">Overview</div>
-        <div class="tab" onclick="switchTab('network')">Network & Security</div>
-        <div class="tab" onclick="switchTab('desired')">Desired State (Drift)</div>
-        <div class="tab" onclick="switchTab('docker')">Docker</div>
-        <div class="tab" onclick="switchTab('timeline')">Incident Timeline</div>
-        <div class="tab" onclick="switchTab('files')">File Manager</div>
-        <div class="tab" onclick="switchTab('terminal')">Terminal</div>
+        <div class="tab active" data-tab="overview" onclick="switchTab('overview')" data-i18n="tab_overview">Overview</div>
+        <div class="tab" data-tab="network" onclick="switchTab('network')" data-i18n="tab_network">Network & Security</div>
+        <div class="tab" data-tab="desired" onclick="switchTab('desired')" data-i18n="tab_desired">Desired State (Drift)</div>
+        <div class="tab" data-tab="docker" onclick="switchTab('docker')" data-i18n="tab_docker">Docker</div>
+        <div class="tab" data-tab="timeline" onclick="switchTab('timeline')" data-i18n="tab_timeline">Incident Timeline</div>
+        <div class="tab" data-tab="files" onclick="switchTab('files')" data-i18n="tab_files">File Manager</div>
+        <div class="tab" data-tab="terminal" onclick="switchTab('terminal')" data-i18n="tab_terminal">Terminal</div>
       </div>
     </div>
     <div class="modal-body" id="tabContent"></div>
@@ -212,34 +216,34 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 <div id="settingsModal" class="modal">
   <div class="modal-content modal-dialog-md">
     <div class="modal-header">
-      <h3>⚙️ Settings</h3>
+      <h3 data-i18n="settings">⚙️ Settings</h3>
       <button class="btn btn-sm" onclick="closeModal('settingsModal')">✕</button>
     </div>
     <div class="modal-tabs-bar">
       <div class="tabs" id="settingsTabs">
-        <div class="tab active" id="tabSettingsGeneral" onclick="switchSettingsTab('general')">🔑 General & Access</div>
-        <div class="tab" id="tabSettingsNotif" onclick="switchSettingsTab('notif')">🔔 Notification Channels</div>
-        <div class="tab" id="tabSettingsBackup" onclick="switchSettingsTab('backup')">💾 Backup & Snapshot</div>
+        <div class="tab active" id="tabSettingsGeneral" onclick="switchSettingsTab('general')" data-i18n="tab_settings_general">🔑 General & Access</div>
+        <div class="tab" id="tabSettingsNotif" onclick="switchSettingsTab('notif')" data-i18n="tab_settings_notif">🔔 Notification Channels</div>
+        <div class="tab" id="tabSettingsBackup" onclick="switchSettingsTab('backup')" data-i18n="tab_settings_backup">💾 Backup & Snapshot</div>
       </div>
     </div>
     <div class="modal-body">
       <!-- General & Access Tab -->
       <div id="settingsPanelGeneral" style="display: flex; flex-direction: column; gap: 16px;">
         <div class="card" style="padding: 16px;">
-          <h4 style="margin-bottom: 8px;">Global Pantau SSH Public Key</h4>
-          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">Kunci publik ini ditempelkan ke file <code>~/.ssh/authorized_keys</code> di server target untuk otentikasi SSH agentless.</p>
+          <h4 style="margin-bottom: 8px;" data-i18n="global_pub_key">Global Pantau SSH Public Key</h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;" data-i18n="global_pub_key_desc">This public key is placed into <code>~/.ssh/authorized_keys</code> on target servers for agentless SSH authentication.</p>
           <div class="form-group">
             <textarea id="settingPubKey" readonly onclick="this.select()" style="font-family: monospace; font-size: 0.8rem; resize: none; overflow: hidden; word-break: break-all; line-height: 1.45; padding: 10px;"></textarea>
-            <button class="btn btn-sm" id="btnCopyKey" onclick="copyPubKey()">📋 Copy Key</button>
+            <button class="btn btn-sm" id="btnCopyKey" onclick="copyPubKey()" data-i18n="copy_key">📋 Copy Key</button>
           </div>
         </div>
 
         <div class="card" style="padding: 16px;">
-          <h4 style="margin-bottom: 8px;">Change Admin Password</h4>
+          <h4 style="margin-bottom: 8px;" data-i18n="change_admin_pass">Change Admin Password</h4>
           <div class="form-group" style="max-width: 400px;">
-            <input type="password" id="oldPass" placeholder="Current Password" />
-            <input type="password" id="newPass" placeholder="New Password" />
-            <button class="btn btn-warning btn-sm" onclick="changePassword()">Update Password</button>
+            <input type="password" id="oldPass" placeholder="Current Password" data-i18n-placeholder="current_password" />
+            <input type="password" id="newPass" placeholder="New Password" data-i18n-placeholder="new_password" />
+            <button class="btn btn-warning btn-sm" onclick="changePassword()" data-i18n="update_password">Update Password</button>
           </div>
         </div>
       </div>
@@ -247,23 +251,23 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <!-- Notification Channels Tab -->
       <div id="settingsPanelNotif" style="display: none; flex-direction: column; gap: 16px;">
         <div class="card" style="padding: 16px;">
-          <h4 style="margin-bottom: 8px;">Notification Dispatcher</h4>
-          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">Kirim peringatan instan ketika drift terdeteksi atau server mengalami gangguan.</p>
+          <h4 style="margin-bottom: 8px;" data-i18n="notif_dispatcher">Notification Dispatcher</h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;" data-i18n="notif_desc">Send instant alerts when drift is detected or a server experiences downtime.</p>
           <div class="form-group">
-            <label>Telegram Bot Token</label>
+            <label data-i18n="tg_bot_token">Telegram Bot Token</label>
             <input type="text" id="settingTgToken" placeholder="123456789:ABCdef..." />
           </div>
           <div class="form-group">
-            <label>Telegram Chat ID</label>
+            <label data-i18n="tg_chat_id">Telegram Chat ID</label>
             <input type="text" id="settingTgChat" placeholder="-100123456789 or user ID" />
           </div>
           <div class="form-group">
-            <label>Webhook URL (HTTP POST JSON)</label>
+            <label data-i18n="webhook_url">Webhook URL (HTTP POST JSON)</label>
             <input type="text" id="settingWebhook" placeholder="https://webhook.site/..." />
           </div>
           <div style="display: flex; gap: 8px; margin-top: 10px;">
-            <button class="btn btn-primary" onclick="saveSettings()">Save Notification Settings</button>
-            <button class="btn" onclick="testNotification()">🔔 Test Notification</button>
+            <button class="btn btn-primary" onclick="saveSettings()" data-i18n="save_notif_settings">Save Notification Settings</button>
+            <button class="btn" onclick="testNotification()" data-i18n="test_notif">🔔 Test Notification</button>
           </div>
         </div>
       </div>
@@ -271,50 +275,50 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <!-- Backup & Snapshot Tab -->
       <div id="settingsPanelBackup" style="display: none; flex-direction: column; gap: 16px;">
         <div class="card" style="padding: 16px;">
-          <h4 style="margin-bottom: 8px;">System Snapshot Manual (.enc)</h4>
+          <h4 style="margin-bottom: 8px;" data-i18n="manual_snapshot">Manual System Snapshot (.enc)</h4>
           <div id="snapshotBackupStatus" style="font-size: 0.8rem; color: var(--text-muted); background: #090d16; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px;">
-            Status: <span id="backupStatusText">Belum dikonfigurasi</span>
+            Status: <span id="backupStatusText">Not configured</span>
           </div>
           <div style="display: flex; gap: 8px;">
-            <button class="btn btn-sm" onclick="exportSnapshotPrompt()">💾 Download Snapshot (.enc)</button>
-            <button class="btn btn-sm" onclick="openRestoreModal()">📂 Restore Snapshot</button>
+            <button class="btn btn-sm" onclick="exportSnapshotPrompt()" data-i18n="download_snapshot_enc">💾 Download Snapshot (.enc)</button>
+            <button class="btn btn-sm" onclick="openRestoreModal()" data-i18n="restore_snapshot">📂 Restore Snapshot</button>
           </div>
         </div>
 
         <div class="card" style="padding: 16px;">
-          <h4 style="margin-bottom: 8px; color: #60a5fa;">GitHub Sync (Private Repository)</h4>
-          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">Sinkronisasi otomatis basis data Pantau terenkripsi AES-256 ke GitHub secara berkala.</p>
+          <h4 style="margin-bottom: 8px; color: #60a5fa;" data-i18n="gh_sync_title">GitHub Sync (Private Repository)</h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;" data-i18n="gh_sync_desc">Automated AES-256 encrypted Pantau database synchronization to GitHub periodically.</p>
           <div class="form-group">
             <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem;">
               <input type="checkbox" id="settingGhEnabled" style="width: auto;" />
-              Aktifkan Otomatis Backup ke GitHub
+              <span data-i18n="enable_gh_sync">Enable Automatic GitHub Backup</span>
             </label>
           </div>
           <div class="form-group">
-            <label>Repository (owner/repo)</label>
+            <label data-i18n="gh_repo">Repository (owner/repo)</label>
             <input type="text" id="settingGhRepo" placeholder="username/pantau-backup" />
           </div>
           <div class="form-group">
-            <label>Personal Access Token (PAT dengan izin repo)</label>
-            <input type="password" id="settingGhToken" placeholder="ghp_... atau github_pat_..." />
+            <label data-i18n="gh_pat">Personal Access Token (PAT with repo scope)</label>
+            <input type="password" id="settingGhToken" placeholder="ghp_... or github_pat_..." />
           </div>
           <div class="form-group">
-            <label>Snapshot Passphrase (Kunci Enkripsi AES-256)</label>
-            <input type="password" id="settingGhPassphrase" placeholder="Frasa sandi rahasia untuk enkripsi" />
+            <label data-i18n="snapshot_passphrase">Snapshot Passphrase (AES-256 Encryption Key)</label>
+            <input type="password" id="settingGhPassphrase" placeholder="Secret passphrase for encryption" data-i18n-placeholder="snapshot_passphrase_ph" />
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
             <div class="form-group">
-              <label>Interval Backup (Jam)</label>
+              <label data-i18n="backup_interval_hours">Backup Interval (Hours)</label>
               <input type="number" id="settingGhInterval" value="24" min="1" max="168" />
             </div>
             <div class="form-group">
-              <label>File Path di Repo</label>
+              <label data-i18n="repo_file_path">File Path in Repo</label>
               <input type="text" id="settingGhPath" value="pantau-state.enc" />
             </div>
           </div>
           <div style="display: flex; gap: 8px; margin-top: 12px;">
-            <button class="btn btn-primary btn-sm" onclick="saveGitHubBackupSettings()">💾 Simpan Konfigurasi</button>
-            <button class="btn btn-success btn-sm" onclick="syncGitHubNow()">🚀 Sync ke GitHub Sekarang</button>
+            <button class="btn btn-primary btn-sm" onclick="saveGitHubBackupSettings()" data-i18n="save_gh_config">💾 Save Configuration</button>
+            <button class="btn btn-success btn-sm" onclick="syncGitHubNow()" data-i18n="sync_gh_now">🚀 Sync to GitHub Now</button>
           </div>
         </div>
       </div>
@@ -326,59 +330,59 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 <div id="restoreModal" class="modal">
   <div class="modal-content modal-dialog">
     <div class="modal-header">
-      <h3 id="restoreModalTitle">🔄 Restore Pantau dari Backup</h3>
+      <h3 id="restoreModalTitle" data-i18n="restore_modal_title">🔄 Restore Pantau from Backup</h3>
       <button class="btn btn-sm" onclick="closeModal('restoreModal')">✕</button>
     </div>
     <div class="modal-tabs-bar">
       <div class="tabs" style="margin-bottom: 0;">
-        <div class="tab active" id="tabRestoreGh" onclick="switchRestoreTab('github')">🐙 GitHub Private</div>
-        <div class="tab" id="tabRestoreFile" onclick="switchRestoreTab('file')">📁 File Lokal (.enc)</div>
-        <div class="tab" id="tabRestoreFresh" onclick="switchRestoreTab('fresh')">🚀 Mulai Baru</div>
+        <div class="tab active" id="tabRestoreGh" onclick="switchRestoreTab('github')" data-i18n="tab_restore_gh">🐙 GitHub Private</div>
+        <div class="tab" id="tabRestoreFile" onclick="switchRestoreTab('file')" data-i18n="tab_restore_file">📁 Local File (.enc)</div>
+        <div class="tab" id="tabRestoreFresh" onclick="switchRestoreTab('fresh')" data-i18n="tab_restore_fresh">🚀 Start Fresh</div>
       </div>
     </div>
     <div class="modal-body">
       <!-- Tab GitHub -->
       <div id="restoreViewGithub" style="display: flex; flex-direction: column; gap: 12px;">
-        <p style="font-size: 0.85rem; color: var(--text-muted);">Tarik database terenkripsi langsung dari repositori GitHub private Anda via REST API.</p>
+        <p style="font-size: 0.85rem; color: var(--text-muted);" data-i18n="restore_gh_desc">Pull encrypted database directly from your private GitHub repository via REST API.</p>
         <div class="form-group">
-          <label>GitHub Repository (owner/repo)</label>
+          <label data-i18n="gh_repo">GitHub Repository (owner/repo)</label>
           <input type="text" id="restoreGhRepo" placeholder="username/pantau-backup" />
         </div>
         <div class="form-group">
-          <label>Personal Access Token (PAT)</label>
-          <input type="password" id="restoreGhToken" placeholder="ghp_... atau github_pat_..." />
+          <label data-i18n="gh_pat">Personal Access Token (PAT)</label>
+          <input type="password" id="restoreGhToken" placeholder="ghp_... or github_pat_..." />
         </div>
         <div class="form-group">
-          <label>File Path di Repo</label>
+          <label data-i18n="repo_file_path">File Path in Repo</label>
           <input type="text" id="restoreGhPath" value="pantau-state.enc" />
         </div>
         <div class="form-group">
-          <label>Snapshot Passphrase</label>
-          <input type="password" id="restoreGhPass" placeholder="Frasa sandi enkripsi saat backup" />
+          <label data-i18n="snapshot_passphrase">Snapshot Passphrase</label>
+          <input type="password" id="restoreGhPass" placeholder="Secret passphrase for encryption" data-i18n-placeholder="snapshot_passphrase_ph" />
         </div>
-        <button class="btn btn-primary" onclick="doRestoreFromGitHub()">📥 Tarik & Restore dari GitHub</button>
+        <button class="btn btn-primary" onclick="doRestoreFromGitHub()" data-i18n="restore_gh_btn">📥 Pull & Restore from GitHub</button>
         <div id="restoreGhMsg" style="font-size: 0.85rem; margin-top: 4px;"></div>
       </div>
 
       <!-- Tab File -->
       <div id="restoreViewFile" style="display: none; flex-direction: column; gap: 12px;">
-        <p style="font-size: 0.85rem; color: var(--text-muted);">Pilih file snapshot terenkripsi (<code>.enc</code>) dari komputer Anda.</p>
+        <p style="font-size: 0.85rem; color: var(--text-muted);" data-i18n="restore_file_desc">Select an encrypted snapshot file (<code>.enc</code>) from your computer.</p>
         <div class="form-group">
-          <label>Pilih File (.enc)</label>
+          <label data-i18n="select_file_label">Select File (.enc)</label>
           <input type="file" id="restoreFileInput" accept=".enc" style="padding: 6px;" />
         </div>
         <div class="form-group">
-          <label>Snapshot Passphrase</label>
-          <input type="password" id="restoreFilePass" placeholder="Frasa sandi enkripsi file" />
+          <label data-i18n="snapshot_passphrase">Snapshot Passphrase</label>
+          <input type="password" id="restoreFilePass" placeholder="Secret passphrase for encryption" data-i18n-placeholder="snapshot_passphrase_ph" />
         </div>
-        <button class="btn btn-primary" onclick="doRestoreFromFile()">📂 Upload & Restore</button>
+        <button class="btn btn-primary" onclick="doRestoreFromFile()" data-i18n="restore_file_btn">📂 Upload & Restore</button>
         <div id="restoreFileMsg" style="font-size: 0.85rem; margin-top: 4px;"></div>
       </div>
 
       <!-- Tab Fresh -->
       <div id="restoreViewFresh" style="display: none; flex-direction: column; gap: 12px;">
-        <p style="font-size: 0.85rem; color: var(--text-muted);">Mulai Pantau dengan instalasi baru tanpa memulihkan konfigurasi lama.</p>
-        <button class="btn btn-success" onclick="doStartFresh()">Mulai dari Awal (Fresh)</button>
+        <p style="font-size: 0.85rem; color: var(--text-muted);" data-i18n="restore_fresh_desc">Start Pantau with a clean fresh installation without restoring previous configuration.</p>
+        <button class="btn btn-success" onclick="doStartFresh()" data-i18n="restore_fresh_btn">Start from Scratch (Fresh)</button>
       </div>
     </div>
   </div>
@@ -404,37 +408,37 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 <div id="transferModal" class="modal">
   <div class="modal-content modal-dialog">
     <div class="modal-header">
-      <h3>🚀 Copy File / Folder to Another Host</h3>
+      <h3 data-i18n="transfer_modal_title">🚀 Copy File / Folder to Another Host</h3>
       <button class="btn btn-sm" onclick="closeModal('transferModal')">✕</button>
     </div>
     <div class="modal-body">
       <div class="form-group">
-        <label>Source Host & Item</label>
+        <label data-i18n="source_host_item">Source Host & Item</label>
         <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;" id="transferSourceHost"></div>
         <input type="text" id="transferSourcePath" readonly style="background: var(--bg-card); cursor: not-allowed;" />
       </div>
       <div class="form-group">
-        <label>Destination Host</label>
+        <label data-i18n="dest_host">Destination Host</label>
         <select id="transferDestHost" class="form-control" style="width: 100%; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--card-border); padding: 8px; border-radius: 4px;"></select>
       </div>
       <div class="form-group">
-        <label>Destination Directory</label>
+        <label data-i18n="dest_dir">Destination Directory</label>
         <input type="text" id="transferDestPath" placeholder="/var/www or /opt/data" value="/tmp" />
       </div>
       <div class="form-group">
-        <label>Transfer Mode</label>
+        <label data-i18n="transfer_mode">Transfer Mode</label>
         <select id="transferMode" class="form-control" style="width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid var(--card-border); padding: 8px; border-radius: 4px;">
-          <option value="fast" style="background: #1e293b; color: #f8fafc;">⚡ Fast Stream (Direct in-memory pipe, max speed for 500GB+)</option>
-          <option value="verified" style="background: #1e293b; color: #f8fafc;">🛡️ Verified (Piped stream + SHA256 integrity check)</option>
+          <option value="fast" data-i18n="transfer_mode_fast">⚡ Fast Stream (Direct in-memory pipe, max speed for 500GB+)</option>
+          <option value="verified" data-i18n="transfer_mode_verified">🛡️ Verified (Piped stream + SHA256 integrity check)</option>
         </select>
       </div>
-      <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px; line-height: 1.4;">
+      <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px; line-height: 1.4;" data-i18n="transfer_note">
         💡 Piped streaming streams directly between servers via Pantau in-memory bridge. Zero temporary master disk space used.
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn" onclick="closeModal('transferModal')">Cancel</button>
-      <button class="btn btn-warning" id="btnStartTransfer" onclick="submitTransfer()">Start Transfer</button>
+      <button class="btn" onclick="closeModal('transferModal')" data-i18n="cancel">Cancel</button>
+      <button class="btn btn-warning" id="btnStartTransfer" onclick="submitTransfer()" data-i18n="start_transfer">Start Transfer</button>
     </div>
   </div>
 </div>
@@ -443,16 +447,16 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 <div id="transfersListModal" class="modal">
   <div class="modal-content modal-workspace">
     <div class="modal-header">
-      <h3>📦 Cross-Host Transfers</h3>
+      <h3 data-i18n="transfers_list_title">📦 Cross-Host Transfers</h3>
       <div style="display: flex; gap: 8px;">
-        <button class="btn btn-sm" onclick="loadTransfers()">🔄 Refresh</button>
+        <button class="btn btn-sm" onclick="loadTransfers()" data-i18n="refresh">🔄 Refresh</button>
         <button class="btn btn-sm" onclick="closeModal('transfersListModal')">✕</button>
       </div>
     </div>
     <div class="modal-tabs-bar">
       <div class="tabs" id="transfersTabs">
-        <div class="tab active" id="tabTransfersActive" onclick="switchTransfersTab('active')">⚡ Active & Queued</div>
-        <div class="tab" id="tabTransfersHistory" onclick="switchTransfersTab('history')">📜 History</div>
+        <div class="tab active" id="tabTransfersActive" onclick="switchTransfersTab('active')" data-i18n="tab_transfers_active">⚡ Active & Queued</div>
+        <div class="tab" id="tabTransfersHistory" onclick="switchTransfersTab('history')" data-i18n="tab_transfers_history">📜 History</div>
       </div>
     </div>
     <div class="modal-body" id="transfersListBody">
@@ -474,6 +478,515 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/yaml/yaml.min.js"></script>
 
 <script>
+const I18N = {
+  en: {
+    "brand_subtitle": "Agentless Server Management",
+    "admin_password": "Admin Password",
+    "login": "Login",
+    "invalid_password": "Invalid password",
+    "restore_link": "\ud83d\udd04 Restore from Backup (GitHub / .enc File)",
+    "transfers": "\ud83d\udce6 Transfers",
+    "alerts_badge": "ALERTS",
+    "add_host": "+ Add Host",
+    "settings": "\u2699\ufe0f Settings",
+    "logout": "Logout",
+    "footer_license": "Pantau is open-source under MIT License",
+    "footer_created_by": "Created by Herliansyah",
+    "lang_btn": "\ud83c\udf10 EN",
+    "add_host_title": "Add Host",
+    "edit_host_title": "Edit Host",
+    "display_name": "Display Name",
+    "display_name_ph": "e.g. Production Web",
+    "addr_ip": "Hostname or IP",
+    "addr_ip_ph": "192.168.1.100 or vps.domain.com",
+    "ssh_port": "SSH Port",
+    "ssh_user": "SSH User",
+    "ssh_pass": "SSH Password (One-Time: auto-injects Pantau public key)",
+    "ssh_pass_ph": "e.g. root password (never stored in database)",
+    "custom_key": "Custom SSH Private Key (Optional, leave blank to use global key)",
+    "custom_key_ph": "-----BEGIN OPENSSH PRIVATE KEY-----",
+    "cancel": "Cancel",
+    "save_host": "Save Host",
+    "save_host_failed": "Failed to save host: ",
+    "no_hosts": "No hosts configured yet. Click \"+ Add Host\" to begin.",
+    "address": "Address:",
+    "os": "OS:",
+    "uptime": "Uptime:",
+    "ram_usage": "RAM Usage",
+    "disk_usage": "Disk Usage",
+    "lifecycle_score": "Lifecycle Score:",
+    "internet": "Internet:",
+    "online": "Online",
+    "offline": "Offline",
+    "traffic_live": "Traffic Live:",
+    "btn_view": "\ud83d\udd0d View",
+    "btn_inspect": "\u26a1 Inspect",
+    "btn_test": "\ud83d\udd0c Test",
+    "btn_inject_key": "\ud83d\udd11 Inject Key",
+    "confirm_delete_host": "Delete this host?",
+    "ssh_test_success": "SSH Connection Successful!",
+    "ssh_test_failed": "SSH Connection FAILED:\n",
+    "inspect_failed": "Inspection failed: ",
+    "prompt_inject_key": "Enter SSH password for server \"{name}\"\n\n(Password is used ONCE in RAM to append Pantau public key to ~/.ssh/authorized_keys and is NEVER stored in database):",
+    "inject_key_success": "\u2705 Public key successfully injected to server {name}! Pantau can now access this server via keyless SSH.",
+    "inject_key_failed": "\u274c Failed: ",
+    "tab_overview": "Overview",
+    "tab_network": "Network & Security",
+    "tab_desired": "Desired State (Drift)",
+    "tab_docker": "Docker",
+    "tab_timeline": "Incident Timeline",
+    "tab_files": "File Manager",
+    "tab_terminal": "Terminal",
+    "sys_info": "System Information",
+    "kernel": "Kernel:",
+    "load_avg": "Load Average:",
+    "lifecycle_assessment": "Lifecycle Assessment",
+    "upgrade_warn": "\u26a0\ufe0f This server is recommended for hardware upgrade / replacement!",
+    "run_inspect": "\u26a1 Run Immediate Inspection",
+    "net_egress": "\ud83c\udf10 Internet Egress",
+    "connected": "\ud83d\udfe2 Connected",
+    "no_internet": "\ud83d\udd34 No Internet Access",
+    "public_ip": "Public IP:",
+    "live_bandwidth": "\ud83d\udcf6 Live Bandwidth Speed",
+    "total": "Total:",
+    "in": "In",
+    "out": "Out",
+    "active_sockets": "\ud83d\udd0c Active Sockets",
+    "established": "Established",
+    "ext_ips_active": "External IPs Active",
+    "security_bruteforce": "\ud83d\udee1\ufe0f Security & Brute-Force",
+    "failed_logins": "Failed Logins",
+    "high_failed": "\u26a0\ufe0f High failed attempts",
+    "normal_auth": "Normal authentication state",
+    "top_remote_ips": "\ud83d\udc65 Top Connected Remote IPs (Active Sockets)",
+    "remote_ip": "Remote IP Address",
+    "connections": "Connections",
+    "status": "Status",
+    "no_active_conn": "No active external connections",
+    "open_ports": "\ud83d\udeaa Open Listening Ports & Attack Surface",
+    "port_proto": "Port / Proto",
+    "binding": "Binding",
+    "exposure": "Exposure",
+    "risk": "Risk",
+    "no_listening_ports": "No listening ports detected",
+    "high_risk": "\ud83d\udea8 HIGH RISK",
+    "safe_low": "Safe / Low",
+    "public_internet": "\ud83c\udf10 Public Internet",
+    "localhost_only": "\ud83d\udd12 Localhost Only",
+    "conn_suffix": "conn",
+    "desired_rules": "Desired State Rules",
+    "auto_detect_baseline": "\u26a1 Auto-Detect Baseline",
+    "add_rule": "+ Add Rule",
+    "no_rules_title": "No Desired State Rules Yet",
+    "no_rules_desc": "Define expected conditions for this host or auto-generate baseline from current system inspection.",
+    "kind": "Kind",
+    "target": "Target",
+    "expected": "Expected",
+    "current_actual": "Current Actual",
+    "action": "Action",
+    "prompt_kind": "Kind (container, disk, backup, cron, service):",
+    "prompt_target": "Target (e.g. nginx, /, /var/backups/db.sql.gz):",
+    "prompt_expected": "Expected (e.g. running, <85%, fresh_24h, active):",
+    "confirm_delete_rule": "Delete this rule?",
+    "docker_containers": "Docker Containers",
+    "no_containers_title": "No Docker Containers",
+    "no_containers_desc": "No active Docker daemon or running containers found on this host.",
+    "container_name": "Container Name",
+    "start": "\u25b6 Start",
+    "restart": "\ud83d\udd04 Restart",
+    "stop": "\u23f9 Stop",
+    "timeline_title": "Incident & Drift Timeline",
+    "all_systems_normal": "All Systems Normal",
+    "no_incidents_desc": "No drift incidents or configuration deviations recorded on this host yet.",
+    "root_cause_excerpt": "ROOT CAUSE EXCERPT:",
+    "path_label": "\ud83d\udcc1 Path:",
+    "up_dir": "\u2b06 Up",
+    "upload_file": "\ud83d\udce4 Upload File",
+    "file_name": "Name",
+    "file_size": "Size",
+    "file_perms": "Perms",
+    "file_modified": "Modified",
+    "file_actions": "Actions",
+    "edit": "\u270f\ufe0f Edit",
+    "copy_to_host": "\ud83d\ude80 Copy to Host",
+    "loading_files": "Loading files...",
+    "failed_open_path": "Failed to open path: ",
+    "failed_read_file": "Failed to read file",
+    "confirm_delete_file": "Delete {path}?",
+    "large_folder_warn": "This folder is {size} (> 2 GB). Direct browser download may disconnect if your connection is unstable.\n\nContinue download anyway?",
+    "edit_file": "Edit File",
+    "btn_save": "\ud83d\udcbe Save",
+    "tab_settings_general": "\ud83d\udd11 General & Access",
+    "tab_settings_notif": "\ud83d\udd14 Notification Channels",
+    "tab_settings_backup": "\ud83d\udcbe Backup & Snapshot",
+    "global_pub_key": "Global Pantau SSH Public Key",
+    "global_pub_key_desc": "This public key is placed into <code>~/.ssh/authorized_keys</code> on target servers for agentless SSH authentication.",
+    "copy_key": "\ud83d\udccb Copy Key",
+    "copied": "\u2705 Copied!",
+    "change_admin_pass": "Change Admin Password",
+    "current_password": "Current Password",
+    "new_password": "New Password",
+    "update_password": "Update Password",
+    "notif_dispatcher": "Notification Dispatcher",
+    "notif_desc": "Send instant alerts when drift is detected or a server experiences downtime.",
+    "tg_bot_token": "Telegram Bot Token",
+    "tg_chat_id": "Telegram Chat ID",
+    "webhook_url": "Webhook URL (HTTP POST JSON)",
+    "save_notif_settings": "Save Notification Settings",
+    "test_notif": "\ud83d\udd14 Test Notification",
+    "settings_saved": "Settings saved!",
+    "test_notif_success": "Test notification sent successfully!",
+    "test_notif_failed": "Failed to send test notification: ",
+    "pass_updated": "Password updated!",
+    "pass_update_failed": "Failed to update password",
+    "manual_snapshot": "Manual System Snapshot (.enc)",
+    "not_configured": "Not configured",
+    "active_status": "\ud83d\udfe2 Active",
+    "inactive_status": "\u26aa Inactive",
+    "last_backup_time": "Last: ",
+    "download_snapshot_enc": "\ud83d\udcbe Download Snapshot (.enc)",
+    "restore_snapshot": "\ud83d\udcc2 Restore Snapshot",
+    "gh_sync_title": "GitHub Sync (Private Repository)",
+    "gh_sync_desc": "Automated AES-256 encrypted Pantau database synchronization to GitHub periodically.",
+    "enable_gh_sync": "Enable Automatic GitHub Backup",
+    "gh_repo": "Repository (owner/repo)",
+    "gh_pat": "Personal Access Token (PAT with repo scope)",
+    "snapshot_passphrase": "Snapshot Passphrase (AES-256 Encryption Key)",
+    "snapshot_passphrase_ph": "Secret passphrase for encryption",
+    "backup_interval_hours": "Backup Interval (Hours)",
+    "repo_file_path": "File Path in Repo",
+    "save_gh_config": "\ud83d\udcbe Save Configuration",
+    "sync_gh_now": "\ud83d\ude80 Sync to GitHub Now",
+    "gh_config_saved": "GitHub backup configuration saved successfully!",
+    "sync_gh_failed": "\u274c Failed to sync to GitHub: ",
+    "prompt_snapshot_pass": "Enter Snapshot Passphrase to encrypt backup:",
+    "export_snapshot_failed": "Failed to export snapshot: ",
+    "restore_modal_title": "\ud83d\udd04 Restore Pantau from Backup",
+    "tab_restore_gh": "\ud83d\udc19 GitHub Private",
+    "tab_restore_file": "\ud83d\udcc1 Local File (.enc)",
+    "tab_restore_fresh": "\ud83d\ude80 Start Fresh",
+    "restore_gh_desc": "Pull encrypted database directly from your private GitHub repository via REST API.",
+    "restore_gh_btn": "\ud83d\udce5 Pull & Restore from GitHub",
+    "restore_file_desc": "Select an encrypted snapshot file (<code>.enc</code>) from your computer.",
+    "select_file_label": "Select File (.enc)",
+    "restore_file_btn": "\ud83d\udcc2 Upload & Restore",
+    "restore_fresh_desc": "Start Pantau with a clean fresh installation without restoring previous configuration.",
+    "restore_fresh_btn": "Start from Scratch (Fresh)",
+    "all_fields_required": "All fields are required!",
+    "select_snapshot_first": "Select snapshot file (.enc) first!",
+    "passphrase_required": "Passphrase is required!",
+    "downloading_decrypting": "Downloading and decrypting from GitHub...",
+    "decrypting_restoring": "Decrypting and restoring snapshot...",
+    "restored_refreshing": "Restored successfully! Refreshing page...",
+    "restored_hosts_refreshing": "Successfully restored {count} hosts! Refreshing...",
+    "failed_prefix": "Failed: ",
+    "error_prefix": "Error: ",
+    "transfer_modal_title": "\ud83d\ude80 Copy File / Folder to Another Host",
+    "source_host_item": "Source Host & Item",
+    "dest_host": "Destination Host",
+    "dest_dir": "Destination Directory",
+    "transfer_mode": "Transfer Mode",
+    "transfer_mode_fast": "\u26a1 Fast Stream (Direct in-memory pipe, max speed for 500GB+)",
+    "transfer_mode_verified": "\ud83d\udee1\ufe0f Verified (Piped stream + SHA256 integrity check)",
+    "transfer_note": "\ud83d\udca1 Piped streaming streams directly between servers via Pantau in-memory bridge. Zero temporary master disk space used.",
+    "start_transfer": "Start Transfer",
+    "starting": "Starting...",
+    "transfers_list_title": "\ud83d\udce6 Cross-Host Transfers",
+    "refresh": "\ud83d\udd04 Refresh",
+    "tab_transfers_active": "\u26a1 Active & Queued",
+    "tab_transfers_history": "\ud83d\udcdc History",
+    "no_active_transfers_title": "No Active Transfers",
+    "no_active_transfers_desc": "All cross-host transfer tasks are currently idle or completed.",
+    "no_history_transfers_title": "No Transfer History Yet",
+    "no_history_transfers_desc": "Completed or cancelled transfer history will appear here.",
+    "job": "Job",
+    "transferred": "Transferred:",
+    "cancel_transfer_btn": "\ud83d\uded1 Cancel",
+    "confirm_cancel_transfer": "Cancel this transfer?",
+    "cancel_transfer_failed": "Failed to cancel transfer",
+    "start_transfer_failed": "Failed to start transfer: ",
+    "no_other_dest_host": "No other target host available. Add at least one more host first.",
+    "fill_all_fields": "Please fill in all fields"
+},
+  id: {
+    "brand_subtitle": "Manajemen Server Agentless",
+    "admin_password": "Password Admin",
+    "login": "Masuk",
+    "invalid_password": "Password salah",
+    "restore_link": "\ud83d\udd04 Restore dari Backup (GitHub / File .enc)",
+    "transfers": "\ud83d\udce6 Transfers",
+    "alerts_badge": "ALERTS",
+    "add_host": "+ Tambah Host",
+    "settings": "\u2699\ufe0f Pengaturan",
+    "logout": "Keluar",
+    "footer_license": "Pantau adalah open-source di bawah Lisensi MIT",
+    "footer_created_by": "Dibuat oleh Herliansyah",
+    "lang_btn": "\ud83c\udf10 ID",
+    "add_host_title": "Tambah Host",
+    "edit_host_title": "Edit Host",
+    "display_name": "Nama Tampilan",
+    "display_name_ph": "contoh: Production Web",
+    "addr_ip": "Hostname atau IP",
+    "addr_ip_ph": "192.168.1.100 atau vps.domain.com",
+    "ssh_port": "Port SSH",
+    "ssh_user": "User SSH",
+    "ssh_pass": "Password SSH (Satu Kali: auto-inject public key Pantau)",
+    "ssh_pass_ph": "contoh: password root (tidak pernah disimpan di database)",
+    "custom_key": "Custom SSH Private Key (Opsional, kosongkan untuk gunakan kunci global)",
+    "custom_key_ph": "-----BEGIN OPENSSH PRIVATE KEY-----",
+    "cancel": "Batal",
+    "save_host": "Simpan Host",
+    "save_host_failed": "Gagal menyimpan host: ",
+    "no_hosts": "Belum ada host dikonfigurasi. Klik \"+ Tambah Host\" untuk memulai.",
+    "address": "Alamat:",
+    "os": "OS:",
+    "uptime": "Uptime:",
+    "ram_usage": "Penggunaan RAM",
+    "disk_usage": "Penggunaan Disk",
+    "lifecycle_score": "Lifecycle Score:",
+    "internet": "Internet:",
+    "online": "Online",
+    "offline": "Offline",
+    "traffic_live": "Traffic Live:",
+    "btn_view": "\ud83d\udd0d Lihat",
+    "btn_inspect": "\u26a1 Inspeksi",
+    "btn_test": "\ud83d\udd0c Uji",
+    "btn_inject_key": "\ud83d\udd11 Inject Key",
+    "confirm_delete_host": "Hapus host ini?",
+    "ssh_test_success": "Koneksi SSH Berhasil!",
+    "ssh_test_failed": "Koneksi SSH GAGAL:\n",
+    "inspect_failed": "Inspeksi gagal: ",
+    "prompt_inject_key": "Masukkan password SSH untuk server \"{name}\"\n\n(Password hanya digunakan sekali di RAM untuk menyalin public key Pantau ke ~/.ssh/authorized_keys dan TIDAK disimpan ke database):",
+    "inject_key_success": "\u2705 Public key berhasil di-inject ke server {name}! Sekarang Pantau dapat mengakses server via SSH keyless.",
+    "inject_key_failed": "\u274c Gagal: ",
+    "tab_overview": "Overview",
+    "tab_network": "Network & Keamanan",
+    "tab_desired": "Desired State (Drift)",
+    "tab_docker": "Docker",
+    "tab_timeline": "Timeline Insiden",
+    "tab_files": "File Manager",
+    "tab_terminal": "Terminal",
+    "sys_info": "Informasi Sistem",
+    "kernel": "Kernel:",
+    "load_avg": "Load Average:",
+    "lifecycle_assessment": "Penilaian Lifecycle",
+    "upgrade_warn": "\u26a0\ufe0f Server ini disarankan untuk upgrade / penggantian hardware!",
+    "run_inspect": "\u26a1 Jalankan Inspeksi Langsung",
+    "net_egress": "\ud83c\udf10 Internet Egress",
+    "connected": "\ud83d\udfe2 Terhubung",
+    "no_internet": "\ud83d\udd34 Tidak Ada Akses Internet",
+    "public_ip": "IP Publik:",
+    "live_bandwidth": "\ud83d\udcf6 Kecepatan Bandwidth Live",
+    "total": "Total:",
+    "in": "Masuk",
+    "out": "Keluar",
+    "active_sockets": "\ud83d\udd0c Socket Aktif",
+    "established": "Established",
+    "ext_ips_active": "IP Eksternal Aktif",
+    "security_bruteforce": "\ud83d\udee1\ufe0f Keamanan & Brute-Force",
+    "failed_logins": "Login Gagal",
+    "high_failed": "\u26a0\ufe0f Percobaan gagal tinggi",
+    "normal_auth": "Status autentikasi normal",
+    "top_remote_ips": "\ud83d\udc65 IP Remote Teratas Terhubung (Socket Aktif)",
+    "remote_ip": "Alamat IP Remote",
+    "connections": "Koneksi",
+    "status": "Status",
+    "no_active_conn": "Tidak ada koneksi eksternal aktif",
+    "open_ports": "\ud83d\udeaa Listening Port Terbuka & Attack Surface",
+    "port_proto": "Port / Proto",
+    "binding": "Binding",
+    "exposure": "Exposure",
+    "risk": "Risiko",
+    "no_listening_ports": "Tidak ada listening port terdeteksi",
+    "high_risk": "\ud83d\udea8 RISIKO TINGGI",
+    "safe_low": "Aman / Rendah",
+    "public_internet": "\ud83c\udf10 Internet Publik",
+    "localhost_only": "\ud83d\udd12 Hanya Localhost",
+    "conn_suffix": "koneksi",
+    "desired_rules": "Aturan Desired State",
+    "auto_detect_baseline": "\u26a1 Auto-Detect Baseline",
+    "add_rule": "+ Tambah Aturan",
+    "no_rules_title": "Belum Ada Aturan Desired State",
+    "no_rules_desc": "Tentukan kondisi yang diharapkan untuk host ini atau buat otomatis berdasarkan pembacaan sistem saat ini.",
+    "kind": "Tipe",
+    "target": "Target",
+    "expected": "Ekspektasi",
+    "current_actual": "Kondisi Aktual",
+    "action": "Aksi",
+    "prompt_kind": "Tipe (container, disk, backup, cron, service):",
+    "prompt_target": "Target (contoh: nginx, /, /var/backups/db.sql.gz):",
+    "prompt_expected": "Ekspektasi (contoh: running, <85%, fresh_24h, active):",
+    "confirm_delete_rule": "Hapus aturan ini?",
+    "docker_containers": "Container Docker",
+    "no_containers_title": "Tidak Ada Container Docker",
+    "no_containers_desc": "Tidak ditemukan daemon Docker aktif atau container yang sedang berjalan pada host ini.",
+    "container_name": "Nama Container",
+    "start": "\u25b6 Start",
+    "restart": "\ud83d\udd04 Restart",
+    "stop": "\u23f9 Stop",
+    "timeline_title": "Timeline Insiden & Drift",
+    "all_systems_normal": "Semua Sistem Normal",
+    "no_incidents_desc": "Belum ada catatan insiden drift atau deviasi konfigurasi pada host ini.",
+    "root_cause_excerpt": "ROOT CAUSE EXCERPT:",
+    "path_label": "\ud83d\udcc1 Path:",
+    "up_dir": "\u2b06 Naik",
+    "upload_file": "\ud83d\udce4 Upload File",
+    "file_name": "Nama",
+    "file_size": "Ukuran",
+    "file_perms": "Hak Akses",
+    "file_modified": "Dimodifikasi",
+    "file_actions": "Aksi",
+    "edit": "\u270f\ufe0f Edit",
+    "copy_to_host": "\ud83d\ude80 Copy ke Host",
+    "loading_files": "Memuat berkas...",
+    "failed_open_path": "Gagal membuka path: ",
+    "failed_read_file": "Gagal membaca berkas",
+    "confirm_delete_file": "Hapus {path}?",
+    "large_folder_warn": "Folder ini berukuran {size} (> 2 GB). Unduh langsung via browser rentan putus jika koneksi tidak stabil.\n\nTetap lanjutkan unduh?",
+    "edit_file": "Edit Berkas",
+    "btn_save": "\ud83d\udcbe Simpan",
+    "tab_settings_general": "\ud83d\udd11 Umum & Akses",
+    "tab_settings_notif": "\ud83d\udd14 Saluran Notifikasi",
+    "tab_settings_backup": "\ud83d\udcbe Backup & Snapshot",
+    "global_pub_key": "Global Pantau SSH Public Key",
+    "global_pub_key_desc": "Kunci publik ini ditempelkan ke file <code>~/.ssh/authorized_keys</code> di server target untuk otentikasi SSH agentless.",
+    "copy_key": "\ud83d\udccb Salin Kunci",
+    "copied": "\u2705 Tersalin!",
+    "change_admin_pass": "Ubah Password Admin",
+    "current_password": "Password Saat Ini",
+    "new_password": "Password Baru",
+    "update_password": "Perbarui Password",
+    "notif_dispatcher": "Notification Dispatcher",
+    "notif_desc": "Kirim peringatan instan ketika drift terdeteksi atau server mengalami gangguan.",
+    "tg_bot_token": "Telegram Bot Token",
+    "tg_chat_id": "Telegram Chat ID",
+    "webhook_url": "Webhook URL (HTTP POST JSON)",
+    "save_notif_settings": "Simpan Pengaturan Notifikasi",
+    "test_notif": "\ud83d\udd14 Uji Notifikasi",
+    "settings_saved": "Pengaturan berhasil disimpan!",
+    "test_notif_success": "Uji notifikasi berhasil dikirim!",
+    "test_notif_failed": "Gagal mengirim uji notifikasi: ",
+    "pass_updated": "Password berhasil diperbarui!",
+    "pass_update_failed": "Gagal memperbarui password",
+    "manual_snapshot": "System Snapshot Manual (.enc)",
+    "not_configured": "Belum dikonfigurasi",
+    "active_status": "\ud83d\udfe2 Aktif",
+    "inactive_status": "\u26aa Nonaktif",
+    "last_backup_time": "Terakhir: ",
+    "download_snapshot_enc": "\ud83d\udcbe Unduh Snapshot (.enc)",
+    "restore_snapshot": "\ud83d\udcc2 Restore Snapshot",
+    "gh_sync_title": "GitHub Sync (Private Repository)",
+    "gh_sync_desc": "Sinkronisasi otomatis basis data Pantau terenkripsi AES-256 ke GitHub secara berkala.",
+    "enable_gh_sync": "Aktifkan Otomatis Backup ke GitHub",
+    "gh_repo": "Repository (owner/repo)",
+    "gh_pat": "Personal Access Token (PAT dengan izin repo)",
+    "snapshot_passphrase": "Snapshot Passphrase (Kunci Enkripsi AES-256)",
+    "snapshot_passphrase_ph": "Frasa sandi rahasia untuk enkripsi",
+    "backup_interval_hours": "Interval Backup (Jam)",
+    "repo_file_path": "File Path di Repo",
+    "save_gh_config": "\ud83d\udcbe Simpan Konfigurasi",
+    "sync_gh_now": "\ud83d\ude80 Sync ke GitHub Sekarang",
+    "gh_config_saved": "Konfigurasi backup GitHub berhasil disimpan!",
+    "sync_gh_failed": "\u274c Gagal sync ke GitHub: ",
+    "prompt_snapshot_pass": "Masukkan Snapshot Passphrase untuk mengenkripsi backup:",
+    "export_snapshot_failed": "Gagal export snapshot: ",
+    "restore_modal_title": "\ud83d\udd04 Restore Pantau dari Backup",
+    "tab_restore_gh": "\ud83d\udc19 GitHub Private",
+    "tab_restore_file": "\ud83d\udcc1 File Lokal (.enc)",
+    "tab_restore_fresh": "\ud83d\ude80 Mulai Baru",
+    "restore_gh_desc": "Tarik database terenkripsi langsung dari repositori GitHub private Anda via REST API.",
+    "restore_gh_btn": "\ud83d\udce5 Tarik & Restore dari GitHub",
+    "restore_file_desc": "Pilih file snapshot terenkripsi (<code>.enc</code>) dari komputer Anda.",
+    "select_file_label": "Pilih File (.enc)",
+    "restore_file_btn": "\ud83d\udcc2 Upload & Restore",
+    "restore_fresh_desc": "Mulai Pantau dengan instalasi baru tanpa memulihkan konfigurasi lama.",
+    "restore_fresh_btn": "Mulai dari Awal (Fresh)",
+    "all_fields_required": "Semua field wajib diisi!",
+    "select_snapshot_first": "Pilih file snapshot (.enc) terlebih dahulu!",
+    "passphrase_required": "Passphrase wajib diisi!",
+    "downloading_decrypting": "Mengunduh dan mendekripsi dari GitHub...",
+    "decrypting_restoring": "Mendekripsi dan memulihkan snapshot...",
+    "restored_refreshing": "Berhasil dipulihkan! Me-refresh halaman...",
+    "restored_hosts_refreshing": "Berhasil memulihkan {count} host! Me-refresh...",
+    "failed_prefix": "Gagal: ",
+    "error_prefix": "Error: ",
+    "transfer_modal_title": "\ud83d\ude80 Copy File / Folder ke Host Lain",
+    "source_host_item": "Host Sumber & Berkas",
+    "dest_host": "Host Tujuan",
+    "dest_dir": "Direktori Tujuan",
+    "transfer_mode": "Mode Transfer",
+    "transfer_mode_fast": "\u26a1 Fast Stream (Pipa in-memory langsung, kecepatan maks untuk 500GB+)",
+    "transfer_mode_verified": "\ud83d\udee1\ufe0f Verified (Piped stream + verifikasi integritas SHA256)",
+    "transfer_note": "\ud83d\udca1 Piped streaming dialirkan langsung antar-server melalui bridge in-memory Pantau. Nol ruang disk sementara pada master.",
+    "start_transfer": "Mulai Transfer",
+    "starting": "Memulai...",
+    "transfers_list_title": "\ud83d\udce6 Cross-Host Transfers",
+    "refresh": "\ud83d\udd04 Refresh",
+    "tab_transfers_active": "\u26a1 Aktif & Antrean",
+    "tab_transfers_history": "\ud83d\udcdc Riwayat",
+    "no_active_transfers_title": "Tidak Ada Transfer Berjalan",
+    "no_active_transfers_desc": "Semua proses pemindahan file antar-host sedang kosong atau telah selesai.",
+    "no_history_transfers_title": "Belum Ada Riwayat Transfer",
+    "no_history_transfers_desc": "Riwayat transfer yang selesai atau dibatalkan akan muncul di sini.",
+    "job": "Job",
+    "transferred": "Ditransfer:",
+    "cancel_transfer_btn": "\ud83d\uded1 Batalkan",
+    "confirm_cancel_transfer": "Batalkan transfer ini?",
+    "cancel_transfer_failed": "Gagal membatalkan transfer",
+    "start_transfer_failed": "Gagal memulai transfer: ",
+    "no_other_dest_host": "Tidak ada host tujuan lain yang tersedia. Tambahkan minimal satu host lagi terlebih dahulu.",
+    "fill_all_fields": "Harap isi semua kolom"
+}
+};
+
+let currentLang = localStorage.getItem('pantau_lang') || 'en';
+
+function t(key, fallback) {
+  if (I18N[currentLang] && I18N[currentLang][key]) return I18N[currentLang][key];
+  if (I18N['en'] && I18N['en'][key]) return I18N['en'][key];
+  return fallback !== undefined ? fallback : key;
+}
+
+function setLanguage(lang) {
+  currentLang = lang === 'id' ? 'id' : 'en';
+  localStorage.setItem('pantau_lang', currentLang);
+  document.documentElement.lang = currentLang;
+
+  const btn = document.getElementById('langToggleBtn');
+  if (btn) btn.innerText = currentLang === 'en' ? '🌐 EN' : '🌐 ID';
+  const loginBtn = document.getElementById('loginLangBtn');
+  if (loginBtn) loginBtn.innerText = currentLang === 'en' ? '🌐 EN' : '🌐 ID';
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    const v = t(k);
+    if (v) el.innerHTML = v;
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    const k = el.getAttribute('data-i18n-placeholder');
+    const v = t(k);
+    if (v) el.placeholder = v;
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const k = el.getAttribute('data-i18n-title');
+    const v = t(k);
+    if (v) el.title = v;
+  });
+
+  if (currentHost && window.detailData) {
+    switchTab(currentTab);
+  }
+  loadHosts();
+  if (document.getElementById('transfersListModal') && document.getElementById('transfersListModal').classList.contains('open')) {
+    loadTransfers();
+  }
+}
+
+function toggleLanguage() {
+  setLanguage(currentLang === 'en' ? 'id' : 'en');
+}
+
+
 let currentHost = null;
 let currentTab = 'overview';
 let terminalSocket = null;
@@ -508,7 +1021,7 @@ async function doLogin() {
   if (res.ok) {
     checkAuth();
   } else {
-    document.getElementById('loginErr').innerText = 'Password salah';
+    document.getElementById('loginErr').innerText = t('invalid_password', 'Invalid password');
   }
 }
 
@@ -524,7 +1037,7 @@ async function loadHosts() {
   const grid = document.getElementById('hostGrid');
   grid.innerHTML = '';
   if (!hosts || hosts.length === 0) {
-    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">No hosts configured yet. Click "+ Add Host" to begin.</div>';
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">' + t('no_hosts') + '</div>';
     return;
   }
   hosts.forEach(h => {
@@ -542,37 +1055,37 @@ async function loadHosts() {
         <span>${escapeHtml(h.name)}</span>
         <span class="badge badge-${h.status}">${h.status}</span>
       </div>
-      <div class="stat-row"><span>Address:</span> <span>${h.host}:${h.port} (${h.user})</span></div>
-      <div class="stat-row"><span>OS:</span> <span>${escapeHtml(h.os_info || 'Unknown')}</span></div>
-      <div class="stat-row"><span>Uptime:</span> <span>${escapeHtml(h.uptime || '-')}</span></div>
+      <div class="stat-row"><span>${t('address')}</span> <span>${h.host}:${h.port} (${h.user})</span></div>
+      <div class="stat-row"><span>${t('os')}</span> <span>${escapeHtml(h.os_info || 'Unknown')}</span></div>
+      <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(h.uptime || '-')}</span></div>
       <div>
-        <div class="stat-row"><span>RAM Usage</span> <span>${ramPct}%</span></div>
+        <div class="stat-row"><span>${t('ram_usage')}</span> <span>${ramPct}%</span></div>
         <div class="progress"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
       </div>
       <div>
-        <div class="stat-row"><span>Disk Usage</span> <span>${diskPct}%</span></div>
+        <div class="stat-row"><span>${t('disk_usage')}</span> <span>${diskPct}%</span></div>
         <div class="progress"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
       </div>
       <div class="stat-row" style="align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px;">
-        <span>Lifecycle Score:</span>
+        <span>${t('lifecycle_score')}</span>
         <span class="score-badge" style="color: ${scoreColor}">${h.lifecycle_score}/100</span>
       </div>
       <div class="stat-row" style="align-items: center;">
-        <span>Internet:</span>
-        <span class="status-pill">${h.internet_online ? '<span style="color: #34d399;">●</span> Online (' + h.internet_latency_ms + 'ms)' : '<span style="color: #f87171;">●</span> Offline'}</span>
+        <span>${t('internet')}</span>
+        <span class="status-pill">${h.internet_online ? '<span style="color: #34d399;">●</span> ' + t('online') + ' (' + h.internet_latency_ms + 'ms)' : '<span style="color: #f87171;">●</span> ' + t('offline')}</span>
       </div>
       <div class="stat-row" style="flex-direction: column; gap: 6px;">
-        <span>Traffic Live:</span>
+        <span>${t('traffic_live')}</span>
         <div class="traffic-grid">
           <div>⬇️ ${formatBytes(h.net_rx_speed_bps)}/s</div>
           <div>⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
         </div>
       </div>
       <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
-        <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">🔍 View</button>
-        <button class="btn btn-sm" onclick="inspectHost(${h.id})">⚡ Inspect</button>
-        <button class="btn btn-sm" onclick="testHostSSH(${h.id})">🔌 Test</button>
-        <button class="btn btn-warning btn-sm" onclick="promptInjectKey(${h.id}, '${escapeHtml(h.name)}')">🔑 Inject Key</button>
+        <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
+        <button class="btn btn-sm" onclick="inspectHost(${h.id})">${t('btn_inspect')}</button>
+        <button class="btn btn-sm" onclick="testHostSSH(${h.id})">${t('btn_test')}</button>
+        <button class="btn btn-warning btn-sm" onclick="promptInjectKey(${h.id}, '${escapeHtml(h.name)}')">${t('btn_inject_key')}</button>
         <button class="btn btn-danger btn-sm" style="margin-left: auto;" onclick="deleteHost(${h.id})">🗑️</button>
       </div>
     `;
@@ -609,7 +1122,7 @@ async function ackAlert(id) {
 }
 
 function openAddHostModal() {
-  document.getElementById('hostModalTitle').innerText = 'Add Host';
+  document.getElementById('hostModalTitle').innerText = t('add_host_title');
   document.getElementById('editHostId').value = '';
   document.getElementById('hostName').value = '';
   document.getElementById('hostAddr').value = '';
@@ -643,12 +1156,12 @@ async function saveHost() {
     closeModal('hostModal');
     loadHosts();
   } else {
-    alert('Gagal menyimpan host: ' + (data.error || 'Terjadi kesalahan'));
+    alert(t('save_host_failed') + (data.error || 'Unknown error'));
   }
 }
 
 async function promptInjectKey(id, name) {
-  const pass = prompt('Masukkan password SSH untuk server "' + name + '"\n\n(Password hanya digunakan sekali di RAM untuk menyalin public key Pantau ke ~/.ssh/authorized_keys dan TIDAK disimpan ke database):');
+  const pass = prompt(t('prompt_inject_key').replace('{name}', name));
   if (!pass) return;
   const res = await fetch('/api/hosts/' + id + '/inject-key', {
     method: 'POST',
@@ -657,15 +1170,15 @@ async function promptInjectKey(id, name) {
   });
   const data = await res.json();
   if (data.ok) {
-    alert('✅ ' + data.message);
+    alert(t('inject_key_success').replace('{name}', name));
     inspectHost(id);
   } else {
-    alert('❌ Gagal: ' + (data.error || 'Terjadi kesalahan'));
+    alert(t('inject_key_failed') + (data.error || 'Unknown error'));
   }
 }
 
 async function deleteHost(id) {
-  if (!confirm('Hapus host ini?')) return;
+  if (!confirm(t('confirm_delete_host'))) return;
   await fetch('/api/hosts/' + id, { method: 'DELETE' });
   loadHosts();
 }
@@ -676,7 +1189,7 @@ async function testHostSSH(id) {
   if (data.ok) {
     alert('SSH Connection SUCCESS:\n' + data.output);
   } else {
-    alert('SSH Connection FAILED:\n' + data.error);
+    alert(t('ssh_test_failed') + data.error);
   }
 }
 
@@ -689,7 +1202,7 @@ async function inspectHost(id) {
       openHostDetail(id);
     }
   } else {
-    alert('Inspection failed: ' + data.error);
+    alert(t('inspect_failed') + data.error);
   }
 }
 
@@ -709,9 +1222,8 @@ async function openHostDetail(id) {
 
 function switchTab(tab) {
   currentTab = tab;
-  document.querySelectorAll('#hostDetailTabs .tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('#hostDetailTabs .tab').forEach(t => {
-    if (t.innerText.toLowerCase().includes(tab)) t.classList.add('active');
+    t.classList.toggle('active', t.getAttribute('data-tab') === tab);
   });
 
   const content = document.getElementById('tabContent');
@@ -722,21 +1234,21 @@ function switchTab(tab) {
     content.innerHTML = `
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
         <div class="card">
-          <h4>System Information</h4>
-          <div class="stat-row"><span>OS:</span> <span>${escapeHtml(d.host.os_info)}</span></div>
-          <div class="stat-row"><span>Kernel:</span> <span>${escapeHtml(d.host.kernel)}</span></div>
-          <div class="stat-row"><span>Uptime:</span> <span>${escapeHtml(d.host.uptime)}</span></div>
-          <div class="stat-row"><span>Load Average:</span> <span>${escapeHtml(d.host.cpu_load)}</span></div>
+          <h4>${t('sys_info')}</h4>
+          <div class="stat-row"><span>${t('os')}</span> <span>${escapeHtml(d.host.os_info)}</span></div>
+          <div class="stat-row"><span>${t('kernel')}</span> <span>${escapeHtml(d.host.kernel)}</span></div>
+          <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(d.host.uptime)}</span></div>
+          <div class="stat-row"><span>${t('load_avg')}</span> <span>${escapeHtml(d.host.cpu_load)}</span></div>
         </div>
         <div class="card">
-          <h4>Lifecycle Assessment</h4>
-          <div class="stat-row"><span>Lifecycle Score:</span> <span class="score-badge">${d.host.lifecycle_score}/100</span></div>
+          <h4>${t('lifecycle_assessment')}</h4>
+          <div class="stat-row"><span>${t('lifecycle_score')}</span> <span class="score-badge">${d.host.lifecycle_score}/100</span></div>
           <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">${escapeHtml(d.host.lifecycle_notes)}</p>
-          ${d.host.lifecycle_score < 60 ? '<div style="color: var(--danger); font-size: 0.8rem; margin-top: 6px;">⚠️ Server ini disarankan untuk upgrade / penggantian hardware!</div>' : ''}
+          ${d.host.lifecycle_score < 60 ? '<div style="color: var(--danger); font-size: 0.8rem; margin-top: 6px;">' + t('upgrade_warn') + '</div>' : ''}
         </div>
       </div>
       <div style="margin-top: 10px;">
-        <button class="btn btn-primary" onclick="inspectHost(${d.host.id})">⚡ Run Immediate Inspection</button>
+        <button class="btn btn-primary" onclick="inspectHost(${d.host.id})">${t('run_inspect')}</button>
       </div>
     `;
   } else if (tab === 'network') {
@@ -760,49 +1272,49 @@ function switchTab(tab) {
     content.innerHTML = `
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px;">
         <div class="card" style="padding: 14px;">
-          <div style="font-size: 0.8rem; color: var(--text-muted);">🌐 Internet Egress</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">${t('net_egress')}</div>
           <div style="font-size: 1.1rem; font-weight: 700; margin: 4px 0; color: ${h.internet_online ? '#34d399' : '#f87171'};">
-            ${h.internet_online ? '🟢 Connected (' + h.internet_latency_ms + ' ms)' : '🔴 No Internet Access'}
+            ${h.internet_online ? t('connected') + ' (' + h.internet_latency_ms + ' ms)' : t('no_internet')}
           </div>
-          <div style="font-size: 0.8rem; color: var(--text-muted);">Public IP: <b>${escapeHtml(h.public_ip || 'NAT / Private')}</b></div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">${t('public_ip')} <b>${escapeHtml(h.public_ip || 'NAT / Private')}</b></div>
         </div>
         <div class="card" style="padding: 14px;">
-          <div style="font-size: 0.8rem; color: var(--text-muted);">📶 Live Bandwidth Speed</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">${t('live_bandwidth')}</div>
           <div style="font-size: 1.1rem; font-weight: 700; margin: 4px 0; color: #38bdf8;">
             ⬇️ ${rxSpeed} | ⬆️ ${txSpeed}
           </div>
-          <div style="font-size: 0.8rem; color: var(--text-muted);">Total: In ${totalRx} | Out ${totalTx}</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">${t('total')} ${t('in')} ${totalRx} | ${t('out')} ${totalTx}</div>
         </div>
         <div class="card" style="padding: 14px;">
-          <div style="font-size: 0.8rem; color: var(--text-muted);">🔌 Active Sockets</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">${t('active_sockets')}</div>
           <div style="font-size: 1.1rem; font-weight: 700; margin: 4px 0; color: #a78bfa;">
-            ${h.active_conn_count || 0} Established
+            ${h.active_conn_count || 0} ${t('established')}
           </div>
-          <div style="font-size: 0.8rem; color: var(--text-muted);">${topConns.length} External IPs Active</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">${topConns.length} ${t('ext_ips_active')}</div>
         </div>
         <div class="card" style="padding: 14px;">
-          <div style="font-size: 0.8rem; color: var(--text-muted);">🛡️ Security & Brute-Force</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">${t('security_bruteforce')}</div>
           <div style="font-size: 1.1rem; font-weight: 700; margin: 4px 0; color: ${h.failed_logins_count > 10 ? '#f87171' : '#34d399'};">
-            ${h.failed_logins_count || 0} Failed Logins
+            ${h.failed_logins_count || 0} ${t('failed_logins')}
           </div>
-          <div style="font-size: 0.8rem; color: var(--text-muted);">${h.failed_logins_count > 10 ? '⚠️ High failed attempts' : 'Normal authentication state'}</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">${h.failed_logins_count > 10 ? t('high_failed') : t('normal_auth')}</div>
         </div>
       </div>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
         <div class="card" style="padding: 16px;">
-          <h4 style="margin-bottom: 10px;">👥 Top Connected Remote IPs (Active Sockets)</h4>
+          <h4 style="margin-bottom: 10px;">${t('top_remote_ips')}</h4>
           <table>
             <thead>
-              <tr><th>Remote IP Address</th><th>Connections</th><th>Status</th></tr>
+              <tr><th>${t('remote_ip')}</th><th>${t('connections')}</th><th>${t('status')}</th></tr>
             </thead>
             <tbody>
-              ${topConns.length === 0 ? '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 20px;">No active external connections</td></tr>' : ''}
+              ${topConns.length === 0 ? '<tr><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 20px;">' + t('no_active_conn') + '</td></tr>' : ''}
               ${topConns.map(c => `
                 <tr>
                   <td><b>${escapeHtml(c.remote_ip)}</b></td>
-                  <td>${c.count} conn</td>
-                  <td><span class="badge" style="background: rgba(56,189,248,0.15); color: #38bdf8;">Established</span></td>
+                  <td>${c.count} ${t('conn_suffix')}</td>
+                  <td><span class="badge" style="background: rgba(56,189,248,0.15); color: #38bdf8;">${t('established')}</span></td>
                 </tr>
               `).join('')}
             </tbody>
@@ -810,19 +1322,19 @@ function switchTab(tab) {
         </div>
 
         <div class="card" style="padding: 16px;">
-          <h4 style="margin-bottom: 10px;">🚪 Open Listening Ports & Attack Surface</h4>
+          <h4 style="margin-bottom: 10px;">${t('open_ports')}</h4>
           <table>
             <thead>
-              <tr><th>Port / Proto</th><th>Binding</th><th>Exposure</th><th>Risk</th></tr>
+              <tr><th>${t('port_proto')}</th><th>${t('binding')}</th><th>${t('exposure')}</th><th>${t('risk')}</th></tr>
             </thead>
             <tbody>
-              ${ports.length === 0 ? '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">No listening ports detected</td></tr>' : ''}
+              ${ports.length === 0 ? '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 20px;">' + t('no_listening_ports') + '</td></tr>' : ''}
               ${ports.map(p => {
                 const isHigh = p.risk === 'high';
-                const riskBadge = isHigh ? '<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">🚨 HIGH RISK</span>' : '<span class="badge" style="background: rgba(52,211,153,0.15); color: #34d399;">Safe / Low</span>';
+                const riskBadge = isHigh ? '<span class="badge" style="background: rgba(239,68,68,0.2); color: #f87171;">' + t('high_risk') + '</span>' : '<span class="badge" style="background: rgba(52,211,153,0.15); color: #34d399;">' + t('safe_low') + '</span>';
                 const expBadge = p.public 
-                  ? '<span class="badge" style="background: rgba(251,191,36,0.15); color: #fbbf24;">🌐 Public Internet</span>' 
-                  : '<span class="badge" style="background: rgba(148,163,184,0.15); color: #94a3b8;">🔒 Localhost Only</span>';
+                  ? '<span class="badge" style="background: rgba(251,191,36,0.15); color: #fbbf24;">' + t('public_internet') + '</span>' 
+                  : '<span class="badge" style="background: rgba(148,163,184,0.15); color: #94a3b8;">' + t('localhost_only') + '</span>';
                 return `
                   <tr>
                     <td><b>${escapeHtml(p.port)}</b> <span style="font-size: 0.75rem; color: var(--text-muted);">(${escapeHtml(p.proto)})</span></td>
@@ -841,40 +1353,40 @@ function switchTab(tab) {
     const rules = d.rules || [];
     content.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0;">
-        <h4>Desired State Rules</h4>
+        <h4>${t('desired_rules')}</h4>
         <div style="display: flex; gap: 8px;">
-          <button class="btn btn-warning btn-sm" onclick="generateBaseline(${d.host.id})">⚡ Auto-Detect Baseline</button>
-          <button class="btn btn-primary btn-sm" onclick="addRulePrompt(${d.host.id})">+ Add Rule</button>
+          <button class="btn btn-warning btn-sm" onclick="generateBaseline(${d.host.id})">${t('auto_detect_baseline')}</button>
+          <button class="btn btn-primary btn-sm" onclick="addRulePrompt(${d.host.id})">${t('add_rule')}</button>
         </div>
       </div>
       ${rules.length === 0 ? `
         <div class="empty-state">
           <div class="empty-state-icon">📋</div>
-          <div class="empty-state-title">Belum Ada Aturan Desired State</div>
-          <div class="empty-state-desc">Tentukan kondisi yang diharapkan untuk host ini atau buat otomatis berdasarkan pembacaan sistem saat ini.</div>
+          <div class="empty-state-title">${t('no_rules_title')}</div>
+          <div class="empty-state-desc">${t('no_rules_desc')}</div>
           <div style="display: flex; gap: 8px; margin-top: 8px;">
-            <button class="btn btn-warning" onclick="generateBaseline(${d.host.id})">⚡ Auto-Detect Baseline</button>
-            <button class="btn btn-primary" onclick="addRulePrompt(${d.host.id})">+ Add Rule</button>
+            <button class="btn btn-warning" onclick="generateBaseline(${d.host.id})">${t('auto_detect_baseline')}</button>
+            <button class="btn btn-primary" onclick="addRulePrompt(${d.host.id})">${t('add_rule')}</button>
           </div>
         </div>
       ` : `
         <table>
           <thead>
-            <tr><th>Kind</th><th>Target</th><th>Expected</th><th>Current Actual</th><th>Status</th><th>Action</th></tr>
+            <tr><th>${t('kind')}</th><th>${t('target')}</th><th>${t('expected')}</th><th>${t('current_actual')}</th><th>${t('status')}</th><th>${t('action')}</th></tr>
           </thead>
           <tbody>
             ${rules.map(r => {
-              const actual = (d.actual_items || []).find(it => it.kind === r.kind && it.target === r.target);
-              const status = actual ? actual.status : 'unknown';
-              const current = actual ? actual.current : '-';
+              const matched = (d.actual_items || []).find(it => it.kind === r.kind && it.target === r.target);
+              const currentVal = matched ? matched.current : 'not found';
+              const isOk = matched && matched.status === 'ok';
               return `
                 <tr>
-                  <td><b>${r.kind}</b></td>
+                  <td><b>${escapeHtml(r.kind)}</b></td>
                   <td>${escapeHtml(r.target)}</td>
                   <td>${escapeHtml(r.expected)}</td>
-                  <td>${escapeHtml(current)}</td>
-                  <td><span class="badge badge-${status === 'ok' ? 'healthy' : 'down'}">${status}</span></td>
-                  <td><button class="btn btn-danger btn-sm" onclick="deleteRule(${r.id})">✕</button></td>
+                  <td>${escapeHtml(currentVal)}</td>
+                  <td><span class="badge badge-${isOk ? 'healthy' : 'down'}">${isOk ? 'OK' : 'DRIFT'}</span></td>
+                  <td><button class="btn btn-danger btn-sm" onclick="deleteRule(${r.id})">🗑️</button></td>
                 </tr>
               `;
             }).join('')}
@@ -886,18 +1398,18 @@ function switchTab(tab) {
     const containers = (d.actual_items || []).filter(it => it.kind === 'container');
     content.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0;">
-        <h4>Docker Containers</h4>
+        <h4>${t('docker_containers')}</h4>
       </div>
       ${containers.length === 0 ? `
         <div class="empty-state">
           <div class="empty-state-icon">🐳</div>
-          <div class="empty-state-title">Tidak Ada Container Docker</div>
-          <div class="empty-state-desc">Tidak ditemukan daemon Docker aktif atau container yang sedang berjalan pada host ini.</div>
+          <div class="empty-state-title">${t('no_containers_title')}</div>
+          <div class="empty-state-desc">${t('no_containers_desc')}</div>
         </div>
       ` : `
         <table>
           <thead>
-            <tr><th>Container Name</th><th>Status</th><th>Action</th></tr>
+            <tr><th>${t('container_name')}</th><th>${t('status')}</th><th>${t('action')}</th></tr>
           </thead>
           <tbody>
             ${containers.map(c => `
@@ -905,9 +1417,9 @@ function switchTab(tab) {
                 <td><b>${escapeHtml(c.target)}</b></td>
                 <td><span class="badge badge-${c.status === 'ok' ? 'healthy' : 'down'}">${escapeHtml(c.current)}</span></td>
                 <td>
-                  <button class="btn btn-success btn-sm" onclick="dockerAction('${c.target}', 'start')">▶ Start</button>
-                  <button class="btn btn-warning btn-sm" onclick="dockerAction('${c.target}', 'restart')">🔄 Restart</button>
-                  <button class="btn btn-danger btn-sm" onclick="dockerAction('${c.target}', 'stop')">⏹ Stop</button>
+                  <button class="btn btn-success btn-sm" onclick="dockerAction('${c.target}', 'start')">${t('start')}</button>
+                  <button class="btn btn-warning btn-sm" onclick="dockerAction('${c.target}', 'restart')">${t('restart')}</button>
+                  <button class="btn btn-danger btn-sm" onclick="dockerAction('${c.target}', 'stop')">${t('stop')}</button>
                 </td>
               </tr>
             `).join('')}
@@ -918,12 +1430,12 @@ function switchTab(tab) {
   } else if (tab === 'timeline') {
     const incidents = d.incidents || [];
     content.innerHTML = `
-      <h4 style="flex-shrink: 0;">Incident & Drift Timeline</h4>
+      <h4 style="flex-shrink: 0;">${t('timeline_title')}</h4>
       ${incidents.length === 0 ? `
         <div class="empty-state">
           <div class="empty-state-icon">🛡️</div>
-          <div class="empty-state-title">Semua Sistem Normal</div>
-          <div class="empty-state-desc">Belum ada catatan insiden drift atau deviasi konfigurasi pada host ini.</div>
+          <div class="empty-state-title">${t('all_systems_normal')}</div>
+          <div class="empty-state-desc">${t('no_incidents_desc')}</div>
         </div>
       ` : `
         <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
@@ -935,7 +1447,7 @@ function switchTab(tab) {
               </div>
               ${inc.root_cause_excerpt ? `
                 <div style="margin-top: 8px;">
-                  <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">ROOT CAUSE EXCERPT:</span>
+                  <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">${t('root_cause_excerpt')}</span>
                   <pre>${escapeHtml(inc.root_cause_excerpt)}</pre>
                 </div>
               ` : ''}
@@ -959,11 +1471,11 @@ async function generateBaseline(hostID) {
 }
 
 async function addRulePrompt(hostID) {
-  const kind = prompt('Kind (container, disk, backup, cron, service):', 'container');
+  const kind = prompt(t('prompt_kind'), 'container');
   if (!kind) return;
-  const target = prompt('Target (e.g. nginx, /, /var/backups/db.sql.gz):');
+  const target = prompt(t('prompt_target'));
   if (!target) return;
-  const expected = prompt('Expected (e.g. running, <85%, fresh_24h, active):', 'running');
+  const expected = prompt(t('prompt_expected'), 'running');
   if (!expected) return;
 
   await fetch('/api/hosts/' + hostID + '/rules', {
@@ -975,7 +1487,7 @@ async function addRulePrompt(hostID) {
 }
 
 async function deleteRule(id) {
-  if (!confirm('Hapus aturan ini?')) return;
+  if (!confirm(t('confirm_delete_rule'))) return;
   await fetch('/api/rules/' + id, { method: 'DELETE' });
   inspectHost(currentHost.id);
 }
@@ -998,25 +1510,25 @@ async function dockerAction(container, action) {
 // SFTP File Manager
 async function loadFiles(path) {
   const content = document.getElementById('tabContent');
-  content.innerHTML = '<p>Loading files...</p>';
+  content.innerHTML = '<p>' + t('loading_files') + '</p>';
   const res = await fetch('/api/hosts/' + currentHost.id + '/files/list?path=' + encodeURIComponent(path));
   if (!res.ok) {
-    content.innerHTML = '<p style="color: var(--danger);">Gagal membuka path: ' + path + '</p>';
+    content.innerHTML = '<p style="color: var(--danger);">' + t('failed_open_path') + path + '</p>';
     return;
   }
   const data = await res.json();
   const parent = path === '/' ? '/' : path.substring(0, path.lastIndexOf('/')) || '/';
   content.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-      <div style="font-weight: 600; font-family: monospace;">📁 Path: ${escapeHtml(data.path)}</div>
+      <div style="font-weight: 600; font-family: monospace;">${t('path_label')} ${escapeHtml(data.path)}</div>
       <div style="display: flex; gap: 8px;">
-        <button class="btn btn-sm" onclick="loadFiles('${parent}')">⬆ Up</button>
+        <button class="btn btn-sm" onclick="loadFiles('${parent}')">${t('up_dir')}</button>
         <input type="file" id="fileUploadInput" style="display: none;" onchange="uploadFile('${data.path}')" />
-        <button class="btn btn-primary btn-sm" onclick="document.getElementById('fileUploadInput').click()">📤 Upload File</button>
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('fileUploadInput').click()">${t('upload_file')}</button>
       </div>
     </div>
     <table>
-      <thead><tr><th>Name</th><th>Size</th><th>Perms</th><th>Modified</th><th>Actions</th></tr></thead>
+      <thead><tr><th>${t('file_name')}</th><th>${t('file_size')}</th><th>${t('file_perms')}</th><th>${t('file_modified')}</th><th>${t('file_actions')}</th></tr></thead>
       <tbody>
         ${(data.files || []).map(f => {
           const fullPath = data.path === '/' ? '/' + f.name : data.path + '/' + f.name;
@@ -1033,13 +1545,13 @@ async function loadFiles(path) {
             <td style="white-space: nowrap;">
               <div class="action-grid">
                 ${!f.is_dir 
-                  ? '<button class="btn btn-primary btn-sm" onclick="openEditor(\'' + fullPath + '\')">✏️ Edit</button>' 
+                  ? '<button class="btn btn-primary btn-sm" onclick="openEditor(\'' + fullPath + '\')">' + t('edit') + '</button>' 
                   : '<span style="display:inline-block;"></span>'}
                 ${f.is_dir 
                   ? '<button class="btn btn-sm" title="Download Folder Archive" onclick="downloadFolder(\'' + fullPath + '\')">⬇️</button>' 
                   : '<a class="btn btn-sm" title="Download File" href="/api/hosts/' + currentHost.id + '/files/download?path=' + encodeURIComponent(fullPath) + '">⬇️</a>'}
-                <button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(fullPath)}', ${f.is_dir})">🚀 Copy to Host</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteRemoteFile('${escapeHtml(fullPath)}', '${escapeHtml(data.path)}')">🗑️</button>
+                <button class="btn btn-warning btn-sm" onclick="openTransferDialog(\'' + escapeHtml(fullPath) + '\', ${f.is_dir})">' + t('copy_to_host') + '</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteRemoteFile(\'' + escapeHtml(fullPath) + '\', \'' + escapeHtml(data.path) + '\')">🗑️</button>
               </div>
             </td>
           </tr>
@@ -1055,7 +1567,7 @@ async function downloadFolder(path) {
     if (res.ok) {
       const data = await res.json();
       if (data.size > 2 * 1024 * 1024 * 1024) {
-        if (!confirm('Folder ini berukuran ' + formatBytes(data.size) + ' (> 2 GB). Download langsung via browser rentan putus jika koneksi tidak stabil.\n\nTetap lanjutkan download?')) {
+        if (!confirm(t('large_folder_warn').replace('{size}', formatBytes(data.size)))) {
           return;
         }
       }
@@ -1079,7 +1591,7 @@ async function uploadFile(targetDir) {
 }
 
 async function deleteRemoteFile(path, parentDir) {
-  if (!confirm('Hapus ' + path + '?')) return;
+  if (!confirm(t('confirm_delete_file').replace('{path}', path))) return;
   await fetch('/api/hosts/' + currentHost.id + '/files/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1090,7 +1602,7 @@ async function deleteRemoteFile(path, parentDir) {
 
 async function openEditor(path) {
   const res = await fetch('/api/hosts/' + currentHost.id + '/files/read?path=' + encodeURIComponent(path));
-  if (!res.ok) { alert('Gagal membaca file'); return; }
+  if (!res.ok) { alert(t('failed_read_file')); return; }
   const data = await res.json();
   document.getElementById('editorFilePath').innerText = path;
   document.getElementById('editorModal').classList.add('open');
@@ -1202,7 +1714,7 @@ function copyPubKey() {
   const btn = document.getElementById('btnCopyKey');
   if (btn) {
     const original = btn.innerText;
-    btn.innerText = '✅ Copied!';
+    btn.innerText = t('copied');
     btn.style.background = 'var(--success)';
     setTimeout(() => {
       btn.innerText = original;
@@ -1225,11 +1737,11 @@ async function openSettingsModal() {
   document.getElementById('settingGhInterval').value = data.backup_interval_hours || '24';
   document.getElementById('settingGhPath').value = data.github_file_path || 'pantau-state.enc';
 
-  let statusText = 'Belum dikonfigurasi';
+  let statusText = t('not_configured');
   if (data.github_repo) {
-    statusText = (data.github_backup_enabled === '1' ? '🟢 Aktif' : '⚪ Nonaktif') + ' | Repo: ' + data.github_repo;
+    statusText = (data.github_backup_enabled === '1' ? t('active_status') : t('inactive_status')) + ' | Repo: ' + data.github_repo;
     if (data.last_backup_time) {
-      statusText += ' | Terakhir: ' + data.last_backup_time + ' (' + (data.last_backup_status || 'ok') + ')';
+      statusText += ' | ' + t('last_backup_time') + data.last_backup_time + ' (' + (data.last_backup_status || 'ok') + ')';
     }
   }
   document.getElementById('backupStatusText').innerText = statusText;
@@ -1256,16 +1768,16 @@ async function saveSettings() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  alert('Settings saved!');
+  alert(t('settings_saved'));
 }
 
 async function testNotification() {
   const res = await fetch('/api/settings/test-notify', { method: 'POST' });
   const data = await res.json();
   if (data.ok) {
-    alert('Test notification sent successfully!');
+    alert(t('test_notif_success'));
   } else {
-    alert('Failed to send test notification: ' + data.error);
+    alert(t('test_notif_failed') + data.error);
   }
 }
 
@@ -1278,9 +1790,9 @@ async function changePassword() {
     body: JSON.stringify({ old_password, new_password })
   });
   if (res.ok) {
-    alert('Password updated!');
+    alert(t('pass_updated'));
   } else {
-    alert('Failed to update password');
+    alert(t('pass_update_failed'));
   }
 }
 
@@ -1298,7 +1810,7 @@ async function saveGitHubBackupSettings() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  alert('Konfigurasi backup GitHub berhasil disimpan!');
+  alert(t('gh_config_saved'));
   openSettingsModal();
 }
 
@@ -1309,12 +1821,12 @@ async function syncGitHubNow() {
     alert('✅ ' + data.message);
     openSettingsModal();
   } else {
-    alert('❌ Gagal sync ke GitHub: ' + (data.error || 'Unknown error'));
+    alert(t('sync_gh_failed') + (data.error || 'Unknown error'));
   }
 }
 
 async function exportSnapshotPrompt() {
-  const pass = prompt('Masukkan Snapshot Passphrase untuk mengenkripsi backup:');
+  const pass = prompt(t('prompt_snapshot_pass'));
   if (!pass) return;
   try {
     const res = await fetch('/api/snapshot/export', {
@@ -1324,7 +1836,7 @@ async function exportSnapshotPrompt() {
     });
     if (!res.ok) {
       const err = await res.text();
-      alert('Gagal export snapshot: ' + err);
+      alert(t('export_snapshot_failed') + err);
       return;
     }
     const blob = await res.blob();
@@ -1375,11 +1887,11 @@ async function doRestoreFromGitHub() {
   const msgEl = document.getElementById('restoreGhMsg');
 
   if (!repo || !token || !passphrase) {
-    msgEl.innerHTML = '<span style="color: var(--danger);">Semua field wajib diisi!</span>';
+    msgEl.innerHTML = '<span style="color: var(--danger);">' + t('all_fields_required') + '</span>';
     return;
   }
 
-  msgEl.innerHTML = '<span style="color: #60a5fa;">Mengunduh dan mendekripsi dari GitHub...</span>';
+  msgEl.innerHTML = '<span style="color: #60a5fa;">' + t('downloading_decrypting') + '</span>';
   try {
     const res = await fetch('/api/snapshot/github/restore', {
       method: 'POST',
@@ -1388,13 +1900,13 @@ async function doRestoreFromGitHub() {
     });
     const data = await res.json();
     if (data.ok) {
-      msgEl.innerHTML = '<span style="color: var(--success);">Berhasil dipulihkan! Me-refresh halaman...</span>';
+      msgEl.innerHTML = '<span style="color: var(--success);">' + t('restored_refreshing') + '</span>';
       setTimeout(() => location.reload(), 1200);
     } else {
-      msgEl.innerHTML = '<span style="color: var(--danger);">Gagal: ' + escapeHtml(data.error) + '</span>';
+      msgEl.innerHTML = '<span style="color: var(--danger);">' + t('failed_prefix') + escapeHtml(data.error) + '</span>';
     }
   } catch (e) {
-    msgEl.innerHTML = '<span style="color: var(--danger);">Error: ' + escapeHtml(e.message) + '</span>';
+    msgEl.innerHTML = '<span style="color: var(--danger);">' + t('error_prefix') + escapeHtml(e.message) + '</span>';
   }
 }
 
@@ -1404,11 +1916,11 @@ async function doRestoreFromFile() {
   const msgEl = document.getElementById('restoreFileMsg');
 
   if (!fileInput.files || fileInput.files.length === 0) {
-    msgEl.innerHTML = '<span style="color: var(--danger);">Pilih file snapshot (.enc) terlebih dahulu!</span>';
+    msgEl.innerHTML = '<span style="color: var(--danger);">' + t('select_snapshot_first') + '</span>';
     return;
   }
   if (!pass) {
-    msgEl.innerHTML = '<span style="color: var(--danger);">Passphrase wajib diisi!</span>';
+    msgEl.innerHTML = '<span style="color: var(--danger);">' + t('passphrase_required') + '</span>';
     return;
   }
 
@@ -1416,7 +1928,7 @@ async function doRestoreFromFile() {
   formData.append('file', fileInput.files[0]);
   formData.append('passphrase', pass);
 
-  msgEl.innerHTML = '<span style="color: #60a5fa;">Mendekripsi dan memulihkan snapshot...</span>';
+  msgEl.innerHTML = '<span style="color: #60a5fa;">' + t('decrypting_restoring') + '</span>';
   try {
     const res = await fetch('/api/snapshot/import', {
       method: 'POST',
@@ -1424,13 +1936,13 @@ async function doRestoreFromFile() {
     });
     const data = await res.json();
     if (data.ok) {
-      msgEl.innerHTML = '<span style="color: var(--success);">Berhasil memulihkan ' + data.hosts_imported + ' host! Me-refresh...</span>';
+      msgEl.innerHTML = '<span style="color: var(--success);">' + t('restored_hosts_refreshing').replace('{count}', data.hosts_imported) + '</span>';
       setTimeout(() => location.reload(), 1200);
     } else {
-      msgEl.innerHTML = '<span style="color: var(--danger);">Gagal: ' + escapeHtml(data.error) + '</span>';
+      msgEl.innerHTML = '<span style="color: var(--danger);">' + t('failed_prefix') + escapeHtml(data.error) + '</span>';
     }
   } catch (e) {
-    msgEl.innerHTML = '<span style="color: var(--danger);">Error: ' + escapeHtml(e.message) + '</span>';
+    msgEl.innerHTML = '<span style="color: var(--danger);">' + t('error_prefix') + escapeHtml(e.message) + '</span>';
   }
 }
 
@@ -1474,7 +1986,7 @@ async function openTransferDialog(srcPath, isDir) {
   select.innerHTML = '';
   const availableHosts = hosts.filter(h => h.id !== currentHost.id);
   if (availableHosts.length === 0) {
-    alert('No other target host available. Add at least one more host first.');
+    alert(t('no_other_dest_host'));
     return;
   }
   availableHosts.forEach(h => {
@@ -1497,13 +2009,13 @@ async function submitTransfer() {
   const mode = document.getElementById('transferMode').value;
   
   if (!destHostID || !srcPath || !destPath) {
-    alert('Please fill in all fields');
+    alert(t('fill_all_fields'));
     return;
   }
   
   const btn = document.getElementById('btnStartTransfer');
   btn.disabled = true;
-  btn.innerText = 'Starting...';
+  btn.innerText = t('starting');
   
   try {
     const res = await fetch('/api/transfers', {
@@ -1519,7 +2031,7 @@ async function submitTransfer() {
     });
     const data = await res.json();
     if (!res.ok) {
-      alert('Failed to start transfer: ' + (data.error || res.statusText));
+      alert(t('start_transfer_failed') + (data.error || res.statusText));
       return;
     }
     closeModal('transferModal');
@@ -1528,7 +2040,7 @@ async function submitTransfer() {
     alert('Error starting transfer: ' + err.message);
   } finally {
     btn.disabled = false;
-    btn.innerText = 'Start Transfer';
+    btn.innerText = t('start_transfer');
   }
 }
 
@@ -1540,12 +2052,12 @@ function openTransfersModal() {
 }
 
 async function cancelTransfer(jobID) {
-  if (!confirm('Cancel this transfer?')) return;
+  if (!confirm(t('confirm_cancel_transfer'))) return;
   const res = await fetch('/api/transfers/' + jobID + '/cancel', { method: 'POST' });
   if (res.ok) {
     loadTransfers();
   } else {
-    alert('Failed to cancel transfer');
+    alert(t('cancel_transfer_failed'));
   }
 }
 
@@ -1585,8 +2097,8 @@ async function loadTransfers() {
       container.innerHTML = `
         <div class="empty-state">
           <div class="empty-state-icon">${currentTransfersTab === 'active' ? '⚡' : '📜'}</div>
-          <div class="empty-state-title">${currentTransfersTab === 'active' ? 'Tidak Ada Transfer Berjalan' : 'Belum Ada Riwayat Transfer'}</div>
-          <div class="empty-state-desc">${currentTransfersTab === 'active' ? 'Semua proses pemindahan file antar-host sedang kosong atau telah selesai.' : 'Riwayat transfer yang selesai atau dibatalkan akan muncul di sini.'}</div>
+          <div class="empty-state-title">${currentTransfersTab === 'active' ? t('no_active_transfers_title') : t('no_history_transfers_title')}</div>
+          <div class="empty-state-desc">${currentTransfersTab === 'active' ? t('no_active_transfers_desc') : t('no_history_transfers_desc')}</div>
         </div>
       `;
       return;
@@ -1609,12 +2121,12 @@ async function loadTransfers() {
         <div class="card" style="margin-bottom: 12px; background: var(--bg-card); border: 1px solid var(--card-border); padding: 12px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <div>
-              <span style="font-weight: 600;">Job #${j.id}</span>
+              <span style="font-weight: 600;">${t('job')} #${j.id}</span>
               <span class="badge" style="background: rgba(255,255,255,0.1); margin-left: 6px;">${j.mode === 'verified' ? '🛡️ Verified' : '⚡ Fast Stream'}</span>
               <span class="badge" style="color: ${statusColor}; border: 1px solid ${statusColor}; margin-left: 6px;">${j.status}</span>
             </div>
             <div>
-              ${(j.status === 'transferring' || j.status === 'queued') ? '<button class="btn btn-danger btn-sm" onclick="cancelTransfer(' + j.id + ')">🛑 Cancel</button>' : ''}
+              ${(j.status === 'transferring' || j.status === 'queued') ? '<button class="btn btn-danger btn-sm" onclick="cancelTransfer(' + j.id + ')">' + t('cancel_transfer_btn') + '</button>' : ''}
             </div>
           </div>
           <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 6px;">
@@ -1625,7 +2137,7 @@ async function loadTransfers() {
             <div class="progress-fill" style="width: ${j.status === 'completed' ? '100' : pct}%; background: ${statusColor};"></div>
           </div>
           <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted);">
-            <span>Transferred: <b>${transferredStr}</b>${totalStr ? ' / ' + totalStr + ' (' + pct + '%)' : ''}</span>
+            <span>${t('transferred')} <b>${transferredStr}</b>${totalStr ? ' / ' + totalStr + ' (' + pct + '%)' : ''}</span>
             <span>${speedStr ? '⚡ ' + speedStr : ''} ${etaStr ? ' | ETA: ' + etaStr : ''}</span>
           </div>
           ${j.error ? '<div style="color: #f87171; font-size: 12px; margin-top: 6px;">⚠️ Error: ' + escapeHtml(j.error) + '</div>' : ''}
@@ -1650,6 +2162,7 @@ function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+setLanguage(currentLang);
 checkAuth();
 </script>
 </body>
