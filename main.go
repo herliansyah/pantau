@@ -7,7 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -22,7 +24,8 @@ import (
 
 func main() {
 	portFlag := flag.Int("port", 8080, "HTTP server port")
-	dbFlag := flag.String("db", "data/pantau.db", "SQLite database file path")
+	dbFlag := flag.String("db", "pantau.db", "SQLite database file path")
+	openBrowserFlag := flag.Bool("open", runtime.GOOS == "windows", "Open default browser on start")
 	flag.Parse()
 
 	port := *portFlag
@@ -73,8 +76,15 @@ func main() {
 		}
 	}()
 
+	if *openBrowserFlag {
+		go func() {
+			time.Sleep(150 * time.Millisecond)
+			openBrowser(fmt.Sprintf("http://localhost:%d", port))
+		}()
+	}
+
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down Pantau...")
 
@@ -82,6 +92,19 @@ func main() {
 	defer shutdownCancel()
 	_ = httpServer.Shutdown(shutdownCtx)
 	log.Println("Pantau stopped cleanly.")
+}
+
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	_ = cmd.Start()
 }
 
 func startInspectionWorker(ctx context.Context, db *store.DB, ins *inspector.Inspector) {
