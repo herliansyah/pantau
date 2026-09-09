@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -27,11 +28,18 @@ func main() {
 	dbFlag := flag.String("db", "pantau.db", "SQLite database file path")
 	openBrowserFlag := flag.Bool("open", runtime.GOOS == "windows", "Open default browser on start")
 	flag.Parse()
+	portExplicit := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "port" {
+			portExplicit = true
+		}
+	})
 
 	port := *portFlag
 	if envPort := os.Getenv("PANTAU_PORT"); envPort != "" {
 		if p, err := strconv.Atoi(envPort); err == nil {
 			port = p
+			portExplicit = true
 		}
 	}
 
@@ -64,6 +72,30 @@ func main() {
 
 	server := web.NewServer(db, ins, dispatcher)
 	server.SetSnapshotManager(snapshotMgr)
+	var listener net.Listener
+	if !portExplicit {
+		for p := port; p <= port+19; p++ {
+			l, err := net.Listen("tcp", fmt.Sprintf(":%d", p))
+			if err == nil {
+				listener = l
+				if p != port {
+					log.Printf("⚠️ Port %d was in use, auto-scanned and bound to port %d", port, p)
+				}
+				port = p
+				break
+			}
+		}
+		if listener == nil {
+			log.Fatalf("Failed to bind port: ports %d-%d are all in use", port, port+19)
+		}
+	} else {
+		l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+		if err != nil {
+			log.Fatalf("Failed to bind port %d: %v", port, err)
+		}
+		listener = l
+	}
+
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: server,
@@ -71,11 +103,10 @@ func main() {
 
 	go func() {
 		log.Printf("🛡️ Pantau running on http://0.0.0.0:%d (Default password: admin)", port)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server error: %v", err)
 		}
 	}()
-
 	if *openBrowserFlag {
 		go func() {
 			time.Sleep(150 * time.Millisecond)

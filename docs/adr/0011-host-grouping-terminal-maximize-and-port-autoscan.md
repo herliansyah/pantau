@@ -1,0 +1,8 @@
+# Host Grouping, Full-Viewport Terminal Maximize, dan Port Auto-Scan Fallback
+
+Penerapan pengelompokan host berbasis kolom teks tunggal `group_name`, pembesaran terminal web berbasis CSS full-viewport, dan fallback deteksi port otomatis saat startup server.
+
+Keputusan arsitektur ini diambil berdasarkan trade-off teknis berikut:
+1. **Host Grouping**: Menggunakan kolom `group_name TEXT DEFAULT ''` pada tabel `hosts` tanpa tabel relasi perantara (1 Host = 1 Group). Menghindari kompleksitas skema many-to-many karena kebutuhan utama hanya pemisahan visual dashboard dan filter pencarian. Tampilan group diwujudkan via elemen pemisah grid full-width (`grid-column: 1 / -1`) pada Grid View dan baris pemisah `<tr>` berlabel pada List View, dengan host tanpa group ditempatkan di kategori terbawah ("Ungrouped").
+2. **Terminal Maximize**: Menggunakan mode CSS Full-Viewport (`position: fixed; inset: 0; z-index: 9999`) pada pembungkus terminal alih-alih peramban native `requestFullscreen()`. Pendekatan ini mempertahankan penanganan tombol keyboard interaktif (termasuk `Esc` untuk `vim`, `nano`, `htop`) tanpa risiko keluar paksa oleh peramban, serta menjaga integritas sesi WebSocket dan split-pane terminal saat ukuran terminal di-fit ulang via `fitAddon`.
+3. **Port Auto-Scan**: Scanning sekuensial port lokal (8080 sampai batas aman 8099) diaktifkan eksklusif hanya saat Pantau dijalankan dengan port default tanpa argumen eksplisit. Jika pengguna mendefinisikan port secara sengaja melalui flag `--port` atau environment `PANTAU_PORT`, sistem menerapkan prinsip *fail-fast* (langsung berhenti jika port terpakai) agar tidak memutus konfigurasi firewall, reverse proxy, atau service manager (systemd/Docker) yang mengandalkan port statis.

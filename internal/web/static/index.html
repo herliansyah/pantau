@@ -118,13 +118,14 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 .terminal-container { flex: 1; height: 100%; min-height: 380px; background: #000; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; }
 .terminal-container .xterm { height: 100%; }
 .CodeMirror { flex: 1; height: 100% !important; min-height: 380px; font-size: 13px; border-radius: 6px; }
-.dashboard-toolbar { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; }
-.search-box { display: flex; align-items: center; gap: 8px; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 0 10px; flex: 1; min-width: 260px; max-width: 460px; }
-.search-box input { border: none; background: transparent; padding: 8px 4px; outline: none; }
+.dashboard-toolbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; }
+.search-box { display: flex; align-items: center; gap: 8px; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 0 10px; flex: 1; min-width: 240px; max-width: 420px; height: 36px; box-sizing: border-box; }
+.search-box input { border: none; background: transparent; padding: 0 4px; outline: none; height: 100%; box-sizing: border-box; font-size: 0.85rem; }
 .search-box input:focus { outline: none; }
-.toolbar-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.view-mode-toggle { display: inline-flex; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 2px; }
-.view-mode-toggle .view-btn { background: transparent; border: none; border-radius: 4px; padding: 4px 10px; color: var(--text-muted); cursor: pointer; }
+.toolbar-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.toolbar-controls select { height: 36px; box-sizing: border-box; padding: 0 10px; font-size: 0.82rem; border-radius: 6px; }
+.view-mode-toggle { display: inline-flex; align-items: center; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 2px; height: 36px; box-sizing: border-box; }
+.view-mode-toggle .view-btn { background: transparent; border: none; border-radius: 4px; padding: 0 10px; height: 100%; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); cursor: pointer; font-size: 0.85rem; }
 .view-mode-toggle .view-btn.active { background: var(--card-border); color: #f8fafc; }
 .host-list-view { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; overflow-x: auto; }
 .host-list-table { width: 100%; border-collapse: collapse; }
@@ -141,6 +142,36 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 .host-list-table tr.dragging td { opacity: 0.4; }
 .terminal-pane { transition: border-color 0.15s ease, box-shadow 0.15s ease; border: 1px solid var(--card-border); }
 .terminal-pane.active-pane { border-color: #38bdf8 !important; box-shadow: 0 0 0 1px #38bdf8; }
+.terminal-workspace-wrapper.terminal-maximized {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 99999 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: #0b0f19 !important;
+  padding: 12px !important;
+  box-sizing: border-box !important;
+  border-radius: 0 !important;
+}
+.host-group-divider {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 22px 0 -6px 0;
+  padding: 0;
+}
+.host-group-divider:first-child,
+.host-group-divider:first-of-type {
+  margin-top: 0;
+}
+.host-group-header-row td {
+  background: rgba(15, 23, 42, 0.6) !important;
+  padding: 14px 16px !important;
+  font-weight: 700 !important;
+  color: #38bdf8 !important;
+  border-bottom: none !important;
+}
 .preset-btn {
   background: #1e293b;
   border: 1px solid var(--card-border);
@@ -216,6 +247,9 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <button id="clearSearchBtn" class="btn btn-sm" style="display: none; padding: 2px 6px; background: transparent; color: var(--text-muted);" onclick="clearSearch()">✕</button>
       </div>
       <div class="toolbar-controls">
+        <select id="groupFilterSelect" onchange="onSearchFilterChange()" style="width: auto;">
+          <option value="all" data-i18n="filter_all_groups">All Groups</option>
+        </select>
         <select id="statusFilterSelect" onchange="onSearchFilterChange()" style="width: auto;">
           <option value="all" data-i18n="filter_all">All Status</option>
           <option value="healthy" data-i18n="filter_healthy">Healthy</option>
@@ -379,6 +413,11 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <div class="form-group">
         <label data-i18n="addr_ip">Hostname or IP</label>
         <input type="text" id="hostAddr" placeholder="192.168.1.100 or vps.domain.com" data-i18n-placeholder="addr_ip_ph" />
+      </div>
+      <div class="form-group">
+        <label data-i18n="host_group">Host Group</label>
+        <input type="text" id="hostGroup" list="groupSuggestions" placeholder="e.g. Server Utama, Testing, DB Cluster" data-i18n-placeholder="host_group_ph" />
+        <datalist id="groupSuggestions"></datalist>
       </div>
       <div style="display: flex; gap: 12px;">
         <div class="form-group" style="flex: 1;">
@@ -898,6 +937,13 @@ const I18N = {
     "split_terminal": "Split (Alt+\\)",
     "unsplit_terminal": "Unsplit (Alt+\\)",
     "btn_terminal": "Terminal",
+    "maximize_terminal": "Maximize",
+    "minimize_terminal": "Restore",
+    "host_group": "Host Group",
+    "host_group_ph": "e.g. Primary Server, Testing, DB Cluster",
+    "group_ungrouped": "Ungrouped",
+    "edit_host": "Edit Host",
+    "edit_host_title": "Edit Host",
     "confirm_delete_host": "Delete this host?",
     "ssh_test_success": "SSH Connection Successful!",
     "ssh_test_failed": "SSH Connection FAILED:\n",
@@ -1117,6 +1163,8 @@ const I18N = {
     "file_uploaded": "File uploaded successfully",
     "file_deleted": "File deleted successfully",
     "file_saved": "File saved successfully",
+    "filter_all_groups": "All Groups",
+    "filter_ungrouped": "Ungrouped",
     "filter_all": "All Status",
     "filter_healthy": "Healthy",
     "filter_degraded": "Degraded",
@@ -1226,6 +1274,13 @@ const I18N = {
     "split_terminal": "Bagi Panel (Alt+\\)",
     "unsplit_terminal": "Tutup Panel (Alt+\\)",
     "btn_terminal": "Terminal",
+    "maximize_terminal": "Layar Penuh",
+    "minimize_terminal": "Pulihkan",
+    "host_group": "Grup Host",
+    "host_group_ph": "mis. Server Utama, Testing, DB Cluster",
+    "group_ungrouped": "Tanpa Grup",
+    "edit_host": "Ubah Host",
+    "edit_host_title": "Ubah Host",
     "confirm_delete_host": "Hapus host ini?",
     "ssh_test_success": "Koneksi SSH Berhasil!",
     "ssh_test_failed": "Koneksi SSH GAGAL:\n",
@@ -1419,6 +1474,8 @@ const I18N = {
     "global_note_ph": "Tulis catatan operasional sistem, serah terima tugas, atau SOP darurat...",
     "global_note_empty": "Belum ada catatan global. Klik 'Edit' untuk menambahkan catatan bersama.",
     "search_hosts_ph": "Cari host berdasarkan nama, IP, OS, catatan...",
+    "filter_all_groups": "Semua Group",
+    "filter_ungrouped": "Tanpa Group",
     "filter_all": "Semua Status",
     "filter_healthy": "Healthy",
     "filter_degraded": "Degraded",
@@ -1795,22 +1852,31 @@ function clearSearch() {
 
 function getFilteredAndSortedHosts() {
   const searchVal = (document.getElementById('hostSearchInput')?.value || '').toLowerCase().trim();
+  const groupVal = document.getElementById('groupFilterSelect')?.value || 'all';
   const statusVal = document.getElementById('statusFilterSelect')?.value || 'all';
   const sortVal = document.getElementById('sortSelect')?.value || 'manual';
 
   let list = [...allRawHosts];
 
+  if (groupVal && groupVal !== 'all') {
+    if (groupVal === '__ungrouped__') {
+      list = list.filter(h => !(h.group_name || '').trim());
+    } else {
+      list = list.filter(h => (h.group_name || '').trim() === groupVal);
+    }
+  }
+
   if (statusVal && statusVal !== 'all') {
     list = list.filter(h => (h.status || '').toLowerCase() === statusVal.toLowerCase());
   }
-
   if (searchVal) {
     list = list.filter(h => {
       const name = (h.name || '').toLowerCase();
       const host = (h.host || '').toLowerCase();
       const os = (h.os_info || '').toLowerCase();
       const notes = (h.notes || '').toLowerCase();
-      return name.includes(searchVal) || host.includes(searchVal) || os.includes(searchVal) || notes.includes(searchVal);
+      const group = (h.group_name || '').toLowerCase();
+      return name.includes(searchVal) || host.includes(searchVal) || os.includes(searchVal) || notes.includes(searchVal) || group.includes(searchVal);
     });
   }
 
@@ -1887,6 +1953,28 @@ function renderHosts() {
   }
 }
 
+function groupHosts(hosts) {
+  const groupsMap = new Map();
+  const ungrouped = [];
+  hosts.forEach(h => {
+    const g = (h.group_name || '').trim();
+    if (!g) ungrouped.push(h);
+    else {
+      if (!groupsMap.has(g)) groupsMap.set(g, []);
+      groupsMap.get(g).push(h);
+    }
+  });
+  const result = [];
+  const sortedNames = Array.from(groupsMap.keys()).sort((a, b) => a.localeCompare(b));
+  for (const name of sortedNames) {
+    result.push({ name, hosts: groupsMap.get(name), isUngrouped: false });
+  }
+  if (ungrouped.length > 0) {
+    result.push({ name: t('group_ungrouped', 'Ungrouped'), hosts: ungrouped, isUngrouped: true });
+  }
+  return result;
+}
+
 function renderGridView(grid, isManualSort) {
   grid.innerHTML = '';
   const displayHosts = getFilteredAndSortedHosts();
@@ -1901,115 +1989,134 @@ function renderGridView(grid, isManualSort) {
     return;
   }
 
-  displayHosts.forEach(h => {
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.dataset.hostId = h.id;
+  const groups = groupHosts(displayHosts);
+  const showDividers = groups.length > 1 || (groups.length === 1 && !groups[0].isUngrouped);
 
-    if (isManualSort) {
-      card.draggable = true;
-      card.addEventListener('dragstart', (e) => {
-        draggedHostId = h.id;
-        card.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', String(h.id));
-      });
-      card.addEventListener('dragend', () => {
-        card.classList.remove('dragging');
-        document.querySelectorAll('.card.drag-target').forEach(el => el.classList.remove('drag-target'));
-      });
-      card.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        if (draggedHostId && draggedHostId !== h.id) {
-          card.classList.add('drag-target');
-        }
-      });
-      card.addEventListener('dragleave', () => {
-        card.classList.remove('drag-target');
-      });
-      card.addEventListener('drop', (e) => {
-        e.preventDefault();
-        card.classList.remove('drag-target');
-        const srcId = parseInt(e.dataTransfer.getData('text/plain')) || draggedHostId;
-        if (srcId && srcId !== h.id) {
-          handleDropReorder(srcId, h.id);
-        }
-      });
+  groups.forEach(grp => {
+    if (showDividers) {
+      const divider = document.createElement('div');
+      divider.className = 'host-group-divider';
+      divider.innerHTML = `
+        <span style="font-weight: 700; font-size: 0.95rem; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+          📁 ${escapeHtml(grp.name)}
+        </span>
+        <span class="badge" style="font-size: 0.75rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8;">${grp.hosts.length}</span>
+      `;
+      grid.appendChild(divider);
     }
 
-    const ramPct = h.ram_total_bytes > 0 ? Math.round((h.ram_used_bytes / h.ram_total_bytes) * 100) : 0;
-    const diskPct = h.disk_total_bytes > 0 ? Math.round((h.disk_used_bytes / h.disk_total_bytes) * 100) : 0;
+    grp.hosts.forEach(h => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.hostId = h.id;
 
-    let scoreColor = '#34d399';
-    if (h.lifecycle_score < 50) scoreColor = '#f87171';
-    else if (h.lifecycle_score < 80) scoreColor = '#fbbf24';
+      if (isManualSort) {
+        card.draggable = true;
+        card.addEventListener('dragstart', (e) => {
+          draggedHostId = h.id;
+          card.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', String(h.id));
+        });
+        card.addEventListener('dragend', () => {
+          card.classList.remove('dragging');
+          document.querySelectorAll('.card.drag-target').forEach(el => el.classList.remove('drag-target'));
+        });
+        card.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (draggedHostId && draggedHostId !== h.id) {
+            card.classList.add('drag-target');
+          }
+        });
+        card.addEventListener('dragleave', () => {
+          card.classList.remove('drag-target');
+        });
+        card.addEventListener('drop', (e) => {
+          e.preventDefault();
+          card.classList.remove('drag-target');
+          const srcId = parseInt(e.dataTransfer.getData('text/plain')) || draggedHostId;
+          if (srcId && srcId !== h.id) {
+            handleDropReorder(srcId, h.id);
+          }
+        });
+      }
 
-    const noteSnippet = (h.notes || '').trim();
-    const noteHtml = `
-      <div class="host-note-badge" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))" title="${t('edit_host_note_title')}">
-        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px;">
-          📝 ${noteSnippet ? escapeHtml(noteSnippet) : '<span style="color: var(--text-muted); font-style: italic;">' + t('no_note_set') + '</span>'}
-        </span>
-        <span style="font-size: 0.75rem; opacity: 0.75;">✏️</span>
-      </div>
-    `;
+      const ramPct = h.ram_total_bytes > 0 ? Math.round((h.ram_used_bytes / h.ram_total_bytes) * 100) : 0;
+      const diskPct = h.disk_total_bytes > 0 ? Math.round((h.disk_used_bytes / h.disk_total_bytes) * 100) : 0;
 
-    card.innerHTML = `
-      <div class="card-title">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          ${isManualSort ? `<span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span>` : ''}
-          <span>${escapeHtml(h.name)}</span>
+      let scoreColor = '#34d399';
+      if (h.lifecycle_score < 50) scoreColor = '#f87171';
+      else if (h.lifecycle_score < 80) scoreColor = '#fbbf24';
+
+      const noteSnippet = (h.notes || '').trim();
+      const noteHtml = `
+        <div class="host-note-badge" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))" title="${t('edit_host_note_title')}">
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px;">
+            📝 ${noteSnippet ? escapeHtml(noteSnippet) : '<span style="color: var(--text-muted); font-style: italic;">' + t('no_note_set') + '</span>'}
+          </span>
+          <span style="font-size: 0.75rem; opacity: 0.75;">✏️</span>
         </div>
-        <div style="display: inline-flex; align-items: center; gap: 6px;">
-          <span class="badge badge-${h.status}">${h.status}</span>
-          <button class="btn-inspect-quick" id="inspectBtn-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
-          </button>
-        </div>
-      </div>
-      ${noteHtml}
-      <div class="stat-row"><span>${t('address')}</span> <span>${h.host}:${h.port} (${h.user})</span></div>
-      <div class="stat-row"><span>${t('os')}</span> <span>${escapeHtml(h.os_info || 'Unknown')}</span></div>
-      <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(h.uptime || '-')}</span></div>
-      <div>
-        <div class="stat-row"><span>${t('ram_usage')}</span> <span>${ramPct}%</span></div>
-        <div class="progress"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
-      </div>
-      <div>
-        <div class="stat-row"><span>${t('disk_usage')}</span> <span>${diskPct}%</span></div>
-        <div class="progress"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
-      </div>
-      <div class="stat-row" style="align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px;">
-        <span>${t('lifecycle_score')}</span>
-        <span class="score-badge" style="color: ${scoreColor}">${h.lifecycle_score}/100</span>
-      </div>
-      <div class="stat-row" style="align-items: center;">
-        <span>${t('internet')}</span>
-        <span class="status-pill">${h.internet_online ? '<span style="color: #34d399;">●</span> ' + t('online') + ' (' + h.internet_latency_ms + 'ms)' : '<span style="color: #f87171;">●</span> ' + t('offline')}</span>
-      </div>
-      <div class="stat-row" style="flex-direction: column; gap: 6px;">
-        <span>${t('traffic_live')}</span>
-        <div class="traffic-grid">
-          <div>⬇️ ${formatBytes(h.net_rx_speed_bps)}/s</div>
-          <div>⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
-        </div>
-      </div>
-      <div style="display: flex; gap: 6px; margin-top: 6px; align-items: center;">
-        <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
-        <button class="btn btn-sm" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}">💻</button>
-        <div class="dropdown" style="margin-left: auto;">
-          <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, ${h.id})" title="${t('more_actions', 'More Actions')}">⋮</button>
-          <div class="dropdown-menu" id="dropdown-${h.id}">
-            <button class="dropdown-item" onclick="testHostSSH(${h.id})">⚡ <span>${t('test_connection', 'Test Connection')}</span></button>
-            <button class="dropdown-item" onclick="openInjectKeyModal(${h.id}, '${escapeHtml(h.name)}')">🔑 <span>${t('btn_inject_key', 'Inject Key')}</span></button>
-            <div class="dropdown-divider"></div>
-            <button class="dropdown-item danger" onclick="deleteHost(${h.id})">🗑️ <span>${t('delete_host', 'Delete Host')}</span></button>
+      `;
+
+      card.innerHTML = `
+        <div class="card-title">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            ${isManualSort ? `<span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span>` : ''}
+            <span style="font-weight: 600;">${escapeHtml(h.name)}</span>
+            ${h.group_name ? `<span class="badge" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8;">📁 ${escapeHtml(h.group_name)}</span>` : ''}
+          </div>
+          <div style="display: inline-flex; align-items: center; gap: 6px;">
+            <span class="badge badge-${h.status}">${h.status}</span>
+            <button class="btn-inspect-quick" id="inspectBtn-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            </button>
           </div>
         </div>
-      </div>
-    `;
-    grid.appendChild(card);
+        ${noteHtml}
+        <div class="stat-row"><span>${t('address')}</span> <span>${h.host}:${h.port} (${h.user})</span></div>
+        <div class="stat-row"><span>${t('os')}</span> <span>${escapeHtml(h.os_info || 'Unknown')}</span></div>
+        <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(h.uptime || '-')}</span></div>
+        <div>
+          <div class="stat-row"><span>${t('ram_usage')}</span> <span>${ramPct}%</span></div>
+          <div class="progress"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
+        </div>
+        <div>
+          <div class="stat-row"><span>${t('disk_usage')}</span> <span>${diskPct}%</span></div>
+          <div class="progress"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
+        </div>
+        <div class="stat-row" style="align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px;">
+          <span>${t('lifecycle_score')}</span>
+          <span class="score-badge" style="color: ${scoreColor}">${h.lifecycle_score}/100</span>
+        </div>
+        <div class="stat-row" style="align-items: center;">
+          <span>${t('internet')}</span>
+          <span class="status-pill">${h.internet_online ? '<span style="color: #34d399;">●</span> ' + t('online') + ' (' + h.internet_latency_ms + 'ms)' : '<span style="color: #f87171;">●</span> ' + t('offline')}</span>
+        </div>
+        <div class="stat-row" style="flex-direction: column; gap: 6px;">
+          <span>${t('traffic_live')}</span>
+          <div class="traffic-grid">
+            <div>⬇️ ${formatBytes(h.net_rx_speed_bps)}/s</div>
+            <div>⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 6px; margin-top: 6px; align-items: center;">
+          <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
+          <button class="btn btn-sm" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}">💻</button>
+          <div class="dropdown" style="margin-left: auto;">
+            <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, ${h.id})" title="${t('more_actions', 'More Actions')}">⋮</button>
+            <div class="dropdown-menu" id="dropdown-${h.id}">
+              <button class="dropdown-item" onclick="openEditHostModal(${h.id})">✏️ <span>${t('edit_host', 'Edit Host')}</span></button>
+              <button class="dropdown-item" onclick="testHostSSH(${h.id})">⚡ <span>${t('test_connection', 'Test Connection')}</span></button>
+              <button class="dropdown-item" onclick="openInjectKeyModal(${h.id}, '${escapeHtml(h.name)}')">🔑 <span>${t('btn_inject_key', 'Inject Key')}</span></button>
+              <div class="dropdown-divider"></div>
+              <button class="dropdown-item danger" onclick="deleteHost(${h.id})">🗑️ <span>${t('delete_host', 'Delete Host')}</span></button>
+            </div>
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
   });
 }
 
@@ -2049,103 +2156,128 @@ function renderListView(listContainer, isManualSort) {
   `;
   const tbody = table.querySelector('tbody');
 
-  displayHosts.forEach(h => {
-    const tr = document.createElement('tr');
-    tr.dataset.hostId = h.id;
+  const groups = groupHosts(displayHosts);
+  const showDividers = groups.length > 1 || (groups.length === 1 && !groups[0].isUngrouped);
 
-    if (isManualSort) {
-      tr.draggable = true;
-      tr.addEventListener('dragstart', (e) => {
-        draggedHostId = h.id;
-        tr.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', String(h.id));
-      });
-      tr.addEventListener('dragend', () => {
-        tr.classList.remove('dragging');
-        document.querySelectorAll('.host-list-table tr.drag-target').forEach(el => el.classList.remove('drag-target'));
-      });
-      tr.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        if (draggedHostId && draggedHostId !== h.id) {
-          tr.classList.add('drag-target');
-        }
-      });
-      tr.addEventListener('dragleave', () => {
-        tr.classList.remove('drag-target');
-      });
-      tr.addEventListener('drop', (e) => {
-        e.preventDefault();
-        tr.classList.remove('drag-target');
-        const srcId = parseInt(e.dataTransfer.getData('text/plain')) || draggedHostId;
-        if (srcId && srcId !== h.id) {
-          handleDropReorder(srcId, h.id);
-        }
-      });
+  groups.forEach(grp => {
+    if (showDividers) {
+      const headerRow = document.createElement('tr');
+      headerRow.className = 'host-group-header-row';
+      headerRow.innerHTML = `
+        <td colspan="${isManualSort ? 11 : 10}">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span>📁 ${escapeHtml(grp.name)}</span>
+            <span class="badge" style="font-size: 0.75rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8;">${grp.hosts.length}</span>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(headerRow);
     }
 
-    const ramPct = h.ram_total_bytes > 0 ? Math.round((h.ram_used_bytes / h.ram_total_bytes) * 100) : 0;
-    const diskPct = h.disk_total_bytes > 0 ? Math.round((h.disk_used_bytes / h.disk_total_bytes) * 100) : 0;
+    grp.hosts.forEach(h => {
+      const tr = document.createElement('tr');
+      tr.dataset.hostId = h.id;
 
-    let scoreColor = '#34d399';
-    if (h.lifecycle_score < 50) scoreColor = '#f87171';
-    else if (h.lifecycle_score < 80) scoreColor = '#fbbf24';
+      if (isManualSort) {
+        tr.draggable = true;
+        tr.addEventListener('dragstart', (e) => {
+          draggedHostId = h.id;
+          tr.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', String(h.id));
+        });
+        tr.addEventListener('dragend', () => {
+          tr.classList.remove('dragging');
+          document.querySelectorAll('.host-list-table tr.drag-target').forEach(el => el.classList.remove('drag-target'));
+        });
+        tr.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (draggedHostId && draggedHostId !== h.id) {
+            tr.classList.add('drag-target');
+          }
+        });
+        tr.addEventListener('dragleave', () => {
+          tr.classList.remove('drag-target');
+        });
+        tr.addEventListener('drop', (e) => {
+          e.preventDefault();
+          tr.classList.remove('drag-target');
+          const srcId = parseInt(e.dataTransfer.getData('text/plain')) || draggedHostId;
+          if (srcId && srcId !== h.id) {
+            handleDropReorder(srcId, h.id);
+          }
+        });
+      }
 
-    const noteSnippet = (h.notes || '').trim();
-    const noteHtml = `
-      <div class="host-note-badge" style="display: inline-flex;" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))" title="${t('edit_host_note_title')}">
-        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">
-          ${noteSnippet ? escapeHtml(noteSnippet) : '<span style="color: var(--text-muted); font-style: italic;">' + t('no_note_set') + '</span>'}
-        </span>
-        <span style="font-size: 0.7rem; opacity: 0.75;">✏️</span>
-      </div>
-    `;
+      const ramPct = h.ram_total_bytes > 0 ? Math.round((h.ram_used_bytes / h.ram_total_bytes) * 100) : 0;
+      const diskPct = h.disk_total_bytes > 0 ? Math.round((h.disk_used_bytes / h.disk_total_bytes) * 100) : 0;
 
-    tr.innerHTML = `
-      ${isManualSort ? `<td style="text-align: center;"><span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span></td>` : ''}
-      <td>
-        <div style="display: inline-flex; align-items: center; gap: 6px;">
-          <span class="badge badge-${h.status}">${h.status}</span>
-          <button class="btn-inspect-quick" id="inspectBtnList-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
-          </button>
+      let scoreColor = '#34d399';
+      if (h.lifecycle_score < 50) scoreColor = '#f87171';
+      else if (h.lifecycle_score < 80) scoreColor = '#fbbf24';
+
+      const noteSnippet = (h.notes || '').trim();
+      const noteHtml = `
+        <div class="host-note-badge" style="display: inline-flex;" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))" title="${t('edit_host_note_title')}">
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">
+            ${noteSnippet ? escapeHtml(noteSnippet) : '<span style="color: var(--text-muted); font-style: italic;">' + t('no_note_set') + '</span>'}
+          </span>
+          <span style="font-size: 0.7rem; opacity: 0.75;">✏️</span>
         </div>
-      </td>
-      <td><b>${escapeHtml(h.name)}</b></td>
-      <td>${h.host}:${h.port} <span style="color: var(--text-muted); font-size: 0.8rem;">(${h.user})</span></td>
-      <td style="color: var(--text-muted);">${escapeHtml(h.os_info || '-')}</td>
-      <td><span class="score-badge" style="color: ${scoreColor}; font-size: 0.9rem;">${h.lifecycle_score}</span></td>
-      <td>
-        <div style="font-size: 0.8rem; margin-bottom: 2px;">${ramPct}%</div>
-        <div class="progress" style="height: 4px;"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
-      </td>
-      <td>
-        <div style="font-size: 0.8rem; margin-bottom: 2px;">${diskPct}%</div>
-        <div class="progress" style="height: 4px;"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
-      </td>
-      <td style="font-size: 0.8rem; font-family: monospace;">
-        <div>⬇️ ${formatBytes(h.net_rx_speed_bps)}/s</div>
-        <div>⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
-      </td>
-      <td>${noteHtml}</td>
-      <td style="text-align: right;">
-        <div style="display: inline-flex; gap: 4px; align-items: center;">
-          <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
-          <button class="btn btn-sm" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}">💻</button>
-          <div class="dropdown">
-            <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, 'list-${h.id}')" title="${t('more_actions', 'More Actions')}">⋮</button>
-            <div class="dropdown-menu" id="dropdown-list-${h.id}">
-              <button class="dropdown-item" onclick="testHostSSH(${h.id})">⚡ <span>${t('test_connection', 'Test Connection')}</span></button>
-              <button class="dropdown-item" onclick="openInjectKeyModal(${h.id}, '${escapeHtml(h.name)}')">🔑 <span>${t('btn_inject_key', 'Inject Key')}</span></button>
-              <div class="dropdown-divider"></div>
-              <button class="dropdown-item danger" onclick="deleteHost(${h.id})">🗑️ <span>${t('delete_host', 'Delete Host')}</span></button>
+      `;
+
+      tr.innerHTML = `
+        ${isManualSort ? `<td style="text-align: center;"><span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span></td>` : ''}
+        <td>
+          <div style="display: inline-flex; align-items: center; gap: 6px;">
+            <span class="badge badge-${h.status}">${h.status}</span>
+            <button class="btn-inspect-quick" id="inspectBtnList-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            </button>
+          </div>
+        </td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <b>${escapeHtml(h.name)}</b>
+            ${h.group_name ? `<span class="badge" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8;">📁 ${escapeHtml(h.group_name)}</span>` : ''}
+          </div>
+        </td>
+        <td>${h.host}:${h.port} <span style="color: var(--text-muted); font-size: 0.8rem;">(${h.user})</span></td>
+        <td style="color: var(--text-muted);">${escapeHtml(h.os_info || '-')}</td>
+        <td><span class="score-badge" style="color: ${scoreColor}; font-size: 0.9rem;">${h.lifecycle_score}</span></td>
+        <td>
+          <div style="font-size: 0.8rem; margin-bottom: 2px;">${ramPct}%</div>
+          <div class="progress" style="height: 4px;"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
+        </td>
+        <td>
+          <div style="font-size: 0.8rem; margin-bottom: 2px;">${diskPct}%</div>
+          <div class="progress" style="height: 4px;"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
+        </td>
+        <td style="font-size: 0.8rem; font-family: monospace;">
+          <div>⬇️ ${formatBytes(h.net_rx_speed_bps)}/s</div>
+          <div>⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
+        </td>
+        <td>${noteHtml}</td>
+        <td style="text-align: right;">
+          <div style="display: inline-flex; gap: 4px; align-items: center;">
+            <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
+            <button class="btn btn-sm" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}">💻</button>
+            <div class="dropdown">
+              <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, 'list-${h.id}')" title="${t('more_actions', 'More Actions')}">⋮</button>
+              <div class="dropdown-menu" id="dropdown-list-${h.id}">
+                <button class="dropdown-item" onclick="openEditHostModal(${h.id})">✏️ <span>${t('edit_host', 'Edit Host')}</span></button>
+                <button class="dropdown-item" onclick="testHostSSH(${h.id})">⚡ <span>${t('test_connection', 'Test Connection')}</span></button>
+                <button class="dropdown-item" onclick="openInjectKeyModal(${h.id}, '${escapeHtml(h.name)}')">🔑 <span>${t('btn_inject_key', 'Inject Key')}</span></button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item danger" onclick="deleteHost(${h.id})">🗑️ <span>${t('delete_host', 'Delete Host')}</span></button>
+              </div>
             </div>
           </div>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(tr);
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
   });
   listContainer.appendChild(table);
 }
@@ -2185,6 +2317,7 @@ async function loadHosts() {
       return;
     }
     allRawHosts = await res.json() || [];
+    updateGroupSuggestions();
     setEngineStatus(true);
     updateFooterMetrics();
     renderHosts();
@@ -2231,8 +2364,54 @@ function openAddHostModal() {
   document.getElementById('hostPassword').value = '';
   document.getElementById('hostCustomKey').value = '';
   document.getElementById('hostNote').value = '';
+  document.getElementById('hostGroup').value = '';
+  updateGroupSuggestions();
   document.getElementById('passGroup').style.display = 'flex';
   document.getElementById('hostModal').classList.add('open');
+}
+
+function openEditHostModal(hostId) {
+  const h = allRawHosts.find(item => item.id === hostId);
+  if (!h) return;
+  document.getElementById('hostModalTitle').innerText = t('edit_host_title', 'Edit Host');
+  document.getElementById('editHostId').value = h.id;
+  document.getElementById('hostName').value = h.name || '';
+  document.getElementById('hostAddr').value = h.host || '';
+  document.getElementById('hostPort').value = h.port || 22;
+  document.getElementById('hostUser').value = h.user || 'root';
+  document.getElementById('hostGroup').value = h.group_name || '';
+  document.getElementById('hostPassword').value = '';
+  document.getElementById('hostCustomKey').value = h.custom_key || '';
+  document.getElementById('hostNote').value = h.notes || '';
+  document.getElementById('passGroup').style.display = 'none';
+  updateGroupSuggestions();
+  document.getElementById('hostModal').classList.add('open');
+}
+
+function updateGroupSuggestions() {
+  const datalist = document.getElementById('groupSuggestions');
+  const groupSelect = document.getElementById('groupFilterSelect');
+  const groups = Array.from(new Set(allRawHosts.map(h => (h.group_name || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const hasUngrouped = allRawHosts.some(h => !(h.group_name || '').trim());
+  if (datalist) {
+    datalist.innerHTML = groups.map(g => `<option value="${escapeHtml(g)}"></option>`).join('');
+  }
+  if (groupSelect) {
+    const currentVal = groupSelect.value || 'all';
+    let options = `<option value="all" data-i18n="filter_all_groups">${t('filter_all_groups', 'All Groups')}</option>`;
+    groups.forEach(g => {
+      options += `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`;
+    });
+    if (hasUngrouped && groups.length > 0) {
+      options += `<option value="__ungrouped__" data-i18n="filter_ungrouped">${t('filter_ungrouped', 'Ungrouped')}</option>`;
+    }
+    groupSelect.innerHTML = options;
+    if (groups.includes(currentVal) || (currentVal === '__ungrouped__' && hasUngrouped)) {
+      groupSelect.value = currentVal;
+    } else {
+      groupSelect.value = 'all';
+    }
+  }
 }
 
 async function saveHost() {
@@ -2245,6 +2424,7 @@ async function saveHost() {
     password: document.getElementById('hostPassword').value,
     custom_key: document.getElementById('hostCustomKey').value,
     notes: document.getElementById('hostNote').value,
+    group_name: (document.getElementById('hostGroup')?.value || '').trim(),
   };
   const method = id ? 'PUT' : 'POST';
   const url = id ? '/api/hosts/' + id : '/api/hosts';
@@ -2930,8 +3110,14 @@ let focusedPane = 'left';
 let currentPresetList = [];
 let terminalHostLeft = null;
 let terminalHostRight = null;
+let isTerminalMaximized = false;
 
 function cleanUpTerminals() {
+  if (isTerminalMaximized) {
+    isTerminalMaximized = false;
+    const wrapper = document.querySelector('.terminal-workspace-wrapper');
+    if (wrapper) wrapper.classList.remove('terminal-maximized');
+  }
   if (terminalSocketLeft) {
     terminalSocketLeft.close();
     terminalSocketLeft = null;
@@ -2972,6 +3158,9 @@ async function initTerminal(hostID, initialPresetID) {
           <button id="btnToggleSplit" class="btn btn-sm" onclick="toggleTerminalSplit()" title="Split Terminal (Alt+\\)" style="padding: 4px 10px; font-size: 0.75rem;">
             🪟 <span id="lblToggleSplit">${t('split_terminal')}</span>
           </button>
+          <button id="btnToggleMaximize" class="btn btn-sm" onclick="toggleTerminalMaximize()" title="Maximize Terminal" style="padding: 4px 10px; font-size: 0.75rem;">
+            ⛶ <span id="lblToggleMaximize">${t('maximize_terminal')}</span>
+          </button>
           <button class="btn btn-sm" onclick="clearActiveTerminal()" title="Clear screen" style="padding: 4px 8px; font-size: 0.75rem;">🧹 Clear</button>
           <button class="btn btn-sm" onclick="reconnectActiveTerminal()" title="Reconnect SSH" style="padding: 4px 8px; font-size: 0.75rem;">🔄 Reconnect</button>
         </div>
@@ -3007,6 +3196,25 @@ async function initTerminal(hostID, initialPresetID) {
   cleanUpTerminals();
   await loadTerminalPresets(hostID);
   initLeftTerminal(hostID, initialPresetID);
+}
+
+function toggleTerminalMaximize() {
+  const wrapper = document.querySelector('.terminal-workspace-wrapper');
+  if (!wrapper) return;
+  isTerminalMaximized = !isTerminalMaximized;
+  if (isTerminalMaximized) {
+    wrapper.classList.add('terminal-maximized');
+  } else {
+    wrapper.classList.remove('terminal-maximized');
+  }
+  const btnEl = document.getElementById('btnToggleMaximize');
+  if (btnEl) {
+    btnEl.innerHTML = isTerminalMaximized ? `🗗 <span id="lblToggleMaximize">${t('minimize_terminal')}</span>` : `⛶ <span id="lblToggleMaximize">${t('maximize_terminal')}</span>`;
+  }
+  setTimeout(() => {
+    if (fitAddonLeft) fitAddonLeft.fit();
+    if (fitAddonRight) fitAddonRight.fit();
+  }, 80);
 }
 
 function initLeftTerminal(hostID, presetID) {

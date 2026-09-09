@@ -56,6 +56,7 @@ type Host struct {
 	ListeningPorts    string `json:"listening_ports"` // JSON serialized array of ListeningPort
 	Notes             string `json:"notes"`
 	SortOrder         int    `json:"sort_order"`
+	GroupName         string `json:"group_name"`
 }
 
 type TopConn struct {
@@ -188,7 +189,8 @@ func (d *DB) migrate() error {
 		top_connections TEXT DEFAULT '',
 		listening_ports TEXT DEFAULT '',
 		notes TEXT DEFAULT '',
-		sort_order INTEGER DEFAULT 0
+		sort_order INTEGER DEFAULT 0,
+		group_name TEXT DEFAULT ''
 	);
 
 	CREATE TABLE IF NOT EXISTS desired_rules (
@@ -263,6 +265,7 @@ func (d *DB) migrate() error {
 	_ = d.alterAddColumn("hosts", "listening_ports", "TEXT DEFAULT ''")
 	_ = d.alterAddColumn("hosts", "notes", "TEXT DEFAULT ''")
 	_ = d.alterAddColumn("hosts", "sort_order", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "group_name", "TEXT DEFAULT ''")
 
 	return nil
 }
@@ -419,7 +422,7 @@ func (d *DB) ListHosts() ([]Host, error) {
 		COALESCE(net_rx_bytes, 0), COALESCE(net_tx_bytes, 0), COALESCE(net_rx_speed_bps, 0), COALESCE(net_tx_speed_bps, 0),
 		COALESCE(internet_online, 0), COALESCE(internet_latency_ms, 0), COALESCE(public_ip, ''), COALESCE(active_conn_count, 0),
 		COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, ''),
-		COALESCE(notes, ''), COALESCE(sort_order, 0)
+		COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, '')
 		FROM hosts ORDER BY sort_order ASC, id ASC`)
 	if err != nil {
 		return nil, err
@@ -435,7 +438,7 @@ func (d *DB) ListHosts() ([]Host, error) {
 			&h.NetRxBytes, &h.NetTxBytes, &h.NetRxSpeedBps, &h.NetTxSpeedBps,
 			&online, &h.InternetLatencyMs, &h.PublicIP, &h.ActiveConnCount,
 			&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts,
-			&h.Notes, &h.SortOrder); err != nil {
+			&h.Notes, &h.SortOrder, &h.GroupName); err != nil {
 			return nil, err
 		}
 		h.InternetOnline = online == 1
@@ -455,13 +458,13 @@ func (d *DB) GetHost(id int64) (*Host, error) {
 		COALESCE(net_rx_bytes, 0), COALESCE(net_tx_bytes, 0), COALESCE(net_rx_speed_bps, 0), COALESCE(net_tx_speed_bps, 0),
 		COALESCE(internet_online, 0), COALESCE(internet_latency_ms, 0), COALESCE(public_ip, ''), COALESCE(active_conn_count, 0),
 		COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, ''),
-		COALESCE(notes, ''), COALESCE(sort_order, 0)
+		COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, '')
 		FROM hosts WHERE id = ?`, id).Scan(
 		&h.ID, &h.Name, &h.Host, &h.Port, &h.User, &h.CustomKey, &h.Status, &h.OSInfo, &h.Kernel, &h.Uptime, &h.CPULoad, &h.RAMUsedBytes, &h.RAMTotalBytes, &h.DiskUsedBytes, &h.DiskTotalBytes, &h.LifecycleScore, &h.LifecycleNotes, &inspected, &h.CreatedAt,
 		&h.NetRxBytes, &h.NetTxBytes, &h.NetRxSpeedBps, &h.NetTxSpeedBps,
 		&online, &h.InternetLatencyMs, &h.PublicIP, &h.ActiveConnCount,
 		&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts,
-		&h.Notes, &h.SortOrder,
+		&h.Notes, &h.SortOrder, &h.GroupName,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -479,7 +482,7 @@ func (d *DB) GetHost(id int64) (*Host, error) {
 func (d *DB) CreateHost(h *Host) (int64, error) {
 	var maxOrder int
 	_ = d.QueryRow(`SELECT COALESCE(MAX(sort_order), 0) FROM hosts`).Scan(&maxOrder)
-	res, err := d.Exec(`INSERT INTO hosts (name, host, port, user, custom_key, status, notes, sort_order) VALUES (?, ?, ?, ?, ?, 'unknown', ?, ?)`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, maxOrder+1)
+	res, err := d.Exec(`INSERT INTO hosts (name, host, port, user, custom_key, status, notes, sort_order, group_name) VALUES (?, ?, ?, ?, ?, 'unknown', ?, ?, ?)`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, maxOrder+1, h.GroupName)
 	if err != nil {
 		return 0, err
 	}
@@ -487,10 +490,9 @@ func (d *DB) CreateHost(h *Host) (int64, error) {
 }
 
 func (d *DB) UpdateHost(h *Host) error {
-	_, err := d.Exec(`UPDATE hosts SET name=?, host=?, port=?, user=?, custom_key=?, notes=? WHERE id=?`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, h.ID)
+	_, err := d.Exec(`UPDATE hosts SET name=?, host=?, port=?, user=?, custom_key=?, notes=?, group_name=? WHERE id=?`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, h.GroupName, h.ID)
 	return err
 }
-
 func (d *DB) UpdateHostNotes(id int64, notes string) error {
 	_, err := d.Exec(`UPDATE hosts SET notes=? WHERE id=?`, notes, id)
 	return err
@@ -901,13 +903,13 @@ func (d *DB) ImportSnapshot(payload *SnapshotPayload) error {
 			ram_used_bytes, ram_total_bytes, disk_used_bytes, disk_total_bytes, lifecycle_score, lifecycle_notes,
 			created_at, net_rx_bytes, net_tx_bytes, net_rx_speed_bps, net_tx_speed_bps,
 			internet_online, internet_latency_ms, public_ip, active_conn_count, failed_logins_count,
-			top_connections, listening_ports, notes, sort_order
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			top_connections, listening_ports, notes, sort_order, group_name
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			h.ID, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Status, h.OSInfo, h.Kernel, h.Uptime, h.CPULoad,
 			h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, h.LifecycleScore, h.LifecycleNotes,
 			h.CreatedAt, h.NetRxBytes, h.NetTxBytes, h.NetRxSpeedBps, h.NetTxSpeedBps,
 			onlineInt, h.InternetLatencyMs, h.PublicIP, h.ActiveConnCount, h.FailedLoginsCount,
-			h.TopConnections, h.ListeningPorts, h.Notes, h.SortOrder,
+			h.TopConnections, h.ListeningPorts, h.Notes, h.SortOrder, h.GroupName,
 		)
 		if err != nil {
 			return fmt.Errorf("insert host %d: %w", h.ID, err)

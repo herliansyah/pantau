@@ -120,3 +120,15 @@ _Avoid_: Alert popup, banner alert, notification snackbar
 **Confirmation Dialog**:
 Dialog aksi ringkas berbasis Promise yang menyajikan konfirmasi eksplisit sebelum eksekusi aksi destruktif atau peringatan batas sistem, menggantikan dialog konfirmasi bawaan peramban.
 _Avoid_: Confirm popup, prompt dialog, native confirmation
+
+**Host Group**:
+Pengelompokan logis untuk satu atau lebih Host pada dashboard Pantau berdasarkan fungsi server, lingkungan (environment), atau lokasi (misal: "Server Utama", "Testing", "Database Cluster").
+_Avoid_: Server cluster, host tag, machine folder
+
+**Terminal Maximize**:
+Mode pembesaran antarmuka terminal interaktif hingga memenuhi seluruh area pandang peramban (full-viewport) untuk ruang operasional shell yang lebih luas tanpa memutus sesi SSH atau merusak layout modal.
+_Avoid_: Native fullscreen, modal expand, popout window
+
+**Port Auto-Scan**:
+Mekanisme deteksi ketersediaan port jaringan lokal secara berurutan saat server web Pantau diinisialisasi dengan port default, untuk menghindari kegagalan proses akibat port yang telah terpakai.
+_Avoid_: Port hopping, dynamic port binding
