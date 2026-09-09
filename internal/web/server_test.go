@@ -236,3 +236,32 @@ func TestShellStaticHTML(t *testing.T) {
 		}
 	}
 }
+
+func TestServerSetVersion(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-ver-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	srv := NewServer(db, nil, nil)
+	srv.SetVersion("v0.5.2-alpha")
+
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, `<span class="footer-badge">v0.5.2-alpha</span>`) {
+		t.Errorf("expected custom version in footer badge, got body without it")
+	}
+	if strings.Contains(body, `<span class="footer-badge">v1.0.0</span>`) {
+		t.Errorf("expected default v1.0.0 to be replaced in footer badge")
+	}
+}

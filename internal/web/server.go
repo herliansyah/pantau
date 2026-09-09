@@ -1,9 +1,11 @@
 package web
 
 import (
-	"encoding/json"
+	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"os"
@@ -12,7 +14,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/bcrypt"
 	"github.com/pkg/sftp"
@@ -40,6 +41,7 @@ type Server struct {
 	snapshotMgr *snapshot.Manager
 	mux         *http.ServeMux
 	sessions    sync.Map // token -> expiry
+	htmlContent []byte
 }
 
 func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) *Server {
@@ -51,6 +53,7 @@ func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) 
 		transferMgr: transfer.NewManager(db, nil),
 		snapshotMgr: snapshot.NewManager(db, nil),
 		mux:         http.NewServeMux(),
+		htmlContent: embeddedHTML,
 	}
 	s.routes()
 	return s
@@ -65,6 +68,12 @@ func (s *Server) SetTransferManager(tm *transfer.Manager) {
 }
 func (s *Server) SetSnapshotManager(sm *snapshot.Manager) {
 	s.snapshotMgr = sm
+}
+
+func (s *Server) SetVersion(version string) {
+	if version != "" {
+		s.htmlContent = bytes.Replace(embeddedHTML, []byte(`<span class="footer-badge">v1.0.0</span>`), []byte(fmt.Sprintf(`<span class="footer-badge">%s</span>`, html.EscapeString(version))), 1)
+	}
 }
 
 
@@ -1320,7 +1329,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(embeddedHTML))
+	_, _ = w.Write(s.htmlContent)
 }
 
 func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {
