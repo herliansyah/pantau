@@ -104,3 +104,7 @@ _Avoid_: Custom sort, priority list, pinned hosts
 **View Mode**:
 Format tata letak penyajian daftar Host pada dashboard Pantau, dalam bentuk kartu visual (Grid View) atau baris tabel kompak (List View).
 _Avoid_: Layout style, display type, presentation format
+
+**Protected Path**:
+Lokasi direktori sistem operasi atau file inti pada Host Linux yang dibatasi secara permanen dari operasi manipulasi (tulis, ubah, unggah, dan hapus) melalui antarmuka manajemen file.
+_Avoid_: Blocked folder, blacklisted path, system lock
