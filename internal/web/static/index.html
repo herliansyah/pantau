@@ -728,6 +728,11 @@ const I18N = {
     "failed_read_file": "Failed to read file",
     "confirm_delete_file": "Delete {path}?",
     "large_folder_warn": "This folder is {size} (> 2 GB). Direct browser download may disconnect if your connection is unstable.\n\nContinue download anyway?",
+    "protected_path": "Protected Path",
+    "cannot_modify_protected": "Protected Path: cannot modify system location.",
+    "cannot_upload_protected": "Protected Path: cannot upload to system location.",
+    "cannot_delete_protected": "Protected Path: cannot delete system location.",
+    "file_exists_overwrite": "File '{name}' already exists. Overwrite?",
     "edit_file": "Edit File",
     "btn_save": "\ud83d\udcbe Save",
     "tab_settings_general": "\ud83d\udd11 General & Access",
@@ -991,6 +996,11 @@ const I18N = {
     "failed_read_file": "Gagal membaca berkas",
     "confirm_delete_file": "Hapus {path}?",
     "large_folder_warn": "Folder ini berukuran {size} (> 2 GB). Unduh langsung via browser rentan putus jika koneksi tidak stabil.\n\nTetap lanjutkan unduh?",
+    "protected_path": "Protected Path",
+    "cannot_modify_protected": "Protected Path: tidak dapat memodifikasi lokasi sistem.",
+    "cannot_upload_protected": "Protected Path: tidak dapat mengunggah ke lokasi sistem.",
+    "cannot_delete_protected": "Protected Path: tidak dapat menghapus lokasi sistem.",
+    "file_exists_overwrite": "Berkas '{name}' sudah ada. Timpa?",
     "edit_file": "Edit Berkas",
     "btn_save": "\ud83d\udcbe Simpan",
     "tab_settings_general": "\ud83d\udd11 Umum & Akses",
@@ -2176,14 +2186,18 @@ async function loadFiles(path) {
     return;
   }
   const data = await res.json();
+  const isProtectedDir = !!data.is_protected;
   const parent = path === '/' ? '/' : path.substring(0, path.lastIndexOf('/')) || '/';
   content.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-      <div style="font-weight: 600; font-family: monospace;">${t('path_label')} ${escapeHtml(data.path)}</div>
+      <div style="font-weight: 600; font-family: monospace; display: flex; align-items: center; gap: 8px;">
+        <span>${t('path_label')} ${escapeHtml(data.path)}</span>
+        ${isProtectedDir ? `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;">🔒 ${t('protected_path')}</span>` : ''}
+      </div>
       <div style="display: flex; gap: 8px;">
         <button class="btn btn-sm" onclick="loadFiles('${parent}')">${t('up_dir')}</button>
         <input type="file" id="fileUploadInput" style="display: none;" onchange="uploadFile('${data.path}')" />
-        <button class="btn btn-primary btn-sm" onclick="document.getElementById('fileUploadInput').click()">${t('upload_file')}</button>
+        <button class="btn btn-primary btn-sm" ${isProtectedDir ? 'disabled title="' + t('cannot_upload_protected') + '"' : ''} onclick="document.getElementById('fileUploadInput').click()">${t('upload_file')}</button>
       </div>
     </div>
     <table>
@@ -2191,12 +2205,14 @@ async function loadFiles(path) {
       <tbody>
         ${(data.files || []).map(f => {
           const fullPath = data.path === '/' ? '/' + f.name : data.path + '/' + f.name;
+          const isItemProtected = !!(f.is_protected || isProtectedDir);
           return `
           <tr>
             <td>
               ${f.is_dir 
                 ? '<a class="folder-link" href="javascript:void(0)" onclick="loadFiles(\'' + fullPath + '\')"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>' + escapeHtml(f.name) + '</b></a>' 
                 : '📄 ' + escapeHtml(f.name)}
+              ${isItemProtected ? '<span title="' + t('protected_path') + '" style="margin-left: 6px; font-size: 0.85em;">🔒</span>' : ''}
             </td>
             <td>${f.is_dir ? '-' : formatBytes(f.size)}</td>
             <td>${f.mode}</td>
@@ -2204,13 +2220,13 @@ async function loadFiles(path) {
             <td style="white-space: nowrap;">
               <div class="action-grid">
                 ${!f.is_dir 
-                  ? `<button class="btn btn-primary btn-sm" onclick="openEditor('${escapeHtml(fullPath)}')">${t('edit')}</button>` 
+                  ? `<button class="btn btn-primary btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openEditor('${escapeHtml(fullPath)}')">${t('edit')}</button>` 
                   : '<span style="display:inline-block;"></span>'}
                 ${f.is_dir 
                   ? `<button class="btn btn-sm" title="Download Folder Archive" onclick="downloadFolder('${escapeHtml(fullPath)}')">⬇️</button>` 
                   : `<a class="btn btn-sm" title="Download File" href="/api/hosts/${currentHost.id}/files/download?path=${encodeURIComponent(fullPath)}">⬇️</a>`}
                 <button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(fullPath)}', ${f.is_dir})">${t('copy_to_host')}</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteRemoteFile('${escapeHtml(fullPath)}', '${escapeHtml(data.path)}')">🗑️</button>
+                <button class="btn btn-danger btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_delete_protected') + '"' : ''} onclick="deleteRemoteFile('${escapeHtml(fullPath)}', '${escapeHtml(data.path)}')">🗑️</button>
               </div>
             </td>
           </tr>
@@ -2237,25 +2253,53 @@ async function downloadFolder(path) {
   window.location.href = '/api/hosts/' + currentHost.id + '/files/download?path=' + encodeURIComponent(path);
 }
 
-async function uploadFile(targetDir) {
+async function uploadFile(targetDir, overwrite = false) {
   const input = document.getElementById('fileUploadInput');
   if (!input.files.length) return;
+  const file = input.files[0];
   const formData = new FormData();
-  formData.append('file', input.files[0]);
-  await fetch('/api/hosts/' + currentHost.id + '/files/upload?dir=' + encodeURIComponent(targetDir), {
+  formData.append('file', file);
+  const url = '/api/hosts/' + currentHost.id + '/files/upload?dir=' + encodeURIComponent(targetDir) + (overwrite ? '&overwrite=true' : '');
+  const res = await fetch(url, {
     method: 'POST',
     body: formData
   });
+  if (res.status === 409) {
+    if (confirm(t('file_exists_overwrite').replace('{name}', file.name))) {
+      return uploadFile(targetDir, true);
+    }
+    input.value = '';
+    return;
+  }
+  if (res.status === 403) {
+    alert(t('cannot_upload_protected'));
+    input.value = '';
+    return;
+  }
+  if (!res.ok) {
+    alert('Failed to upload file');
+    input.value = '';
+    return;
+  }
+  input.value = '';
   loadFiles(targetDir);
 }
 
 async function deleteRemoteFile(path, parentDir) {
   if (!confirm(t('confirm_delete_file').replace('{path}', path))) return;
-  await fetch('/api/hosts/' + currentHost.id + '/files/delete', {
+  const res = await fetch('/api/hosts/' + currentHost.id + '/files/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path })
   });
+  if (res.status === 403) {
+    alert(t('cannot_delete_protected'));
+    return;
+  }
+  if (!res.ok) {
+    alert('Failed to delete');
+    return;
+  }
   loadFiles(parentDir);
 }
 
@@ -2288,6 +2332,8 @@ async function saveEditorFile() {
   if (res.ok) {
     alert('File saved successfully!');
     closeModal('editorModal');
+  } else if (res.status === 403) {
+    alert(t('cannot_modify_protected'));
   } else {
     alert('Failed to save file');
   }

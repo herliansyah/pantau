@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/bcrypt"
+	"github.com/pkg/sftp"
 
 	"pantau/internal/inspector"
 	"pantau/internal/notify"
@@ -542,6 +543,55 @@ func (s *Server) handleRuleRoute(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 }
 
+var protectedSystemPrefixes = []string{
+	"/bin", "/boot", "/dev", "/etc", "/lib", "/lib64", "/lib32", "/proc", "/root", "/sbin", "/sys", "/usr", "/run",
+}
+
+func isProtectedPathString(p string) bool {
+	clean := path.Clean(p)
+	if !path.IsAbs(clean) {
+		clean = path.Clean("/" + clean)
+	}
+	if clean == "/" || clean == "." {
+		return true
+	}
+	for _, prefix := range protectedSystemPrefixes {
+		if clean == prefix || strings.HasPrefix(clean, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func isProtectedPath(p string, sftpClient *sftp.Client) bool {
+	if isProtectedPathString(p) {
+		return true
+	}
+	if sftpClient == nil {
+		return false
+	}
+	clean := path.Clean(p)
+	if !path.IsAbs(clean) {
+		clean = path.Clean("/" + clean)
+	}
+
+	curr := clean
+	for curr != "" && curr != "." {
+		if real, err := sftpClient.RealPath(curr); err == nil {
+			if isProtectedPathString(real) {
+				return true
+			}
+			break
+		}
+		parent := path.Dir(curr)
+		if parent == curr {
+			break
+		}
+		curr = parent
+	}
+	return false
+}
+
 func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.ResponseWriter, r *http.Request) {
 	if len(subparts) == 0 {
 		http.Error(w, "missing file action", http.StatusBadRequest)
@@ -569,38 +619,50 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 	action := subparts[0]
 	switch action {
 	case "list":
-		path := r.URL.Query().Get("path")
-		if path == "" {
-			path = "/"
+		dirPath := r.URL.Query().Get("path")
+		if dirPath == "" {
+			dirPath = "/"
 		}
-		entries, err := sftpClient.ReadDir(path)
+		entries, err := sftpClient.ReadDir(dirPath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		type FileEntry struct {
-			Name    string `json:"name"`
-			IsDir   bool   `json:"is_dir"`
-			Size    int64  `json:"size"`
-			Mode    string `json:"mode"`
-			ModTime string `json:"mod_time"`
+			Name        string `json:"name"`
+			IsDir       bool   `json:"is_dir"`
+			Size        int64  `json:"size"`
+			Mode        string `json:"mode"`
+			ModTime     string `json:"mod_time"`
+			IsProtected bool   `json:"is_protected"`
 		}
+		dirProtected := isProtectedPath(dirPath, sftpClient)
 		var list []FileEntry
 		for _, e := range entries {
+			entryPath := path.Join(dirPath, e.Name())
+			itemProtected := dirProtected
+			if !itemProtected {
+				if isProtectedPathString(entryPath) {
+					itemProtected = true
+				} else if e.Mode()&os.ModeSymlink != 0 {
+					itemProtected = isProtectedPath(entryPath, sftpClient)
+				}
+			}
 			list = append(list, FileEntry{
-				Name:    e.Name(),
-				IsDir:   e.IsDir(),
-				Size:    e.Size(),
-				Mode:    e.Mode().String(),
-				ModTime: e.ModTime().Format("2006-01-02 15:04"),
+				Name:        e.Name(),
+				IsDir:       e.IsDir(),
+				Size:        e.Size(),
+				Mode:        e.Mode().String(),
+				ModTime:     e.ModTime().Format("2006-01-02 15:04"),
+				IsProtected: itemProtected,
 			})
 		}
 		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"path":  path,
-			"files": list,
+			"path":         dirPath,
+			"is_protected": dirProtected,
+			"files":        list,
 		})
-
 	case "read":
 		path := r.URL.Query().Get("path")
 		if path == "" {
@@ -635,6 +697,10 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
+		if isProtectedPath(req.Path, sftpClient) {
+			http.Error(w, "protected path: cannot modify system location", http.StatusForbidden)
+			return
+		}
 		f, err := sftpClient.Create(req.Path)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -658,6 +724,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		if targetDir == "" {
 			targetDir = "/"
 		}
+		overwrite := r.URL.Query().Get("overwrite") == "true"
 		file, header, err := r.FormFile("file")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -666,6 +733,16 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		defer file.Close()
 
 		destPath := path.Join(targetDir, header.Filename)
+		if isProtectedPath(destPath, sftpClient) {
+			http.Error(w, "protected path: cannot upload to system location", http.StatusForbidden)
+			return
+		}
+		if !overwrite {
+			if _, err := sftpClient.Stat(destPath); err == nil {
+				http.Error(w, "file already exists", http.StatusConflict)
+				return
+			}
+		}
 		dest, err := sftpClient.Create(destPath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -746,6 +823,10 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
+		if isProtectedPath(req.Path, sftpClient) {
+			http.Error(w, "protected path: cannot delete system location", http.StatusForbidden)
+			return
+		}
 		_ = sftpClient.Remove(req.Path)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 
@@ -760,6 +841,10 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		if isProtectedPath(req.Path, sftpClient) {
+			http.Error(w, "protected path: cannot modify system location", http.StatusForbidden)
 			return
 		}
 		modeInt, _ := strconv.ParseUint(req.Mode, 8, 32)
