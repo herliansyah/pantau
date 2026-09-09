@@ -14,6 +14,7 @@ import (
 
 	"pantau/internal/inspector"
 	"pantau/internal/notify"
+	"pantau/internal/snapshot"
 	"pantau/internal/sshrunner"
 	"pantau/internal/store"
 	"pantau/internal/web"
@@ -54,8 +55,12 @@ func main() {
 	defer cancel()
 
 	go startInspectionWorker(ctx, db, ins)
+	snapshotMgr := snapshot.NewManager(db, nil)
+	go snapshotMgr.Start(ctx)
+
 
 	server := web.NewServer(db, ins, dispatcher)
+	server.SetSnapshotManager(snapshotMgr)
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: server,

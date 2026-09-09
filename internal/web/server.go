@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"pantau/internal/inspector"
 	"pantau/internal/notify"
 	"pantau/internal/sshrunner"
+	"pantau/internal/snapshot"
 	"pantau/internal/store"
 	"pantau/internal/transfer"
 )
@@ -34,6 +36,7 @@ type Server struct {
 	dispatcher  *notify.Dispatcher
 	provisioner sshrunner.KeyProvisioner
 	transferMgr *transfer.Manager
+	snapshotMgr *snapshot.Manager
 	mux         *http.ServeMux
 	sessions    sync.Map // token -> expiry
 }
@@ -45,6 +48,7 @@ func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) 
 		dispatcher:  disp,
 		provisioner: sshrunner.DefaultKeyProvisioner,
 		transferMgr: transfer.NewManager(db, nil),
+		snapshotMgr: snapshot.NewManager(db, nil),
 		mux:         http.NewServeMux(),
 	}
 	s.routes()
@@ -58,6 +62,10 @@ func (s *Server) SetKeyProvisioner(p sshrunner.KeyProvisioner) {
 func (s *Server) SetTransferManager(tm *transfer.Manager) {
 	s.transferMgr = tm
 }
+func (s *Server) SetSnapshotManager(sm *snapshot.Manager) {
+	s.snapshotMgr = sm
+}
+
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
@@ -94,6 +102,14 @@ func (s *Server) routes() {
 	// WebSockets (Terminal & Docker Logs)
 	s.mux.HandleFunc("/ws/terminal", s.handleWSTerminal)
 	s.mux.HandleFunc("/ws/docker/logs", s.handleWSDockerLogs)
+
+	// Snapshots & GitHub Backup
+	s.mux.HandleFunc("/api/snapshot/status", s.handleSnapshotStatus)
+	s.mux.HandleFunc("/api/snapshot/bootstrap/start-fresh", s.handleSnapshotStartFresh)
+	s.mux.HandleFunc("/api/snapshot/export", s.authMiddleware(s.handleSnapshotExport))
+	s.mux.HandleFunc("/api/snapshot/import", s.handleSnapshotImport)
+	s.mux.HandleFunc("/api/snapshot/github/sync", s.authMiddleware(s.handleSnapshotGitHubSync))
+	s.mux.HandleFunc("/api/snapshot/github/restore", s.handleSnapshotGitHubRestore)
 }
 
 func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -726,12 +742,34 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		if poll == "" {
 			poll = "300"
 		}
+		ghEnabled, _ := s.db.GetSetting("github_backup_enabled")
+		ghRepo, _ := s.db.GetSetting("github_repo")
+		ghToken, _ := s.db.GetSetting("github_token")
+		ghBranch, _ := s.db.GetSetting("github_branch")
+		ghPath, _ := s.db.GetSetting("github_file_path")
+		snapPass, _ := s.db.GetSetting("snapshot_passphrase")
+		backupInterval, _ := s.db.GetSetting("backup_interval_hours")
+		if backupInterval == "" {
+			backupInterval = "24"
+		}
+		lastBackupTime, _ := s.db.GetSetting("last_backup_time")
+		lastBackupStatus, _ := s.db.GetSetting("last_backup_status")
+
 		writeJSON(w, http.StatusOK, map[string]string{
-			"ssh_public_key":    pubKey,
-			"telegram_token":    tgToken,
-			"telegram_chat_id":  tgChat,
-			"webhook_url":       webhook,
-			"poll_interval_sec": poll,
+			"ssh_public_key":        pubKey,
+			"telegram_token":        tgToken,
+			"telegram_chat_id":      tgChat,
+			"webhook_url":           webhook,
+			"poll_interval_sec":     poll,
+			"github_backup_enabled": ghEnabled,
+			"github_repo":           ghRepo,
+			"github_token":          ghToken,
+			"github_branch":         ghBranch,
+			"github_file_path":      ghPath,
+			"snapshot_passphrase":   snapPass,
+			"backup_interval_hours": backupInterval,
+			"last_backup_time":      lastBackupTime,
+			"last_backup_status":    lastBackupStatus,
 		})
 	case http.MethodPost:
 		var req map[string]string
@@ -998,4 +1036,245 @@ func (s *Server) handleTransferDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Error(w, "not found", http.StatusNotFound)
+}
+
+func (s *Server) checkAuthOrFresh(r *http.Request) bool {
+	fresh, _ := s.db.IsFresh()
+	if fresh {
+		return true
+	}
+	cookie, err := r.Cookie("pantau_session")
+	if err != nil || cookie.Value == "" {
+		return false
+	}
+	exp, ok := s.sessions.Load(cookie.Value)
+	if !ok || time.Now().After(exp.(time.Time)) {
+		return false
+	}
+	return true
+}
+
+func (s *Server) handleSnapshotStatus(w http.ResponseWriter, r *http.Request) {
+	fresh, _ := s.db.IsFresh()
+	hosts, _ := s.db.ListHosts()
+	ghEnabled, _ := s.db.GetSetting("github_backup_enabled")
+	ghRepo, _ := s.db.GetSetting("github_repo")
+	lastTime, _ := s.db.GetSetting("last_backup_time")
+	lastStatus, _ := s.db.GetSetting("last_backup_status")
+	interval, _ := s.db.GetSetting("backup_interval_hours")
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"fresh":                 fresh,
+		"host_count":            len(hosts),
+		"github_backup_enabled": ghEnabled == "1",
+		"github_repo":           ghRepo,
+		"last_backup_time":      lastTime,
+		"last_backup_status":    lastStatus,
+		"backup_interval_hours": interval,
+	})
+}
+
+func (s *Server) handleSnapshotStartFresh(w http.ResponseWriter, r *http.Request) {
+	if !s.checkAuthOrFresh(r) {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	if err := s.db.MarkBootstrapCompleted(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
+}
+
+func (s *Server) handleSnapshotExport(w http.ResponseWriter, r *http.Request) {
+	passphrase := r.URL.Query().Get("passphrase")
+	if r.Method == http.MethodPost {
+		var req struct {
+			Passphrase string `json:"passphrase"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		if req.Passphrase != "" {
+			passphrase = req.Passphrase
+		}
+	}
+	if strings.TrimSpace(passphrase) == "" {
+		stored, _ := s.db.GetSetting("snapshot_passphrase")
+		passphrase = stored
+	}
+	if strings.TrimSpace(passphrase) == "" {
+		http.Error(w, `{"error":"passphrase required"}`, http.StatusBadRequest)
+		return
+	}
+
+	payload, err := s.db.ExportSnapshot()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("export error: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	enc, err := snapshot.Encrypt(payload, passphrase)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("encrypt error: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", `attachment; filename="pantau-state.enc"`)
+	w.Header().Set("Content-Length", strconv.Itoa(len(enc)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(enc)
+}
+
+func (s *Server) handleSnapshotImport(w http.ResponseWriter, r *http.Request) {
+	if !s.checkAuthOrFresh(r) {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var data []byte
+	var passphrase string
+
+	ct := r.Header.Get("Content-Type")
+	if strings.HasPrefix(ct, "multipart/form-data") {
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			http.Error(w, "failed to parse multipart form", http.StatusBadRequest)
+			return
+		}
+		passphrase = r.FormValue("passphrase")
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			http.Error(w, "file field required", http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+		data, err = io.ReadAll(file)
+		if err != nil {
+			http.Error(w, "failed to read uploaded file", http.StatusBadRequest)
+			return
+		}
+	} else {
+		var req struct {
+			Data       string `json:"data"`
+			Passphrase string `json:"passphrase"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		passphrase = req.Passphrase
+		var err error
+		data, err = base64.StdEncoding.DecodeString(req.Data)
+		if err != nil {
+			http.Error(w, "invalid base64 data", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if len(data) == 0 || strings.TrimSpace(passphrase) == "" {
+		http.Error(w, `{"error":"file data and passphrase are required"}`, http.StatusBadRequest)
+		return
+	}
+
+	payload, err := snapshot.Decrypt(data, passphrase)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+		return
+	}
+
+	if err := s.db.ImportSnapshot(payload); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": fmt.Sprintf("import failed: %v", err)})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"ok":             true,
+		"hosts_imported": len(payload.Hosts),
+		"message":        "System snapshot restored successfully",
+	})
+}
+
+func (s *Server) handleSnapshotGitHubSync(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Repo       string `json:"repo"`
+		Token      string `json:"token"`
+		Branch     string `json:"branch"`
+		Path       string `json:"path"`
+		Passphrase string `json:"passphrase"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if req.Repo != "" {
+		_ = s.db.SetSetting("github_repo", snapshot.CleanRepo(req.Repo))
+	}
+	if req.Token != "" {
+		_ = s.db.SetSetting("github_token", req.Token)
+	}
+	if req.Branch != "" {
+		_ = s.db.SetSetting("github_branch", req.Branch)
+	}
+	if req.Path != "" {
+		_ = s.db.SetSetting("github_file_path", req.Path)
+	}
+	if req.Passphrase != "" {
+		_ = s.db.SetSetting("snapshot_passphrase", req.Passphrase)
+	}
+
+	if err := s.snapshotMgr.SyncNow(r.Context()); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Synced to GitHub successfully"})
+}
+
+func (s *Server) handleSnapshotGitHubRestore(w http.ResponseWriter, r *http.Request) {
+	if !s.checkAuthOrFresh(r) {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Repo       string `json:"repo"`
+		Token      string `json:"token"`
+		Branch     string `json:"branch"`
+		Path       string `json:"path"`
+		Passphrase string `json:"passphrase"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	if req.Repo == "" {
+		req.Repo, _ = s.db.GetSetting("github_repo")
+	}
+	if req.Token == "" {
+		req.Token, _ = s.db.GetSetting("github_token")
+	}
+	if req.Passphrase == "" {
+		req.Passphrase, _ = s.db.GetSetting("snapshot_passphrase")
+	}
+
+	if req.Repo == "" || req.Token == "" || req.Passphrase == "" {
+		http.Error(w, `{"error":"repo, token, and passphrase are required"}`, http.StatusBadRequest)
+		return
+	}
+
+	if err := s.snapshotMgr.RestoreFromGitHub(r.Context(), req.Repo, req.Token, req.Branch, req.Path, req.Passphrase); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Snapshot successfully restored from GitHub"})
 }

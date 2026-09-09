@@ -68,4 +68,15 @@ _Avoid_: Open port list, firewall rule
 Ringkasan koneksi TCP/UDP aktif pada Host yang memetakan alamat IP klien eksternal teratas, port tujuan, dan proses yang melayaninya.
 _Avoid_: Netstat dump, raw connections
 
+**System Snapshot**:
+Arsip mandiri terenkripsi yang memuat seluruh basis data Pantau (konfigurasi Host, kredensial SSH, aturan Desired State, dan pengaturan aplikasi).
+_Avoid_: Database dump, backup archive, config export
+
+**Snapshot Passphrase**:
+Kunci rahasia berbasis frasa sandi dari pengguna yang digunakan untuk derivasi kunci enkripsi (AES-256-GCM) sebelum System Snapshot disimpan atau dipulihkan.
+_Avoid_: Master password, backup pin, encryption key
+
+**Remote Storage Provider**:
+Konektor penyimpanan eksternal (GitHub Private Repository) untuk sinkronisasi System Snapshot secara berkala melalui protokol HTTPS API.
+_Avoid_: Cloud storage, backup destination, git sync
 
