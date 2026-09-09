@@ -27,7 +27,7 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 4
 footer a { color: #38bdf8; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
 footer a:hover { color: #7dd3fc; text-decoration: underline; }
 .logo { font-size: 1.25rem; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 8px; }
-.btn { background: var(--card-border); color: var(--text); border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.15s; }
+.btn { background: var(--card-border); color: var(--text); border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.15s; white-space: nowrap; }
 .btn:hover { opacity: 0.9; }
 .btn-primary { background: var(--primary); }
 .btn-primary:hover { background: var(--primary-hover); }
@@ -85,13 +85,34 @@ input, select, textarea { background: #0f172a; border: 1px solid var(--card-bord
 select, select option { background-color: #1e293b !important; color: #f8fafc !important; }
 .folder-link { color: #38bdf8 !important; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
 .folder-link:hover { color: #7dd3fc !important; text-decoration: underline; }
-.action-grid { display: inline-grid; grid-template-columns: 65px 38px 122px 38px; gap: 6px; align-items: center; }
+.action-grid { display: inline-grid; grid-template-columns: 65px 38px auto 38px; gap: 6px; align-items: center; }
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .alert-bar { background: rgba(239, 68, 68, 0.15); border-left: 4px solid var(--danger); padding: 12px 16px; margin-bottom: 16px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
 pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; overflow-x: auto; color: #38bdf8; max-height: 250px; }
 .terminal-container { flex: 1; height: 100%; min-height: 380px; background: #000; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; }
 .terminal-container .xterm { height: 100%; }
 .CodeMirror { flex: 1; height: 100% !important; min-height: 380px; font-size: 13px; border-radius: 6px; }
+.dashboard-toolbar { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; }
+.search-box { display: flex; align-items: center; gap: 8px; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 0 10px; flex: 1; min-width: 260px; max-width: 460px; }
+.search-box input { border: none; background: transparent; padding: 8px 4px; outline: none; }
+.search-box input:focus { outline: none; }
+.toolbar-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.view-mode-toggle { display: inline-flex; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 2px; }
+.view-mode-toggle .view-btn { background: transparent; border: none; border-radius: 4px; padding: 4px 10px; color: var(--text-muted); cursor: pointer; }
+.view-mode-toggle .view-btn.active { background: var(--card-border); color: #f8fafc; }
+.host-list-view { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; overflow-x: auto; }
+.host-list-table { width: 100%; border-collapse: collapse; }
+.host-list-table th { background: rgba(15, 23, 42, 0.6); padding: 12px 14px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.host-list-table td { padding: 12px 14px; border-bottom: 1px solid var(--card-border); font-size: 0.85rem; vertical-align: middle; }
+.host-list-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+.host-note-badge { background: rgba(56, 189, 248, 0.08); border: 1px dashed rgba(56, 189, 248, 0.3); color: #93c5fd; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; line-height: 1.35; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; cursor: pointer; transition: all 0.15s; }
+.host-note-badge:hover { border-color: #60a5fa; background: rgba(56, 189, 248, 0.15); color: #bfdbfe; }
+.drag-handle { cursor: grab; color: var(--text-muted); user-select: none; font-size: 1rem; padding: 2px 4px; border-radius: 4px; }
+.drag-handle:hover { color: #38bdf8; background: rgba(56, 189, 248, 0.1); }
+.card.drag-target { outline: 2px dashed #38bdf8; opacity: 0.85; }
+.card.dragging { opacity: 0.4; }
+.host-list-table tr.drag-target td { background: rgba(56, 189, 248, 0.15) !important; }
+.host-list-table tr.dragging td { opacity: 0.4; }
 </style>
 </head>
 <body>
@@ -101,10 +122,18 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
     <div style="display: flex; justify-content: flex-end;">
       <button class="btn btn-sm" onclick="toggleLanguage()" id="loginLangBtn" title="Switch Language">🌐 EN</button>
     </div>
-    <h2 style="text-align: center; color: #60a5fa;">PANTAU</h2>
-    <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center;" data-i18n="brand_subtitle">Agentless Server Management</p>
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+      <div style="width: 54px; height: 54px; border-radius: 12px; background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.35); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(59, 130, 246, 0.25);">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+      </div>
+      <h2 style="text-align: center; color: #60a5fa; margin: 0; font-size: 1.5rem; letter-spacing: 1px;">PANTAU</h2>
+    </div>
+    <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-top: -6px;" data-i18n="brand_subtitle">Agentless Server Management</p>
     <div class="form-group">
-      <input type="password" id="loginPassword" placeholder="Admin Password" data-i18n-placeholder="admin_password" onkeyup="if(event.key==='Enter') doLogin()" />
+      <input type="password" id="loginPassword" autofocus placeholder="Admin Password" data-i18n-placeholder="admin_password" onkeyup="if(event.key==='Enter') doLogin()" />
     </div>
     <button class="btn btn-primary" onclick="doLogin()" data-i18n="login">Login</button>
     <div id="loginErr" style="color: var(--danger); font-size: 0.8rem; text-align: center;"></div>
@@ -112,7 +141,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <a href="javascript:void(0)" onclick="openRestoreModal()" style="font-size: 0.8rem; color: #38bdf8; text-decoration: none;" data-i18n="restore_link">🔄 Restore from Backup (GitHub / .enc File)</a>
     </div>
   </div>
-</div>>
+</div>
 
 <div id="appView" style="display: none; flex-direction: column; flex: 1;">
   <header>
@@ -121,6 +150,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
     </div>
     <div style="display: flex; gap: 10px; align-items: center;">
       <button class="btn" onclick="openTransfersModal()"><span data-i18n="transfers">📦 Transfers</span> <span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 4px;">0</span></button>
+      <button class="btn" onclick="openGlobalNotesModal()"><span data-i18n="global_notes_btn">📝 Notes</span></button>
       <span id="activeAlertBadge" style="display: none;" class="badge badge-down">0 ALERTS</span>
       <button class="btn btn-primary" onclick="openAddHostModal()" data-i18n="add_host">+ Add Host</button>
       <button class="btn" onclick="openSettingsModal()" data-i18n="settings">⚙️ Settings</button>
@@ -131,7 +161,37 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 
   <div class="container">
     <div id="alertBannerArea"></div>
+    <!-- Dashboard Toolbar (Search, Filter, Sort, View Mode) -->
+    <div class="dashboard-toolbar">
+      <div class="search-box">
+        <span style="color: var(--text-muted); font-size: 0.9rem;">🔍</span>
+        <input type="text" id="hostSearchInput" placeholder="Search hosts by name, IP, OS, notes..." data-i18n-placeholder="search_hosts_ph" oninput="onSearchFilterChange()" />
+        <button id="clearSearchBtn" class="btn btn-sm" style="display: none; padding: 2px 6px; background: transparent; color: var(--text-muted);" onclick="clearSearch()">✕</button>
+      </div>
+      <div class="toolbar-controls">
+        <select id="statusFilterSelect" onchange="onSearchFilterChange()" style="width: auto;">
+          <option value="all" data-i18n="filter_all">All Status</option>
+          <option value="healthy" data-i18n="filter_healthy">Healthy</option>
+          <option value="degraded" data-i18n="filter_degraded">Degraded</option>
+          <option value="down" data-i18n="filter_down">Down</option>
+        </select>
+        <select id="sortSelect" onchange="onSearchFilterChange()" style="width: auto;">
+          <option value="manual" data-i18n="sort_manual">Order: Manual</option>
+          <option value="name_asc" data-i18n="sort_name_asc">Name: A → Z</option>
+          <option value="name_desc" data-i18n="sort_name_desc">Name: Z → A</option>
+          <option value="score_desc" data-i18n="sort_score_desc">Score: Highest</option>
+          <option value="score_asc" data-i18n="sort_score_asc">Score: Lowest</option>
+          <option value="status" data-i18n="sort_status">Status</option>
+        </select>
+        <div class="view-mode-toggle">
+          <button class="btn btn-sm view-btn active" id="viewGridBtn" onclick="setViewMode('grid')" title="Grid View">🔲</button>
+          <button class="btn btn-sm view-btn" id="viewListBtn" onclick="setViewMode('list')" title="List View">☰</button>
+        </div>
+      </div>
+    </div>
+
     <div id="hostGrid" class="grid"></div>
+    <div id="hostList" class="host-list-view" style="display: none;"></div>
   </div>
 
   <footer>
@@ -179,9 +239,63 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <label data-i18n="custom_key">Custom SSH Private Key (Optional, leave blank to use global key)</label>
         <textarea id="hostCustomKey" rows="2" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" data-i18n-placeholder="custom_key_ph"></textarea>
       </div>
+      <div class="form-group">
+        <label data-i18n="host_note">Host Note (Optional context / guide)</label>
+        <textarea id="hostNote" rows="2" placeholder="e.g. Primary DB server, maintenance every Sunday" data-i18n-placeholder="host_note_ph"></textarea>
+      </div>
       <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
         <button class="btn" onclick="closeModal('hostModal')" data-i18n="cancel">Cancel</button>
         <button class="btn btn-primary" onclick="saveHost()" data-i18n="save_host">Save Host</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Global Notes Modal -->
+<div id="globalNotesModal" class="modal">
+  <div class="modal-content modal-dialog-md">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span>📝</span>
+        <h3 data-i18n="global_note_title">Global Operational Notes</h3>
+      </div>
+      <button class="btn btn-sm" onclick="closeModal('globalNotesModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="globalNotesModalView">
+        <div id="globalNotesModalText" style="font-size: 0.9rem; color: #cbd5e1; white-space: pre-wrap; line-height: 1.6; background: #090d16; padding: 14px 16px; border-radius: 8px; border: 1px solid var(--card-border); min-height: 120px; max-height: 50vh; overflow-y: auto;"></div>
+      </div>
+      <div id="globalNotesModalEdit" style="display: none; flex-direction: column; gap: 8px;">
+        <textarea id="globalNotesModalInput" rows="10" placeholder="Enter system-wide operational notes, shift handovers, or emergency procedures..." data-i18n-placeholder="global_note_ph" style="font-family: inherit; font-size: 0.9rem; line-height: 1.5; padding: 12px;"></textarea>
+      </div>
+      <div id="globalNotesModalViewActions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+        <button class="btn" onclick="closeModal('globalNotesModal')" data-i18n="close">Close</button>
+        <button class="btn btn-primary" onclick="startEditGlobalNotesModal()" data-i18n="edit">✏️ Edit</button>
+      </div>
+      <div id="globalNotesModalEditActions" style="display: none; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+        <button class="btn" onclick="cancelEditGlobalNotesModal()" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-primary" onclick="saveGlobalNotesModal()" data-i18n="save">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Host Note Modal -->
+<div id="hostNoteModal" class="modal">
+  <div class="modal-content modal-dialog">
+    <div class="modal-header">
+      <h3 data-i18n="edit_host_note_title">Edit Host Note</h3>
+      <button class="btn btn-sm" onclick="closeModal('hostNoteModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editNoteHostId" />
+      <div class="form-group">
+        <label id="editNoteHostNameLabel" style="font-weight: 600; color: #60a5fa;">Host</label>
+        <textarea id="editNoteContent" rows="4" placeholder="Enter notes for this host..." data-i18n-placeholder="host_note_ph"></textarea>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+        <button class="btn" onclick="closeModal('hostNoteModal')" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-primary" onclick="saveHostNote()" data-i18n="save">Save</button>
       </div>
     </div>
   </div>
@@ -706,8 +820,42 @@ const I18N = {
     "cancel_transfer_failed": "Failed to cancel transfer",
     "start_transfer_failed": "Failed to start transfer: ",
     "no_other_dest_host": "No other target host available. Add at least one more host first.",
-    "fill_all_fields": "Please fill in all fields"
-},
+    "fill_all_fields": "Please fill in all fields",
+    "global_note_title": "Global Operational Notes",
+    "global_note_ph": "Enter system-wide operational notes, shift handovers, or emergency procedures...",
+    "global_note_empty": "No global notes recorded. Click 'Edit' to add shared system notes.",
+    "search_hosts_ph": "Search hosts by name, IP, OS, notes...",
+    "filter_all": "All Status",
+    "filter_healthy": "Healthy",
+    "filter_degraded": "Degraded",
+    "filter_down": "Down",
+    "sort_manual": "Order: Manual",
+    "sort_name_asc": "Name: A → Z",
+    "sort_name_desc": "Name: Z → A",
+    "sort_score_desc": "Score: Highest",
+    "sort_score_asc": "Score: Lowest",
+    "sort_status": "Status",
+    "host_note": "Host Note",
+    "host_note_ph": "e.g. Primary DB server, maintenance every Sunday",
+    "edit_host_note_title": "Edit Host Note",
+    "no_note_set": "+ Add note...",
+    "drag_handle_title": "Drag to reorder host (Manual Order mode)",
+    "col_status": "Status",
+    "col_name": "Host",
+    "col_address": "Address",
+    "col_os": "OS",
+    "col_score": "Score",
+    "col_ram": "RAM",
+    "col_disk": "Disk",
+    "col_traffic": "Traffic",
+    "col_notes": "Notes",
+    "col_actions": "Actions",
+    "no_matching_hosts": "No hosts match the current search / filter criteria.",
+    "edit": "✏️ Edit",
+    "save": "Save",
+    "global_notes_btn": "📝 Notes",
+    "close": "Close"
+  },
   id: {
     "brand_subtitle": "Manajemen Server Agentless",
     "admin_password": "Password Admin",
@@ -935,8 +1083,42 @@ const I18N = {
     "cancel_transfer_failed": "Gagal membatalkan transfer",
     "start_transfer_failed": "Gagal memulai transfer: ",
     "no_other_dest_host": "Tidak ada host tujuan lain yang tersedia. Tambahkan minimal satu host lagi terlebih dahulu.",
-    "fill_all_fields": "Harap isi semua kolom"
-}
+    "fill_all_fields": "Harap isi semua kolom",
+    "global_note_title": "Catatan Operasional Global",
+    "global_note_ph": "Tulis catatan operasional sistem, serah terima tugas, atau SOP darurat...",
+    "global_note_empty": "Belum ada catatan global. Klik 'Edit' untuk menambahkan catatan bersama.",
+    "search_hosts_ph": "Cari host berdasarkan nama, IP, OS, catatan...",
+    "filter_all": "Semua Status",
+    "filter_healthy": "Healthy",
+    "filter_degraded": "Degraded",
+    "filter_down": "Down",
+    "sort_manual": "Urutan: Manual",
+    "sort_name_asc": "Nama: A → Z",
+    "sort_name_desc": "Nama: Z → A",
+    "sort_score_desc": "Score: Tertinggi",
+    "sort_score_asc": "Score: Terendah",
+    "sort_status": "Status",
+    "host_note": "Catatan Host",
+    "host_note_ph": "misal: Server DB utama, jadwal maintenance hari Minggu",
+    "edit_host_note_title": "Ubah Catatan Host",
+    "no_note_set": "+ Tambah catatan...",
+    "drag_handle_title": "Tarik untuk mengatur posisi host (Mode Urutan Manual)",
+    "col_status": "Status",
+    "col_name": "Host",
+    "col_address": "Alamat",
+    "col_os": "OS",
+    "col_score": "Score",
+    "col_ram": "RAM",
+    "col_disk": "Disk",
+    "col_traffic": "Traffic",
+    "col_notes": "Catatan",
+    "col_actions": "Aksi",
+    "no_matching_hosts": "Tidak ada host yang cocok dengan kriteria pencarian / filter saat ini.",
+    "edit": "✏️ Ubah",
+    "save": "Simpan",
+    "global_notes_btn": "📝 Catatan",
+    "close": "Tutup"
+  }
 };
 
 let currentLang = localStorage.getItem('pantau_lang') || 'en';
@@ -976,6 +1158,9 @@ function setLanguage(lang) {
   if (currentHost && window.detailData) {
     switchTab(currentTab);
   }
+  if (document.getElementById('globalNotesModal') && document.getElementById('globalNotesModal').classList.contains('open')) {
+    showGlobalNotesViewMode();
+  }
   loadHosts();
   if (document.getElementById('transfersListModal') && document.getElementById('transfersListModal').classList.contains('open')) {
     loadTransfers();
@@ -999,6 +1184,8 @@ async function checkAuth() {
   if (data.authenticated) {
     document.getElementById('loginView').style.display = 'none';
     document.getElementById('appView').style.display = 'flex';
+    initDashboardToolbar();
+    loadGlobalNotes();
     loadHosts();
     loadAlerts();
     loadTransfers();
@@ -1008,6 +1195,7 @@ async function checkAuth() {
   } else {
     document.getElementById('loginView').style.display = 'flex';
     document.getElementById('appView').style.display = 'none';
+    setTimeout(() => document.getElementById('loginPassword')?.focus(), 50);
   }
 }
 
@@ -1030,19 +1218,335 @@ async function doLogout() {
   location.reload();
 }
 
-async function loadHosts() {
-  const res = await fetch('/api/hosts');
-  if (!res.ok) return;
-  const hosts = await res.json();
+const UI_PREFS_KEY = 'pantau_ui_prefs';
+function getUIPrefs() {
+  try {
+    const raw = localStorage.getItem(UI_PREFS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) {
+    return {};
+  }
+}
+function setUIPrefs(updates) {
+  try {
+    const current = getUIPrefs();
+    const next = Object.assign({}, current, updates);
+    localStorage.setItem(UI_PREFS_KEY, JSON.stringify(next));
+  } catch(e) {}
+}
+
+let globalNotesData = '';
+
+async function loadGlobalNotes() {
+  try {
+    const res = await fetch('/api/notes');
+    if (!res.ok) return;
+    const data = await res.json();
+    globalNotesData = data.notes || '';
+  } catch(e) {}
+}
+
+async function openGlobalNotesModal() {
+  await loadGlobalNotes();
+  showGlobalNotesViewMode();
+  document.getElementById('globalNotesModal').classList.add('open');
+}
+
+function showGlobalNotesViewMode() {
+  const viewEl = document.getElementById('globalNotesModalView');
+  const editEl = document.getElementById('globalNotesModalEdit');
+  const viewActions = document.getElementById('globalNotesModalViewActions');
+  const editActions = document.getElementById('globalNotesModalEditActions');
+  const textEl = document.getElementById('globalNotesModalText');
+
+  if (viewEl) viewEl.style.display = 'block';
+  if (editEl) editEl.style.display = 'none';
+  if (viewActions) viewActions.style.display = 'flex';
+  if (editActions) editActions.style.display = 'none';
+
+  if (textEl) {
+    if (!globalNotesData.trim()) {
+      textEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">${t('global_note_empty')}</span>`;
+    } else {
+      textEl.textContent = globalNotesData;
+    }
+  }
+}
+
+function startEditGlobalNotesModal() {
+  const viewEl = document.getElementById('globalNotesModalView');
+  const editEl = document.getElementById('globalNotesModalEdit');
+  const viewActions = document.getElementById('globalNotesModalViewActions');
+  const editActions = document.getElementById('globalNotesModalEditActions');
+  const input = document.getElementById('globalNotesModalInput');
+
+  if (viewEl) viewEl.style.display = 'none';
+  if (editEl) editEl.style.display = 'flex';
+  if (viewActions) viewActions.style.display = 'none';
+  if (editActions) editActions.style.display = 'flex';
+
+  if (input) {
+    input.value = globalNotesData;
+    setTimeout(() => input.focus(), 50);
+  }
+}
+
+function cancelEditGlobalNotesModal() {
+  showGlobalNotesViewMode();
+}
+
+async function saveGlobalNotesModal() {
+  const input = document.getElementById('globalNotesModalInput');
+  const notes = input ? input.value : '';
+  try {
+    const res = await fetch('/api/notes', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes })
+    });
+    if (res.ok) {
+      globalNotesData = notes;
+      showGlobalNotesViewMode();
+    } else {
+      alert('Failed to save global note');
+    }
+  } catch(e) {
+    alert('Failed to save global note: ' + e);
+  }
+}
+
+function openEditNoteModal(hostId, currentNote, hostName) {
+  document.getElementById('editNoteHostId').value = hostId;
+  document.getElementById('editNoteHostNameLabel').innerText = hostName ? `${t('col_name')}: ${hostName}` : t('host_note');
+  document.getElementById('editNoteContent').value = currentNote || '';
+  document.getElementById('hostNoteModal').classList.add('open');
+  setTimeout(() => document.getElementById('editNoteContent').focus(), 50);
+}
+
+async function saveHostNote() {
+  const hostId = document.getElementById('editNoteHostId').value;
+  const notes = document.getElementById('editNoteContent').value;
+  if (!hostId) return;
+
+  try {
+    const res = await fetch(`/api/hosts/${hostId}/notes`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes })
+    });
+    if (res.ok) {
+      closeModal('hostNoteModal');
+      if (window.detailData && window.detailData.host && window.detailData.host.id == hostId) {
+        window.detailData.host.notes = notes;
+        if (currentTab === 'overview') switchTab('overview');
+      }
+      loadHosts();
+    } else {
+      alert('Failed to save host note');
+    }
+  } catch(e) {
+    alert('Failed to save host note: ' + e);
+  }
+}
+
+let allRawHosts = [];
+let draggedHostId = null;
+
+function initDashboardToolbar() {
+  const prefs = getUIPrefs();
+  const searchInput = document.getElementById('hostSearchInput');
+  const statusSelect = document.getElementById('statusFilterSelect');
+  const sortSelect = document.getElementById('sortSelect');
+  const clearBtn = document.getElementById('clearSearchBtn');
+
+  if (statusSelect && prefs.statusFilter) statusSelect.value = prefs.statusFilter;
+  if (sortSelect && prefs.sortBy) sortSelect.value = prefs.sortBy;
+  updateViewModeButtons(prefs.viewMode || 'grid');
+}
+
+function setViewMode(mode) {
+  setUIPrefs({ viewMode: mode });
+  updateViewModeButtons(mode);
+  renderHosts();
+}
+
+function updateViewModeButtons(mode) {
+  const gridBtn = document.getElementById('viewGridBtn');
+  const listBtn = document.getElementById('viewListBtn');
+  if (gridBtn && listBtn) {
+    if (mode === 'list') {
+      gridBtn.classList.remove('active');
+      listBtn.classList.add('active');
+    } else {
+      gridBtn.classList.add('active');
+      listBtn.classList.remove('active');
+    }
+  }
+}
+
+function onSearchFilterChange() {
+  const searchVal = document.getElementById('hostSearchInput').value;
+  const clearBtn = document.getElementById('clearSearchBtn');
+  if (clearBtn) clearBtn.style.display = searchVal ? 'inline-block' : 'none';
+
+  const statusVal = document.getElementById('statusFilterSelect').value;
+  const sortVal = document.getElementById('sortSelect').value;
+  setUIPrefs({ statusFilter: statusVal, sortBy: sortVal });
+
+  renderHosts();
+}
+
+function clearSearch() {
+  const searchInput = document.getElementById('hostSearchInput');
+  if (searchInput) searchInput.value = '';
+  onSearchFilterChange();
+}
+
+function getFilteredAndSortedHosts() {
+  const searchVal = (document.getElementById('hostSearchInput')?.value || '').toLowerCase().trim();
+  const statusVal = document.getElementById('statusFilterSelect')?.value || 'all';
+  const sortVal = document.getElementById('sortSelect')?.value || 'manual';
+
+  let list = [...allRawHosts];
+
+  if (statusVal && statusVal !== 'all') {
+    list = list.filter(h => (h.status || '').toLowerCase() === statusVal.toLowerCase());
+  }
+
+  if (searchVal) {
+    list = list.filter(h => {
+      const name = (h.name || '').toLowerCase();
+      const host = (h.host || '').toLowerCase();
+      const os = (h.os_info || '').toLowerCase();
+      const notes = (h.notes || '').toLowerCase();
+      return name.includes(searchVal) || host.includes(searchVal) || os.includes(searchVal) || notes.includes(searchVal);
+    });
+  }
+
+  if (sortVal === 'name_asc') {
+    list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  } else if (sortVal === 'name_desc') {
+    list.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
+  } else if (sortVal === 'score_desc') {
+    list.sort((a, b) => (b.lifecycle_score || 0) - (a.lifecycle_score || 0));
+  } else if (sortVal === 'score_asc') {
+    list.sort((a, b) => (a.lifecycle_score || 0) - (b.lifecycle_score || 0));
+  } else if (sortVal === 'status') {
+    const statusWeight = { down: 1, degraded: 2, unknown: 3, healthy: 4 };
+    list.sort((a, b) => (statusWeight[a.status] || 5) - (statusWeight[b.status] || 5));
+  } else {
+    list.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || (a.id - b.id));
+  }
+
+  return list;
+}
+
+async function reorderHostsAPI(ids) {
+  try {
+    const res = await fetch('/api/hosts/reorder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    });
+    if (!res.ok) {
+      console.error('Failed to persist host order');
+    }
+  } catch(e) {
+    console.error('Error persisting host order:', e);
+  }
+}
+
+function handleDropReorder(srcId, targetId) {
+  const srcIdx = allRawHosts.findIndex(item => item.id == srcId);
+  const targetIdx = allRawHosts.findIndex(item => item.id == targetId);
+  if (srcIdx === -1 || targetIdx === -1) return;
+
+  const [moved] = allRawHosts.splice(srcIdx, 1);
+  allRawHosts.splice(targetIdx, 0, moved);
+
+  allRawHosts.forEach((item, idx) => {
+    item.sort_order = idx + 1;
+  });
+
+  renderHosts();
+
+  const orderedIds = allRawHosts.map(item => item.id);
+  reorderHostsAPI(orderedIds);
+}
+
+function renderHosts() {
+  const prefs = getUIPrefs();
+  const viewMode = prefs.viewMode || 'grid';
+  const sortVal = document.getElementById('sortSelect')?.value || 'manual';
+  const hasSearch = !!(document.getElementById('hostSearchInput')?.value.trim());
+  const hasStatusFilter = (document.getElementById('statusFilterSelect')?.value || 'all') !== 'all';
+  const isManualSort = sortVal === 'manual' && !hasSearch && !hasStatusFilter;
+
   const grid = document.getElementById('hostGrid');
+  const listContainer = document.getElementById('hostList');
+
+  if (viewMode === 'list') {
+    grid.style.display = 'none';
+    listContainer.style.display = 'block';
+    renderListView(listContainer, isManualSort);
+  } else {
+    listContainer.style.display = 'none';
+    grid.style.display = 'grid';
+    renderGridView(grid, isManualSort);
+  }
+}
+
+function renderGridView(grid, isManualSort) {
   grid.innerHTML = '';
-  if (!hosts || hosts.length === 0) {
+  const displayHosts = getFilteredAndSortedHosts();
+
+  if (allRawHosts.length === 0) {
     grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">' + t('no_hosts') + '</div>';
     return;
   }
-  hosts.forEach(h => {
+
+  if (displayHosts.length === 0) {
+    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 40px;">' + t('no_matching_hosts') + '</div>';
+    return;
+  }
+
+  displayHosts.forEach(h => {
     const card = document.createElement('div');
     card.className = 'card';
+    card.dataset.hostId = h.id;
+
+    if (isManualSort) {
+      card.draggable = true;
+      card.addEventListener('dragstart', (e) => {
+        draggedHostId = h.id;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(h.id));
+      });
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        document.querySelectorAll('.card.drag-target').forEach(el => el.classList.remove('drag-target'));
+      });
+      card.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (draggedHostId && draggedHostId !== h.id) {
+          card.classList.add('drag-target');
+        }
+      });
+      card.addEventListener('dragleave', () => {
+        card.classList.remove('drag-target');
+      });
+      card.addEventListener('drop', (e) => {
+        e.preventDefault();
+        card.classList.remove('drag-target');
+        const srcId = parseInt(e.dataTransfer.getData('text/plain')) || draggedHostId;
+        if (srcId && srcId !== h.id) {
+          handleDropReorder(srcId, h.id);
+        }
+      });
+    }
+
     const ramPct = h.ram_total_bytes > 0 ? Math.round((h.ram_used_bytes / h.ram_total_bytes) * 100) : 0;
     const diskPct = h.disk_total_bytes > 0 ? Math.round((h.disk_used_bytes / h.disk_total_bytes) * 100) : 0;
 
@@ -1050,11 +1554,25 @@ async function loadHosts() {
     if (h.lifecycle_score < 50) scoreColor = '#f87171';
     else if (h.lifecycle_score < 80) scoreColor = '#fbbf24';
 
+    const noteSnippet = (h.notes || '').trim();
+    const noteHtml = `
+      <div class="host-note-badge" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))" title="${t('edit_host_note_title')}">
+        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px;">
+          📝 ${noteSnippet ? escapeHtml(noteSnippet) : '<span style="color: var(--text-muted); font-style: italic;">' + t('no_note_set') + '</span>'}
+        </span>
+        <span style="font-size: 0.75rem; opacity: 0.75;">✏️</span>
+      </div>
+    `;
+
     card.innerHTML = `
       <div class="card-title">
-        <span>${escapeHtml(h.name)}</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          ${isManualSort ? `<span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span>` : ''}
+          <span>${escapeHtml(h.name)}</span>
+        </div>
         <span class="badge badge-${h.status}">${h.status}</span>
       </div>
+      ${noteHtml}
       <div class="stat-row"><span>${t('address')}</span> <span>${h.host}:${h.port} (${h.user})</span></div>
       <div class="stat-row"><span>${t('os')}</span> <span>${escapeHtml(h.os_info || 'Unknown')}</span></div>
       <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(h.uptime || '-')}</span></div>
@@ -1091,6 +1609,136 @@ async function loadHosts() {
     `;
     grid.appendChild(card);
   });
+}
+
+function renderListView(listContainer, isManualSort) {
+  listContainer.innerHTML = '';
+  const displayHosts = getFilteredAndSortedHosts();
+
+  if (allRawHosts.length === 0) {
+    listContainer.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 40px;">' + t('no_hosts') + '</div>';
+    return;
+  }
+
+  if (displayHosts.length === 0) {
+    listContainer.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 40px;">' + t('no_matching_hosts') + '</div>';
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'host-list-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        ${isManualSort ? '<th style="width: 36px;"></th>' : ''}
+        <th style="width: 90px;">${t('col_status')}</th>
+        <th>${t('col_name')}</th>
+        <th>${t('col_address')}</th>
+        <th>${t('col_os')}</th>
+        <th style="width: 75px;">${t('col_score')}</th>
+        <th style="width: 120px;">${t('col_ram')}</th>
+        <th style="width: 120px;">${t('col_disk')}</th>
+        <th style="width: 130px;">${t('col_traffic')}</th>
+        <th>${t('col_notes')}</th>
+        <th style="text-align: right; width: 220px;">${t('col_actions')}</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = table.querySelector('tbody');
+
+  displayHosts.forEach(h => {
+    const tr = document.createElement('tr');
+    tr.dataset.hostId = h.id;
+
+    if (isManualSort) {
+      tr.draggable = true;
+      tr.addEventListener('dragstart', (e) => {
+        draggedHostId = h.id;
+        tr.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(h.id));
+      });
+      tr.addEventListener('dragend', () => {
+        tr.classList.remove('dragging');
+        document.querySelectorAll('.host-list-table tr.drag-target').forEach(el => el.classList.remove('drag-target'));
+      });
+      tr.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (draggedHostId && draggedHostId !== h.id) {
+          tr.classList.add('drag-target');
+        }
+      });
+      tr.addEventListener('dragleave', () => {
+        tr.classList.remove('drag-target');
+      });
+      tr.addEventListener('drop', (e) => {
+        e.preventDefault();
+        tr.classList.remove('drag-target');
+        const srcId = parseInt(e.dataTransfer.getData('text/plain')) || draggedHostId;
+        if (srcId && srcId !== h.id) {
+          handleDropReorder(srcId, h.id);
+        }
+      });
+    }
+
+    const ramPct = h.ram_total_bytes > 0 ? Math.round((h.ram_used_bytes / h.ram_total_bytes) * 100) : 0;
+    const diskPct = h.disk_total_bytes > 0 ? Math.round((h.disk_used_bytes / h.disk_total_bytes) * 100) : 0;
+
+    let scoreColor = '#34d399';
+    if (h.lifecycle_score < 50) scoreColor = '#f87171';
+    else if (h.lifecycle_score < 80) scoreColor = '#fbbf24';
+
+    const noteSnippet = (h.notes || '').trim();
+    const noteHtml = `
+      <div class="host-note-badge" style="display: inline-flex;" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))" title="${t('edit_host_note_title')}">
+        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">
+          ${noteSnippet ? escapeHtml(noteSnippet) : '<span style="color: var(--text-muted); font-style: italic;">' + t('no_note_set') + '</span>'}
+        </span>
+        <span style="font-size: 0.7rem; opacity: 0.75;">✏️</span>
+      </div>
+    `;
+
+    tr.innerHTML = `
+      ${isManualSort ? `<td style="text-align: center;"><span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span></td>` : ''}
+      <td><span class="badge badge-${h.status}">${h.status}</span></td>
+      <td><b>${escapeHtml(h.name)}</b></td>
+      <td>${h.host}:${h.port} <span style="color: var(--text-muted); font-size: 0.8rem;">(${h.user})</span></td>
+      <td style="color: var(--text-muted);">${escapeHtml(h.os_info || '-')}</td>
+      <td><span class="score-badge" style="color: ${scoreColor}; font-size: 0.9rem;">${h.lifecycle_score}</span></td>
+      <td>
+        <div style="font-size: 0.8rem; margin-bottom: 2px;">${ramPct}%</div>
+        <div class="progress" style="height: 4px;"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
+      </td>
+      <td>
+        <div style="font-size: 0.8rem; margin-bottom: 2px;">${diskPct}%</div>
+        <div class="progress" style="height: 4px;"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
+      </td>
+      <td style="font-size: 0.8rem; font-family: monospace;">
+        <div>⬇️ ${formatBytes(h.net_rx_speed_bps)}/s</div>
+        <div>⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
+      </td>
+      <td>${noteHtml}</td>
+      <td style="text-align: right;">
+        <div style="display: inline-flex; gap: 4px;">
+          <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
+          <button class="btn btn-sm" onclick="inspectHost(${h.id})">${t('btn_inspect')}</button>
+          <button class="btn btn-sm" onclick="testHostSSH(${h.id})">${t('btn_test')}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteHost(${h.id})">🗑️</button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+  listContainer.appendChild(table);
+}
+
+async function loadHosts() {
+  const res = await fetch('/api/hosts');
+  if (!res.ok) return;
+  allRawHosts = await res.json() || [];
+  renderHosts();
 }
 
 async function loadAlerts() {
@@ -1130,6 +1778,7 @@ function openAddHostModal() {
   document.getElementById('hostUser').value = 'root';
   document.getElementById('hostPassword').value = '';
   document.getElementById('hostCustomKey').value = '';
+  document.getElementById('hostNote').value = '';
   document.getElementById('passGroup').style.display = 'flex';
   document.getElementById('hostModal').classList.add('open');
 }
@@ -1143,6 +1792,7 @@ async function saveHost() {
     user: document.getElementById('hostUser').value,
     password: document.getElementById('hostPassword').value,
     custom_key: document.getElementById('hostCustomKey').value,
+    notes: document.getElementById('hostNote').value,
   };
   const method = id ? 'PUT' : 'POST';
   const url = id ? '/api/hosts/' + id : '/api/hosts';
@@ -1245,6 +1895,15 @@ function switchTab(tab) {
           <div class="stat-row"><span>${t('lifecycle_score')}</span> <span class="score-badge">${d.host.lifecycle_score}/100</span></div>
           <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">${escapeHtml(d.host.lifecycle_notes)}</p>
           ${d.host.lifecycle_score < 60 ? '<div style="color: var(--danger); font-size: 0.8rem; margin-top: 6px;">' + t('upgrade_warn') + '</div>' : ''}
+        </div>
+        <div class="card" style="grid-column: 1 / -1;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0;">${t('host_note')}</h4>
+            <button class="btn btn-sm" onclick="openEditNoteModal(${d.host.id}, decodeURIComponent('${encodeURIComponent(d.host.notes || '')}'), decodeURIComponent('${encodeURIComponent(d.host.name || '')}'))">${t('edit')}</button>
+          </div>
+          <div style="font-size: 0.85rem; color: #cbd5e1; white-space: pre-wrap; line-height: 1.5; background: #090d16; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--card-border);">
+            ${d.host.notes ? escapeHtml(d.host.notes) : '<span style="color: var(--text-muted); font-style: italic;">' + t('no_note_set') + '</span>'}
+          </div>
         </div>
       </div>
       <div style="margin-top: 10px;">
@@ -1545,13 +2204,13 @@ async function loadFiles(path) {
             <td style="white-space: nowrap;">
               <div class="action-grid">
                 ${!f.is_dir 
-                  ? '<button class="btn btn-primary btn-sm" onclick="openEditor(\'' + fullPath + '\')">' + t('edit') + '</button>' 
+                  ? `<button class="btn btn-primary btn-sm" onclick="openEditor('${escapeHtml(fullPath)}')">${t('edit')}</button>` 
                   : '<span style="display:inline-block;"></span>'}
                 ${f.is_dir 
-                  ? '<button class="btn btn-sm" title="Download Folder Archive" onclick="downloadFolder(\'' + fullPath + '\')">⬇️</button>' 
-                  : '<a class="btn btn-sm" title="Download File" href="/api/hosts/' + currentHost.id + '/files/download?path=' + encodeURIComponent(fullPath) + '">⬇️</a>'}
-                <button class="btn btn-warning btn-sm" onclick="openTransferDialog(\'' + escapeHtml(fullPath) + '\', ${f.is_dir})">' + t('copy_to_host') + '</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteRemoteFile(\'' + escapeHtml(fullPath) + '\', \'' + escapeHtml(data.path) + '\')">🗑️</button>
+                  ? `<button class="btn btn-sm" title="Download Folder Archive" onclick="downloadFolder('${escapeHtml(fullPath)}')">⬇️</button>` 
+                  : `<a class="btn btn-sm" title="Download File" href="/api/hosts/${currentHost.id}/files/download?path=${encodeURIComponent(fullPath)}">⬇️</a>`}
+                <button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(fullPath)}', ${f.is_dir})">${t('copy_to_host')}</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteRemoteFile('${escapeHtml(fullPath)}', '${escapeHtml(data.path)}')">🗑️</button>
               </div>
             </td>
           </tr>

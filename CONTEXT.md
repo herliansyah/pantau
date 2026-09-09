@@ -88,3 +88,19 @@ _Avoid_: Popup window, dynamic modal, fluid dialog
 **Action Dialog**:
 Kontainer modal terpusat berdimensi ringkas (lebar ~520px - 600px) untuk formulir input sekuensial, dialog pengaturan (Settings), atau konfirmasi aksi tunggal (Add Host, Direct Transfer, Restore Wizard).
 _Avoid_: Small modal, mini popup, submodal
+
+**Host Note**:
+Catatan bebas berbasis teks yang disematkan pada Host oleh administrator untuk mencatat konteks operasional atau panduan pemeliharaan spesifik mesin tersebut.
+_Avoid_: Host description, server memo, tag
+
+**Global Note**:
+Catatan operasional bersama tingkat sistem pada dashboard Pantau untuk pengumuman tim, prosedur operasional darurat, atau catatan serah-terima tugas antar-administrator.
+_Avoid_: System message, announcement banner, global memo
+
+**Manual Host Order**:
+Urutan urut prioritas tampilan kartu Host pada dashboard Pantau yang diatur secara manual oleh administrator untuk mengelompokkan server utama pada posisi teratas.
+_Avoid_: Custom sort, priority list, pinned hosts
+
+**View Mode**:
+Format tata letak penyajian daftar Host pada dashboard Pantau, dalam bentuk kartu visual (Grid View) atau baris tabel kompak (List View).
+_Avoid_: Layout style, display type, presentation format
