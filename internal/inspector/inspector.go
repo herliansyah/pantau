@@ -90,8 +90,8 @@ func (ins *Inspector) InspectHost(hostID int64) error {
 }
 
 // SystemMetricsBatchCmd is the single-shot batch command to gather system, network, and security metrics.
-// ponytail: Batching commands into a single roundtrip keeps agentless overhead near zero.
-const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; df -Pk / 2>/dev/null; echo "---"; dmesg --level=err,crit 2>/dev/null | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; ss -H -nt state established 2>/dev/null | awk '{print $4, $5}' | head -n 50; echo "---"; ss -H -tlpn 2>/dev/null | awk '{print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l`
+// ponytail: Universal polyglot batching keeps agentless overhead near zero on modern & legacy Linux.
+const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; df -Pk / 2>/dev/null; echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l`
 
 func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner) error {
 	stdout, _, _, err := runner.Exec(SystemMetricsBatchCmd)
@@ -304,6 +304,16 @@ func parseOSInfo(osRelease string) string {
 	if name != "" {
 		return name
 	}
+	// Fallback for non-systemd / legacy distributions (CentOS 6, Debian 7) without standard key=value os-release
+	for _, line := range strings.Split(osRelease, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.Contains(line, "release") || strings.Contains(line, "Linux") || strings.Contains(line, "Debian") || strings.Contains(line, "Ubuntu") {
+			return line
+		}
+	}
 	return "Linux"
 }
 
@@ -329,15 +339,38 @@ func parseUptime(line string) (uptimeStr, loadStr string) {
 
 func parseFree(output string) (used, total int64) {
 	lines := strings.Split(output, "\n")
+	var memTot, memUsd int64
+	var bufCacheUsed int64
+	hasBufCache := false
+
 	for _, l := range lines {
+		l = strings.TrimSpace(l)
 		if strings.HasPrefix(l, "Mem:") {
 			fields := strings.Fields(l)
 			if len(fields) >= 3 {
-				tot, _ := strconv.ParseInt(fields[1], 10, 64)
-				usd, _ := strconv.ParseInt(fields[2], 10, 64)
-				return usd, tot
+				memTot, _ = strconv.ParseInt(fields[1], 10, 64)
+				memUsd, _ = strconv.ParseInt(fields[2], 10, 64)
+			}
+		} else if strings.Contains(l, "buffers/cache:") {
+			// Legacy free format on pre-3.14 kernels (CentOS 6): "-/+ buffers/cache: used free"
+			fields := strings.Fields(l)
+			for i, f := range fields {
+				if (f == "buffers/cache:" || strings.HasSuffix(f, "buffers/cache:")) && i+1 < len(fields) {
+					if u, err := strconv.ParseInt(fields[i+1], 10, 64); err == nil {
+						bufCacheUsed = u
+						hasBufCache = true
+						break
+					}
+				}
 			}
 		}
+	}
+
+	if memTot > 0 {
+		if hasBufCache && bufCacheUsed > 0 {
+			return bufCacheUsed, memTot
+		}
+		return memUsd, memTot
 	}
 	return 0, 0
 }
@@ -360,7 +393,15 @@ func calculateLifecycleScore(osInfo, loadStr string, ramUsed, ramTotal int64, io
 	var notes []string
 
 	// Check EOL OS signatures
-	eolPatterns := []string{"Ubuntu 14.04", "Ubuntu 16.04", "Ubuntu 18.04", "Debian 8", "Debian 9", "CentOS Linux 7", "CentOS Linux 8"}
+	eolPatterns := []string{
+		"Ubuntu 14.04", "Ubuntu 16.04", "Ubuntu 18.04",
+		"Debian 7", "Debian 8", "Debian 9",
+		"CentOS 6", "CentOS release 6", "CentOS Linux 6",
+		"CentOS Linux 7", "CentOS release 7",
+		"CentOS Linux 8", "CentOS release 8",
+		"Red Hat Enterprise Linux Server release 6",
+		"Red Hat Enterprise Linux Server release 7",
+	}
 	for _, pat := range eolPatterns {
 		if strings.Contains(osInfo, pat) {
 			score -= 30
@@ -625,8 +666,9 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 		return
 
 	case "service":
-		// Target is systemd service name (e.g. "mysql", "nginx")
-		svcCmd := fmt.Sprintf(`systemctl is-active %s 2>/dev/null`, rule.Target)
+		// Target is service name (e.g. "mysql", "mysqld", "nginx", "httpd")
+		// Polyglot check supporting both systemd and SysVinit (CentOS 6, Debian 7)
+		svcCmd := fmt.Sprintf(`sh -c 'if command -v systemctl >/dev/null 2>&1; then systemctl is-active "$1" 2>/dev/null; elif service "$1" status 2>&1 | grep -iq "running"; then echo "active"; else echo "inactive"; fi' -- %s`, rule.Target)
 		out, _, _, _ := runner.Exec(svcCmd)
 		activeState := strings.TrimSpace(out)
 		current = activeState
@@ -634,8 +676,9 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 			status = "ok"
 		} else {
 			status = "drift"
-			diagOut, _, _, _ := runner.Exec(fmt.Sprintf(`journalctl -u %s -n 50 --no-pager 2>&1`, rule.Target))
-			rootCause = fmt.Sprintf("Service %s is %s (expected active)\n--- Last 50 lines of journalctl ---\n%s", rule.Target, activeState, strings.TrimSpace(diagOut))
+			diagCmd := fmt.Sprintf(`sh -c 'if command -v journalctl >/dev/null 2>&1; then journalctl -u "$1" -n 50 --no-pager 2>&1; elif [ -f "/var/log/$1.log" ]; then tail -n 50 "/var/log/$1.log" 2>&1; elif [ -f "/var/log/$1/error.log" ]; then tail -n 50 "/var/log/$1/error.log" 2>&1; else tail -n 50 /var/log/messages 2>&1 || tail -n 50 /var/log/syslog 2>&1; fi' -- %s`, rule.Target)
+			diagOut, _, _, _ := runner.Exec(diagCmd)
+			rootCause = fmt.Sprintf("Service %s is %s (expected active)\n--- Service diagnostics ---\n%s", rule.Target, activeState, strings.TrimSpace(diagOut))
 		}
 		return
 	}
@@ -691,9 +734,10 @@ func (ins *Inspector) GenerateBaseline(hostID int64) ([]store.DesiredRule, error
 		}
 	}
 
-	// 3. Known DB services
-	for _, svc := range []string{"mysql", "mariadb", "postgresql", "redis-server", "nginx"} {
-		out, _, _, _ := runner.Exec(fmt.Sprintf(`systemctl is-active %s 2>/dev/null`, svc))
+	// 3. Known DB & Web services (supporting systemd and SysVinit / RedHat naming conventions)
+	for _, svc := range []string{"mysql", "mysqld", "mariadb", "postgresql", "redis-server", "redis", "nginx", "httpd", "apache2"} {
+		svcCheck := fmt.Sprintf(`sh -c 'if command -v systemctl >/dev/null 2>&1; then systemctl is-active "$1" 2>/dev/null; elif service "$1" status 2>&1 | grep -iq "running"; then echo "active"; else echo "inactive"; fi' -- %s`, svc)
+		out, _, _, _ := runner.Exec(svcCheck)
 		if strings.TrimSpace(out) == "active" {
 			r := store.DesiredRule{
 				HostID:   hostID,

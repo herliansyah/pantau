@@ -404,8 +404,8 @@ func TestTicket09_SettingsAndKeygen(t *testing.T) {
 	env := setupTestEnv(t)
 
 	pubKey, err := env.db.GetSetting("ssh_public_key")
-	if err != nil || !strings.HasPrefix(pubKey, "ssh-ed25519") {
-		t.Fatalf("expected valid ed25519 ssh public key, got %s (err: %v)", pubKey, err)
+	if err != nil || (!strings.HasPrefix(pubKey, "ssh-rsa") && !strings.HasPrefix(pubKey, "ssh-ed25519")) {
+		t.Fatalf("expected valid universal ssh public key (ssh-rsa or ssh-ed25519), got %s (err: %v)", pubKey, err)
 	}
 }
 
@@ -590,8 +590,8 @@ func TestTicket10_KeyProvisioning(t *testing.T) {
 	if lastProvisionedHost != "10.0.0.20" || lastProvisionedPass != "initial_root_password_123" {
 		t.Fatalf("provisioner not called correctly: host=%s, pass=%s", lastProvisionedHost, lastProvisionedPass)
 	}
-	if !strings.HasPrefix(lastProvisionedKey, "ssh-ed25519") {
-		t.Fatalf("expected ed25519 pubkey in provisioner, got %s", lastProvisionedKey)
+	if !strings.HasPrefix(lastProvisionedKey, "ssh-rsa") && !strings.HasPrefix(lastProvisionedKey, "ssh-ed25519") {
+		t.Fatalf("expected universal ssh pubkey in provisioner, got %s", lastProvisionedKey)
 	}
 
 	// 2. Separate inject-key endpoint
@@ -872,5 +872,123 @@ func TestTicket12_NetworkAndSecurityObservability(t *testing.T) {
 		t.Fatalf("api host missing network data: %+v", apiData.Host)
 	}
 }
+
+// Ticket 13: Legacy Server & CentOS 6 Compatibility
+func TestTicket13_LegacyServerCompatibility(t *testing.T) {
+	env := setupTestEnv(t)
+	client := loginClient(t, env)
+
+	// 1. Test Key Regeneration Endpoint
+	regenResp, err := client.Post(env.httpServer.URL+"/api/settings/regenerate-ssh-key", "application/json", nil)
+	if err != nil || regenResp.StatusCode != http.StatusOK {
+		t.Fatalf("regenerate ssh key failed: %v, status: %d", err, regenResp.StatusCode)
+	}
+	var regenData map[string]string
+	_ = json.NewDecoder(regenResp.Body).Decode(&regenData)
+	regenResp.Body.Close()
+
+	if !strings.HasPrefix(regenData["ssh_public_key"], "ssh-rsa") {
+		t.Fatalf("expected regenerated key to be ssh-rsa, got %s", regenData["ssh_public_key"])
+	}
+
+	// 2. Create CentOS 6 Legacy Host
+	hostID, _ := env.db.CreateHost(&store.Host{
+		Name: "CentOS 6 Legacy DB",
+		Host: "192.168.100.60",
+		Port: 22,
+		User: "root",
+	})
+
+	// 3. Mock SystemMetricsBatchCmd for CentOS 6 environment
+	// CentOS 6: /etc/redhat-release instead of /etc/os-release, free -b with -/+ buffers/cache, no dmesg --level, ss without -H
+	env.mockRunner.Handlers[inspector.SystemMetricsBatchCmd] = func() (string, string, int, error) {
+		out := "2.6.32-754.35.1.el6.x86_64\n" +
+			"---\n" +
+			"CentOS release 6.10 (Final)\n" +
+			"---\n" +
+			" 10:20:00 up 450 days,  1:12,  1 user,  load average: 0.20, 0.15, 0.10\n" +
+			"---\n" +
+			"             total       used       free     shared    buffers     cached\n" +
+			"Mem:       4194304    3800000     394304          0     300000    2500000\n" +
+			"-/+ buffers/cache:    1000000    3194304\n" +
+			"Swap:      2097152          0    2097152\n" +
+			"---\n" +
+			"Filesystem     1K-blocks    Used Available Use% Mounted on\n" +
+			"/dev/sda1       41943040 8388608  31414432  22% /\n" +
+			"---\n" +
+			"0\n" +
+			"---\n" +
+			"10000000 20000000\n" +
+			"---\n" +
+			"15.4\n" +
+			"---\n" +
+			"203.0.113.55\n" +
+			"---\n" +
+			"192.168.100.60:22 192.168.100.1:54321\n" +
+			"---\n" +
+			"LISTEN 0.0.0.0:3306 mysqld\n" +
+			"---\n" +
+			"3\n"
+		return out, "", 0, nil
+	}
+
+	// 4. Setup Desired Rule for SysVinit service "mysqld"
+	_ = env.db.SaveDesiredRule(&store.DesiredRule{
+		HostID:   hostID,
+		Kind:     "service",
+		Target:   "mysqld",
+		Expected: "active",
+		Enabled:  true,
+	})
+
+	// Mock stopped service status and log excerpt
+	env.mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		if strings.Contains(cmd, "mysqld") {
+			if strings.Contains(cmd, "/var/log") || strings.Contains(cmd, "tail") {
+				return "2026-09-09 10:15:00 [ERROR] InnoDB: Out of memory\n2026-09-09 10:15:01 [ERROR] mysqld died", "", 0, nil
+			}
+			return "inactive", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	// 5. Run Inspection
+	err = env.inspector.InspectHost(hostID)
+	if err != nil {
+		t.Fatalf("inspection on centos 6 host failed: %v", err)
+	}
+
+	h, _ := env.db.GetHost(hostID)
+	// Verify OS parsed from /etc/redhat-release
+	if h.OSInfo != "CentOS release 6.10 (Final)" {
+		t.Fatalf("expected OS 'CentOS release 6.10 (Final)', got '%s'", h.OSInfo)
+	}
+
+	// Verify RAM parsed from -/+ buffers/cache: used should be 1,000,000 bytes (not 3,800,000)
+	if h.RAMUsedBytes != 1000000 || h.RAMTotalBytes != 4194304 {
+		t.Fatalf("expected RAM used 1000000 (after buffers/cache), got used=%d, total=%d", h.RAMUsedBytes, h.RAMTotalBytes)
+	}
+
+	// Verify Lifecycle Score docked for EOL CentOS 6
+	if h.LifecycleScore > 70 || !strings.Contains(h.LifecycleNotes, "CentOS release 6") {
+		t.Fatalf("expected lifecycle score penalty for EOL CentOS 6, got score=%d, notes=%s", h.LifecycleScore, h.LifecycleNotes)
+	}
+
+	// Verify service drift detected and root cause pulled from /var/log/
+	alerts, _ := env.db.ListActiveAlerts()
+	foundAlert := false
+	for _, alt := range alerts {
+		if alt.HostID == hostID && strings.Contains(alt.Message, "mysqld") {
+			foundAlert = true
+			if !strings.Contains(alt.RootCause, "InnoDB: Out of memory") {
+				t.Fatalf("expected SysVinit log excerpt in root cause, got: %s", alt.RootCause)
+			}
+		}
+	}
+	if !foundAlert {
+		t.Fatalf("expected alert for stopped mysqld service on CentOS 6 host")
+	}
+}
+
 
 

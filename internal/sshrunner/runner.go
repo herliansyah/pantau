@@ -2,6 +2,7 @@ package sshrunner
 
 import (
 	"bytes"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net"
@@ -26,12 +27,36 @@ type LiveSSHRunner struct {
 	client *ssh.Client
 }
 
+func parseAllPrivateKeys(pemBytes []byte) ([]ssh.Signer, error) {
+	var signers []ssh.Signer
+	rest := pemBytes
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		signer, err := ssh.ParsePrivateKey(pem.EncodeToMemory(block))
+		if err == nil {
+			signers = append(signers, signer)
+		}
+	}
+	if len(signers) == 0 {
+		s, err := ssh.ParsePrivateKey(pemBytes)
+		if err != nil {
+			return nil, err
+		}
+		signers = append(signers, s)
+	}
+	return signers, nil
+}
+
 func Connect(host string, port int, user, privateKeyPEM string, timeout time.Duration) (*LiveSSHRunner, error) {
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
 
-	signer, err := ssh.ParsePrivateKey([]byte(privateKeyPEM))
+	signers, err := parseAllPrivateKeys([]byte(privateKeyPEM))
 	if err != nil {
 		return nil, fmt.Errorf("parse private key: %w", err)
 	}
@@ -39,13 +64,14 @@ func Connect(host string, port int, user, privateKeyPEM string, timeout time.Dur
 	config := &ssh.ClientConfig{
 		User: user,
 		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
+			ssh.PublicKeys(signers...),
 		},
 		// ponytail: InsecureIgnoreHostKey simplifies first-time connection without manual known_hosts trust dance.
 		// Upgrade path: implement known_hosts pinning with TOFU (Trust On First Use) stored in database.
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         timeout,
 	}
+	configureLegacyCompatibleSSH(config)
 
 	addr := fmt.Sprintf("%s:%d", host, port)
 	client, err := ssh.Dial("tcp", addr, config)
@@ -54,6 +80,48 @@ func Connect(host string, port int, user, privateKeyPEM string, timeout time.Dur
 	}
 
 	return &LiveSSHRunner{client: client}, nil
+}
+
+// configureLegacyCompatibleSSH applies a comprehensive set of key exchanges, ciphers, and host key algorithms
+// so Pantau can seamlessly connect to both modern servers and legacy servers (CentOS 6, Debian 7) without per-host flags.
+// ponytail: Universal legacy-compatible cryptographic profile.
+// Upgrade path: per-host SSH security profiles if high-compliance environments forbid SHA-1 / CBC.
+func configureLegacyCompatibleSSH(config *ssh.ClientConfig) {
+	config.Config = ssh.Config{
+		KeyExchanges: []string{
+			"curve25519-sha256",
+			"curve25519-sha256@libssh.org",
+			"ecdh-sha2-nistp256",
+			"ecdh-sha2-nistp384",
+			"ecdh-sha2-nistp521",
+			"diffie-hellman-group14-sha256",
+			"diffie-hellman-group16-sha512",
+			"diffie-hellman-group-exchange-sha256",
+			"diffie-hellman-group14-sha1",
+			"diffie-hellman-group-exchange-sha1",
+			"diffie-hellman-group1-sha1",
+		},
+		Ciphers: []string{
+			"chacha20-poly1305@openssh.com",
+			"aes128-gcm@openssh.com",
+			"aes256-gcm@openssh.com",
+			"aes128-ctr",
+			"aes192-ctr",
+			"aes256-ctr",
+			"aes128-cbc",
+			"aes256-cbc",
+			"3des-cbc",
+		},
+	}
+	config.HostKeyAlgorithms = []string{
+		ssh.KeyAlgoED25519,
+		ssh.KeyAlgoRSASHA512,
+		ssh.KeyAlgoRSASHA256,
+		ssh.KeyAlgoRSA, // Enables legacy ssh-rsa (SHA-1) host keys common on CentOS 6
+		ssh.KeyAlgoECDSA256,
+		ssh.KeyAlgoECDSA384,
+		ssh.KeyAlgoECDSA521,
+	}
 }
 
 type KeyProvisioner func(host string, port int, user, password, pubKey string) error
@@ -67,6 +135,7 @@ func DefaultKeyProvisioner(host string, port int, user, password, pubKey string)
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         8 * time.Second,
 	}
+	configureLegacyCompatibleSSH(config)
 
 	addr := fmt.Sprintf("%s:%d", host, port)
 	client, err := ssh.Dial("tcp", addr, config)

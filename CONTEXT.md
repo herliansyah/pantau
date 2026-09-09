@@ -25,11 +25,11 @@ Ketidaksesuaian atau deviasi antara Actual State dan Desired State pada Host.
 _Avoid_: Mismatch, divergence, error state
 
 **Root Cause Excerpt**:
-Potongan log diagnostik terakhir (misal: exit code, potongan pesan error log atau journalctl) yang diambil otomatis saat Drift terdeteksi.
+Potongan log diagnostik terakhir (misal: exit code, potongan pesan journalctl atau file log sistem `/var/log/*`) yang diambil otomatis saat Drift terdeteksi.
 _Avoid_: Crash dump, debug output
 
 **Lifecycle Score**:
-Nilai kelayakan sebuah Host (0-100) berdasarkan status dukungan OS (EOL), beban sumber daya jangka panjang, dan indikasi kegagalan perangkat keras.
+Nilai kelayakan sebuah Host (0-100) berdasarkan status dukungan OS (termasuk deteksi End-Of-Life untuk distribusi legacy/pra-systemd), beban sumber daya jangka panjang, dan indikasi kegagalan perangkat keras.
 _Avoid_: Server grade, health rating
 
 **Backup Freshness**:

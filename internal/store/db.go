@@ -1,14 +1,15 @@
 package store
 
 import (
-	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"database/sql"
 	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -259,30 +260,15 @@ func (d *DB) initDefaults() error {
 		}
 	}
 
-	// 2. Ensure global ED25519 SSH keypair exists
+	// 2. Ensure global universal RSA 4096-bit SSH keypair exists
+	// ponytail: RSA 4096 is universally accepted by legacy OpenSSH 5.3p1 (CentOS 6) through modern OpenSSH 9+.
 	var privKey string
 	err = d.QueryRow("SELECT value FROM settings WHERE key = 'ssh_private_key'").Scan(&privKey)
 	if err == sql.ErrNoRows {
-		pub, priv, err := ed25519.GenerateKey(rand.Reader)
+		privPEM, pubAuthorized, err := GenerateRSAKeyPair(4096)
 		if err != nil {
-			return fmt.Errorf("generate ed25519 key: %w", err)
+			return fmt.Errorf("generate default universal rsa key: %w", err)
 		}
-
-		privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
-		if err != nil {
-			return fmt.Errorf("marshal pkcs8: %w", err)
-		}
-
-		pemBlock := pem.EncodeToMemory(&pem.Block{
-			Type:  "PRIVATE KEY",
-			Bytes: privBytes,
-		})
-
-		sshPub, err := ssh.NewPublicKey(pub)
-		if err != nil {
-			return fmt.Errorf("new ssh pubkey: %w", err)
-		}
-		pubAuthorized := string(ssh.MarshalAuthorizedKey(sshPub))
 
 		tx, err := d.Begin()
 		if err != nil {
@@ -290,16 +276,80 @@ func (d *DB) initDefaults() error {
 		}
 		defer tx.Rollback()
 
-		if _, err := tx.Exec("INSERT INTO settings(key, value) VALUES ('ssh_private_key', ?)", string(pemBlock)); err != nil {
+		if _, err := tx.Exec("INSERT INTO settings(key, value) VALUES ('ssh_private_key', ?)", privPEM); err != nil {
 			return err
 		}
 		if _, err := tx.Exec("INSERT INTO settings(key, value) VALUES ('ssh_public_key', ?)", pubAuthorized); err != nil {
 			return err
 		}
 		return tx.Commit()
+	} else if err == nil {
+		var pubKey string
+		_ = d.QueryRow("SELECT value FROM settings WHERE key = 'ssh_public_key'").Scan(&pubKey)
+		// If existing database was initialized with Ed25519 only, upgrade to universal RSA-4096 as primary
+		// while retaining the Ed25519 private key in the PEM chain so existing modern hosts don't break.
+		if strings.HasPrefix(strings.TrimSpace(pubKey), "ssh-ed25519") {
+			privPEM, pubAuthorized, err := GenerateRSAKeyPair(4096)
+			if err == nil {
+				combinedPriv := strings.TrimSpace(privPEM) + "\n\n" + strings.TrimSpace(privKey) + "\n"
+				tx, err := d.Begin()
+				if err == nil {
+					_, _ = tx.Exec("UPDATE settings SET value = ? WHERE key = 'ssh_private_key'", combinedPriv)
+					_, _ = tx.Exec("UPDATE settings SET value = ? WHERE key = 'ssh_public_key'", pubAuthorized)
+					_, _ = tx.Exec("INSERT INTO settings(key, value) VALUES ('ssh_private_key_ed25519', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", privKey)
+					_, _ = tx.Exec("INSERT INTO settings(key, value) VALUES ('ssh_public_key_ed25519', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", pubKey)
+					_ = tx.Commit()
+				}
+			}
+		}
 	}
 
 	return nil
+}
+
+// GenerateRSAKeyPair creates a new PEM-encoded RSA private key and OpenSSH-formatted authorized public key.
+func GenerateRSAKeyPair(bits int) (privPEM, pubAuthorized string, err error) {
+	if bits <= 0 {
+		bits = 4096
+	}
+	priv, err := rsa.GenerateKey(rand.Reader, bits)
+	if err != nil {
+		return "", "", fmt.Errorf("generate rsa key: %w", err)
+	}
+
+	privBytes := x509.MarshalPKCS1PrivateKey(priv)
+	pemBlock := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: privBytes,
+	})
+
+	sshPub, err := ssh.NewPublicKey(&priv.PublicKey)
+	if err != nil {
+		return "", "", fmt.Errorf("new ssh pubkey: %w", err)
+	}
+	pubAuth := string(ssh.MarshalAuthorizedKey(sshPub))
+	return string(pemBlock), pubAuth, nil
+}
+
+// RegenerateGlobalSSHKey generates a new universal RSA-4096 keypair and saves it to settings.
+func (d *DB) RegenerateGlobalSSHKey() (string, error) {
+	privPEM, pubAuthorized, err := GenerateRSAKeyPair(4096)
+	if err != nil {
+		return "", err
+	}
+	tx, err := d.Begin()
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec("INSERT INTO settings(key, value) VALUES ('ssh_private_key', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", privPEM); err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec("INSERT INTO settings(key, value) VALUES ('ssh_public_key', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", pubAuthorized); err != nil {
+		return "", err
+	}
+	return pubAuthorized, tx.Commit()
 }
 
 // Settings helpers

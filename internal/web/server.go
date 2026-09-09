@@ -83,6 +83,7 @@ func (s *Server) routes() {
 	// Settings & Alerts
 	s.mux.HandleFunc("/api/settings", s.authMiddleware(s.handleSettings))
 	s.mux.HandleFunc("/api/settings/test-notify", s.authMiddleware(s.handleTestNotify))
+	s.mux.HandleFunc("/api/settings/regenerate-ssh-key", s.authMiddleware(s.handleRegenerateSSHKey))
 	s.mux.HandleFunc("/api/alerts", s.authMiddleware(s.handleAlerts))
 	s.mux.HandleFunc("/api/alerts/", s.authMiddleware(s.handleAlertDetail))
 
@@ -230,6 +231,9 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h := req.Host
+		h.Name = strings.TrimSpace(h.Name)
+		h.Host = strings.TrimSpace(h.Host)
+		h.User = strings.TrimSpace(h.User)
 		if h.Name == "" || h.Host == "" {
 			http.Error(w, "name and host are required", http.StatusBadRequest)
 			return
@@ -306,6 +310,9 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			h.ID = hostID
+			h.Name = strings.TrimSpace(h.Name)
+			h.Host = strings.TrimSpace(h.Host)
+			h.User = strings.TrimSpace(h.User)
 			if err := s.db.UpdateHost(&h); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -739,6 +746,22 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "settings_saved"})
 	}
+}
+
+func (s *Server) handleRegenerateSSHKey(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	newPub, err := s.db.RegenerateGlobalSSHKey()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to regenerate ssh key: %v", err), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":         "ok",
+		"ssh_public_key": newPub,
+	})
 }
 
 func (s *Server) handleTestNotify(w http.ResponseWriter, r *http.Request) {
