@@ -22,7 +22,10 @@
 }
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
 body { background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
-header { background: var(--card-bg); border-bottom: 1px solid var(--card-border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+header { position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 40; background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--card-border); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
+footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 40; background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--card-border); box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); }
+footer a { color: #38bdf8; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+footer a:hover { color: #7dd3fc; text-decoration: underline; }
 .logo { font-size: 1.25rem; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 8px; }
 .btn { background: var(--card-border); color: var(--text); border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.15s; }
 .btn:hover { opacity: 0.9; }
@@ -37,7 +40,7 @@ header { background: var(--card-bg); border-bottom: 1px solid var(--card-border)
 .badge-degraded { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
 .badge-down { background: rgba(239, 68, 68, 0.2); color: #f87171; }
 .badge-unknown { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
-.container { max-width: 1400px; margin: 0 auto; padding: 24px; width: 100%; flex: 1; }
+.container { max-width: 1400px; margin: 0 auto; padding: 24px; padding-top: 76px; padding-bottom: 56px; width: 100%; flex: 1; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
 .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
 .card-title { font-size: 1.1rem; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
@@ -49,12 +52,32 @@ header { background: var(--card-bg); border-bottom: 1px solid var(--card-border)
 .score-badge { font-weight: 700; font-size: 1rem; color: #38bdf8; }
 .modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); z-index: 50; align-items: center; justify-content: center; padding: 20px; }
 .modal.open { display: flex; }
-.modal-content { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; width: 100%; max-width: 1000px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
-.modal-header { padding: 16px 20px; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center; }
-.modal-body { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px; }
-.tabs { display: flex; border-bottom: 1px solid var(--card-border); gap: 8px; margin-bottom: 16px; }
-.tab { padding: 8px 16px; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; font-weight: 500; border-bottom: 2px solid transparent; }
+.modal-content { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5); }
+.modal-workspace { width: 75vw; height: 80vh; max-width: 1400px; min-width: 760px; }
+.modal-dialog { width: 100%; max-width: 520px; max-height: 90vh; }
+.modal-dialog-md { width: 100%; max-width: 600px; max-height: 90vh; }
+@media (max-width: 768px) {
+  .modal { padding: 0; }
+  .modal-workspace, .modal-dialog, .modal-dialog-md { width: 100vw; height: 100vh; max-width: 100vw; min-width: 100vw; border-radius: 0; border: none; }
+  header { padding: 0 12px; height: 52px; }
+  footer { padding: 0 12px; height: 32px; font-size: 0.7rem; }
+  .container { padding-top: 66px; padding-bottom: 46px; padding-left: 12px; padding-right: 12px; }
+}
+.modal-header { padding: 16px 20px; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+.modal-tabs-bar { padding: 0 20px; border-bottom: 1px solid var(--card-border); flex-shrink: 0; overflow-x: auto; background: rgba(15, 23, 42, 0.4); }
+.modal-tabs-bar .tabs { margin-bottom: 0; border-bottom: none; }
+.modal-body { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+.modal-footer { padding: 12px 20px; border-top: 1px solid var(--card-border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; background: rgba(15, 23, 42, 0.2); }
+.tabs { display: flex; gap: 8px; overflow-x: auto; white-space: nowrap; }
+.tab { padding: 10px 16px; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; font-weight: 500; border-bottom: 2px solid transparent; flex-shrink: 0; transition: all 0.15s ease; }
+.tab:hover { color: #f8fafc; }
 .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; color: var(--text-muted); flex: 1; gap: 10px; }
+.empty-state-icon { font-size: 2.5rem; opacity: 0.7; }
+.empty-state-title { font-size: 1rem; font-weight: 600; color: #cbd5e1; }
+.empty-state-desc { font-size: 0.85rem; max-width: 440px; line-height: 1.4; color: var(--text-muted); }
+.status-pill { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 0.8rem; font-weight: 500; }
+.traffic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #090d16; padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; font-family: monospace; border: 1px solid var(--card-border); }
 table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--card-border); }
 th { color: var(--text-muted); font-weight: 600; }
@@ -66,8 +89,9 @@ select, select option { background-color: #1e293b !important; color: #f8fafc !im
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .alert-bar { background: rgba(239, 68, 68, 0.15); border-left: 4px solid var(--danger); padding: 12px 16px; margin-bottom: 16px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
 pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; overflow-x: auto; color: #38bdf8; max-height: 250px; }
-.terminal-container { height: 450px; background: #000; border-radius: 8px; padding: 8px; }
-.CodeMirror { height: 450px; font-size: 13px; border-radius: 6px; }
+.terminal-container { flex: 1; height: 100%; min-height: 380px; background: #000; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; }
+.terminal-container .xterm { height: 100%; }
+.CodeMirror { flex: 1; height: 100% !important; min-height: 380px; font-size: 13px; border-radius: 6px; }
 </style>
 </head>
 <body>
@@ -105,11 +129,20 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
     <div id="alertBannerArea"></div>
     <div id="hostGrid" class="grid"></div>
   </div>
+
+  <footer>
+    <div>Pantau is open-source under MIT License</div>
+    <div>
+      <span>Created by Herliansyah</span>
+      <span style="margin: 0 6px;">•</span>
+      <a href="https://github.com/herliansyah/pantau" target="_blank" rel="noopener noreferrer">GitHub (herliansyah/pantau) ↗</a>
+    </div>
+  </footer>
 </div>
 
 <!-- Add/Edit Host Modal -->
 <div id="hostModal" class="modal">
-  <div class="modal-content" style="max-width: 500px;">
+  <div class="modal-content modal-dialog">
     <div class="modal-header">
       <h3 id="hostModalTitle">Add Host</h3>
       <button class="btn btn-sm" onclick="closeModal('hostModal')">✕</button>
@@ -152,7 +185,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 
 <!-- Host Details Modal -->
 <div id="hostDetailModal" class="modal">
-  <div class="modal-content">
+  <div class="modal-content modal-workspace">
     <div class="modal-header">
       <div style="display: flex; align-items: center; gap: 12px;">
         <h3 id="detailHostName">Host</h3>
@@ -160,8 +193,8 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       </div>
       <button class="btn btn-sm" onclick="closeModal('hostDetailModal')">✕</button>
     </div>
-    <div style="padding: 0 20px;">
-      <div class="tabs">
+    <div class="modal-tabs-bar">
+      <div class="tabs" id="hostDetailTabs">
         <div class="tab active" onclick="switchTab('overview')">Overview</div>
         <div class="tab" onclick="switchTab('network')">Network & Security</div>
         <div class="tab" onclick="switchTab('desired')">Desired State (Drift)</div>
@@ -177,84 +210,113 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 
 <!-- Settings Modal -->
 <div id="settingsModal" class="modal">
-  <div class="modal-content" style="max-width: 600px;">
+  <div class="modal-content modal-dialog-md">
     <div class="modal-header">
-      <h3>Settings</h3>
+      <h3>⚙️ Settings</h3>
       <button class="btn btn-sm" onclick="closeModal('settingsModal')">✕</button>
     </div>
+    <div class="modal-tabs-bar">
+      <div class="tabs" id="settingsTabs">
+        <div class="tab active" id="tabSettingsGeneral" onclick="switchSettingsTab('general')">🔑 General & Access</div>
+        <div class="tab" id="tabSettingsNotif" onclick="switchSettingsTab('notif')">🔔 Notification Channels</div>
+        <div class="tab" id="tabSettingsBackup" onclick="switchSettingsTab('backup')">💾 Backup & Snapshot</div>
+      </div>
+    </div>
     <div class="modal-body">
-      <div class="form-group">
-        <label>Global Pantau SSH Public Key (Paste into target server ~/.ssh/authorized_keys)</label>
-        <textarea id="settingPubKey" rows="3" readonly style="font-family: monospace; font-size: 0.8rem;"></textarea>
-        <button class="btn btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('settingPubKey').value); alert('Public key copied!')">📋 Copy Key</button>
-      </div>
-      <hr style="border-color: var(--card-border); margin: 8px 0;" />
-      <h4>Notification Dispatcher</h4>
-      <div class="form-group">
-        <label>Telegram Bot Token</label>
-        <input type="text" id="settingTgToken" placeholder="123456789:ABCdef..." />
-      </div>
-      <div class="form-group">
-        <label>Telegram Chat ID</label>
-        <input type="text" id="settingTgChat" placeholder="-100123456789 or user ID" />
-      </div>
-      <div class="form-group">
-        <label>Webhook URL (HTTP POST JSON)</label>
-        <input type="text" id="settingWebhook" placeholder="https://webhook.site/..." />
-      </div>
-      <div style="display: flex; gap: 8px;">
-        <button class="btn btn-primary" onclick="saveSettings()">Save Notification Settings</button>
-        <button class="btn" onclick="testNotification()">🔔 Test Notification</button>
-      </div>
-      <hr style="border-color: var(--card-border); margin: 8px 0;" />
-      <h4>Change Admin Password</h4>
-      <div class="form-group">
-        <input type="password" id="oldPass" placeholder="Current Password" />
-        <input type="password" id="newPass" placeholder="New Password" />
-        <button class="btn btn-warning btn-sm" onclick="changePassword()">Update Password</button>
-      </div>
-      <hr style="border-color: var(--card-border); margin: 8px 0;" />
-      <h4>System Snapshot & GitHub Backup</h4>
-      <div id="snapshotBackupStatus" style="font-size: 0.8rem; color: var(--text-muted); background: #090d16; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px;">
-        Status: <span id="backupStatusText">Belum dikonfigurasi</span>
-      </div>
-      <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-        <button class="btn btn-sm" onclick="exportSnapshotPrompt()">💾 Download Snapshot (.enc)</button>
-        <button class="btn btn-sm" onclick="openRestoreModal()">📂 Restore Snapshot</button>
+      <!-- General & Access Tab -->
+      <div id="settingsPanelGeneral" style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="card" style="padding: 16px;">
+          <h4 style="margin-bottom: 8px;">Global Pantau SSH Public Key</h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;">Kunci publik ini ditempelkan ke file <code>~/.ssh/authorized_keys</code> di server target untuk otentikasi SSH agentless.</p>
+          <div class="form-group">
+            <textarea id="settingPubKey" readonly onclick="this.select()" style="font-family: monospace; font-size: 0.8rem; resize: none; overflow: hidden; word-break: break-all; line-height: 1.45; padding: 10px;"></textarea>
+            <button class="btn btn-sm" id="btnCopyKey" onclick="copyPubKey()">📋 Copy Key</button>
+          </div>
+        </div>
+
+        <div class="card" style="padding: 16px;">
+          <h4 style="margin-bottom: 8px;">Change Admin Password</h4>
+          <div class="form-group" style="max-width: 400px;">
+            <input type="password" id="oldPass" placeholder="Current Password" />
+            <input type="password" id="newPass" placeholder="New Password" />
+            <button class="btn btn-warning btn-sm" onclick="changePassword()">Update Password</button>
+          </div>
+        </div>
       </div>
 
-      <div style="font-size: 0.85rem; font-weight: 600; color: #60a5fa; margin-top: 6px;">GitHub Sync (Private Repo)</div>
-      <div class="form-group" style="margin-top: 4px;">
-        <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem;">
-          <input type="checkbox" id="settingGhEnabled" style="width: auto;" />
-          Aktifkan Otomatis Backup ke GitHub
-        </label>
-      </div>
-      <div class="form-group">
-        <label>Repository (owner/repo)</label>
-        <input type="text" id="settingGhRepo" placeholder="username/pantau-backup" />
-      </div>
-      <div class="form-group">
-        <label>Personal Access Token (PAT dengan izin repo)</label>
-        <input type="password" id="settingGhToken" placeholder="ghp_... atau github_pat_..." />
-      </div>
-      <div class="form-group">
-        <label>Snapshot Passphrase (Kunci Enkripsi AES-256)</label>
-        <input type="password" id="settingGhPassphrase" placeholder="Frasa sandi rahasia untuk enkripsi" />
-      </div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-        <div class="form-group">
-          <label>Interval Backup (Jam)</label>
-          <input type="number" id="settingGhInterval" value="24" min="1" max="168" />
-        </div>
-        <div class="form-group">
-          <label>File Path di Repo</label>
-          <input type="text" id="settingGhPath" value="pantau-state.enc" />
+      <!-- Notification Channels Tab -->
+      <div id="settingsPanelNotif" style="display: none; flex-direction: column; gap: 16px;">
+        <div class="card" style="padding: 16px;">
+          <h4 style="margin-bottom: 8px;">Notification Dispatcher</h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">Kirim peringatan instan ketika drift terdeteksi atau server mengalami gangguan.</p>
+          <div class="form-group">
+            <label>Telegram Bot Token</label>
+            <input type="text" id="settingTgToken" placeholder="123456789:ABCdef..." />
+          </div>
+          <div class="form-group">
+            <label>Telegram Chat ID</label>
+            <input type="text" id="settingTgChat" placeholder="-100123456789 or user ID" />
+          </div>
+          <div class="form-group">
+            <label>Webhook URL (HTTP POST JSON)</label>
+            <input type="text" id="settingWebhook" placeholder="https://webhook.site/..." />
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 10px;">
+            <button class="btn btn-primary" onclick="saveSettings()">Save Notification Settings</button>
+            <button class="btn" onclick="testNotification()">🔔 Test Notification</button>
+          </div>
         </div>
       </div>
-      <div style="display: flex; gap: 8px; margin-top: 6px;">
-        <button class="btn btn-primary btn-sm" onclick="saveGitHubBackupSettings()">💾 Simpan Konfigurasi</button>
-        <button class="btn btn-success btn-sm" onclick="syncGitHubNow()">🚀 Sync ke GitHub Sekarang</button>
+
+      <!-- Backup & Snapshot Tab -->
+      <div id="settingsPanelBackup" style="display: none; flex-direction: column; gap: 16px;">
+        <div class="card" style="padding: 16px;">
+          <h4 style="margin-bottom: 8px;">System Snapshot Manual (.enc)</h4>
+          <div id="snapshotBackupStatus" style="font-size: 0.8rem; color: var(--text-muted); background: #090d16; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px;">
+            Status: <span id="backupStatusText">Belum dikonfigurasi</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm" onclick="exportSnapshotPrompt()">💾 Download Snapshot (.enc)</button>
+            <button class="btn btn-sm" onclick="openRestoreModal()">📂 Restore Snapshot</button>
+          </div>
+        </div>
+
+        <div class="card" style="padding: 16px;">
+          <h4 style="margin-bottom: 8px; color: #60a5fa;">GitHub Sync (Private Repository)</h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">Sinkronisasi otomatis basis data Pantau terenkripsi AES-256 ke GitHub secara berkala.</p>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem;">
+              <input type="checkbox" id="settingGhEnabled" style="width: auto;" />
+              Aktifkan Otomatis Backup ke GitHub
+            </label>
+          </div>
+          <div class="form-group">
+            <label>Repository (owner/repo)</label>
+            <input type="text" id="settingGhRepo" placeholder="username/pantau-backup" />
+          </div>
+          <div class="form-group">
+            <label>Personal Access Token (PAT dengan izin repo)</label>
+            <input type="password" id="settingGhToken" placeholder="ghp_... atau github_pat_..." />
+          </div>
+          <div class="form-group">
+            <label>Snapshot Passphrase (Kunci Enkripsi AES-256)</label>
+            <input type="password" id="settingGhPassphrase" placeholder="Frasa sandi rahasia untuk enkripsi" />
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div class="form-group">
+              <label>Interval Backup (Jam)</label>
+              <input type="number" id="settingGhInterval" value="24" min="1" max="168" />
+            </div>
+            <div class="form-group">
+              <label>File Path di Repo</label>
+              <input type="text" id="settingGhPath" value="pantau-state.enc" />
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 12px;">
+            <button class="btn btn-primary btn-sm" onclick="saveGitHubBackupSettings()">💾 Simpan Konfigurasi</button>
+            <button class="btn btn-success btn-sm" onclick="syncGitHubNow()">🚀 Sync ke GitHub Sekarang</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -262,18 +324,19 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 
 <!-- First-Boot / Restore Wizard Modal -->
 <div id="restoreModal" class="modal">
-  <div class="modal-content" style="max-width: 580px;">
+  <div class="modal-content modal-dialog">
     <div class="modal-header">
       <h3 id="restoreModalTitle">🔄 Restore Pantau dari Backup</h3>
       <button class="btn btn-sm" onclick="closeModal('restoreModal')">✕</button>
     </div>
-    <div class="modal-body">
-      <div class="tabs" style="margin-bottom: 12px;">
-        <div class="tab active" id="tabRestoreGh" onclick="switchRestoreTab('github')">🐙 Dari GitHub Private</div>
-        <div class="tab" id="tabRestoreFile" onclick="switchRestoreTab('file')">📁 Dari File Lokal (.enc)</div>
+    <div class="modal-tabs-bar">
+      <div class="tabs" style="margin-bottom: 0;">
+        <div class="tab active" id="tabRestoreGh" onclick="switchRestoreTab('github')">🐙 GitHub Private</div>
+        <div class="tab" id="tabRestoreFile" onclick="switchRestoreTab('file')">📁 File Lokal (.enc)</div>
         <div class="tab" id="tabRestoreFresh" onclick="switchRestoreTab('fresh')">🚀 Mulai Baru</div>
       </div>
-
+    </div>
+    <div class="modal-body">
       <!-- Tab GitHub -->
       <div id="restoreViewGithub" style="display: flex; flex-direction: column; gap: 12px;">
         <p style="font-size: 0.85rem; color: var(--text-muted);">Tarik database terenkripsi langsung dari repositori GitHub private Anda via REST API.</p>
@@ -320,13 +383,10 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
     </div>
   </div>
 </div>
-    </div>
-  </div>
-</div>
 
 <!-- Code Editor Modal -->
 <div id="editorModal" class="modal">
-  <div class="modal-content" style="max-width: 900px;">
+  <div class="modal-content modal-workspace">
     <div class="modal-header">
       <h3 id="editorFilePath">Edit File</h3>
       <div style="display: flex; gap: 8px;">
@@ -334,7 +394,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <button class="btn btn-sm" onclick="closeModal('editorModal')">✕</button>
       </div>
     </div>
-    <div class="modal-body" style="padding: 0;">
+    <div class="modal-body" style="padding: 0; display: flex; flex-direction: column;">
       <textarea id="codeEditorArea"></textarea>
     </div>
   </div>
@@ -342,7 +402,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 
 <!-- Cross-Host Transfer Modal -->
 <div id="transferModal" class="modal">
-  <div class="modal-content" style="max-width: 540px;">
+  <div class="modal-content modal-dialog">
     <div class="modal-header">
       <h3>🚀 Copy File / Folder to Another Host</h3>
       <button class="btn btn-sm" onclick="closeModal('transferModal')">✕</button>
@@ -372,7 +432,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         💡 Piped streaming streams directly between servers via Pantau in-memory bridge. Zero temporary master disk space used.
       </div>
     </div>
-    <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--card-border);">
+    <div class="modal-footer">
       <button class="btn" onclick="closeModal('transferModal')">Cancel</button>
       <button class="btn btn-warning" id="btnStartTransfer" onclick="submitTransfer()">Start Transfer</button>
     </div>
@@ -381,7 +441,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 
 <!-- Transfers List Modal -->
 <div id="transfersListModal" class="modal">
-  <div class="modal-content" style="max-width: 850px;">
+  <div class="modal-content modal-workspace">
     <div class="modal-header">
       <h3>📦 Cross-Host Transfers</h3>
       <div style="display: flex; gap: 8px;">
@@ -389,7 +449,13 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <button class="btn btn-sm" onclick="closeModal('transfersListModal')">✕</button>
       </div>
     </div>
-    <div class="modal-body" id="transfersListBody" style="max-height: 550px; overflow-y: auto;">
+    <div class="modal-tabs-bar">
+      <div class="tabs" id="transfersTabs">
+        <div class="tab active" id="tabTransfersActive" onclick="switchTransfersTab('active')">⚡ Active & Queued</div>
+        <div class="tab" id="tabTransfersHistory" onclick="switchTransfersTab('history')">📜 History</div>
+      </div>
+    </div>
+    <div class="modal-body" id="transfersListBody">
       <div style="text-align: center; color: var(--text-muted); padding: 20px;">Loading transfers...</div>
     </div>
   </div>
@@ -493,11 +559,14 @@ async function loadHosts() {
       </div>
       <div class="stat-row" style="align-items: center;">
         <span>Internet:</span>
-        <span style="font-size: 0.8rem;">${h.internet_online ? '🟢 Online (' + h.internet_latency_ms + 'ms)' : '🔴 Offline'}</span>
+        <span class="status-pill">${h.internet_online ? '<span style="color: #34d399;">●</span> Online (' + h.internet_latency_ms + 'ms)' : '<span style="color: #f87171;">●</span> Offline'}</span>
       </div>
-      <div class="stat-row">
+      <div class="stat-row" style="flex-direction: column; gap: 6px;">
         <span>Traffic Live:</span>
-        <span>⬇️ ${formatBytes(h.net_rx_speed_bps)}/s | ⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</span>
+        <div class="traffic-grid">
+          <div>⬇️ ${formatBytes(h.net_rx_speed_bps)}/s</div>
+          <div>⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
+        </div>
       </div>
       <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
         <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">🔍 View</button>
@@ -640,8 +709,8 @@ async function openHostDetail(id) {
 
 function switchTab(tab) {
   currentTab = tab;
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => {
+  document.querySelectorAll('#hostDetailTabs .tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#hostDetailTabs .tab').forEach(t => {
     if (t.innerText.toLowerCase().includes(tab)) t.classList.add('active');
   });
 
@@ -771,84 +840,109 @@ function switchTab(tab) {
   } else if (tab === 'desired') {
     const rules = d.rules || [];
     content.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0;">
         <h4>Desired State Rules</h4>
         <div style="display: flex; gap: 8px;">
           <button class="btn btn-warning btn-sm" onclick="generateBaseline(${d.host.id})">⚡ Auto-Detect Baseline</button>
           <button class="btn btn-primary btn-sm" onclick="addRulePrompt(${d.host.id})">+ Add Rule</button>
         </div>
       </div>
-      <table>
-        <thead>
-          <tr><th>Kind</th><th>Target</th><th>Expected</th><th>Current Actual</th><th>Status</th><th>Action</th></tr>
-        </thead>
-        <tbody>
-          ${rules.length === 0 ? '<tr><td colspan="6" style="text-align: center;">Belum ada aturan. Klik "Auto-Detect Baseline" untuk generate otomatis.</td></tr>' : ''}
-          ${rules.map(r => {
-            const actual = (d.actual_items || []).find(it => it.kind === r.kind && it.target === r.target);
-            const status = actual ? actual.status : 'unknown';
-            const current = actual ? actual.current : '-';
-            return `
-              <tr>
-                <td><b>${r.kind}</b></td>
-                <td>${escapeHtml(r.target)}</td>
-                <td>${escapeHtml(r.expected)}</td>
-                <td>${escapeHtml(current)}</td>
-                <td><span class="badge badge-${status === 'ok' ? 'healthy' : 'down'}">${status}</span></td>
-                <td><button class="btn btn-danger btn-sm" onclick="deleteRule(${r.id})">✕</button></td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
+      ${rules.length === 0 ? `
+        <div class="empty-state">
+          <div class="empty-state-icon">📋</div>
+          <div class="empty-state-title">Belum Ada Aturan Desired State</div>
+          <div class="empty-state-desc">Tentukan kondisi yang diharapkan untuk host ini atau buat otomatis berdasarkan pembacaan sistem saat ini.</div>
+          <div style="display: flex; gap: 8px; margin-top: 8px;">
+            <button class="btn btn-warning" onclick="generateBaseline(${d.host.id})">⚡ Auto-Detect Baseline</button>
+            <button class="btn btn-primary" onclick="addRulePrompt(${d.host.id})">+ Add Rule</button>
+          </div>
+        </div>
+      ` : `
+        <table>
+          <thead>
+            <tr><th>Kind</th><th>Target</th><th>Expected</th><th>Current Actual</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            ${rules.map(r => {
+              const actual = (d.actual_items || []).find(it => it.kind === r.kind && it.target === r.target);
+              const status = actual ? actual.status : 'unknown';
+              const current = actual ? actual.current : '-';
+              return `
+                <tr>
+                  <td><b>${r.kind}</b></td>
+                  <td>${escapeHtml(r.target)}</td>
+                  <td>${escapeHtml(r.expected)}</td>
+                  <td>${escapeHtml(current)}</td>
+                  <td><span class="badge badge-${status === 'ok' ? 'healthy' : 'down'}">${status}</span></td>
+                  <td><button class="btn btn-danger btn-sm" onclick="deleteRule(${r.id})">✕</button></td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `}
     `;
   } else if (tab === 'docker') {
     const containers = (d.actual_items || []).filter(it => it.kind === 'container');
     content.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0;">
         <h4>Docker Containers</h4>
       </div>
-      <table>
-        <thead>
-          <tr><th>Container Name</th><th>Status</th><th>Action</th></tr>
-        </thead>
-        <tbody>
-          ${containers.length === 0 ? '<tr><td colspan="3" style="text-align: center;">Tidak ada container Docker yang terdeteksi.</td></tr>' : ''}
-          ${containers.map(c => `
-            <tr>
-              <td><b>${escapeHtml(c.target)}</b></td>
-              <td><span class="badge badge-${c.status === 'ok' ? 'healthy' : 'down'}">${escapeHtml(c.current)}</span></td>
-              <td>
-                <button class="btn btn-success btn-sm" onclick="dockerAction('${c.target}', 'start')">▶ Start</button>
-                <button class="btn btn-warning btn-sm" onclick="dockerAction('${c.target}', 'restart')">🔄 Restart</button>
-                <button class="btn btn-danger btn-sm" onclick="dockerAction('${c.target}', 'stop')">⏹ Stop</button>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
+      ${containers.length === 0 ? `
+        <div class="empty-state">
+          <div class="empty-state-icon">🐳</div>
+          <div class="empty-state-title">Tidak Ada Container Docker</div>
+          <div class="empty-state-desc">Tidak ditemukan daemon Docker aktif atau container yang sedang berjalan pada host ini.</div>
+        </div>
+      ` : `
+        <table>
+          <thead>
+            <tr><th>Container Name</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            ${containers.map(c => `
+              <tr>
+                <td><b>${escapeHtml(c.target)}</b></td>
+                <td><span class="badge badge-${c.status === 'ok' ? 'healthy' : 'down'}">${escapeHtml(c.current)}</span></td>
+                <td>
+                  <button class="btn btn-success btn-sm" onclick="dockerAction('${c.target}', 'start')">▶ Start</button>
+                  <button class="btn btn-warning btn-sm" onclick="dockerAction('${c.target}', 'restart')">🔄 Restart</button>
+                  <button class="btn btn-danger btn-sm" onclick="dockerAction('${c.target}', 'stop')">⏹ Stop</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `}
     `;
   } else if (tab === 'timeline') {
     const incidents = d.incidents || [];
     content.innerHTML = `
-      <h4>Incident & Drift Timeline</h4>
-      <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
-        ${incidents.length === 0 ? '<p style="color: var(--text-muted);">Belum ada insiden drift yang tercatat.</p>' : ''}
-        ${incidents.map(inc => `
-          <div class="card" style="padding: 14px; border-left: 4px solid ${inc.event_type === 'drift_detected' ? 'var(--danger)' : 'var(--success)'}">
-            <div style="display: flex; justify-content: space-between;">
-              <b>${escapeHtml(inc.summary)}</b>
-              <span style="font-size: 0.75rem; color: var(--text-muted);">${inc.created_at}</span>
-            </div>
-            ${inc.root_cause_excerpt ? `
-              <div style="margin-top: 8px;">
-                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">ROOT CAUSE EXCERPT:</span>
-                <pre>${escapeHtml(inc.root_cause_excerpt)}</pre>
+      <h4 style="flex-shrink: 0;">Incident & Drift Timeline</h4>
+      ${incidents.length === 0 ? `
+        <div class="empty-state">
+          <div class="empty-state-icon">🛡️</div>
+          <div class="empty-state-title">Semua Sistem Normal</div>
+          <div class="empty-state-desc">Belum ada catatan insiden drift atau deviasi konfigurasi pada host ini.</div>
+        </div>
+      ` : `
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+          ${incidents.map(inc => `
+            <div class="card" style="padding: 14px; border-left: 4px solid ${inc.event_type === 'drift_detected' ? 'var(--danger)' : 'var(--success)'}">
+              <div style="display: flex; justify-content: space-between;">
+                <b>${escapeHtml(inc.summary)}</b>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">${inc.created_at}</span>
               </div>
-            ` : ''}
-          </div>
-        `).join('')}
-      </div>
+              ${inc.root_cause_excerpt ? `
+                <div style="margin-top: 8px;">
+                  <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">ROOT CAUSE EXCERPT:</span>
+                  <pre>${escapeHtml(inc.root_cause_excerpt)}</pre>
+                </div>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `}
     `;
   } else if (tab === 'files') {
     loadFiles('/');
@@ -1051,7 +1145,7 @@ function initTerminal(hostID) {
   term.loadAddon(fitAddon);
   term.open(document.getElementById('termDiv'));
   fitAddon.fit();
-
+  setTimeout(() => fitAddon.fit(), 60);
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = protocol + '//' + location.host + '/ws/terminal?host_id=' + hostID;
   const ws = new WebSocket(wsUrl);
@@ -1079,6 +1173,43 @@ function initTerminal(hostID) {
 }
 
 // Settings
+let currentSettingsTab = 'general';
+function switchSettingsTab(tab) {
+  currentSettingsTab = tab;
+  document.querySelectorAll('#settingsTabs .tab').forEach(t => t.classList.remove('active'));
+  if (tab === 'general') document.getElementById('tabSettingsGeneral').classList.add('active');
+  else if (tab === 'notif') document.getElementById('tabSettingsNotif').classList.add('active');
+  else if (tab === 'backup') document.getElementById('tabSettingsBackup').classList.add('active');
+
+  document.getElementById('settingsPanelGeneral').style.display = tab === 'general' ? 'flex' : 'none';
+  document.getElementById('settingsPanelNotif').style.display = tab === 'notif' ? 'flex' : 'none';
+  document.getElementById('settingsPanelBackup').style.display = tab === 'backup' ? 'flex' : 'none';
+
+  if (tab === 'general') {
+    setTimeout(() => {
+      const pubKeyEl = document.getElementById('settingPubKey');
+      if (pubKeyEl) {
+        pubKeyEl.style.height = 'auto';
+        pubKeyEl.style.height = (pubKeyEl.scrollHeight + 4) + 'px';
+      }
+    }, 30);
+  }
+}
+
+function copyPubKey() {
+  const el = document.getElementById('settingPubKey');
+  navigator.clipboard.writeText(el.value);
+  const btn = document.getElementById('btnCopyKey');
+  if (btn) {
+    const original = btn.innerText;
+    btn.innerText = '✅ Copied!';
+    btn.style.background = 'var(--success)';
+    setTimeout(() => {
+      btn.innerText = original;
+      btn.style.background = '';
+    }, 1500);
+  }
+}
 async function openSettingsModal() {
   const res = await fetch('/api/settings');
   const data = await res.json();
@@ -1104,6 +1235,14 @@ async function openSettingsModal() {
   document.getElementById('backupStatusText').innerText = statusText;
 
   document.getElementById('settingsModal').classList.add('open');
+  switchSettingsTab(currentSettingsTab || 'general');
+  setTimeout(() => {
+    const pubKeyEl = document.getElementById('settingPubKey');
+    if (pubKeyEl) {
+      pubKeyEl.style.height = 'auto';
+      pubKeyEl.style.height = (pubKeyEl.scrollHeight + 4) + 'px';
+    }
+  }, 50);
 }
 
 async function saveSettings() {
@@ -1410,6 +1549,18 @@ async function cancelTransfer(jobID) {
   }
 }
 
+let currentTransfersTab = 'active';
+function switchTransfersTab(tab) {
+  currentTransfersTab = tab;
+  document.querySelectorAll('#transfersTabs .tab').forEach(t => t.classList.remove('active'));
+  if (tab === 'active') {
+    document.getElementById('tabTransfersActive').classList.add('active');
+  } else {
+    document.getElementById('tabTransfersHistory').classList.add('active');
+  }
+  loadTransfers();
+}
+
 async function loadTransfers() {
   try {
     const res = await fetch('/api/transfers');
@@ -1419,6 +1570,7 @@ async function loadTransfers() {
     const badge = document.getElementById('activeTransferBadge');
     
     const activeJobs = (jobs || []).filter(j => j.status === 'transferring' || j.status === 'queued');
+    const historyJobs = (jobs || []).filter(j => j.status !== 'transferring' && j.status !== 'queued');
     if (badge) {
       if (activeJobs.length > 0) {
         badge.innerText = activeJobs.length;
@@ -1428,12 +1580,19 @@ async function loadTransfers() {
       }
     }
     
-    if (!jobs || jobs.length === 0) {
-      container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 30px;">No transfers initiated yet.</div>';
+    const displayJobs = currentTransfersTab === 'active' ? activeJobs : historyJobs;
+    if (displayJobs.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">${currentTransfersTab === 'active' ? '⚡' : '📜'}</div>
+          <div class="empty-state-title">${currentTransfersTab === 'active' ? 'Tidak Ada Transfer Berjalan' : 'Belum Ada Riwayat Transfer'}</div>
+          <div class="empty-state-desc">${currentTransfersTab === 'active' ? 'Semua proses pemindahan file antar-host sedang kosong atau telah selesai.' : 'Riwayat transfer yang selesai atau dibatalkan akan muncul di sini.'}</div>
+        </div>
+      `;
       return;
     }
     
-    container.innerHTML = jobs.map(j => {
+    container.innerHTML = displayJobs.map(j => {
       let statusColor = '#34d399';
       if (j.status === 'failed') statusColor = '#f87171';
       else if (j.status === 'cancelled') statusColor = '#94a3b8';
