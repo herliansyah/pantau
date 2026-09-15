@@ -962,8 +962,10 @@ const I18N = {
     "kernel": "Kernel:",
     "load_avg": "Load Average:",
     "lifecycle_assessment": "Lifecycle Assessment",
-    "upgrade_warn": "\u26a0\ufe0f This server is recommended for hardware upgrade / replacement!",
-    "run_inspect": "\u26a1 Run Immediate Inspection",
+    "upgrade_warn": "⚠️ This server is recommended for hardware upgrade / replacement!",
+    "refresh_recommendation": "📋 Recommendation: Eligible for Hardware Refresh",
+    "refresh_justification": "Exceeds standard 5-year productive lifespan / MTBF risk zone or hardware degraded. Recommended for IT asset replacement proposal.",
+    "run_inspect": "⚡ Run Immediate Inspection",
     "net_egress": "\ud83c\udf10 Internet Egress",
     "connected": "\ud83d\udfe2 Connected",
     "no_internet": "\ud83d\udd34 No Internet Access",
@@ -1299,8 +1301,10 @@ const I18N = {
     "kernel": "Kernel:",
     "load_avg": "Load Average:",
     "lifecycle_assessment": "Penilaian Lifecycle",
-    "upgrade_warn": "\u26a0\ufe0f Server ini disarankan untuk upgrade / penggantian hardware!",
-    "run_inspect": "\u26a1 Jalankan Inspeksi Langsung",
+    "upgrade_warn": "⚠️ Server ini disarankan untuk upgrade / penggantian hardware!",
+    "refresh_recommendation": "📋 Rekomendasi: Layak Pengajuan Peremajaan Hardware",
+    "refresh_justification": "Melampaui masa pakai produktif 5 tahun / zona risiko MTBF atau sistem terdegradasi. Disarankan sebagai dasar proposal peremajaan aset IT.",
+    "run_inspect": "⚡ Jalankan Inspeksi Langsung",
     "net_egress": "\ud83c\udf10 Internet Egress",
     "connected": "\ud83d\udfe2 Terhubung",
     "no_internet": "\ud83d\udd34 Tidak Ada Akses Internet",
@@ -2606,6 +2610,17 @@ function switchTab(tab, presetID) {
   if (!d) return;
 
   if (tab === 'overview') {
+    let scoreColor = '#34d399';
+    if (d.host.lifecycle_score < 50) scoreColor = '#f87171';
+    else if (d.host.lifecycle_score < 80) scoreColor = '#fbbf24';
+
+    let breakdownList = [];
+    try {
+      if (d.host.lifecycle_breakdown) {
+        breakdownList = JSON.parse(d.host.lifecycle_breakdown);
+      }
+    } catch(e) {}
+
     content.innerHTML = `
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
         <div class="card">
@@ -2617,9 +2632,33 @@ function switchTab(tab, presetID) {
         </div>
         <div class="card">
           <h4>${t('lifecycle_assessment')}</h4>
-          <div class="stat-row"><span>${t('lifecycle_score')}</span> <span class="score-badge">${d.host.lifecycle_score}/100</span></div>
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">${escapeHtml(d.host.lifecycle_notes)}</p>
-          ${d.host.lifecycle_score < 60 ? '<div style="color: var(--danger); font-size: 0.8rem; margin-top: 6px;">' + t('upgrade_warn') + '</div>' : ''}
+          <div class="stat-row"><span>${t('lifecycle_score')}</span> <span class="score-badge" style="color: ${scoreColor}; font-weight: 700; font-size: 0.95rem;">${d.host.lifecycle_score}/100</span></div>
+          ${breakdownList && breakdownList.length > 0 ? `
+            <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px;">
+              ${breakdownList.map(f => `
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; padding: 5px 8px; background: rgba(255,255,255,0.03); border-radius: 4px; border-left: 3px solid ${f.score_deduction < 0 ? 'var(--danger, #f87171)' : 'var(--success, #34d399)'};">
+                  <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;">
+                    <span style="font-weight: 600; color: ${f.score_deduction < 0 ? '#fca5a5' : '#a7f3d0'};">${escapeHtml(f.name)}:</span>
+                    <span style="color: var(--text-muted); margin-left: 4px;">${escapeHtml(f.detail)}</span>
+                  </div>
+                  <span style="font-weight: 700; font-size: 0.8rem; white-space: nowrap; color: ${f.score_deduction < 0 ? 'var(--danger, #f87171)' : 'var(--success, #34d399)'};">
+                    ${f.score_deduction < 0 ? f.score_deduction : '+0'}
+                  </span>
+                </div>
+              `).join('')}
+            </div>
+          ` : `
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 8px;">${escapeHtml(d.host.lifecycle_notes || '')}</p>
+          `}
+          ${d.host.lifecycle_score < 60 ? '<div style="color: var(--danger); font-size: 0.8rem; margin-top: 8px;">' + t('upgrade_warn') + '</div>' : ''}
+          ${(d.host.lifecycle_score < 60 || (breakdownList && breakdownList.some(f => f.name === 'Productive Lifespan' && f.score_deduction < 0))) ? `
+            <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 6px; padding: 8px 10px; margin-top: 10px; font-size: 0.8rem;">
+              <div style="font-weight: 700; color: #fca5a5; display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+                <span>${t('refresh_recommendation')}</span>
+              </div>
+              <div style="font-size: 0.76rem; color: #94a3b8;">${t('refresh_justification')}</div>
+            </div>
+          ` : ''}
         </div>
         <div class="card" style="grid-column: 1 / -1;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">

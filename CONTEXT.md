@@ -28,9 +28,21 @@ _Avoid_: Mismatch, divergence, error state
 Potongan log diagnostik terakhir (misal: exit code, potongan pesan journalctl atau file log sistem `/var/log/*`) yang diambil otomatis saat Drift terdeteksi.
 _Avoid_: Crash dump, debug output
 
+**Lifecycle Assessment**:
+Proses evaluasi multi-faktor transparan terhadap Host untuk mengukur kelayakan siklus hidup sistem melalui analisis komparatif status OS EOL, saturasi memori/CPU/disk, integritas fisik I/O kernel, dan batas masa pakai produktif hardware.
+_Avoid_: Server evaluation, health audit
+
 **Lifecycle Score**:
-Nilai kelayakan sebuah Host (0-100) berdasarkan status dukungan OS (termasuk deteksi End-Of-Life untuk distribusi legacy/pra-systemd), beban sumber daya jangka panjang, dan indikasi kegagalan perangkat keras.
+Nilai kelayakan sebuah Host (0-100) hasil akhir dari Lifecycle Assessment yang merefleksikan kesiapan perangkat keras dan sistem operasi untuk terus beroperasi atau memerlukan penggantian/upgrade.
 _Avoid_: Server grade, health rating
+
+**Productive Lifespan**:
+Rentang masa pakai produktif perangkat keras server (standar industri: 3–5 tahun) sebelum memasuki kurva penurunan MTBF (Mean Time Between Failures) dan risiko kegagalan fisik tinggi.
+_Avoid_: Hardware durability, server lifetime
+
+**Hardware Refresh**:
+Rekomendasi penggantian atau peremajaan server yang telah melampaui masa pakai produktif atau terdepresiasi penuh untuk mencegah kegagalan perangkat keras tak terduga.
+_Avoid_: Hardware upgrade, server replacement
 
 **Backup Freshness**:
 Status kevalidan backup berdasarkan keberadaan file di path tujuan, timestamp perubahan terbaru (recency), dan ukuran file yang wajar (> 0 byte).

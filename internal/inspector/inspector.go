@@ -91,7 +91,7 @@ func (ins *Inspector) InspectHost(hostID int64) error {
 
 // SystemMetricsBatchCmd is the single-shot batch command to gather system, network, and security metrics.
 // ponytail: Universal polyglot batching keeps agentless overhead near zero on modern & legacy Linux.
-const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; df -Pk / 2>/dev/null; echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l`
+const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; df -Pk / 2>/dev/null; echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l; echo "---"; (nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1); echo "---"; (cat /sys/class/dmi/id/bios_date 2>/dev/null || echo ""); echo "---"; (cat /sys/class/dmi/id/sys_vendor 2>/dev/null || cat /sys/class/dmi/id/product_name 2>/dev/null || echo ""); echo "---"; (stat -c %Y /etc/machine-id 2>/dev/null || stat -c %Y /etc/ssh/ssh_host_rsa_key 2>/dev/null || stat -c %Y /var/log 2>/dev/null || echo 0)`
 
 func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner) error {
 	stdout, _, _, err := runner.Exec(SystemMetricsBatchCmd)
@@ -122,10 +122,31 @@ func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner
 		ioErrors, _ = strconv.Atoi(strings.TrimSpace(sections[5]))
 	}
 
-	// Calculate Lifecycle Score (0-100)
-	score, notes := calculateLifecycleScore(h.OSInfo, h.CPULoad, h.RAMUsedBytes, h.RAMTotalBytes, ioErrors)
+	cpuCores := 1
+	if len(sections) >= 13 {
+		if c, err := strconv.Atoi(strings.TrimSpace(sections[12])); err == nil && c > 0 {
+			cpuCores = c
+		}
+	}
+
+	biosDateStr := ""
+	if len(sections) >= 14 {
+		biosDateStr = strings.TrimSpace(sections[13])
+	}
+	vendorStr := ""
+	if len(sections) >= 15 {
+		vendorStr = strings.TrimSpace(sections[14])
+	}
+	osInstallEpoch := int64(0)
+	if len(sections) >= 16 {
+		osInstallEpoch, _ = strconv.ParseInt(strings.TrimSpace(sections[15]), 10, 64)
+	}
+
+	// Calculate Lifecycle Score (0-100) and transparent breakdown
+	score, notes, breakdownJSON := calculateLifecycleScore(h.OSInfo, h.CPULoad, cpuCores, h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, ioErrors, biosDateStr, vendorStr, osInstallEpoch)
 	h.LifecycleScore = score
 	h.LifecycleNotes = notes
+	h.LifecycleBreakdown = breakdownJSON
 
 	// Parse Network & Security Observability Metrics
 	var netDevSec, pingSec, pubIPSec, estSec, listenSec, failedSec string
@@ -388,11 +409,52 @@ func parseDf(output string) (used, total int64) {
 	return 0, 0
 }
 
-func calculateLifecycleScore(osInfo, loadStr string, ramUsed, ramTotal int64, ioErrors int) (int, string) {
+type LifecycleFactor struct {
+	Name           string `json:"name"`
+	Status         string `json:"status"` // "pass", "fail"
+	ScoreDeduction int    `json:"score_deduction"`
+	Detail         string `json:"detail"`
+}
+
+func parseBIOSDate(s string) (time.Time, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, false
+	}
+	layouts := []string{"01/02/2006", "2006-01-02", "01/02/06", "2006/01/02", "02-01-2006"}
+	for _, l := range layouts {
+		if t, err := time.Parse(l, s); err == nil && t.Year() > 1990 && t.Year() <= time.Now().Year()+1 {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func isVirtualSystem(vendor string) bool {
+	v := strings.ToLower(vendor)
+	virtualSignatures := []string{
+		"qemu", "kvm", "vmware", "virtualbox", "xen",
+		"microsoft corporation", "hyper-v",
+		"amazon ec2", "google", "digitalocean", "hetzner",
+		"vultr", "linode", "openstack", "proxmox", "bhyve",
+	}
+	for _, sig := range virtualSignatures {
+		if strings.Contains(v, sig) {
+			return true
+		}
+	}
+	return false
+}
+
+func calculateLifecycleScore(osInfo, loadStr string, cpuCores int, ramUsed, ramTotal, diskUsed, diskTotal int64, ioErrors int, biosDateStr, vendorStr string, osInstallEpoch int64) (int, string, string) {
+	if cpuCores <= 0 {
+		cpuCores = 1
+	}
 	score := 100
 	var notes []string
+	var factors []LifecycleFactor
 
-	// Check EOL OS signatures
+	// 1. Check EOL OS signatures (-30 points)
 	eolPatterns := []string{
 		"Ubuntu 14.04", "Ubuntu 16.04", "Ubuntu 18.04",
 		"Debian 7", "Debian 8", "Debian 9",
@@ -402,48 +464,212 @@ func calculateLifecycleScore(osInfo, loadStr string, ramUsed, ramTotal int64, io
 		"Red Hat Enterprise Linux Server release 6",
 		"Red Hat Enterprise Linux Server release 7",
 	}
+	osEOL := false
+	matchedEOL := ""
 	for _, pat := range eolPatterns {
 		if strings.Contains(osInfo, pat) {
-			score -= 30
-			notes = append(notes, "OS reached End-Of-Life ("+pat+")")
+			osEOL = true
+			matchedEOL = pat
 			break
 		}
 	}
+	if osEOL {
+		score -= 30
+		notes = append(notes, "OS reached End-Of-Life ("+matchedEOL+")")
+		factors = append(factors, LifecycleFactor{
+			Name:           "OS Support",
+			Status:         "fail",
+			ScoreDeduction: -30,
+			Detail:         fmt.Sprintf("OS reached End-Of-Life (%s)", matchedEOL),
+		})
+	} else {
+		factors = append(factors, LifecycleFactor{
+			Name:           "OS Support",
+			Status:         "pass",
+			ScoreDeduction: 0,
+			Detail:         "Operating system is supported",
+		})
+	}
 
-	// Sustained RAM pressure
-	if ramTotal > 0 {
-		pct := float64(ramUsed) / float64(ramTotal) * 100
-		if pct > 92.0 {
-			score -= 20
-			notes = append(notes, fmt.Sprintf("Critical memory pressure (%.1f%% RAM utilized)", pct))
+	// 2. Productive Lifespan / Hardware Age check (MTBF degradation zone)
+	var ageYears float64 = -1
+	var ageDetail string
+	isVirt := isVirtualSystem(vendorStr)
+
+	if !isVirt {
+		if bt, ok := parseBIOSDate(biosDateStr); ok {
+			ageYears = time.Since(bt).Hours() / (24 * 365.25)
+			ageDetail = fmt.Sprintf("Physical hardware BIOS: %s (~%.1f yrs)", bt.Format("Jan 2006"), ageYears)
 		}
 	}
 
-	// Load average check
-	if loadStr != "" {
-		loads := strings.Split(loadStr, ",")
-		if len(loads) >= 1 {
-			val, _ := strconv.ParseFloat(strings.TrimSpace(loads[0]), 64)
-			if val > 8.0 {
-				score -= 20
-				notes = append(notes, fmt.Sprintf("High CPU load average (%.2f)", val))
+	// If virtual or physical BIOS date missing/invalid, fallback to OS deployment age
+	if ageYears < 0 && osInstallEpoch > 0 {
+		installTime := time.Unix(osInstallEpoch, 0)
+		if time.Since(installTime) > 0 {
+			ageYears = time.Since(installTime).Hours() / (24 * 365.25)
+			if isVirt {
+				ageDetail = fmt.Sprintf("Virtual instance deployment age: ~%.1f yrs", ageYears)
+			} else {
+				ageDetail = fmt.Sprintf("OS installation deployment age: ~%.1f yrs", ageYears)
 			}
 		}
 	}
 
-	// Hardware I/O disk errors
+	if ageYears >= 8.0 {
+		score -= 25
+		msg := fmt.Sprintf("Exceeds 8-yr critical lifespan (%.1f yrs) — urgent hardware refresh recommended", ageYears)
+		notes = append(notes, msg)
+		factors = append(factors, LifecycleFactor{
+			Name:           "Productive Lifespan",
+			Status:         "fail",
+			ScoreDeduction: -25,
+			Detail:         msg + " (" + ageDetail + ")",
+		})
+	} else if ageYears >= 5.0 {
+		score -= 15
+		msg := fmt.Sprintf("Exceeds 5-yr productive lifecycle / MTBF risk zone (%.1f yrs)", ageYears)
+		notes = append(notes, msg)
+		factors = append(factors, LifecycleFactor{
+			Name:           "Productive Lifespan",
+			Status:         "warn",
+			ScoreDeduction: -15,
+			Detail:         msg + " (" + ageDetail + ")",
+		})
+	} else if ageYears >= 0 {
+		factors = append(factors, LifecycleFactor{
+			Name:           "Productive Lifespan",
+			Status:         "pass",
+			ScoreDeduction: 0,
+			Detail:         fmt.Sprintf("Within normal productive lifespan (%.1f yrs; %s)", ageYears, ageDetail),
+		})
+	} else {
+		factors = append(factors, LifecycleFactor{
+			Name:           "Productive Lifespan",
+			Status:         "pass",
+			ScoreDeduction: 0,
+			Detail:         "Hardware age telemetry unavailable",
+		})
+	}
+
+	// 2. Memory pressure check (>92% = -20 points)
+	if ramTotal > 0 {
+		ramPct := float64(ramUsed) / float64(ramTotal) * 100
+		if ramPct > 92.0 {
+			score -= 20
+			msg := fmt.Sprintf("Critical memory pressure (%.1f%% RAM utilized)", ramPct)
+			notes = append(notes, msg)
+			factors = append(factors, LifecycleFactor{
+				Name:           "Memory Pressure",
+				Status:         "fail",
+				ScoreDeduction: -20,
+				Detail:         msg,
+			})
+		} else {
+			factors = append(factors, LifecycleFactor{
+				Name:           "Memory Pressure",
+				Status:         "pass",
+				ScoreDeduction: 0,
+				Detail:         fmt.Sprintf("Normal memory usage (%.1f%% RAM utilized)", ramPct),
+			})
+		}
+	} else {
+		factors = append(factors, LifecycleFactor{
+			Name:           "Memory Pressure",
+			Status:         "pass",
+			ScoreDeduction: 0,
+			Detail:         "Memory statistics unavailable",
+		})
+	}
+
+	// 3. CPU Saturation check (load 1m / vCPU > 2.0 = -20 points)
+	loadVal := 0.0
+	if loadStr != "" {
+		loads := strings.Split(loadStr, ",")
+		if len(loads) >= 1 {
+			loadVal, _ = strconv.ParseFloat(strings.TrimSpace(loads[0]), 64)
+		}
+	}
+	loadRatio := loadVal / float64(cpuCores)
+	if loadRatio > 2.0 {
+		score -= 20
+		msg := fmt.Sprintf("High CPU saturation (load %.2f on %d vCPU, ratio %.2f)", loadVal, cpuCores, loadRatio)
+		notes = append(notes, msg)
+		factors = append(factors, LifecycleFactor{
+			Name:           "CPU Saturation",
+			Status:         "fail",
+			ScoreDeduction: -20,
+			Detail:         msg,
+		})
+	} else {
+		factors = append(factors, LifecycleFactor{
+			Name:           "CPU Saturation",
+			Status:         "pass",
+			ScoreDeduction: 0,
+			Detail:         fmt.Sprintf("CPU load within capacity (load %.2f on %d vCPU)", loadVal, cpuCores),
+		})
+	}
+
+	// 4. Disk Capacity check (>90% = -20 points)
+	if diskTotal > 0 {
+		diskPct := float64(diskUsed) / float64(diskTotal) * 100
+		if diskPct > 90.0 {
+			score -= 20
+			msg := fmt.Sprintf("Critical disk saturation (%.1f%% disk utilized)", diskPct)
+			notes = append(notes, msg)
+			factors = append(factors, LifecycleFactor{
+				Name:           "Disk Capacity",
+				Status:         "fail",
+				ScoreDeduction: -20,
+				Detail:         msg,
+			})
+		} else {
+			factors = append(factors, LifecycleFactor{
+				Name:           "Disk Capacity",
+				Status:         "pass",
+				ScoreDeduction: 0,
+				Detail:         fmt.Sprintf("Normal disk usage (%.1f%% disk utilized)", diskPct),
+			})
+		}
+	} else {
+		factors = append(factors, LifecycleFactor{
+			Name:           "Disk Capacity",
+			Status:         "pass",
+			ScoreDeduction: 0,
+			Detail:         "Disk statistics unavailable",
+		})
+	}
+
+	// 5. Hardware I/O disk errors (-40 points)
 	if ioErrors > 0 {
 		score -= 40
-		notes = append(notes, fmt.Sprintf("%d disk I/O hardware errors recorded in kernel ring buffer", ioErrors))
+		msg := fmt.Sprintf("%d disk I/O hardware errors recorded in kernel ring buffer", ioErrors)
+		notes = append(notes, msg)
+		factors = append(factors, LifecycleFactor{
+			Name:           "Hardware I/O",
+			Status:         "fail",
+			ScoreDeduction: -40,
+			Detail:         msg,
+		})
+	} else {
+		factors = append(factors, LifecycleFactor{
+			Name:           "Hardware I/O",
+			Status:         "pass",
+			ScoreDeduction: 0,
+			Detail:         "No hardware disk I/O errors detected",
+		})
 	}
 
 	if score < 0 {
 		score = 0
 	}
-	if len(notes) == 0 {
-		return score, "Healthy — Hardware and OS are in good standing"
+	notesStr := "Healthy — Hardware and OS are in good standing"
+	if len(notes) > 0 {
+		notesStr = strings.Join(notes, "; ")
 	}
-	return score, strings.Join(notes, "; ")
+
+	breakdownBytes, _ := json.Marshal(factors)
+	return score, notesStr, string(breakdownBytes)
 }
 
 func (ins *Inspector) evaluateDesiredRules(h *store.Host, runner sshrunner.Runner) (bool, error) {
