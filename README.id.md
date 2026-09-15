@@ -22,6 +22,9 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License MIT" />
 </p>
 
+> [!WARNING]
+> **Peringatan Keamanan & Operasional Produksi**: Pantau adalah perangkat lunak *open-source* untuk pemantauan dan manajemen server Linux yang beroperasi dengan mengeksekusi perintah SSH, manipulasi file via SFTP, dan penyisipan kunci secara langsung dengan hak akses istimewa (*privileged/root*). Perangkat lunak ini disediakan atas dasar **"SEBAGAIMANA ADANYA" (*AS IS*)** tanpa jaminan apa pun. Pengguna memikul tanggung jawab penuh atas segala tindakan eksekusi remote, perlindungan kredensial/kunci privat, serta pemeliharaan cadangan (*backup*) mandiri. Jangan pernah membuka akses Pantau ke internet publik tanpa perlindungan reverse proxy, autentikasi ketat, dan enkripsi TLS/HTTPS.
+
 ---
 
 ## 📖 Ringkasan
@@ -46,7 +49,7 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 |                                                                                                                    |
 |  +---------------------+   +---------------------+   +---------------------+   +--------------------------------+  |
 |  |   Inspection Loop   |   |   Drift Engine      |   |  Hybrid Alerting    |   | Cross-Host Transfer Engine     |  |
-|  | (15s SSH Collector)|   | (Desired vs Actual) |   | (Telegram/Webhooks) |   | (Piped FIFO Stream, Zero-Disk) |  |
+|  | (SSH Collector: 5m)|   | (Desired vs Actual) |   | (Telegram/Webhooks) |   | (Piped FIFO Stream, Zero-Disk) |  |
 |  +----------+----------+   +----------+----------+   +----------+----------+   +---------------+----------------+  |
 |             |                         |                         |                              |                   |
 |             +-------------------------+------------+------------+                              |                   |
@@ -73,7 +76,7 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 
 ### 1. 🔍 Inspeksi Agentless SSH & 1-Click Key Provisioning
 - Mengambil metrik sistem secara aktual (CPU Load, RAM, partisi Disk, Network Egress, Sockets, Uptime, Kernel) murni melalui koneksi SSH standar.
-- **One-Time Key Provisioning**: Masukkan password server target sekali di RAM. Pantau secara idempoten menyalin public key ED25519 ke `~/.ssh/authorized_keys` dan langsung menghapus password dari memori.
+- **One-Time Key Provisioning**: Masukkan password server target sekali di RAM. Pantau secara idempoten menyalin public key universal RSA 4096-bit ke `~/.ssh/authorized_keys` (didukung universal dari OpenSSH 5.3+ lawas hingga Linux modern) dan langsung menghapus password dari memori.
 - **Kompatibilitas Server Lawas**: Mendukung cipher warisan (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`) untuk memantau server Linux legasi (CentOS 6, Debian 7, OpenSSH 5.3+).
 
 ### 2. 📋 Baseline Desired State & Otomatisasi Drift Engine
@@ -111,6 +114,23 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - Kamus translasi lokal zero-dependency tersimpan di `localStorage` (default: Bahasa Inggris).
 - Istilah teknis domain kanonikal (*Host*, *Desired State*, *Drift*, *Root Cause Excerpt*, *Snapshot*) tetap dipertahankan sesuai konvensi industri.
 
+### 9. 🩺 Audit Transparan Lifecycle Assessment 6-Faktor & Rekomendasi Hardware Refresh
+- Mengukur kelayakan operasional Host melalui 6 faktor transparan: status Linux OS End-of-Life (EOL), batas masa pakai produktif hardware (*Productive Lifespan* & kurva degradasi MTBF berdasarkan tanggal BIOS bare-metal vs usia deployment OS VM Cloud), tekanan memori RAM, rasio saturasi CPU terhadap core, kapasitas disk root, dan integritas I/O kernel (`dmesg`).
+- **Panduan Peremajaan Perangkat Keras**: Mengidentifikasi server yang melampaui masa pakai produktif 3–5 tahun atau usia kritis 8 tahun secara otomatis, menyajikan checklist breakdown audit, serta menghasilkan kartu justifikasi resmi penggantian (*Hardware Refresh*).
+
+### 10. 🛡️ Kesiapan Airgapped & Self-Contained Web Assets (Zero-CDN)
+- 100% pustaka vendor antarmuka pengguna (`xterm.js`, `xterm-addon-fit`, dan `CodeMirror` lengkap dengan 8 mode bahasa: XML, JS, CSS, HTML, C-like, PHP, Shell, YAML) disematkan langsung ke dalam binary Go via `go:embed`.
+- Menegakkan *Content Security Policy* (CSP) ketat tanpa permintaan jaringan keluar ke CDN publik, menjamin antarmuka berfungsi 100% sempurna pada intranet terisolasi, VPC tertutup, maupun lingkungan *airgapped*.
+
+### 11. 📂 Host Grouping, Terminal Maximize & Port Auto-Scan Fallback
+- **Host Group**: Mengelompokkan Host berdasarkan fungsi server atau lingkungan (misal: *Server Utama*, *Testing*, *Database Cluster*) dengan baris/kartu pemisah visual pada tampilan Grid View maupun List View.
+- **Terminal Maximize**: Memperluas antarmuka terminal ke ukuran layar penuh peramban (*full-viewport*) dengan tetap mempertahankan pintasan tombol interaktif (seperti `Esc` pada `vim`, `nano`, atau `htop`).
+- **Port Auto-Scan Fallback**: Mendeteksi ketersediaan port secara berurutan (`8080` hingga `8099`) saat server dijalankan dengan port default, mencegah kegagalan startup akibat konflik port yang sedang digunakan.
+
+### 12. ⚡ Terminal Preset & Split-Pane Multi-Terminal
+- **Terminal Preset**: Menyimpan pintasan perintah diagnostik berulang (`htop`, `docker stats`, `journalctl -f`) dengan pengecekan ketersediaan utilitas remote sebelum eksekusi (*pre-flight check*).
+- **Split-Pane Web Terminal**: Membuka dua sesi terminal berdampingan secara simultan (`Alt+\`) untuk memantau atau membandingkan performa beberapa server remote sekaligus secara real-time.
+
 ---
 
 ## 🚀 Panduan Memulai Cepat (Quick Start)
@@ -147,12 +167,14 @@ services:
     volumes:
       - pantau-data:/data
     environment:
-      - PORT=8080
-      - DB_PATH=/data/pantau.db
+      - PANTAU_PORT=8080
+      - PANTAU_DB=/data/pantau.db
 
 volumes:
   pantau-data:
 ```
+
+*(Catatan: Variabel lingkungan standar `PORT` dan `DB_PATH` juga didukung sebagai fallback otomatis).*
 
 ```bash
 docker compose up -d
@@ -193,8 +215,10 @@ systemctl enable --now pantau
 
 | Argumen (Flag) | Environment Variable | Default | Keterangan |
 | :--- | :--- | :--- | :--- |
-| `-port` | `PORT` | `8080` | Port listening HTTP |
-| `-db` | `DB_PATH` | `pantau.db` | Lokasi file database SQLite |
+| `-port` | `PANTAU_PORT` (atau `PORT`) | `8080` | Port listening HTTP (auto-scan port `8080`–`8099` jika default) |
+| `-db` | `PANTAU_DB` (atau `DB_PATH`) | `pantau.db` | Lokasi file basis data SQLite |
+| `-open` | - | `true` (Windows) / `false` | Buka peramban web bawaan secara otomatis saat startup |
+| `-v`, `-version` | - | - | Cetak versi Pantau lalu keluar |
 
 ---
 
@@ -207,8 +231,16 @@ systemctl enable --now pantau
 
 ---
 
+## ⚠️ Pernyataan Bebas Tanggung Jawab (Disclaimer & Limitation of Liability)
+
+1. **Penafian Jaminan (*"AS IS"*)**: Pantau adalah perangkat lunak *open-source* yang didistribusikan di bawah lisensi MIT secara "SEBAGAIMANA ADANYA" (*AS IS*), tanpa jaminan apa pun, baik tersurat maupun tersirat, termasuk namun tidak terbatas pada jaminan kelayakan jual, kesesuaian untuk tujuan tertentu, ketiadaan pelanggaran hak, atau keandalan integrasi sistem.
+2. **Batasan Tanggung Jawab Pengembang**: Pengembang, pembuat, dan kontributor **lepas tangan dan tidak memikul tanggung jawab hukum atau finansial apa pun** atas segala bentuk kerusakan sistem, kegagalan operasi, kehilangan data, waktu henti server (*downtime*), pelanggaran keamanan, akses tidak sah, kerusakan konfigurasi, kepanikan kernel (*kernel panic*), atau kerugian finansial yang timbul secara langsung maupun tidak langsung dari instalasi, eksekusi, atau kesalahan pengoperasian perangkat lunak ini.
+3. **Tanggung Jawab Penuh Pengguna**: Anda selaku operator/administrator sistem memikul tanggung jawab tunggal dan penuh atas segala tindakan atau instruksi yang dijalankan melalui Pantau—termasuk namun tidak terbatas pada eksekusi perintah shell remote, modifikasi atau penghapusan file via SFTP, pengaliran transfer antar-host, perubahan jadwal cron, manipulasi status container Docker, dan *Key Provisioning* SSH.
+
+---
+
 ## 📄 Lisensi
 
-Didistribusikan di bawah lisensi **MIT License**. Lihat file `LICENSE` untuk rincian selengkapnya.
+Didistribusikan di bawah lisensi **MIT License**. Lihat berkas [`LICENSE`](file:///home/ian/emdash/worktrees/pantau-48c85891/emdash-wet-colts-admire-i5yej/LICENSE) untuk teks dan ketentuan hukum selengkapnya.
 
 Dikembangkan dengan ❤️ oleh [Herliansyah](https://github.com/herliansyah).

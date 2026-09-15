@@ -22,6 +22,9 @@
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License MIT" />
 </p>
 
+> [!WARNING]
+> **Production & Security Advisory**: Pantau is an open-source administrative tool designed for server management and monitoring. It executes remote SSH commands, manages files via SFTP, and provisions keys directly on target Linux hosts with elevated/root privileges. This software is provided **"AS IS"** without warranties of any kind. Users are solely responsible for verifying operations, safeguarding private keys, and maintaining independent offline backups. Never expose Pantau to the public internet without proper authentication, reverse proxy protection, and TLS termination.
+
 ---
 
 ## 📖 Overview
@@ -46,7 +49,7 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 |                                                                                                                    |
 |  +---------------------+   +---------------------+   +---------------------+   +--------------------------------+  |
 |  |   Inspection Loop   |   |   Drift Engine      |   |  Hybrid Alerting    |   | Cross-Host Transfer Engine     |  |
-|  | (15s SSH Collector)|   | (Desired vs Actual) |   | (Telegram/Webhooks) |   | (Piped FIFO Stream, Zero-Disk) |  |
+|  | (SSH Collector: 5m)|   | (Desired vs Actual) |   | (Telegram/Webhooks) |   | (Piped FIFO Stream, Zero-Disk) |  |
 |  +----------+----------+   +----------+----------+   +----------+----------+   +---------------+----------------+  |
 |             |                         |                         |                              |                   |
 |             +-------------------------+------------+------------+                              |                   |
@@ -73,7 +76,7 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 
 ### 1. 🔍 Agentless SSH Inspection & 1-Click Key Provisioning
 - Collects real-time metrics (CPU Load, RAM, Disk partitions, Network Egress, Sockets, Uptime, Kernel) purely via standard POSIX SSH.
-- **One-Time Key Provisioning**: Provide target root/sudo password once in RAM. Pantau idempotently injects its ED25519 public key into `~/.ssh/authorized_keys` and discards the password immediately from memory.
+- **One-Time Key Provisioning**: Provide target root/sudo password once in RAM. Pantau idempotently injects its universal RSA 4096-bit public key into `~/.ssh/authorized_keys` (universally supported across legacy OpenSSH 5.3+ through modern OpenSSH) and discards the password immediately from memory.
 - **Legacy Server Compatibility**: Native cipher fallbacks (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`) allow monitoring legacy Linux servers (CentOS 6, Debian 7, OpenSSH 5.3+).
 
 ### 2. 📋 Desired State Baseline & Automated Drift Engine
@@ -111,6 +114,23 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - Zero-dependency local translation dictionary stored in `localStorage` (default: English).
 - Canonical domain terminology preserved in Indonesian version for clear operational communication.
 
+### 9. 🩺 Transparent 6-Factor Lifecycle Assessment & Hardware Refresh
+- Evaluates server operational health across 6 transparent factors: Linux OS End-of-Life (EOL) status, hardware age & MTBF degradation (bare-metal BIOS date vs cloud VM OS deployment age), RAM pressure, CPU core-to-load saturation, disk capacity, and kernel I/O errors.
+- **Productive Lifespan Guidance**: Automatically flags servers exceeding standard 3–5 year hardware amortization or 8-year critical lifespans, providing auditable checklist breakdowns and formal hardware refresh justifications.
+
+### 10. 🛡️ Airgapped & Self-Contained Web Assets (Zero-CDN)
+- 100% of frontend vendor libraries (`xterm.js`, `xterm-addon-fit`, and `CodeMirror` with 8 syntax modes: XML, JS, CSS, HTML, C-like, PHP, Shell, YAML) are bundled directly inside the single binary via `go:embed`.
+- Enforces a strict Content Security Policy (CSP) with zero external CDN network requests, guaranteeing full offline operations in isolated intranets, airgapped VPCs, or disconnected environments.
+
+### 11. 📂 Host Grouping, Terminal Maximize & Port Auto-Scan
+- **Host Grouping**: Categorize hosts by environment or role (e.g. *Primary Cluster*, *Testing*, *Database Servers*) with unified grid and list view separation.
+- **Terminal Maximize**: Expand the web terminal to a full-viewport canvas while preserving interactive terminal shortcuts (such as `Esc` in `vim`, `nano`, or `htop`).
+- **Port Auto-Scan Fallback**: Automatically scans sequential ports (`8080` to `8099`) when initialized on the default port, eliminating startup crashes caused by busy ports.
+
+### 12. ⚡ Terminal Presets & Split-Pane Observability
+- **Terminal Presets**: Save and execute recurring diagnostic commands (`htop`, `docker stats`, `journalctl -f`) with pre-flight availability checks.
+- **Split-Pane Web Terminal**: Launch dual side-by-side terminal sessions (`Alt+\`) to monitor and compare multiple remote hosts simultaneously in real time.
+
 ---
 
 ## 🚀 Quick Start
@@ -147,12 +167,14 @@ services:
     volumes:
       - pantau-data:/data
     environment:
-      - PORT=8080
-      - DB_PATH=/data/pantau.db
+      - PANTAU_PORT=8080
+      - PANTAU_DB=/data/pantau.db
 
 volumes:
   pantau-data:
 ```
+
+*(Note: Standard `PORT` and `DB_PATH` environment variables are also supported as automatic fallbacks).*
 
 ```bash
 docker compose up -d
@@ -193,8 +215,10 @@ systemctl enable --now pantau
 
 | Flag | Env Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `-port` | `PORT` | `8080` | HTTP listening port |
-| `-db` | `DB_PATH` | `pantau.db` | Path to SQLite database file |
+| `-port` | `PANTAU_PORT` (or `PORT`) | `8080` | HTTP listening port (auto-scans `8080`–`8099` on default) |
+| `-db` | `PANTAU_DB` (or `DB_PATH`) | `pantau.db` | Path to SQLite database file |
+| `-open` | - | `true` (Windows) / `false` | Automatically open default web browser on launch |
+| `-v`, `-version` | - | - | Print Pantau version and exit |
 
 ---
 
@@ -207,8 +231,16 @@ systemctl enable --now pantau
 
 ---
 
+## ⚠️ Disclaimer & Limitation of Liability
+
+1. **"AS IS" Warranty Disclaimer**: Pantau is open-source software provided under the MIT License on an "AS IS" and "AS AVAILABLE" basis, without warranties of any kind, whether express, implied, statutory, or otherwise, including but not limited to warranties of merchantability, fitness for a particular purpose, non-infringement, or system integration.
+2. **Assumption of Risk & Limitation of Liability**: The author, maintainers, and contributors accept **no liability or responsibility** for any damages, operational failures, data loss, server downtime, security breaches, unauthorized access, kernel panics, configuration corruption, or financial losses arising directly or indirectly from the installation, execution, or misuse of this software.
+3. **User Responsibility**: You as the system operator retain full and exclusive responsibility for all actions performed through Pantau, including but not limited to remote shell commands, file modifications or deletions via SFTP, cross-host file streaming, cron modifications, container state transitions, and SSH key provisioning.
+
+---
+
 ## 📄 License
 
-Distributed under the **MIT License**. See `LICENSE` for details.
+Distributed under the **MIT License**. See [`LICENSE`](file:///home/ian/emdash/worktrees/pantau-48c85891/emdash-wet-colts-admire-i5yej/LICENSE) for the full license text and terms.
 
 Developed with ❤️ by [Herliansyah](https://github.com/herliansyah).

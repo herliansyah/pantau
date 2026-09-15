@@ -1386,4 +1386,33 @@ func TestTicket15_NotesSearchAndOrdering(t *testing.T) {
 	}
 }
 
+func TestResolveConfigFallbacks(t *testing.T) {
+	// 1. Defaults from flags when env vars are unset
+	t.Setenv("PANTAU_PORT", "")
+	t.Setenv("PORT", "")
+	t.Setenv("PANTAU_DB", "")
+	t.Setenv("DB_PATH", "")
+
+	port, db, explicit := resolveConfig(8080, "pantau.db")
+	if port != 8080 || db != "pantau.db" || explicit {
+		t.Fatalf("expected defaults (8080, pantau.db, false), got (%d, %s, %v)", port, db, explicit)
+	}
+
+	// 2. Generic PORT and DB_PATH fallbacks
+	t.Setenv("PORT", "9090")
+	t.Setenv("DB_PATH", "data/custom.db")
+	port, db, explicit = resolveConfig(8080, "pantau.db")
+	if port != 9090 || db != "data/custom.db" || !explicit {
+		t.Fatalf("expected PORT fallback (9090, data/custom.db, true), got (%d, %s, %v)", port, db, explicit)
+	}
+
+	// 3. Specific PANTAU_PORT and PANTAU_DB take precedence over generic ones
+	t.Setenv("PANTAU_PORT", "9191")
+	t.Setenv("PANTAU_DB", "data/pantau_pref.db")
+	port, db, explicit = resolveConfig(8080, "pantau.db")
+	if port != 9191 || db != "data/pantau_pref.db" || !explicit {
+		t.Fatalf("expected PANTAU_* precedence (9191, data/pantau_pref.db, true), got (%d, %s, %v)", port, db, explicit)
+	}
+}
+
 

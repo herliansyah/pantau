@@ -83,6 +83,29 @@ func printBanner(version string) {
 `, cyan, reset, dim, reset, dim, reset, version, dim, reset, dim, reset)
 }
 
+func resolveConfig(flagPort int, flagDB string) (port int, dbPath string, portExplicit bool) {
+	port = flagPort
+	if envPort := os.Getenv("PANTAU_PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil {
+			port = p
+			portExplicit = true
+		}
+	} else if envPort := os.Getenv("PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil {
+			port = p
+			portExplicit = true
+		}
+	}
+
+	dbPath = flagDB
+	if envDB := os.Getenv("PANTAU_DB"); envDB != "" {
+		dbPath = envDB
+	} else if envDB := os.Getenv("DB_PATH"); envDB != "" {
+		dbPath = envDB
+	}
+	return port, dbPath, portExplicit
+}
+
 func main() {
 	versionFlag := flag.Bool("version", false, "Print version and exit")
 	flag.BoolVar(versionFlag, "v", false, "Print version and exit (shorthand)")
@@ -105,17 +128,9 @@ func main() {
 		}
 	})
 
-	port := *portFlag
-	if envPort := os.Getenv("PANTAU_PORT"); envPort != "" {
-		if p, err := strconv.Atoi(envPort); err == nil {
-			port = p
-			portExplicit = true
-		}
-	}
-
-	dbPath := *dbFlag
-	if envDB := os.Getenv("PANTAU_DB"); envDB != "" {
-		dbPath = envDB
+	port, dbPath, envPortExplicit := resolveConfig(*portFlag, *dbFlag)
+	if envPortExplicit {
+		portExplicit = true
 	}
 
 	log.Printf("Starting Pantau %s...", ver)
