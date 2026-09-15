@@ -98,6 +98,9 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 4
 .tab { padding: 10px 16px; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; font-weight: 500; border-bottom: 2px solid transparent; flex-shrink: 0; transition: all 0.15s ease; }
 .tab:hover { color: #f8fafc; }
 .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+/* ponytail: compact 4-column grid fits in 600px Action Dialog without scroll; upgrade to vertical nav if tabs exceed 4 */
+#settingsTabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; overflow-x: hidden; }
+#settingsTabs .tab { padding: 10px 4px; text-align: center; justify-content: center; display: flex; align-items: center; white-space: nowrap; font-size: 0.82rem; }
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; color: var(--text-muted); flex: 1; gap: 10px; }
 .empty-state-icon { font-size: 2.5rem; opacity: 0.7; }
 .empty-state-title { font-size: 1rem; font-weight: 600; color: #cbd5e1; }
@@ -533,10 +536,10 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
     </div>
     <div class="modal-tabs-bar">
       <div class="tabs" id="settingsTabs">
-        <div class="tab active" id="tabSettingsGeneral" onclick="switchSettingsTab('general')" data-i18n="tab_settings_general">🔑 General & Access</div>
-        <div class="tab" id="tabSettingsNotif" onclick="switchSettingsTab('notif')" data-i18n="tab_settings_notif">🔔 Notification Channels</div>
-        <div class="tab" id="tabSettingsBackup" onclick="switchSettingsTab('backup')" data-i18n="tab_settings_backup">💾 Backup & Snapshot</div>
-        <div class="tab" id="tabSettingsPresets" onclick="switchSettingsTab('presets')" data-i18n="tab_settings_presets">💻 Terminal Presets</div>
+        <div class="tab active" id="tabSettingsGeneral" onclick="switchSettingsTab('general')" data-i18n="tab_settings_general">🔑 Access</div>
+        <div class="tab" id="tabSettingsNotif" onclick="switchSettingsTab('notif')" data-i18n="tab_settings_notif">🔔 Notifications</div>
+        <div class="tab" id="tabSettingsBackup" onclick="switchSettingsTab('backup')" data-i18n="tab_settings_backup">💾 Backup</div>
+        <div class="tab" id="tabSettingsPresets" onclick="switchSettingsTab('presets')" data-i18n="tab_settings_presets">💻 Presets</div>
       </div>
     </div>
     <div class="modal-body">
@@ -923,7 +926,7 @@ const I18N = {
     "ssh_test_success": "SSH Connection Success: ",
     "inspect_success": "Inspection completed for host",
     "injecting_key": "Injecting Pantau public key...",
-    "tab_settings_presets": "💻 Terminal Presets",
+    "tab_settings_presets": "💻 Presets",
     "manage_presets": "Manage Terminal Presets",
     "add_preset": "Add Terminal Preset",
     "edit_preset": "Edit Terminal Preset",
@@ -1042,9 +1045,9 @@ const I18N = {
     "file_exists_overwrite": "File '{name}' already exists. Overwrite?",
     "edit_file": "Edit File",
     "btn_save": "\ud83d\udcbe Save",
-    "tab_settings_general": "\ud83d\udd11 General & Access",
-    "tab_settings_notif": "\ud83d\udd14 Notification Channels",
-    "tab_settings_backup": "\ud83d\udcbe Backup & Snapshot",
+    "tab_settings_general": "🔑 Access",
+    "tab_settings_notif": "🔔 Notifications",
+    "tab_settings_backup": "💾 Backup",
     "global_pub_key": "Global Pantau SSH Public Key",
     "global_pub_key_desc": "This public key is placed into <code>~/.ssh/authorized_keys</code> on target servers for agentless SSH authentication.",
     "copy_key": "\ud83d\udccb Copy Key",
@@ -1260,7 +1263,7 @@ const I18N = {
     "ssh_test_success": "Koneksi SSH Berhasil: ",
     "inspect_success": "Inspeksi selesai untuk host",
     "injecting_key": "Menginjeksi public key Pantau...",
-    "tab_settings_presets": "💻 Terminal Preset",
+    "tab_settings_presets": "💻 Preset",
     "manage_presets": "Kelola Terminal Preset",
     "add_preset": "Tambah Terminal Preset",
     "edit_preset": "Edit Terminal Preset",
@@ -1379,9 +1382,9 @@ const I18N = {
     "file_exists_overwrite": "Berkas '{name}' sudah ada. Timpa?",
     "edit_file": "Edit Berkas",
     "btn_save": "\ud83d\udcbe Simpan",
-    "tab_settings_general": "\ud83d\udd11 Umum & Akses",
-    "tab_settings_notif": "\ud83d\udd14 Saluran Notifikasi",
-    "tab_settings_backup": "\ud83d\udcbe Backup & Snapshot",
+    "tab_settings_general": "🔑 Akses",
+    "tab_settings_notif": "🔔 Notifikasi",
+    "tab_settings_backup": "💾 Backup",
     "global_pub_key": "Global Pantau SSH Public Key",
     "global_pub_key_desc": "Kunci publik ini ditempelkan ke file <code>~/.ssh/authorized_keys</code> di server target untuk otentikasi SSH agentless.",
     "copy_key": "\ud83d\udccb Salin Kunci",
