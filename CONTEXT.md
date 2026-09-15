@@ -144,3 +144,7 @@ _Avoid_: Native fullscreen, modal expand, popout window
 **Port Auto-Scan**:
 Mekanisme deteksi ketersediaan port jaringan lokal secara berurutan saat server web Pantau diinisialisasi dengan port default, untuk menghindari kegagalan proses akibat port yang telah terpakai.
 _Avoid_: Port hopping, dynamic port binding
+
+**Self-Contained Web Assets**:
+Koleksi seluruh pustaka antarmuka web Pantau (stylesheet CSS, modul terminal xterm, dan editor teks CodeMirror) yang disematkan langsung ke dalam binary aplikasi melalui sistem file tersemat (embedded filesystem) dan disajikan secara lokal, menghilangkan seluruh ketergantungan jaringan eksternal ke CDN publik untuk menjamin operasional penuh pada lingkungan terisolasi (airgapped).
+_Avoid_: CDN dependencies, online scripts, external assets

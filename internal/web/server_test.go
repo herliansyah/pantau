@@ -270,3 +270,91 @@ func TestServerSetVersion(t *testing.T) {
 		t.Errorf("expected default v1.0.0 to be replaced in footer badge")
 	}
 }
+
+func TestAirgappedSelfContainedAssets(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-airgap-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	srv := NewServer(db, nil, nil)
+
+	// 1. Check Root / Response: CSP, Cache-Control, and Zero CDN References
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for /, got %d", w.Code)
+	}
+
+	csp := w.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "default-src 'self'") {
+		t.Errorf("expected default-src 'self' in CSP, got: %s", csp)
+	}
+	if !strings.Contains(csp, "connect-src 'self' ws: wss:") {
+		t.Errorf("expected connect-src with ws/wss in CSP, got: %s", csp)
+	}
+
+	cacheControl := w.Header().Get("Cache-Control")
+	if cacheControl != "no-cache" {
+		t.Errorf("expected Cache-Control: no-cache on HTML root, got: %s", cacheControl)
+	}
+
+	htmlBody := w.Body.String()
+	if strings.Contains(htmlBody, "cdn.jsdelivr.net") {
+		t.Errorf("found online CDN jsdelivr reference in index.html")
+	}
+	if strings.Contains(htmlBody, "cdnjs.cloudflare.com") {
+		t.Errorf("found online CDN cdnjs reference in index.html")
+	}
+	if !strings.Contains(htmlBody, `href="/vendor/xterm.css"`) {
+		t.Errorf("expected local /vendor/xterm.css link in index.html")
+	}
+	if !strings.Contains(htmlBody, `src="/vendor/xterm.js"`) {
+		t.Errorf("expected local /vendor/xterm.js script in index.html")
+	}
+
+	// 2. Check Static Vendor Serving
+	testVendorAssets := []struct {
+		path        string
+		contentType string
+	}{
+		{"/vendor/xterm.js", "text/javascript"},
+		{"/vendor/xterm.css", "text/css"},
+		{"/vendor/codemirror.min.js", "text/javascript"},
+		{"/vendor/codemirror.min.css", "text/css"},
+		{"/vendor/nord.min.css", "text/css"},
+		{"/vendor/xterm-addon-fit.js", "text/javascript"},
+		{"/vendor/mode/yaml.min.js", "text/javascript"},
+		{"/vendor/mode/shell.min.js", "text/javascript"},
+	}
+
+	for _, tc := range testVendorAssets {
+		reqV := httptest.NewRequest("GET", tc.path, nil)
+		wV := httptest.NewRecorder()
+		srv.ServeHTTP(wV, reqV)
+
+		if wV.Code != http.StatusOK {
+			t.Errorf("expected 200 for %s, got %d", tc.path, wV.Code)
+		}
+		cc := wV.Header().Get("Cache-Control")
+		if !strings.Contains(cc, "immutable") {
+			t.Errorf("expected immutable Cache-Control for %s, got %s", tc.path, cc)
+		}
+		ct := wV.Header().Get("Content-Type")
+		if !strings.Contains(ct, tc.contentType) && !strings.Contains(ct, "application/javascript") {
+			t.Errorf("expected %s content-type for %s, got %s", tc.contentType, tc.path, ct)
+		}
+		if wV.Body.Len() == 0 {
+			t.Errorf("expected non-empty body for %s", tc.path)
+		}
+	}
+}

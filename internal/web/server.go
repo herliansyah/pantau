@@ -85,6 +85,13 @@ func (s *Server) routes() {
 	// Static / UI
 	s.mux.HandleFunc("/", s.handleIndex)
 
+	// Vendor static assets (airgapped / local cache)
+	vendorHandler := http.StripPrefix("/vendor/", http.FileServer(http.FS(vendorFS())))
+	s.mux.HandleFunc("/vendor/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		vendorHandler.ServeHTTP(w, r)
+	})
+
 	// Auth
 	s.mux.HandleFunc("/api/login", s.handleLogin)
 	s.mux.HandleFunc("/api/logout", s.handleLogout)
@@ -1329,6 +1336,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	// ponytail: strict CSP to guarantee 100% offline airgapped operation with no external CDN/font leaks
+	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; font-src 'self' data:; img-src 'self' data:;")
 	_, _ = w.Write(s.htmlContent)
 }
 
