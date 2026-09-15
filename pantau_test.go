@@ -173,6 +173,169 @@ func TestTicket02_PeriodicInspectionAndLifecycle(t *testing.T) {
 	if !strings.Contains(h.LifecycleNotes, "End-Of-Life") {
 		t.Fatalf("expected EOL note in LifecycleNotes, got %s", h.LifecycleNotes)
 	}
+	if !strings.Contains(h.LifecycleBreakdown, "OS Support") {
+		t.Fatalf("expected OS Support in LifecycleBreakdown, got %s", h.LifecycleBreakdown)
+	}
+}
+
+func TestTicket12_TransparentLifecycleAssessmentBreakdown(t *testing.T) {
+	env := setupTestEnv(t)
+
+	// 1. Healthy modern server with 4 vCPUs and normal load
+	h1ID, _ := env.db.CreateHost(&store.Host{
+		Name: "Healthy Server",
+		Host: "10.0.0.10",
+		Port: 22,
+		User: "root",
+	})
+
+	env.mockRunner.Handlers[inspector.SystemMetricsBatchCmd] = func() (string, string, int, error) {
+		sections := []string{
+			"6.1.0-21-amd64",                                                        // 0: uname -r
+			"PRETTY_NAME=\"Ubuntu 22.04.4 LTS\"\nVERSION=\"22.04.4 LTS\"",           // 1: os-release (supported)
+			" 10:00:00 up 20 days, load average: 3.20, 2.50, 2.00",                 // 2: uptime (load 3.20 on 4 cores = 0.80 <= 2.0)
+			"Mem: 16777216000 4194304000 12582912000",                               // 3: free (25% RAM used)
+			"/dev/sda1 104857600 31457280 73400320 30% /",                           // 4: df (30% disk used)
+			"0",                                                                      // 5: dmesg errors
+			"1000 2000",                                                             // 6: net dev
+			"10.0",                                                                  // 7: ping
+			"1.2.3.4",                                                               // 8: ip
+			"",                                                                      // 9: established
+			"",                                                                      // 10: listening
+			"0",                                                                      // 11: failed logins
+			"4",                                                                      // 12: nproc (4 vCPUs)
+		}
+		return strings.Join(sections, "\n---\n"), "", 0, nil
+	}
+
+	if err := env.inspector.InspectHost(h1ID); err != nil {
+		t.Fatalf("inspect healthy host: %v", err)
+	}
+
+	h1, _ := env.db.GetHost(h1ID)
+	if h1.LifecycleScore != 100 {
+		t.Fatalf("expected healthy LifecycleScore 100, got %d", h1.LifecycleScore)
+	}
+	if !strings.Contains(h1.LifecycleNotes, "Healthy") {
+		t.Fatalf("expected Healthy note, got %s", h1.LifecycleNotes)
+	}
+
+	var factors []inspector.LifecycleFactor
+	if err := json.Unmarshal([]byte(h1.LifecycleBreakdown), &factors); err != nil {
+		t.Fatalf("unmarshal breakdown JSON: %v", err)
+	}
+	if len(factors) != 6 {
+		t.Fatalf("expected 6 lifecycle factors, got %d", len(factors))
+	}
+	for _, f := range factors {
+		if f.Status != "pass" || f.ScoreDeduction != 0 {
+			t.Fatalf("expected factor %s to pass with 0 deduction, got %s (%d)", f.Name, f.Status, f.ScoreDeduction)
+		}
+	}
+
+	// 2. Severely degraded server with ancient physical hardware (>8 yrs = -25 pts)
+	h2ID, _ := env.db.CreateHost(&store.Host{
+		Name: "Ancient Saturated Server",
+		Host: "10.0.0.11",
+		Port: 22,
+		User: "root",
+	})
+
+	env.mockRunner.Handlers[inspector.SystemMetricsBatchCmd] = func() (string, string, int, error) {
+		sections := []string{
+			"5.15.0",
+			"PRETTY_NAME=\"Ubuntu 22.04.4 LTS\"",
+			" 12:00:00 up 100 days, load average: 5.00, 4.80, 4.50",
+			"Mem: 10000000000 9500000000 500000000",   // 95% RAM (-20)
+			"/dev/sda1 100000000 96000000 4000000 96% /", // 96% Disk (-20)
+			"3",                                          // 3 disk I/O errors (-40)
+			"1000 2000",
+			"10.0",
+			"1.2.3.4",
+			"",
+			"",
+			"0",
+			"2", // 2 vCPUs -> 5.0 / 2 = 2.5 > 2.0 (-20)
+			"07/18/2011", // BIOS date (~15 yrs old, exceeds 8-yr critical lifespan -> -25)
+			"ASUSTeK COMPUTER INC.", // Physical motherboard vendor
+			"1732515091",
+		}
+		return strings.Join(sections, "\n---\n"), "", 0, nil
+	}
+
+	if err := env.inspector.InspectHost(h2ID); err != nil {
+		t.Fatalf("inspect saturated host: %v", err)
+	}
+
+	h2, _ := env.db.GetHost(h2ID)
+	// Base 100 - 25 (Age) - 20 (RAM) - 20 (Disk) - 20 (CPU) - 40 (I/O) = 0
+	if h2.LifecycleScore != 0 {
+		t.Fatalf("expected LifecycleScore 0, got %d", h2.LifecycleScore)
+	}
+	if !strings.Contains(h2.LifecycleNotes, "Critical memory pressure") ||
+		!strings.Contains(h2.LifecycleNotes, "Critical disk saturation") ||
+		!strings.Contains(h2.LifecycleNotes, "High CPU saturation") ||
+		!strings.Contains(h2.LifecycleNotes, "disk I/O hardware errors") ||
+		!strings.Contains(h2.LifecycleNotes, "critical lifespan") {
+		t.Fatalf("unexpected lifecycle notes: %s", h2.LifecycleNotes)
+	}
+
+	// 3. Virtual Cloud VPS (QEMU/KVM with 2014 SeaBIOS date, but deployed 1 year ago -> no age penalty)
+	h3ID, _ := env.db.CreateHost(&store.Host{
+		Name: "Cloud VPS",
+		Host: "10.0.0.12",
+		Port: 22,
+		User: "root",
+	})
+	oneYearAgo := time.Now().Add(-365 * 24 * time.Hour).Unix()
+	env.mockRunner.Handlers[inspector.SystemMetricsBatchCmd] = func() (string, string, int, error) {
+		sections := []string{
+			"6.1.0",
+			"PRETTY_NAME=\"Debian GNU/Linux 12\"",
+			" 10:00:00 up 10 days, load average: 0.50, 0.50, 0.50",
+			"Mem: 8000000000 2000000000 6000000000",
+			"/dev/vda1 50000000 10000000 40000000 20% /",
+			"0",
+			"1000 2000",
+			"10.0",
+			"1.2.3.4",
+			"",
+			"",
+			"0",
+			"2",
+			"04/01/2014", // Hypervisor firmware date (would be 12 yrs if physical)
+			"QEMU / KVM Virtual Machine", // Virtual vendor
+			fmt.Sprintf("%d", oneYearAgo), // Instance deployed 1 year ago
+		}
+		return strings.Join(sections, "\n---\n"), "", 0, nil
+	}
+
+	if err := env.inspector.InspectHost(h3ID); err != nil {
+		t.Fatalf("inspect cloud host: %v", err)
+	}
+
+	h3, _ := env.db.GetHost(h3ID)
+	if h3.LifecycleScore != 100 {
+		t.Fatalf("expected Cloud VPS LifecycleScore 100, got %d", h3.LifecycleScore)
+	}
+	if !strings.Contains(h3.LifecycleBreakdown, "Virtual instance deployment age") {
+		t.Fatalf("expected Virtual instance deployment age in breakdown: %s", h3.LifecycleBreakdown)
+	}
+
+	// 3. Verify freeze on failure (transient glitch does not wipe score or breakdown)
+	delete(env.mockRunner.Handlers, inspector.SystemMetricsBatchCmd)
+	env.mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "", "", -1, fmt.Errorf("ssh session dropped")
+	}
+	_ = env.inspector.InspectHost(h1ID)
+
+	h1AfterFail, _ := env.db.GetHost(h1ID)
+	if h1AfterFail.LifecycleScore != 100 {
+		t.Fatalf("expected LifecycleScore 100 frozen on failure, got %d", h1AfterFail.LifecycleScore)
+	}
+	if h1AfterFail.LifecycleBreakdown != h1.LifecycleBreakdown {
+		t.Fatalf("expected LifecycleBreakdown preserved on failure")
+	}
 }
 
 // Ticket 03 & 04 & 05: Desired State Baseline, Docker Actions & Root Cause Excerpt
