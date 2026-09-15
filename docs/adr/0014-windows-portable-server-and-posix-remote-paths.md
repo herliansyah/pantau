@@ -1,4 +1,4 @@
-# Windows Portable Server dan Separasi POSIX Remote Path
+# 0014. Windows Portable Server dan Separasi POSIX Remote Path
 
 Pantau master server mendukung eksekusi mandiri (portable CLI binary) pada sistem operasi Windows tanpa agen latar belakang, dengan cakupan pemantauan tetap dibatasi secara eksklusif pada target Host berbasis Linux via SSH.
 
