@@ -112,6 +112,7 @@ func main() {
 	portFlag := flag.Int("port", 8080, "HTTP server port")
 	dbFlag := flag.String("db", "pantau.db", "SQLite database file path")
 	openBrowserFlag := flag.Bool("open", runtime.GOOS == "windows", "Open default browser on start")
+	disable2FAFlag := flag.Bool("disable-2fa", false, "Emergency bypass flag to disable 2FA")
 	flag.Parse()
 
 	ver := resolveVersion()
@@ -141,6 +142,15 @@ func main() {
 		log.Fatalf("Failed to open database: %v", err)
 	}
 	defer db.Close()
+
+	if *disable2FAFlag {
+		_ = db.SetSetting("totp_enabled", "false")
+		_ = db.DeleteSetting("totp_secret")
+		_ = db.DeleteSetting("totp_recovery_codes")
+		_ = db.DeleteSetting("last_totp_step")
+		log.Println("[SECURITY] 2FA has been disabled via -disable-2fa CLI bypass flag.")
+	}
+
 
 	runnerFactory := sshrunner.DefaultFactory()
 	dispatcher := notify.New(db)

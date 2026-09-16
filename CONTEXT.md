@@ -156,3 +156,20 @@ _Avoid_: Terminal popup, floating window, modal shell
 **Terminal Tab**:
 Entitas sesi terminal independen di dalam Terminal Dock yang merepresentasikan satu koneksi PTY remote ke Host tertentu dengan dukungan penamaan judul dinamis (inline rename).
 _Avoid_: Terminal window, shell pane, subterminal
+
+**Two-Factor Authentication (2FA)**:
+Mekanisme pengamanan lapis kedua berbasis TOTP (Time-based One-Time Password) opsional untuk autentikasi sesi administrator Pantau.
+_Avoid_: Multi-factor authentication, MFA, second password
+
+**TOTP Secret**:
+Kunci rahasia bersama (shared secret Base32) yang disimpan di basis data Pantau dan dipasangkan ke aplikasi authenticator pengguna untuk menghasilkan token 6-digit periodik (RFC 6238).
+_Avoid_: 2FA key, auth seed, pairing token
+
+**Recovery Code**:
+Kumpulan kode acak satu-kali-pakai yang di-generate saat aktivasi 2FA untuk memulihkan akses login ketika administrator tidak dapat mengakses perangkat authenticator.
+_Avoid_: Backup pin, emergency password, rescue code
+
+**2FA Bypass Flag**:
+Opsi argumen baris perintah (`-disable-2fa`) pada binary Pantau untuk menonaktifkan 2FA secara darurat melalui akses terminal host master.
+_Avoid_: Emergency unlock, force reset flag
+
