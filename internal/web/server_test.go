@@ -535,3 +535,27 @@ func TestDocumentationModalUI(t *testing.T) {
 		}
 	}
 }
+
+func TestTerminalFontConfigurationUI(t *testing.T) {
+	html := string(embeddedHTML)
+
+	mustContain := []string{
+		`class="term-font-size-val"`,
+		`adjustTerminalFontSize(`,
+		`TERMINAL_FONT_FAMILY`,
+		`JetBrains Mono`,
+		`Fira Code`,
+		`Cascadia Code`,
+		`getTerminalFontSize()`,
+		`applyTerminalFontSize()`,
+		`fontFamily: TERMINAL_FONT_FAMILY`,
+		`focusActiveTerminal()`,
+		`term.focus()`,
+	}
+	for _, s := range mustContain {
+		if !strings.Contains(html, s) {
+			t.Errorf("expected embedded index.html to contain %q", s)
+		}
+	}
+}
+
