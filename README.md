@@ -1,8 +1,10 @@
-# 🛡️ Pantau
-
 <p align="center">
-  <img src="https://raw.githubusercontent.com/herliansyah/pantau/main/.github/assets/logo.png" alt="Pantau Logo" width="120" onerror="this.style.display='none'" />
+  <a href="#readme">
+    <img src=".github/assets/logo.svg" alt="Pantau Logo" width="128" />
+  </a>
 </p>
+
+<h1 align="center">Pantau</h1>
 
 <p align="center">
   <b>Agentless Linux Server Monitoring, Desired State Drift Engine & Interactive Management</b><br>
@@ -131,6 +133,19 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - **Terminal Presets**: Save and execute recurring diagnostic commands (`htop`, `docker stats`, `journalctl -f`) with pre-flight availability checks.
 - **Split-Pane Web Terminal**: Launch dual side-by-side terminal sessions (`Alt+\`) to monitor and compare multiple remote hosts simultaneously in real time.
 
+### 13. 🔐 Airgapped TOTP Two-Factor Authentication (2FA) & Emergency Recovery
+- **Standard RFC 6238 TOTP**: Hardens administrator login using time-based one-time passwords compatible with any standard authenticator app (Google Authenticator, Aegis, 1Password, Bitwarden).
+- **100% Offline Enrollment**: Base32 secrets and QR codes are generated purely client-side with zero external API calls or telemetry leaks.
+- **Emergency Recovery Codes**: Generates 8 single-use recovery codes with instant copy and text file download for disaster recovery.
+- **Brute-Force Rate Limiting**: Enforces an automatic 30-second cooling lockout after 3 consecutive failed verification attempts.
+- **Host Bypass Flag**: Emergency `-disable-2fa` startup flag disables 2FA directly via the host master console if all credentials are lost.
+
+### 14. 🖥️ Global Multi-Tab Terminal Dock & Persistent Session Pill
+- **Multi-Tab Terminal Dock**: Persistent application-wide dock hosting multiple concurrent SSH PTY terminal sessions across different remote servers.
+- **Dynamic Inline Renaming**: Rename terminal tabs on the fly to track multi-server maintenance workflows.
+- **Persistent Floating Session Pill**: Minimize the dock into an unobtrusive bottom-right badge showing active shell count; explore dashboards and metrics while background processes run uninterrupted.
+- **Seamless Maximize & Split Views**: One-click maximize to full viewport without disconnecting SSH sessions or breaking active terminal utilities (`htop`, `tmux`, `nano`).
+
 ---
 
 ## 🚀 Quick Start
@@ -218,6 +233,7 @@ systemctl enable --now pantau
 | `-port` | `PANTAU_PORT` (or `PORT`) | `8080` | HTTP listening port (auto-scans `8080`–`8099` on default) |
 | `-db` | `PANTAU_DB` (or `DB_PATH`) | `pantau.db` | Path to SQLite database file |
 | `-open` | - | `true` (Windows) / `false` | Automatically open default web browser on launch |
+| `-disable-2fa` | - | `false` | Emergency bypass flag to disable TOTP 2FA directly from host terminal |
 | `-v`, `-version` | - | - | Print Pantau version and exit |
 
 ---
@@ -241,6 +257,6 @@ systemctl enable --now pantau
 
 ## 📄 License
 
-Distributed under the **MIT License**. See [`LICENSE`](file:///home/ian/emdash/worktrees/pantau-48c85891/emdash-wet-colts-admire-i5yej/LICENSE) for the full license text and terms.
+Distributed under the **MIT License**. See [LICENSE](LICENSE) for the full license text and terms.
 
 Developed with ❤️ by [Herliansyah](https://github.com/herliansyah).

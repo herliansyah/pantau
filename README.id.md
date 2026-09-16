@@ -1,8 +1,10 @@
-# 🛡️ Pantau
-
 <p align="center">
-  <img src="https://raw.githubusercontent.com/herliansyah/pantau/main/.github/assets/logo.png" alt="Logo Pantau" width="120" onerror="this.style.display='none'" />
+  <a href="#readme">
+    <img src=".github/assets/logo.svg" alt="Logo Pantau" width="128" />
+  </a>
 </p>
+
+<h1 align="center">Pantau</h1>
 
 <p align="center">
   <b>Sistem Pemantauan Server Linux Berbasis Agentless SSH, Desired State Drift Engine & Manajemen Interaktif</b><br>
@@ -131,6 +133,19 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **Terminal Preset**: Menyimpan pintasan perintah diagnostik berulang (`htop`, `docker stats`, `journalctl -f`) dengan pengecekan ketersediaan utilitas remote sebelum eksekusi (*pre-flight check*).
 - **Split-Pane Web Terminal**: Membuka dua sesi terminal berdampingan secara simultan (`Alt+\`) untuk memantau atau membandingkan performa beberapa server remote sekaligus secara real-time.
 
+### 13. 🔐 Autentikasi Dua Faktor TOTP Airgapped & Pemulihan Darurat
+- **Standar RFC 6238 TOTP**: Memperketat autentikasi login administrator menggunakan token satu-kali-pakai berbasis waktu yang kompatibel dengan aplikasi authenticator umum (Google Authenticator, Aegis, 1Password, Bitwarden).
+- **100% Pendaftaran Mandiri Offline**: Secret key Base32 dan kode QR di-render murni di sisi peramban klien tanpa permintaan jaringan ke API eksternal atau risiko kebocoran data.
+- **Kode Pemulihan Darurat (Recovery Codes)**: Menghasilkan 8 kode cadangan sekali-pakai dengan opsi salin instan dan unduh berkas teks untuk pemulihan akun darurat.
+- **Proteksi Brute-Force Rate Limiting**: Menerapkan masa jeda pendinginan otomatis selama 30 detik setelah 3 kali percobaan verifikasi gagal secara berturut-turut.
+- **Flag Bypass Darurat Host**: Argumen startup `-disable-2fa` memungkinkan administrator menonaktifkan 2FA langsung melalui konsol server utama jika perangkat authenticator dan kode pemulihan hilang.
+
+### 14. 🖥️ Global Multi-Tab Terminal Dock & Persistent Session Pill
+- **Multi-Tab Terminal Dock**: Dok terminal terintegrasi di bagian bawah aplikasi yang dapat menampung banyak sesi shell SSH PTY bersamaan ke berbagai server remote berbeda.
+- **Penamaan Tab Dinamis (Inline Rename)**: Ubah nama label tab terminal langsung dari UI untuk mempermudah identifikasi tugas pemeliharaan antar-server.
+- **Session Pill Mengambang Persisten**: Minimalkan dock menjadi tombol pil (*Session Pill*) elegan di pojok kanan bawah yang menampilkan jumlah sesi aktif; navigasi dashboard dan pantau metrik tanpa memutus proses shell atau tail log yang sedang berjalan.
+- **Peralihan Tampilan Fleksibel**: Buka tutup dok, bagi layar menjadi dua (*Split-Pane* `Alt+\`), atau maksimalkan ke layar penuh (*full-viewport*) dalam satu klik tanpa merusak sesi SSH maupun aplikasi interaktif (`htop`, `tmux`, `nano`).
+
 ---
 
 ## 🚀 Panduan Memulai Cepat (Quick Start)
@@ -218,6 +233,7 @@ systemctl enable --now pantau
 | `-port` | `PANTAU_PORT` (atau `PORT`) | `8080` | Port listening HTTP (auto-scan port `8080`–`8099` jika default) |
 | `-db` | `PANTAU_DB` (atau `DB_PATH`) | `pantau.db` | Lokasi file basis data SQLite |
 | `-open` | - | `true` (Windows) / `false` | Buka peramban web bawaan secara otomatis saat startup |
+| `-disable-2fa` | - | `false` | Flag bypass darurat untuk menonaktifkan 2FA langsung dari terminal host |
 | `-v`, `-version` | - | - | Cetak versi Pantau lalu keluar |
 
 ---
@@ -241,6 +257,6 @@ systemctl enable --now pantau
 
 ## 📄 Lisensi
 
-Didistribusikan di bawah lisensi **MIT License**. Lihat berkas [`LICENSE`](file:///home/ian/emdash/worktrees/pantau-48c85891/emdash-wet-colts-admire-i5yej/LICENSE) untuk teks dan ketentuan hukum selengkapnya.
+Didistribusikan di bawah lisensi **MIT License**. Lihat berkas [LICENSE](LICENSE) untuk teks dan ketentuan hukum selengkapnya.
 
 Dikembangkan dengan ❤️ oleh [Herliansyah](https://github.com/herliansyah).
