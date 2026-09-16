@@ -156,6 +156,259 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
   box-sizing: border-box !important;
   border-radius: 0 !important;
 }
+
+/* Global Multi-Tab Terminal Dock */
+.terminal-dock-modal {
+  align-items: center;
+  justify-content: center;
+}
+.terminal-dock-modal.dock-maximized-wrapper {
+  padding: 0 !important;
+}
+.terminal-dock-content {
+  display: flex;
+  flex-direction: column;
+  height: 82vh;
+  width: 78vw;
+  max-width: 1440px;
+  min-width: 760px;
+  background: #0b0f19;
+  border: 1px solid var(--card-border);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  border-radius: 10px;
+  overflow: hidden;
+}
+#confirmModal {
+  z-index: 100001 !important;
+}
+.terminal-dock-content.dock-maximized {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  min-width: 100vw !important;
+  border-radius: 0 !important;
+  z-index: 99999 !important;
+  border: none !important;
+}
+.terminal-dock-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  background: #090d16;
+  border-bottom: 1px solid var(--card-border);
+  padding: 6px 12px 0 12px;
+  gap: 12px;
+  user-select: none;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.terminal-tabs-container {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex: 1;
+  min-width: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  margin-bottom: -1px;
+}
+.terminal-tabs-container::-webkit-scrollbar {
+  display: none;
+}
+.terminal-tabs-list {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+.terminal-dock-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(30, 41, 59, 0.45);
+  border: 1px solid var(--card-border);
+  border-radius: 6px 6px 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  max-width: 220px;
+}
+.terminal-dock-tab:hover {
+  background: rgba(51, 65, 85, 0.6);
+  color: #f8fafc;
+}
+.terminal-dock-tab.active-tab {
+  background: #0b0f19;
+  color: #38bdf8;
+  border: 1px solid #38bdf8;
+  border-bottom: 1px solid #0b0f19;
+  font-weight: 600;
+  z-index: 2;
+}
+.terminal-dock-tab.active-tab::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #0b0f19;
+  z-index: 3;
+}
+.terminal-tab-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34d399;
+  flex-shrink: 0;
+}
+.terminal-tab-status-dot.disconnected {
+  background: #f87171;
+}
+.terminal-tab-activity-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #38bdf8;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px #38bdf8;
+  animation: pulseDot 1.5s infinite;
+}
+@keyframes pulseDot {
+  0% { opacity: 0.4; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 0.4; transform: scale(0.9); }
+}
+.terminal-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.terminal-tab-close-btn {
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.terminal-tab-close-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+.terminal-new-tab-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  margin-bottom: 5px;
+}
+.terminal-dock-window-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-bottom: 5px;
+}
+.dock-action-btn {
+  padding: 3px 8px;
+  font-size: 0.75rem;
+}
+.terminal-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: auto;
+  margin-top: 4px;
+  background: #0f172a;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  z-index: 100000;
+  min-width: 260px;
+  max-width: 380px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.terminal-dropdown-item {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  color: #e2e8f0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.terminal-dropdown-item:hover {
+  background: #1e293b;
+  color: #38bdf8;
+}
+.terminal-minimized-pill {
+  position: fixed;
+  bottom: 48px;
+  right: 20px;
+  z-index: 9998;
+  background: #0f172a;
+  border: 1px solid #38bdf8;
+  color: #f8fafc;
+  padding: 8px 16px;
+  border-radius: 9999px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 12px rgba(56, 189, 248, 0.25);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+.terminal-minimized-pill:hover {
+  transform: translateY(-2px);
+  background: #1e293b;
+  box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.7), 0 0 16px rgba(56, 189, 248, 0.4);
+}
+.terminal-pill-ping {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 8px #38bdf8;
+  animation: pulseDot 1.2s infinite;
+}
+.terminal-workspaces-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: #0b0f19;
+}
+.terminal-tab-workspace {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  gap: 8px;
+  padding: 8px 12px;
+  box-sizing: border-box;
+}
+.terminal-tab-workspace.active-workspace {
+  display: flex;
+}
+
 .host-group-divider {
   grid-column: 1 / -1;
   display: flex;
@@ -525,6 +778,37 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
     </div>
     <div class="modal-body" id="tabContent"></div>
   </div>
+</div>
+
+<!-- Global Multi-Tab Terminal Dock -->
+<div id="terminalDockModal" class="modal terminal-dock-modal" style="display: none;">
+  <div class="modal-content modal-workspace terminal-dock-content" id="terminalDockContent">
+    <div class="terminal-dock-header">
+      <div class="terminal-tabs-container">
+        <div class="terminal-tabs-list" id="terminalTabsList"></div>
+      </div>
+      <div class="terminal-new-tab-wrapper">
+        <button id="btnNewTerminalTab" class="btn btn-sm" onclick="toggleNewTabDropdown(event)" title="New Terminal Tab">
+          ➕ <span style="font-size: 0.65rem;">▼</span>
+        </button>
+        <div id="newTabDropdownMenu" class="terminal-dropdown-menu" style="display: none;"></div>
+      </div>
+      <div class="terminal-dock-window-actions">
+        <button class="btn btn-sm dock-action-btn" onclick="minimizeTerminalDock()" title="Minimize Terminal Dock">🗕</button>
+        <button id="btnTerminalDockMax" class="btn btn-sm dock-action-btn" onclick="toggleTerminalDockMaximize()" title="Maximize Terminal Dock">⛶</button>
+        <button class="btn btn-sm dock-action-btn" onclick="closeTerminalDock()" title="Close Terminal Dock">✕</button>
+      </div>
+    </div>
+    <div id="terminalTabsWorkspaces" class="terminal-workspaces-host"></div>
+  </div>
+</div>
+
+<!-- Floating Minimized Dock Pill (Bottom-Right) -->
+<div id="terminalMinimizedPill" class="terminal-minimized-pill" onclick="restoreTerminalDock()" style="display: none;">
+  <span style="font-size: 1rem;">💻</span>
+  <span id="terminalPillLabel">Terminal (0)</span>
+  <span id="terminalPillBadge" class="terminal-pill-ping" style="display: none;"></span>
+  <span style="font-size: 0.75rem; margin-left: 2px;">▴</span>
 </div>
 
 <!-- Settings Modal -->
@@ -942,6 +1226,13 @@ const I18N = {
     "btn_terminal": "Terminal",
     "maximize_terminal": "Maximize",
     "minimize_terminal": "Restore",
+    "close_all_terminals_confirm": "Close all terminal sessions? Active remote shell processes will be disconnected.",
+    "terminal_tab_limit_notice": "Notice: 8+ active terminal sessions open. Consider closing unused tabs to save resources.",
+    "new_terminal_tab": "New Terminal Tab",
+    "rename_tab_hint": "Double click to rename tab",
+    "global_terminal_dock": "Global Terminal Dock",
+    "global_terminal_dock_desc": "Terminal for this host is open in the Global Multi-Tab Terminal Dock. You can minimize, maximize, rename tabs, or open multiple sessions without losing connection.",
+    "focus_terminal_dock": "Focus Terminal",
     "host_group": "Host Group",
     "host_group_ph": "e.g. Primary Server, Testing, DB Cluster",
     "group_ungrouped": "Ungrouped",
@@ -1281,6 +1572,13 @@ const I18N = {
     "btn_terminal": "Terminal",
     "maximize_terminal": "Layar Penuh",
     "minimize_terminal": "Pulihkan",
+    "close_all_terminals_confirm": "Tutup seluruh sesi terminal? Proses shell remote yang sedang aktif akan terputus.",
+    "terminal_tab_limit_notice": "Perhatian: 8+ sesi terminal aktif terbuka. Pertimbangkan menutup tab yang tidak digunakan untuk menghemat sumber daya.",
+    "new_terminal_tab": "Tab Terminal Baru",
+    "rename_tab_hint": "Klik dua kali untuk mengubah nama tab",
+    "global_terminal_dock": "Global Terminal Dock",
+    "global_terminal_dock_desc": "Terminal untuk host ini aktif di Global Multi-Tab Terminal Dock. Anda dapat minimize, maximize, ubah judul tab, atau buka banyak sesi tanpa memutus koneksi.",
+    "focus_terminal_dock": "Fokuskan Terminal",
     "host_group": "Grup Host",
     "host_group_ph": "mis. Server Utama, Testing, DB Cluster",
     "group_ungrouped": "Tanpa Grup",
@@ -2328,6 +2626,10 @@ async function loadHosts() {
     setEngineStatus(true);
     updateFooterMetrics();
     renderHosts();
+    if (!window._tabsRestoredOnce) {
+      window._tabsRestoredOnce = true;
+      restoreSavedTerminalTabs();
+    }
   } catch(e) {
     setEngineStatus(false);
   }
@@ -2589,17 +2891,7 @@ async function openHostDetail(id) {
 }
 
 async function openHostTerminal(hostID, presetID) {
-  const res = await fetch('/api/hosts/' + hostID);
-  if (!res.ok) return;
-  const data = await res.json();
-  currentHost = data.host;
-  window.detailData = data;
-  document.getElementById('detailHostName').innerText = currentHost.name + ' (' + currentHost.host + ')';
-  const badge = document.getElementById('detailHostBadge');
-  badge.className = 'badge badge-' + currentHost.status;
-  badge.innerText = currentHost.status;
-  document.getElementById('hostDetailModal').classList.add('open');
-  switchTab('terminal', presetID);
+  openTerminalForHost(hostID, presetID);
 }
 
 function switchTab(tab, presetID) {
@@ -2885,7 +3177,17 @@ function switchTab(tab, presetID) {
   } else if (tab === 'files') {
     loadFiles('/');
   } else if (tab === 'terminal') {
-    initTerminal(d.host.id, presetID);
+    content.innerHTML = `
+      <div class="empty-state" style="padding: 48px 20px;">
+        <div class="empty-state-icon">💻</div>
+        <div class="empty-state-title" style="font-size: 1.1rem;">${t('global_terminal_dock')}</div>
+        <div class="empty-state-desc" style="margin: 8px 0 16px 0;">
+          ${t('global_terminal_dock_desc')}
+        </div>
+        <button class="btn btn-primary" onclick="openTerminalForHost(${d.host.id})">💻 ${t('focus_terminal_dock')}</button>
+      </div>
+    `;
+    openTerminalForHost(d.host.id, presetID);
   }
 }
 
@@ -3138,138 +3440,176 @@ async function saveEditorFile() {
   }
 }
 
-// Web Terminal & Preset State
-let terminalSocketLeft = null;
-let activeTermLeft = null;
-let fitAddonLeft = null;
-
-let terminalSocketRight = null;
-let activeTermRight = null;
-let fitAddonRight = null;
-
-let isTerminalSplit = false;
-let focusedPane = 'left';
+// Global Multi-Tab Terminal Dock State & Lifecycle
+// ponytail: array scan is O(n) which is completely trivial for practical tab counts (<50 tabs); upgrade to Map if tabs exceed 100
+let terminalTabs = [];
+let activeTerminalTabId = null;
+let isTerminalDockMaximized = false;
+let isTerminalDockMinimized = false;
 let currentPresetList = [];
-let terminalHostLeft = null;
-let terminalHostRight = null;
-let isTerminalMaximized = false;
 
-function cleanUpTerminals() {
-  if (isTerminalMaximized) {
-    isTerminalMaximized = false;
-    const wrapper = document.querySelector('.terminal-workspace-wrapper');
-    if (wrapper) wrapper.classList.remove('terminal-maximized');
-  }
-  if (terminalSocketLeft) {
-    terminalSocketLeft.close();
-    terminalSocketLeft = null;
-  }
-  if (activeTermLeft) {
-    activeTermLeft.dispose();
-    activeTermLeft = null;
-  }
-  if (terminalSocketRight) {
-    terminalSocketRight.close();
-    terminalSocketRight = null;
-  }
-  if (activeTermRight) {
-    activeTermRight.dispose();
-    activeTermRight = null;
-  }
+function getActiveTerminalTab() {
+  return terminalTabs.find(t => t.id === activeTerminalTabId) || null;
 }
 
-async function initTerminal(hostID, initialPresetID) {
-  terminalHostLeft = hostID;
-  terminalHostRight = hostID;
-  isTerminalSplit = false;
-  focusedPane = 'left';
+function renderTerminalTabsList() {
+  const container = document.getElementById('terminalTabsList');
+  if (!container) return;
+  if (terminalTabs.length === 0) {
+    container.innerHTML = `<span style="font-size: 0.75rem; color: var(--text-muted); padding: 4px 8px;">No active tabs</span>`;
+    return;
+  }
+  container.innerHTML = terminalTabs.map(tabItem => `
+    <div class="terminal-dock-tab ${tabItem.id === activeTerminalTabId ? 'active-tab' : ''}" data-tab-id="${tabItem.id}" onclick="activateTerminalTab('${tabItem.id}')">
+      <span class="terminal-tab-status-dot ${tabItem.connectedLeft ? '' : 'disconnected'}"></span>
+      ${tabItem.hasActivity ? '<span class="terminal-tab-activity-dot" title="New output"></span>' : ''}
+      <span id="tabTitleText_${tabItem.id}" class="terminal-tab-title" ondblclick="startRenameTab(event, '${tabItem.id}')" title="${t('rename_tab_hint')}">
+        ${escapeHtml(tabItem.title)}
+      </span>
+      <button class="terminal-tab-close-btn" onclick="closeTerminalTab(event, '${tabItem.id}')" title="Close Tab (Alt+W)">✕</button>
+    </div>
+  `).join('');
+}
 
-  const content = document.getElementById('tabContent');
-  content.innerHTML = `
-    <div class="terminal-workspace-wrapper" style="display: flex; flex-direction: column; height: 100%; width: 100%; flex: 1; min-height: 0; gap: 8px;">
-      <div class="terminal-toolbar" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; background: #0f172a; border: 1px solid var(--card-border); padding: 8px 12px; border-radius: 8px;">
-        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1;">
-          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">⚡ Presets:</span>
-          <div id="presetButtonsList" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
-            <span style="font-size: 0.75rem; color: var(--text-muted);">Loading...</span>
-          </div>
-          <button class="btn btn-sm" onclick="openCreatePresetModal()" title="Add new preset" style="padding: 2px 8px; font-size: 0.75rem;">➕ New</button>
-          <button class="btn btn-sm" onclick="openPresetManagerModal()" title="Manage presets" style="padding: 2px 8px; font-size: 0.75rem;">⚙️</button>
+function startRenameTab(e, tabId) {
+  if (e) e.stopPropagation();
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const container = document.getElementById('tabTitleText_' + tabId);
+  if (!container) return;
+
+  const currentVal = tab.title || tab.hostName;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentVal;
+  input.className = 'tab-rename-input';
+  input.style.cssText = 'background: #0f172a; border: 1px solid #38bdf8; color: #fff; font-size: 0.75rem; padding: 1px 4px; border-radius: 3px; width: 110px; outline: none; box-sizing: border-box;';
+
+  let done = false;
+  function save() {
+    if (done) return;
+    done = true;
+    const val = input.value.trim();
+    if (val) {
+      tab.title = val;
+    }
+    saveTerminalTabsToStorage();
+    renderTerminalTabsList();
+  }
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      save();
+    } else if (ev.key === 'Escape') {
+      done = true;
+      renderTerminalTabsList();
+    }
+  });
+
+  container.innerHTML = '';
+  container.appendChild(input);
+  input.focus();
+  input.select();
+}
+
+function activateTerminalTab(tabId) {
+  activeTerminalTabId = tabId;
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (tab) {
+    tab.hasActivity = false;
+    currentPresetList = tab.presets || [];
+    if (!tab.socketLeft || tab.socketLeft.readyState !== WebSocket.OPEN) {
+      initTabLeftTerminal(tab, tab.presetID);
+      loadTabPresets(tab);
+    }
+  }
+  document.querySelectorAll('#terminalTabsList .terminal-dock-tab').forEach(el => {
+    el.classList.toggle('active-tab', el.getAttribute('data-tab-id') === tabId);
+  });
+  const activeTabEl = document.querySelector(`#terminalTabsList .terminal-dock-tab[data-tab-id="${tabId}"]`);
+  if (activeTabEl && typeof activeTabEl.scrollIntoView === 'function') {
+    activeTabEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  }
+  document.querySelectorAll('#terminalTabsWorkspaces .terminal-tab-workspace').forEach(el => {
+    el.classList.toggle('active-workspace', el.id === 'workspace_' + tabId);
+  });
+  updateMinimizedPill();
+  refitActiveTab();
+}
+
+function refitActiveTab() {
+  const tab = getActiveTerminalTab();
+  if (!tab) return;
+  setTimeout(() => {
+    if (tab.fitLeft) tab.fitLeft.fit();
+    if (tab.isSplit && tab.fitRight) tab.fitRight.fit();
+  }, 80);
+}
+
+function createTabWorkspaceDOM(tab) {
+  const container = document.getElementById('terminalTabsWorkspaces');
+  if (!container) return;
+  const ws = document.createElement('div');
+  ws.id = 'workspace_' + tab.id;
+  ws.className = 'terminal-tab-workspace';
+  ws.innerHTML = `
+    <div class="terminal-toolbar" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; background: #0f172a; border: 1px solid var(--card-border); padding: 6px 10px; border-radius: 6px; flex-shrink: 0;">
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1;">
+        <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">⚡ Presets:</span>
+        <div id="presetButtonsList_${tab.id}" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Loading...</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <button id="btnToggleSplit" class="btn btn-sm" onclick="toggleTerminalSplit()" title="Split Terminal (Alt+\\)" style="padding: 4px 10px; font-size: 0.75rem;">
-            🪟 <span id="lblToggleSplit">${t('split_terminal')}</span>
-          </button>
-          <button id="btnToggleMaximize" class="btn btn-sm" onclick="toggleTerminalMaximize()" title="Maximize Terminal" style="padding: 4px 10px; font-size: 0.75rem;">
-            ⛶ <span id="lblToggleMaximize">${t('maximize_terminal')}</span>
-          </button>
-          <button class="btn btn-sm" onclick="clearActiveTerminal()" title="Clear screen" style="padding: 4px 8px; font-size: 0.75rem;">🧹 Clear</button>
-          <button class="btn btn-sm" onclick="reconnectActiveTerminal()" title="Reconnect SSH" style="padding: 4px 8px; font-size: 0.75rem;">🔄 Reconnect</button>
+        <button class="btn btn-sm" onclick="openCreatePresetModal()" title="Add new preset" style="padding: 2px 7px; font-size: 0.72rem;">➕</button>
+        <button class="btn btn-sm" onclick="openPresetManagerModal()" title="Manage presets" style="padding: 2px 7px; font-size: 0.72rem;">⚙️</button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <button class="btn btn-sm" onclick="toggleTabSplit('${tab.id}')" title="Split Terminal (Alt+\\)" style="padding: 3px 8px; font-size: 0.72rem;">
+          🪟 <span id="lblSplit_${tab.id}">${t('split_terminal')}</span>
+        </button>
+        <button class="btn btn-sm" onclick="clearTabActiveTerminal('${tab.id}')" title="Clear screen" style="padding: 3px 8px; font-size: 0.72rem;">🧹 Clear</button>
+        <button class="btn btn-sm" onclick="reconnectTabTerminal('${tab.id}')" title="Reconnect SSH" style="padding: 3px 8px; font-size: 0.72rem;">🔄 Reconnect</button>
+      </div>
+    </div>
+
+    <div id="panesContainer_${tab.id}" style="display: flex; flex: 1; min-height: 380px; gap: 8px; height: 100%; min-width: 0;">
+      <div id="paneLeft_${tab.id}" class="terminal-pane active-pane" onclick="focusTabPane('${tab.id}', 'left')" style="flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100%; border-radius: 6px; overflow: hidden; background: #000; position: relative;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #0f172a; border-bottom: 1px solid var(--card-border); font-size: 0.72rem;">
+          <span style="color: #38bdf8; font-family: monospace; font-weight: 600;">💻 ${escapeHtml(tab.hostName)}</span>
+          <span id="statusLeft_${tab.id}" style="color: #34d399; font-size: 0.7rem;">● Connected</span>
         </div>
+        <div id="termDivLeft_${tab.id}" class="terminal-container" style="flex: 1; height: 100%; padding: 4px;"></div>
       </div>
 
-      <div id="terminalPanesContainer" style="display: flex; flex: 1; min-height: 380px; gap: 8px; height: 100%;">
-        <div id="paneLeft" class="terminal-pane active-pane" onclick="focusPane('left')" style="flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100%; border-radius: 8px; overflow: hidden; background: #000; position: relative;">
-          <div id="paneLeftHeader" style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #0f172a; border-bottom: 1px solid var(--card-border); font-size: 0.75rem;">
-            <span id="paneLeftTitle" style="color: #38bdf8; font-family: monospace; font-weight: 600;">💻 ${escapeHtml(currentHost?.name || 'Host')}</span>
-            <span id="paneLeftStatus" style="color: #34d399; font-size: 0.7rem;">● Connected</span>
+      <div id="paneRight_${tab.id}" class="terminal-pane" onclick="focusTabPane('${tab.id}', 'right')" style="display: none; flex: 1; flex-direction: column; min-width: 0; height: 100%; border-radius: 6px; overflow: hidden; background: #000; position: relative;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #0f172a; border-bottom: 1px solid var(--card-border); font-size: 0.72rem; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="color: #a78bfa; font-family: monospace; font-weight: 600;">💻 Split:</span>
+            <select id="splitSelect_${tab.id}" class="input" style="padding: 2px 6px; font-size: 0.72rem; width: auto; max-width: 160px;" onchange="onTabSplitHostChange('${tab.id}')"></select>
           </div>
-          <div id="termDivLeft" class="terminal-container" style="flex: 1; height: 100%; padding: 4px;"></div>
-        </div>
-
-        <div id="paneRight" class="terminal-pane" onclick="focusPane('right')" style="display: none; flex: 1; flex-direction: column; min-width: 0; height: 100%; border-radius: 8px; overflow: hidden; background: #000; position: relative;">
-          <div id="paneRightHeader" style="display: flex; align-items: center; justify-content: space-between; padding: 4px 8px; background: #0f172a; border-bottom: 1px solid var(--card-border); font-size: 0.75rem; gap: 8px;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span style="color: #a78bfa; font-family: monospace; font-weight: 600;">💻 Secondary:</span>
-              <select id="splitHostSelect" class="input" style="padding: 2px 6px; font-size: 0.75rem; width: auto; max-width: 180px;" onchange="onSplitHostChange()">
-              </select>
-            </div>
-            <div style="display: flex; align-items: center; gap: 6px;">
-              <span id="paneRightStatus" style="color: #34d399; font-size: 0.7rem;">● Connected</span>
-              <button class="btn btn-sm" onclick="closeTerminalSplit()" title="Close Split" style="padding: 0 5px; font-size: 0.7rem; line-height: 1.2;">✕</button>
-            </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span id="statusRight_${tab.id}" style="color: #34d399; font-size: 0.7rem;">● Connected</span>
+            <button class="btn btn-sm" onclick="closeTabSplit('${tab.id}')" title="Close Split" style="padding: 0 5px; font-size: 0.7rem; line-height: 1.2;">✕</button>
           </div>
-          <div id="termDivRight" class="terminal-container" style="flex: 1; height: 100%; padding: 4px;"></div>
         </div>
+        <div id="termDivRight_${tab.id}" class="terminal-container" style="flex: 1; height: 100%; padding: 4px;"></div>
       </div>
     </div>
   `;
-
-  cleanUpTerminals();
-  await loadTerminalPresets(hostID);
-  initLeftTerminal(hostID, initialPresetID);
+  container.appendChild(ws);
 }
 
-function toggleTerminalMaximize() {
-  const wrapper = document.querySelector('.terminal-workspace-wrapper');
-  if (!wrapper) return;
-  isTerminalMaximized = !isTerminalMaximized;
-  if (isTerminalMaximized) {
-    wrapper.classList.add('terminal-maximized');
-  } else {
-    wrapper.classList.remove('terminal-maximized');
+function initTabLeftTerminal(tab, presetID) {
+  if (tab.socketLeft) {
+    try { tab.socketLeft.close(); } catch(e) {}
+    tab.socketLeft = null;
   }
-  const btnEl = document.getElementById('btnToggleMaximize');
-  if (btnEl) {
-    btnEl.innerHTML = isTerminalMaximized ? `🗗 <span id="lblToggleMaximize">${t('minimize_terminal')}</span>` : `⛶ <span id="lblToggleMaximize">${t('maximize_terminal')}</span>`;
-  }
-  setTimeout(() => {
-    if (fitAddonLeft) fitAddonLeft.fit();
-    if (fitAddonRight) fitAddonRight.fit();
-  }, 80);
-}
-
-function initLeftTerminal(hostID, presetID) {
-  if (terminalSocketLeft) {
-    terminalSocketLeft.close();
-    terminalSocketLeft = null;
-  }
-  if (activeTermLeft) {
-    activeTermLeft.dispose();
-    activeTermLeft = null;
+  if (tab.termLeft) {
+    try { tab.termLeft.dispose(); } catch(e) {}
+    tab.termLeft = null;
   }
 
-  const container = document.getElementById('termDivLeft');
+  const container = document.getElementById('termDivLeft_' + tab.id);
   if (!container) return;
   container.innerHTML = '';
 
@@ -3279,44 +3619,56 @@ function initLeftTerminal(hostID, presetID) {
     fontSize: 13,
     theme: { background: '#000000', foreground: '#ffffff' }
   });
-  activeTermLeft = term;
-  fitAddonLeft = new FitAddon.FitAddon();
-  term.loadAddon(fitAddonLeft);
+  tab.termLeft = term;
+  tab.fitLeft = new FitAddon.FitAddon();
+  term.loadAddon(tab.fitLeft);
   term.open(container);
-  fitAddonLeft.fit();
-  setTimeout(() => fitAddonLeft && fitAddonLeft.fit(), 60);
+  tab.fitLeft.fit();
+  setTimeout(() => tab.fitLeft && tab.fitLeft.fit(), 60);
 
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  let wsUrl = protocol + '//' + location.host + '/ws/terminal?host_id=' + hostID;
+  let wsUrl = protocol + '//' + location.host + '/ws/terminal?host_id=' + tab.hostID;
   if (presetID) {
     wsUrl += '&preset_id=' + presetID;
   }
   const ws = new WebSocket(wsUrl);
-  terminalSocketLeft = ws;
-
+  tab.socketLeft = ws;
   ws.binaryType = 'arraybuffer';
+
   ws.onopen = () => {
-    const status = document.getElementById('paneLeftStatus');
+    tab.connectedLeft = true;
+    const status = document.getElementById('statusLeft_' + tab.id);
     if (status) status.innerHTML = '<span style="color: #34d399;">● Connected</span>';
+    renderTerminalTabsList();
     term.write('\r\n\x1b[32m[Pantau SSH Bridge Connected]\x1b[0m\r\n\r\n');
   };
+
   ws.onmessage = (ev) => {
-    if (typeof ev.data === 'string') {
-      term.write(ev.data);
-    } else {
-      term.write(new Uint8Array(ev.data));
+    const data = typeof ev.data === 'string' ? ev.data : new Uint8Array(ev.data);
+    term.write(data);
+    if (activeTerminalTabId !== tab.id || isTerminalDockMinimized) {
+      if (!tab.hasActivity) {
+        tab.hasActivity = true;
+        renderTerminalTabsList();
+        updateMinimizedPill();
+      }
     }
   };
+
   ws.onclose = () => {
-    const status = document.getElementById('paneLeftStatus');
+    tab.connectedLeft = false;
+    const status = document.getElementById('statusLeft_' + tab.id);
     if (status) status.innerHTML = '<span style="color: #f87171;">● Disconnected</span>';
+    renderTerminalTabsList();
     term.write('\r\n\x1b[31m[Session Disconnected]\x1b[0m\r\n');
   };
+
   term.onData(data => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(data);
     }
   });
+
   term.onResize(sz => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ cols: sz.cols, rows: sz.rows }));
@@ -3324,17 +3676,17 @@ function initLeftTerminal(hostID, presetID) {
   });
 }
 
-function initRightTerminal(hostID, presetID) {
-  if (terminalSocketRight) {
-    terminalSocketRight.close();
-    terminalSocketRight = null;
+function initTabRightTerminal(tab, hostID, presetID) {
+  if (tab.socketRight) {
+    try { tab.socketRight.close(); } catch(e) {}
+    tab.socketRight = null;
   }
-  if (activeTermRight) {
-    activeTermRight.dispose();
-    activeTermRight = null;
+  if (tab.termRight) {
+    try { tab.termRight.dispose(); } catch(e) {}
+    tab.termRight = null;
   }
 
-  const container = document.getElementById('termDivRight');
+  const container = document.getElementById('termDivRight_' + tab.id);
   if (!container) return;
   container.innerHTML = '';
 
@@ -3344,12 +3696,12 @@ function initRightTerminal(hostID, presetID) {
     fontSize: 13,
     theme: { background: '#000000', foreground: '#ffffff' }
   });
-  activeTermRight = term;
-  fitAddonRight = new FitAddon.FitAddon();
-  term.loadAddon(fitAddonRight);
+  tab.termRight = term;
+  tab.fitRight = new FitAddon.FitAddon();
+  term.loadAddon(tab.fitRight);
   term.open(container);
-  fitAddonRight.fit();
-  setTimeout(() => fitAddonRight && fitAddonRight.fit(), 60);
+  tab.fitRight.fit();
+  setTimeout(() => tab.fitRight && tab.fitRight.fit(), 60);
 
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   let wsUrl = protocol + '//' + location.host + '/ws/terminal?host_id=' + hostID;
@@ -3357,31 +3709,41 @@ function initRightTerminal(hostID, presetID) {
     wsUrl += '&preset_id=' + presetID;
   }
   const ws = new WebSocket(wsUrl);
-  terminalSocketRight = ws;
-
+  tab.socketRight = ws;
   ws.binaryType = 'arraybuffer';
+
   ws.onopen = () => {
-    const status = document.getElementById('paneRightStatus');
+    tab.connectedRight = true;
+    const status = document.getElementById('statusRight_' + tab.id);
     if (status) status.innerHTML = '<span style="color: #34d399;">● Connected</span>';
     term.write('\r\n\x1b[32m[Pantau SSH Bridge Connected]\x1b[0m\r\n\r\n');
   };
+
   ws.onmessage = (ev) => {
-    if (typeof ev.data === 'string') {
-      term.write(ev.data);
-    } else {
-      term.write(new Uint8Array(ev.data));
+    const data = typeof ev.data === 'string' ? ev.data : new Uint8Array(ev.data);
+    term.write(data);
+    if (activeTerminalTabId !== tab.id || isTerminalDockMinimized) {
+      if (!tab.hasActivity) {
+        tab.hasActivity = true;
+        renderTerminalTabsList();
+        updateMinimizedPill();
+      }
     }
   };
+
   ws.onclose = () => {
-    const status = document.getElementById('paneRightStatus');
+    tab.connectedRight = false;
+    const status = document.getElementById('statusRight_' + tab.id);
     if (status) status.innerHTML = '<span style="color: #f87171;">● Disconnected</span>';
     term.write('\r\n\x1b[31m[Session Disconnected]\x1b[0m\r\n');
   };
+
   term.onData(data => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(data);
     }
   });
+
   term.onResize(sz => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ cols: sz.cols, rows: sz.rows }));
@@ -3389,125 +3751,454 @@ function initRightTerminal(hostID, presetID) {
   });
 }
 
-function toggleTerminalSplit() {
-  if (isTerminalSplit) {
-    closeTerminalSplit();
+function toggleTabSplit(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  if (tab.isSplit) {
+    closeTabSplit(tabId);
   } else {
-    openTerminalSplit();
+    openTabSplit(tabId);
   }
 }
 
-function openTerminalSplit() {
-  isTerminalSplit = true;
-  const paneRight = document.getElementById('paneRight');
-  const btn = document.getElementById('lblToggleSplit');
+function openTabSplit(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  tab.isSplit = true;
+  const paneRight = document.getElementById('paneRight_' + tabId);
+  const btn = document.getElementById('lblSplit_' + tabId);
   if (btn) btn.innerText = t('unsplit_terminal');
+  if (paneRight) paneRight.style.display = 'flex';
 
-  if (paneRight) {
-    paneRight.style.display = 'flex';
-  }
-
-  const select = document.getElementById('splitHostSelect');
+  const select = document.getElementById('splitSelect_' + tabId);
   if (select) {
-    select.innerHTML = allRawHosts.map(h => `
-      <option value="${h.id}" ${h.id === terminalHostRight ? 'selected' : ''}>${escapeHtml(h.name)} (${escapeHtml(h.host)})</option>
+    select.innerHTML = (allRawHosts || []).map(h => `
+      <option value="${h.id}" ${h.id === (tab.hostIDRight || tab.hostID) ? 'selected' : ''}>${escapeHtml(h.name)}</option>
     `).join('');
   }
-
-  initRightTerminal(terminalHostRight || terminalHostLeft);
+  initTabRightTerminal(tab, tab.hostIDRight || tab.hostID);
   setTimeout(() => {
-    if (fitAddonLeft) fitAddonLeft.fit();
-    if (fitAddonRight) fitAddonRight.fit();
+    if (tab.fitLeft) tab.fitLeft.fit();
+    if (tab.fitRight) tab.fitRight.fit();
   }, 80);
 }
 
-function closeTerminalSplit() {
-  isTerminalSplit = false;
-  const paneRight = document.getElementById('paneRight');
-  const btn = document.getElementById('lblToggleSplit');
+function closeTabSplit(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  tab.isSplit = false;
+  const paneRight = document.getElementById('paneRight_' + tabId);
+  const btn = document.getElementById('lblSplit_' + tabId);
   if (btn) btn.innerText = t('split_terminal');
-
-  if (terminalSocketRight) {
-    terminalSocketRight.close();
-    terminalSocketRight = null;
+  if (tab.socketRight) {
+    try { tab.socketRight.close(); } catch(e) {}
+    tab.socketRight = null;
   }
-  if (activeTermRight) {
-    activeTermRight.dispose();
-    activeTermRight = null;
+  if (tab.termRight) {
+    try { tab.termRight.dispose(); } catch(e) {}
+    tab.termRight = null;
   }
-  if (paneRight) {
-    paneRight.style.display = 'none';
-  }
-  focusPane('left');
+  if (paneRight) paneRight.style.display = 'none';
+  focusTabPane(tabId, 'left');
   setTimeout(() => {
-    if (fitAddonLeft) fitAddonLeft.fit();
+    if (tab.fitLeft) tab.fitLeft.fit();
   }, 80);
 }
 
-function onSplitHostChange() {
-  const select = document.getElementById('splitHostSelect');
+function onTabSplitHostChange(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const select = document.getElementById('splitSelect_' + tabId);
   if (!select) return;
   const newHostId = parseInt(select.value, 10);
   if (!newHostId) return;
-  terminalHostRight = newHostId;
-  initRightTerminal(terminalHostRight);
+  tab.hostIDRight = newHostId;
+  initTabRightTerminal(tab, tab.hostIDRight);
 }
 
-function focusPane(pane) {
-  focusedPane = pane;
-  const pL = document.getElementById('paneLeft');
-  const pR = document.getElementById('paneRight');
+function focusTabPane(tabId, pane) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  tab.focusedPane = pane;
+  const pL = document.getElementById('paneLeft_' + tabId);
+  const pR = document.getElementById('paneRight_' + tabId);
   if (pL) pL.classList.toggle('active-pane', pane === 'left');
   if (pR) pR.classList.toggle('active-pane', pane === 'right');
 }
 
-function clearActiveTerminal() {
-  const term = focusedPane === 'right' && isTerminalSplit ? activeTermRight : activeTermLeft;
+function clearTabActiveTerminal(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const term = tab.focusedPane === 'right' && tab.isSplit ? tab.termRight : tab.termLeft;
   if (term) term.clear();
 }
 
-function reconnectActiveTerminal() {
-  if (focusedPane === 'right' && isTerminalSplit) {
-    initRightTerminal(terminalHostRight);
+function reconnectTabTerminal(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  if (tab.focusedPane === 'right' && tab.isSplit) {
+    initTabRightTerminal(tab, tab.hostIDRight || tab.hostID);
   } else {
-    initLeftTerminal(terminalHostLeft);
+    initTabLeftTerminal(tab, tab.presetID);
   }
 }
 
-function sendCommandToActiveTerminal(cmd) {
-  const ws = (focusedPane === 'right' && isTerminalSplit) ? terminalSocketRight : terminalSocketLeft;
+function sendTabCommand(tabId, cmd) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const ws = (tab.focusedPane === 'right' && tab.isSplit) ? tab.socketRight : tab.socketLeft;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(cmd + '\r');
   }
 }
 
-async function loadTerminalPresets(hostID) {
-  const listContainer = document.getElementById('presetButtonsList');
+async function loadTabPresets(tab) {
+  const listContainer = document.getElementById('presetButtonsList_' + tab.id);
   if (!listContainer) return;
   try {
-    const res = await fetch('/api/presets?host_id=' + hostID);
-    if (!res.ok) return;
-    currentPresetList = await res.json() || [];
+    const res = await fetch('/api/presets?host_id=' + tab.hostID);
+    if (!res.ok) {
+      listContainer.innerHTML = '<span style="font-size: 0.72rem; color: var(--text-muted);">No presets</span>';
+      return;
+    }
+    const data = await res.json();
+    tab.presets = Array.isArray(data) ? data : [];
+    currentPresetList = tab.presets;
 
-    if (currentPresetList.length === 0) {
-      listContainer.innerHTML = '<span style="font-size: 0.75rem; color: var(--text-muted);">No presets</span>';
+    if (tab.presets.length === 0) {
+      listContainer.innerHTML = '<span style="font-size: 0.72rem; color: var(--text-muted);">No presets</span>';
       return;
     }
 
-    listContainer.innerHTML = currentPresetList.map(p => `
-      <button class="preset-btn" onclick="triggerPreset(${p.id})" title="${escapeHtml(p.command)} ${p.use_tmux ? '(tmux)' : ''}">
+    listContainer.innerHTML = tab.presets.map(p => `
+      <button class="preset-btn" onclick="triggerTabPreset('${tab.id}', ${p.id})" title="${escapeHtml(p.command)} ${p.use_tmux ? '(tmux)' : ''}">
         ▶ ${escapeHtml(p.name)}
       </button>
     `).join('');
   } catch (err) {
-    listContainer.innerHTML = '<span style="font-size: 0.75rem; color: var(--danger);">Failed to load presets</span>';
+    listContainer.innerHTML = '<span style="font-size: 0.72rem; color: var(--text-muted);">No presets</span>';
   }
 }
 
-function triggerPreset(presetId) {
-  const p = currentPresetList.find(x => x.id === presetId);
+function triggerTabPreset(tabId, presetId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const p = (tab.presets || []).find(x => x.id === presetId) || currentPresetList.find(x => x.id === presetId);
   if (!p) return;
-  sendCommandToActiveTerminal(p.command);
+  sendTabCommand(tabId, p.command);
+}
+
+function openTerminalForHost(hostID, presetID, forceNew = false, customTitle = null) {
+  if (!forceNew) {
+    const existing = terminalTabs.find(t => t.hostID === hostID);
+    if (existing) {
+      showTerminalDock();
+      activateTerminalTab(existing.id);
+      if (!existing.socketLeft || existing.socketLeft.readyState !== WebSocket.OPEN) {
+        reconnectTabTerminal(existing.id);
+      }
+      if (presetID) triggerTabPreset(existing.id, presetID);
+      return existing;
+    }
+  }
+
+  if (terminalTabs.length >= 8) {
+    showToast(t('terminal_tab_limit_notice'), 'info');
+  }
+
+  const host = (allRawHosts || []).find(h => h.id === hostID) || (currentHost && currentHost.id === hostID ? currentHost : { id: hostID, name: 'Host ' + hostID, host: '' });
+  const tabId = 'tab_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+
+  const tab = {
+    id: tabId,
+    hostID: hostID,
+    hostName: host.name || ('Host ' + hostID),
+    title: customTitle || host.name || ('Host ' + hostID),
+    presetID: presetID || null,
+    socketLeft: null,
+    termLeft: null,
+    fitLeft: null,
+    connectedLeft: false,
+    isSplit: false,
+    hostIDRight: hostID,
+    socketRight: null,
+    termRight: null,
+    fitRight: null,
+    connectedRight: false,
+    focusedPane: 'left',
+    presets: [],
+    hasActivity: false
+  };
+
+  terminalTabs.push(tab);
+  createTabWorkspaceDOM(tab);
+  renderTerminalTabsList();
+  showTerminalDock();
+  activateTerminalTab(tab.id);
+  saveTerminalTabsToStorage();
+  return tab;
+}
+
+function closeTerminalTab(e, tabId) {
+  if (e) e.stopPropagation();
+  const idx = terminalTabs.findIndex(t => t.id === tabId);
+  if (idx === -1) return;
+  const tab = terminalTabs[idx];
+
+  if (tab.socketLeft) {
+    try { tab.socketLeft.close(); } catch(err) {}
+    tab.socketLeft = null;
+  }
+  if (tab.termLeft) {
+    try { tab.termLeft.dispose(); } catch(err) {}
+    tab.termLeft = null;
+  }
+  if (tab.socketRight) {
+    try { tab.socketRight.close(); } catch(err) {}
+    tab.socketRight = null;
+  }
+  if (tab.termRight) {
+    try { tab.termRight.dispose(); } catch(err) {}
+    tab.termRight = null;
+  }
+
+  const ws = document.getElementById('workspace_' + tabId);
+  if (ws) ws.remove();
+
+  terminalTabs.splice(idx, 1);
+  saveTerminalTabsToStorage();
+
+  if (activeTerminalTabId === tabId) {
+    if (terminalTabs.length > 0) {
+      const nextIdx = Math.max(0, idx - 1);
+      activateTerminalTab(terminalTabs[nextIdx].id);
+    } else {
+      activeTerminalTabId = null;
+      hideTerminalDock();
+      hideMinimizedPill();
+    }
+  }
+  renderTerminalTabsList();
+  updateMinimizedPill();
+}
+
+function closeAllTerminalTabs() {
+  terminalTabs.forEach(tab => {
+    if (tab.socketLeft) { try { tab.socketLeft.close(); } catch(err) {} }
+    if (tab.termLeft) { try { tab.termLeft.dispose(); } catch(err) {} }
+    if (tab.socketRight) { try { tab.socketRight.close(); } catch(err) {} }
+    if (tab.termRight) { try { tab.termRight.dispose(); } catch(err) {} }
+    const ws = document.getElementById('workspace_' + tab.id);
+    if (ws) ws.remove();
+  });
+  terminalTabs = [];
+  activeTerminalTabId = null;
+  saveTerminalTabsToStorage();
+  renderTerminalTabsList();
+  hideTerminalDock();
+  hideMinimizedPill();
+}
+
+async function closeTerminalDock() {
+  if (terminalTabs.length > 0) {
+    const ok = await showConfirm(t('close_all_terminals_confirm'));
+    if (!ok) return;
+  }
+  closeAllTerminalTabs();
+}
+
+function minimizeTerminalDock() {
+  isTerminalDockMinimized = true;
+  hideTerminalDock();
+  showMinimizedPill();
+}
+
+function restoreTerminalDock() {
+  isTerminalDockMinimized = false;
+  showTerminalDock();
+  if (activeTerminalTabId) {
+    activateTerminalTab(activeTerminalTabId);
+  }
+  refitActiveTab();
+}
+
+function showTerminalDock() {
+  isTerminalDockMinimized = false;
+  const modal = document.getElementById('terminalDockModal');
+  if (modal) {
+    modal.classList.add('open');
+    modal.style.display = 'flex';
+  }
+  hideMinimizedPill();
+  refitActiveTab();
+}
+
+function hideTerminalDock() {
+  const modal = document.getElementById('terminalDockModal');
+  if (modal) {
+    modal.classList.remove('open');
+    modal.style.display = 'none';
+  }
+}
+
+function showMinimizedPill() {
+  if (terminalTabs.length === 0) return;
+  const pill = document.getElementById('terminalMinimizedPill');
+  if (pill) pill.style.display = 'inline-flex';
+  updateMinimizedPill();
+}
+
+function hideMinimizedPill() {
+  const pill = document.getElementById('terminalMinimizedPill');
+  if (pill) pill.style.display = 'none';
+}
+
+function updateMinimizedPill() {
+  const pill = document.getElementById('terminalMinimizedPill');
+  const label = document.getElementById('terminalPillLabel');
+  const badge = document.getElementById('terminalPillBadge');
+  if (terminalTabs.length === 0) {
+    if (pill) pill.style.display = 'none';
+    return;
+  }
+  if (label) {
+    label.innerText = `Terminal (${terminalTabs.length})`;
+  }
+  if (badge) {
+    const hasAny = terminalTabs.some(t => t.hasActivity);
+    badge.style.display = hasAny ? 'inline-block' : 'none';
+  }
+}
+
+function toggleTerminalDockMaximize() {
+  isTerminalDockMaximized = !isTerminalDockMaximized;
+  const content = document.getElementById('terminalDockContent');
+  const modal = document.getElementById('terminalDockModal');
+  const btn = document.getElementById('btnTerminalDockMax');
+  if (!content) return;
+  if (isTerminalDockMaximized) {
+    content.classList.add('dock-maximized');
+    if (modal) modal.classList.add('dock-maximized-wrapper');
+    if (btn) btn.innerHTML = '🗗';
+    if (btn) btn.title = t('minimize_terminal');
+  } else {
+    content.classList.remove('dock-maximized');
+    if (modal) modal.classList.remove('dock-maximized-wrapper');
+    if (btn) btn.innerHTML = '⛶';
+    if (btn) btn.title = t('maximize_terminal');
+  }
+  refitActiveTab();
+}
+
+function toggleNewTabDropdown(e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('newTabDropdownMenu');
+  if (!menu) return;
+  if (menu.style.display === 'block') {
+    menu.style.display = 'none';
+    return;
+  }
+  const hosts = allRawHosts || [];
+  if (hosts.length === 0) {
+    menu.innerHTML = `<div class="terminal-dropdown-item" style="color: var(--text-muted);">${t('no_hosts', 'No hosts available')}</div>`;
+  } else {
+    menu.innerHTML = hosts.map(h => `
+      <div class="terminal-dropdown-item" onclick="onSelectNewTabHost(${h.id})">
+        <span>💻</span>
+        <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">${escapeHtml(h.name)}</span>
+        <span style="color: var(--text-muted); font-size: 0.72rem; margin-left: auto; padding-left: 12px; font-family: monospace; white-space: nowrap;">${escapeHtml(h.host)}</span>
+      </div>
+    `).join('');
+  }
+  menu.style.display = 'block';
+}
+
+function onSelectNewTabHost(hostID) {
+  const menu = document.getElementById('newTabDropdownMenu');
+  if (menu) menu.style.display = 'none';
+  openTerminalForHost(hostID, null, true);
+}
+
+function saveTerminalTabsToStorage() {
+  try {
+    const data = terminalTabs.map(tab => ({
+      hostID: tab.hostID,
+      hostName: tab.hostName,
+      title: tab.title,
+      isSplit: tab.isSplit,
+      hostIDRight: tab.hostIDRight
+    }));
+    localStorage.setItem('pantau_terminal_tabs_meta', JSON.stringify(data));
+  } catch(e) {}
+}
+
+function restoreSavedTerminalTabs() {
+  try {
+    const raw = localStorage.getItem('pantau_terminal_tabs_meta');
+    if (!raw) return;
+    const meta = JSON.parse(raw);
+    if (!Array.isArray(meta) || meta.length === 0) return;
+    // ponytail: restore saved tab metadata into minimized pill without creating live WebSockets until dock is restored or tab activated
+    meta.forEach(m => {
+      if (m && m.hostID) {
+        const host = (allRawHosts || []).find(h => h.id === m.hostID) || { id: m.hostID, name: m.hostName || ('Host ' + m.hostID), host: '' };
+        const tabId = 'tab_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+        const tab = {
+          id: tabId,
+          hostID: m.hostID,
+          hostName: host.name || ('Host ' + m.hostID),
+          title: m.title || host.name || ('Host ' + m.hostID),
+          presetID: null,
+          socketLeft: null,
+          termLeft: null,
+          fitLeft: null,
+          connectedLeft: false,
+          isSplit: m.isSplit || false,
+          hostIDRight: m.hostIDRight || m.hostID,
+          socketRight: null,
+          termRight: null,
+          fitRight: null,
+          connectedRight: false,
+          focusedPane: 'left',
+          presets: [],
+          hasActivity: false
+        };
+        terminalTabs.push(tab);
+        createTabWorkspaceDOM(tab);
+      }
+    });
+    if (terminalTabs.length > 0) {
+      activeTerminalTabId = terminalTabs[0].id;
+      renderTerminalTabsList();
+      minimizeTerminalDock();
+    }
+  } catch(e) {}
+}
+
+// Backward compatibility wrappers for legacy callers
+function cleanUpTerminals() {
+  // ponytail: legacy cleanup is no-op to preserve active terminal sessions across modal navigations
+}
+async function initTerminal(hostID, initialPresetID) {
+  openTerminalForHost(hostID, initialPresetID);
+}
+function toggleTerminalMaximize() {
+  toggleTerminalDockMaximize();
+}
+function toggleTerminalSplit() {
+  if (activeTerminalTabId) toggleTabSplit(activeTerminalTabId);
+}
+function clearActiveTerminal() {
+  if (activeTerminalTabId) clearTabActiveTerminal(activeTerminalTabId);
+}
+function reconnectActiveTerminal() {
+  if (activeTerminalTabId) reconnectTabTerminal(activeTerminalTabId);
+}
+function sendCommandToActiveTerminal(cmd) {
+  if (activeTerminalTabId) sendTabCommand(activeTerminalTabId, cmd);
+}
+function triggerPreset(presetId) {
+  if (activeTerminalTabId) triggerTabPreset(activeTerminalTabId, presetId);
 }
 
 function openCreatePresetModal(editPreset = null) {
@@ -4236,8 +4927,9 @@ function closeModal(id) {
     clearInterval(transferPollInterval);
     transferPollInterval = null;
   }
-  if (id === 'hostDetailModal') {
-    cleanUpTerminals();
+  if (id === 'terminalDockModal') {
+    minimizeTerminalDock();
+    return;
   }
   if (id === 'confirmModal' && confirmResolver) {
     resolveConfirm(false);
@@ -4248,6 +4940,14 @@ function closeModal(id) {
 }
 
 window.addEventListener('click', (e) => {
+  const menu = document.getElementById('newTabDropdownMenu');
+  const btn = document.getElementById('btnNewTerminalTab');
+  if (menu && menu.style.display === 'block') {
+    if (!menu.contains(e.target) && (!btn || !btn.contains(e.target))) {
+      menu.style.display = 'none';
+    }
+  }
+
   if (e.target && e.target.classList && e.target.classList.contains('modal') && e.target.classList.contains('open')) {
     if (e.target.id === 'confirmModal') {
       resolveConfirm(false);
@@ -4258,7 +4958,40 @@ window.addEventListener('click', (e) => {
 });
 
 window.addEventListener('keydown', (e) => {
+  // Global Terminal Dock Keyboard Shortcuts
+  const dock = document.getElementById('terminalDockModal');
+  const isDockOpen = dock && dock.style.display !== 'none';
+
+  if (isDockOpen && e.altKey && !e.ctrlKey && !e.shiftKey) {
+    if (e.key >= '1' && e.key <= '9') {
+      const idx = parseInt(e.key, 10) - 1;
+      if (idx >= 0 && idx < terminalTabs.length) {
+        e.preventDefault();
+        activateTerminalTab(terminalTabs[idx].id);
+        return;
+      }
+    } else if (e.key.toLowerCase() === 'w') {
+      e.preventDefault();
+      if (activeTerminalTabId) {
+        closeTerminalTab(e, activeTerminalTabId);
+      }
+      return;
+    } else if (e.key === '\\') {
+      e.preventDefault();
+      if (activeTerminalTabId) {
+        toggleTabSplit(activeTerminalTabId);
+      }
+      return;
+    } else if (e.key.toLowerCase() === 'm') {
+      e.preventDefault();
+      minimizeTerminalDock();
+      return;
+    }
+  }
+
   if (e.key === 'Escape') {
+    // ponytail: never intercept Escape if Terminal Dock is focused/open to preserve vim, nano, htop CLI usage (ADR-0011)
+    if (isDockOpen) return;
     const openModals = Array.from(document.querySelectorAll('.modal.open'));
     if (openModals.length > 0) {
       const topModal = openModals[openModals.length - 1];

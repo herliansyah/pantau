@@ -148,3 +148,11 @@ _Avoid_: Port hopping, dynamic port binding
 **Self-Contained Web Assets**:
 Koleksi seluruh pustaka antarmuka web Pantau (stylesheet CSS, modul terminal xterm, dan editor teks CodeMirror) yang disematkan langsung ke dalam binary aplikasi melalui sistem file tersemat (embedded filesystem) dan disajikan secara lokal, menghilangkan seluruh ketergantungan jaringan eksternal ke CDN publik untuk menjamin operasional penuh pada lingkungan terisolasi (airgapped).
 _Avoid_: CDN dependencies, online scripts, external assets
+
+**Terminal Dock**:
+Kontainer antarmuka terminal global multi-tab di level aplikasi Pantau yang dapat diminimalkan menjadi bilah dok mengambang (dock bar) atau dimaksimalkan ke seluruh viewport tanpa memutus sesi koneksi shell aktif.
+_Avoid_: Terminal popup, floating window, modal shell
+
+**Terminal Tab**:
+Entitas sesi terminal independen di dalam Terminal Dock yang merepresentasikan satu koneksi PTY remote ke Host tertentu dengan dukungan penamaan judul dinamis (inline rename).
+_Avoid_: Terminal window, shell pane, subterminal
