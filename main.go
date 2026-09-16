@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"flag"
 	"fmt"
 	"log"
@@ -25,6 +26,9 @@ import (
 	"pantau/internal/store"
 	"pantau/internal/web"
 )
+
+//go:embed README.md README.id.md docs/user-guide.md docs/user-guide.id.md
+var embeddedDocs embed.FS
 
 var Version = "dev"
 
@@ -168,6 +172,7 @@ func main() {
 	server := web.NewServer(db, ins, dispatcher)
 	server.SetVersion(ver)
 	server.SetSnapshotManager(snapshotMgr)
+	server.SetDocsFS(embeddedDocs)
 	var listener net.Listener
 	if !portExplicit {
 		for p := port; p <= port+19; p++ {

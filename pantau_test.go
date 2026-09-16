@@ -59,6 +59,7 @@ func setupTestEnv(t *testing.T) *testEnv {
 	ins := inspector.New(db, factory, dispatcher)
 	srv := web.NewServer(db, ins, dispatcher)
 	srv.SetTransferManager(transfer.NewManager(db, factory))
+	srv.SetDocsFS(embeddedDocs)
 	httpSrv := httptest.NewServer(srv)
 
 	t.Cleanup(func() {
@@ -1412,6 +1413,45 @@ func TestResolveConfigFallbacks(t *testing.T) {
 	port, db, explicit = resolveConfig(8080, "pantau.db")
 	if port != 9191 || db != "data/pantau_pref.db" || !explicit {
 		t.Fatalf("expected PANTAU_* precedence (9191, data/pantau_pref.db, true), got (%d, %s, %v)", port, db, explicit)
+	}
+}
+
+func TestEmbeddedDocumentationEndpoint(t *testing.T) {
+	env := setupTestEnv(t)
+
+	// Unauthenticated request to /api/docs?name=readme&lang=en
+	res, err := http.Get(env.httpServer.URL + "/api/docs?name=readme&lang=en")
+	if err != nil {
+		t.Fatalf("failed to get docs: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK from unauthenticated /api/docs, got %d", res.StatusCode)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatalf("failed to read response body: %v", err)
+	}
+
+	// Must contain the actual project title from README.md
+	if !strings.Contains(string(body), "Pantau") {
+		t.Errorf("expected embedded README to contain 'Pantau', got %q", string(body))
+	}
+
+	// Indonesian guide
+	resID, err := http.Get(env.httpServer.URL + "/api/docs?name=guide&lang=id")
+	if err != nil {
+		t.Fatalf("failed to get indonesian guide: %v", err)
+	}
+	defer resID.Body.Close()
+	if resID.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK for indonesian guide, got %d", resID.StatusCode)
+	}
+	bodyID, _ := io.ReadAll(resID.Body)
+	if !strings.Contains(string(bodyID), "Pantau") {
+		t.Errorf("expected embedded user-guide.id.md to contain 'Pantau', got %q", string(bodyID))
 	}
 }
 

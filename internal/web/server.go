@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -56,6 +58,7 @@ type Server struct {
 	temp2FAChallenges sync.Map // tempToken -> *temp2FAChallenge
 	pending2FASetup   sync.Map // sessionToken -> *pending2FASetupData
 	htmlContent       []byte
+	docsFS            fs.FS
 }
 
 func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) *Server {
@@ -90,6 +93,9 @@ func (s *Server) SetVersion(version string) {
 	}
 }
 
+func (s *Server) SetDocsFS(dfs fs.FS) {
+	s.docsFS = dfs
+}
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mux.ServeHTTP(w, r)
@@ -98,6 +104,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routes() {
 	// Static / UI
 	s.mux.HandleFunc("/", s.handleIndex)
+
+	// In-App Documentation (Public & Private)
+	s.mux.HandleFunc("/api/docs", s.handleDocs)
 
 	// Vendor static assets (airgapped / local cache)
 	vendorHandler := http.StripPrefix("/vendor/", http.FileServer(http.FS(vendorFS())))
@@ -1929,4 +1938,59 @@ func (s *Server) handleSnapshotGitHubRestore(w http.ResponseWriter, r *http.Requ
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "message": "Snapshot successfully restored from GitHub"})
+}
+
+// ponytail: read embedded markdown docs on demand with safe path mapping; upgrade to compressed blobs if docs exceed 5MB
+func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	name := r.URL.Query().Get("name")
+	if name == "" {
+		name = "readme"
+	}
+	lang := r.URL.Query().Get("lang")
+	if lang != "id" {
+		lang = "en"
+	}
+
+	var filePath string
+	switch name {
+	case "readme":
+		if lang == "id" {
+			filePath = "README.id.md"
+		} else {
+			filePath = "README.md"
+		}
+	case "guide":
+		if lang == "id" {
+			filePath = "docs/user-guide.id.md"
+		} else {
+			filePath = "docs/user-guide.md"
+		}
+	default:
+		http.Error(w, "Invalid document name", http.StatusBadRequest)
+		return
+	}
+
+	var data []byte
+	var err error
+	if s.docsFS != nil {
+		data, err = fs.ReadFile(s.docsFS, filePath)
+	} else {
+		data, err = os.ReadFile(filePath)
+		if err != nil {
+			data, err = os.ReadFile(filepath.Join("..", "..", filePath))
+		}
+	}
+
+	if err != nil {
+		http.Error(w, "Document not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=3600")
+	_, _ = w.Write(data)
 }
