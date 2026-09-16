@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"pantau/internal/store"
@@ -430,5 +431,107 @@ func TestGlobalTerminalDockWebAssets(t *testing.T) {
 	// 8. Minimized pill must be placed above footer
 	if !strings.Contains(body, "bottom: 48px;") {
 		t.Errorf("expected minimized pill to have bottom: 48px to clear footer")
+	}
+}
+
+func TestHandleDocs(t *testing.T) {
+	mockDocs := fstest.MapFS{
+		"README.md":             &fstest.MapFile{Data: []byte("# Pantau\n\nEnglish Overview")},
+		"README.id.md":          &fstest.MapFile{Data: []byte("# Pantau\n\nRingkasan Bahasa Indonesia")},
+		"docs/user-guide.md":    &fstest.MapFile{Data: []byte("# User Guide\n\nEnglish Guide")},
+		"docs/user-guide.id.md": &fstest.MapFile{Data: []byte("# Panduan Pengguna\n\nPanduan Bahasa Indonesia")},
+	}
+
+	srv := NewServer(nil, nil, nil)
+	srv.SetDocsFS(mockDocs)
+
+	// 1. Default GET /api/docs -> README.md (public, unauthenticated)
+	req := httptest.NewRequest(http.MethodGet, "/api/docs", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for default /api/docs, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "English Overview") {
+		t.Errorf("expected default docs to contain English Overview, got %q", rec.Body.String())
+	}
+	if rec.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+		t.Errorf("expected text/plain content type, got %s", rec.Header().Get("Content-Type"))
+	}
+
+	// 2. GET /api/docs?name=readme&lang=id -> README.id.md
+	req = httptest.NewRequest(http.MethodGet, "/api/docs?name=readme&lang=id", nil)
+	rec = httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for readme id, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Ringkasan Bahasa Indonesia") {
+		t.Errorf("expected Indonesian readme, got %q", rec.Body.String())
+	}
+
+	// 3. GET /api/docs?name=guide&lang=en -> docs/user-guide.md
+	req = httptest.NewRequest(http.MethodGet, "/api/docs?name=guide&lang=en", nil)
+	rec = httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for guide en, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "English Guide") {
+		t.Errorf("expected English guide, got %q", rec.Body.String())
+	}
+
+	// 4. GET /api/docs?name=guide&lang=id -> docs/user-guide.id.md
+	req = httptest.NewRequest(http.MethodGet, "/api/docs?name=guide&lang=id", nil)
+	rec = httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for guide id, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Panduan Bahasa Indonesia") {
+		t.Errorf("expected Indonesian guide, got %q", rec.Body.String())
+	}
+
+	// 5. Invalid name -> 400 Bad Request
+	req = httptest.NewRequest(http.MethodGet, "/api/docs?name=unknown", nil)
+	rec = httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for unknown doc name, got %d", rec.Code)
+	}
+
+	// 6. Non-GET method -> 405 Method Not Allowed
+	req = httptest.NewRequest(http.MethodPost, "/api/docs", nil)
+	rec = httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405 for POST /api/docs, got %d", rec.Code)
+	}
+}
+
+func TestDocumentationModalUI(t *testing.T) {
+	html := string(embeddedHTML)
+
+	// Check Workspace Modal container and elements
+	mustContain := []string{
+		`id="documentationModal"`,
+		`class="modal-content modal-workspace"`,
+		`id="docsSidebar"`,
+		`id="docsTocList"`,
+		`id="docsContentPane"`,
+		`id="docsContentBody"`,
+		`id="docsLangToggleBtn"`,
+		`openDocumentationModal()`,
+		`parseMicroMarkdown(`,
+		`docs_title`,
+		`docs_link`,
+		`doc_readme`,
+		`doc_guide`,
+		`doc_toc`,
+	}
+	for _, s := range mustContain {
+		if !strings.Contains(html, s) {
+			t.Errorf("expected embedded index.html to contain %q", s)
+		}
 	}
 }

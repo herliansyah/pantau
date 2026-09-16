@@ -101,6 +101,10 @@ _Avoid_: Popup window, dynamic modal, fluid dialog
 Kontainer modal terpusat berdimensi ringkas (lebar ~520px - 600px) untuk formulir input sekuensial, dialog pengaturan (Settings), atau konfirmasi aksi tunggal (Add Host, Direct Transfer, Restore Wizard).
 _Avoid_: Small modal, mini popup, submodal
 
+**Documentation Modal**:
+Kontainer Workspace Modal interaktif berdimensi tetap (75vw × 80vh) untuk membaca panduan operasional Pantau (README dan User Guide) secara mandiri (airgapped) dan dwibahasa (ID/EN) tanpa ketergantungan jaringan eksternal.
+_Avoid_: Help popup, docs reader, guide dialog, manual tab, external wiki
+
 **Host Note**:
 Catatan bebas berbasis teks yang disematkan pada Host oleh administrator untuk mencatat konteks operasional atau panduan pemeliharaan spesifik mesin tersebut.
 _Avoid_: Host description, server memo, tag
