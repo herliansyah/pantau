@@ -13,7 +13,8 @@
 
 <p align="center">
   <a href="README.md"><b>English</b></a> •
-  <a href="README.id.md"><b>Bahasa Indonesia</b></a>
+  <a href="README.id.md"><b>Bahasa Indonesia</b></a> •
+  <a href="docs/user-guide.md"><b>📖 User Guide</b></a>
 </p>
 
 <p align="center">
@@ -34,6 +35,9 @@
 **Pantau** is a self-hosted, lightweight, single-binary infrastructure monitoring and server management system built in Go. Unlike Prometheus/Node-Exporter, Zabbix, or Datadog, Pantau operates **100% agentless** over standard SSH (`port 22`). Target servers require **no background agents, no daemon installation, and no persistent telemetry scrapers**.
 
 Pantau inspects remote hosts via non-interactive SSH commands, continuously validates systems against **Desired State** rules, diagnoses deviations with automatic **Root Cause Excerpts**, streams cross-host files in memory, and provides an in-browser Web Terminal (xterm.js) and SFTP Code Editor.
+
+> [!TIP]
+> **Administrator Playbook**: Looking for step-by-step operational workflows, disaster recovery procedures, or security hardening guides? Read the [Pantau Administrator Guide](docs/user-guide.md) ([Bahasa Indonesia](docs/user-guide.id.md)).
 
 ---
 
