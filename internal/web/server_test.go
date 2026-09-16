@@ -358,3 +358,77 @@ func TestAirgappedSelfContainedAssets(t *testing.T) {
 		}
 	}
 }
+
+func TestGlobalTerminalDockWebAssets(t *testing.T) {
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	srv := NewServer(nil, nil, nil)
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for index, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	requiredSnippets := []string{
+		"id=\"terminalDockModal\"",
+		"id=\"terminalMinimizedPill\"",
+		"id=\"terminalTabsList\"",
+		"id=\"newTabDropdownMenu\"",
+		"openTerminalForHost",
+		"startRenameTab",
+		"minimizeTerminalDock",
+		"restoreTerminalDock",
+		"toggleTerminalDockMaximize",
+		"closeTerminalTab",
+		"global_terminal_dock",
+		"close_all_terminals_confirm",
+	}
+
+	for _, s := range requiredSnippets {
+		if !strings.Contains(body, s) {
+			t.Errorf("expected index.html to contain %q", s)
+		}
+	}
+
+	// Regression checks for terminal dock bug fixes:
+	// 1. Confirm modal must have higher z-index than terminal dock modal
+	if !strings.Contains(body, "#confirmModal") || !strings.Contains(body, "100001") {
+		t.Errorf("expected confirmModal to have z-index 100001 to prevent being hidden beneath terminal dock")
+	}
+
+	// 2. New tab dropdown wrapper must not be trapped inside overflow-x tabs container
+	if strings.Contains(body, `<div class="terminal-tabs-container">`+"\n"+`        <div class="terminal-tabs-list" id="terminalTabsList"></div>`+"\n"+`        <div id="newTabDropdownMenu"`) {
+		t.Errorf("newTabDropdownMenu should be placed outside .terminal-tabs-container to prevent overflow clipping")
+	}
+
+	// 3. openTerminalForHost must auto-reconnect if inactive/disconnected
+	if !strings.Contains(body, "reconnectTabTerminal(existing.id)") {
+		t.Errorf("expected openTerminalForHost to reconnect existing disconnected tab")
+	}
+
+	// 4. renderTerminalTabsList must not shadow t() translation function with arrow parameter
+	if strings.Contains(body, "terminalTabs.map(t =>") {
+		t.Errorf("terminalTabs.map parameter must not be 't' to avoid shadowing global t() translation function")
+	}
+
+	// 5. terminal-dropdown-menu must align right: 0 to prevent overflowing right boundary
+	if !strings.Contains(body, ".terminal-dropdown-menu") || !strings.Contains(body, "right: 0;") {
+		t.Errorf("expected terminal-dropdown-menu to have right: 0 to prevent clipping against dock edge")
+	}
+
+	// 6. terminal-dock-tab must sit flush on header bottom border
+	if !strings.Contains(body, "margin-bottom: -1px;") || !strings.Contains(body, "align-items: flex-end;") {
+		t.Errorf("expected terminal dock tabs to sit flush on header bottom border")
+	}
+
+	// 7. Active tab must mask bottom line and hide scrollbar on tabs container
+	if !strings.Contains(body, "active-tab::after") || !strings.Contains(body, "scrollbar-width: none;") {
+		t.Errorf("expected active tab mask and hidden scrollbar on tabs container")
+	}
+
+	// 8. Minimized pill must be placed above footer
+	if !strings.Contains(body, "bottom: 48px;") {
+		t.Errorf("expected minimized pill to have bottom: 48px to clear footer")
+	}
+}
