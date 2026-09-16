@@ -419,6 +419,12 @@ func (d *DB) SetSetting(key, val string) error {
 	return err
 }
 
+func (d *DB) DeleteSetting(key string) error {
+	_, err := d.Exec("DELETE FROM settings WHERE key = ?", key)
+	return err
+}
+
+
 // Host operations
 func (d *DB) ListHosts() ([]Host, error) {
 	rows, err := d.Query(`SELECT id, name, host, port, user, COALESCE(custom_key,''), status, os_info, kernel, uptime, cpu_load, ram_used_bytes, ram_total_bytes, disk_used_bytes, disk_total_bytes, lifecycle_score, lifecycle_notes, COALESCE(lifecycle_breakdown, '[]'), last_inspected, created_at,

@@ -466,10 +466,23 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <h2 style="text-align: center; color: #60a5fa; margin: 0; font-size: 1.5rem; letter-spacing: 1px;">PANTAU</h2>
     </div>
     <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-top: -6px;" data-i18n="brand_subtitle">Agentless Server Management</p>
-    <div class="form-group">
+    
+    <div id="loginPassGroup" class="form-group">
       <input type="password" id="loginPassword" autofocus placeholder="Admin Password" data-i18n-placeholder="admin_password" onkeyup="if(event.key==='Enter') doLogin()" />
     </div>
-    <button class="btn btn-primary" onclick="doLogin()" data-i18n="login">Login</button>
+    <button class="btn btn-primary" id="loginSubmitBtn" onclick="doLogin()" data-i18n="login">Login</button>
+
+    <div id="login2FAGroup" style="display: none; flex-direction: column; gap: 12px;">
+      <div style="font-size: 0.85rem; color: var(--text-muted); text-align: center;" data-i18n="enter_2fa_prompt">Enter 6-digit authenticator code or recovery code</div>
+      <div class="form-group">
+        <input type="text" id="login2FACode" maxlength="19" placeholder="123456 / ABCD-1234" style="text-align: center; font-size: 1.25rem; letter-spacing: 3px; font-family: monospace; font-weight: bold;" onkeyup="if(event.key==='Enter') doLogin2FA()" />
+      </div>
+      <button class="btn btn-primary" onclick="doLogin2FA()" data-i18n="verify_code">Verify & Login</button>
+      <div style="text-align: center; margin-top: 4px;">
+        <a href="javascript:void(0)" onclick="cancel2FALogin()" style="font-size: 0.8rem; color: var(--text-muted); text-decoration: underline;" data-i18n="back_to_password">← Back to Password</a>
+      </div>
+    </div>
+
     <div id="loginErr" style="color: var(--danger); font-size: 0.8rem; text-align: center;"></div>
     <div style="border-top: 1px solid var(--card-border); padding-top: 12px; text-align: center;">
       <a href="javascript:void(0)" onclick="openRestoreModal()" style="font-size: 0.8rem; color: #38bdf8; text-decoration: none;" data-i18n="restore_link">🔄 Restore from Backup (GitHub / .enc File)</a>
@@ -846,7 +859,75 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
             <button class="btn btn-warning btn-sm" onclick="changePassword()" data-i18n="update_password">Update Password</button>
           </div>
         </div>
+
+        <div class="card" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0;" data-i18n="two_factor_auth">Two-Factor Authentication (2FA)</h4>
+            <span id="setting2FAStatusBadge" class="badge" style="background: rgba(239, 68, 68, 0.2); color: #f87171;" data-i18n="two_factor_disabled">Disabled</span>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;" data-i18n="two_factor_auth_desc">Protect your administrator account with a 6-digit code from an Authenticator app (Google Authenticator, Aegis, Bitwarden, etc.).</p>
+
+          <!-- 2FA Disabled State: Show Enable Button -->
+          <div id="setting2FADisabledView">
+            <button class="btn btn-primary btn-sm" onclick="start2FASetup()" data-i18n="enable_2fa_btn">🛡️ Enable 2FA</button>
+          </div>
+
+          <!-- 2FA Setup Flow State -->
+          <div id="setting2FASetupView" style="display: none; flex-direction: column; gap: 14px; background: rgba(0,0,0,0.15); padding: 14px; border-radius: 8px; border: 1px solid var(--card-border);">
+            <div>
+              <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 8px;" data-i18n="setup_2fa_step1">1. Scan QR code in your Authenticator app, or enter the secret key manually:</div>
+              <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+                <div style="background: #ffffff; padding: 6px; border-radius: 8px; border: 1px solid var(--card-border); line-height: 0;">
+                  <img id="setting2FAQRImg" src="" alt="2FA QR Code" style="width: 150px; height: 150px; display: block;" />
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 200px;">
+                  <span style="font-size: 0.75rem; color: var(--text-muted);">Secret Key (Base32):</span>
+                  <div id="setting2FASecretText" style="font-family: monospace; font-weight: bold; font-size: 0.95rem; background: var(--bg); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--card-border); word-break: break-all; letter-spacing: 1px;"></div>
+                  <button class="btn btn-sm" style="align-self: flex-start;" onclick="copy2FASecret()" data-i18n="copy_secret">📋 Copy Secret</button>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 6px;" data-i18n="setup_2fa_step2">2. Save Emergency Recovery Codes (Keep them in a safe place):</div>
+              <div id="setting2FARecoveryList" style="font-family: monospace; font-size: 0.85rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; background: var(--bg); padding: 10px; border-radius: 6px; border: 1px solid var(--card-border);"></div>
+              <div style="display: flex; gap: 8px; margin-top: 6px;">
+                <button class="btn btn-sm" onclick="copy2FARecoveryCodes()" data-i18n="copy_recovery_codes">📋 Copy All Codes</button>
+                <button class="btn btn-sm" onclick="download2FARecoveryCodes()" data-i18n="download_recovery_codes">💾 Download (.txt)</button>
+              </div>
+            </div>
+
+            <div>
+              <div style="font-weight: 600; font-size: 0.85rem; margin-bottom: 6px;" data-i18n="setup_2fa_step3">3. Enter 6-digit confirmation code from your app:</div>
+              <div style="display: flex; gap: 8px; align-items: center; max-width: 380px;">
+                <input type="text" id="setting2FAConfirmCode" maxlength="6" placeholder="123456" style="text-align: center; font-size: 1.1rem; letter-spacing: 2px; font-family: monospace; font-weight: bold;" onkeyup="if(event.key==='Enter') confirmEnable2FA()" />
+                <button class="btn btn-primary btn-sm" onclick="confirmEnable2FA()" data-i18n="confirm_and_enable_2fa">Verify & Activate</button>
+                <button class="btn btn-sm" onclick="cancel2FASetup()" data-i18n="cancel_setup">Cancel</button>
+              </div>
+              <div id="setting2FASetupErr" style="color: var(--danger); font-size: 0.8rem; margin-top: 4px;"></div>
+            </div>
+          </div>
+
+          <!-- 2FA Enabled State: Show Deactivate Form -->
+          <div id="setting2FAEnabledView" style="display: none; flex-direction: column; gap: 10px;">
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+              <span data-i18n="remaining_recovery_codes">Remaining recovery codes:</span> <strong id="setting2FARemainingCount" style="color: var(--text);">8</strong>
+            </div>
+            <div style="background: rgba(0,0,0,0.1); padding: 12px; border-radius: 8px; border: 1px solid var(--card-border); max-width: 440px;">
+              <div style="font-size: 0.8rem; margin-bottom: 8px; font-weight: 600;" data-i18n="enter_pass_and_totp_to_disable">Enter admin password and current 6-digit TOTP code to disable 2FA:</div>
+              <div class="form-group" style="margin-bottom: 8px;">
+                <input type="password" id="disable2FAPassword" placeholder="Admin Password" data-i18n-placeholder="admin_password" />
+              </div>
+              <div class="form-group" style="margin-bottom: 8px;">
+                <input type="text" id="disable2FACode" maxlength="19" placeholder="6-digit TOTP or Recovery Code" style="font-family: monospace;" />
+              </div>
+              <button class="btn btn-danger btn-sm" onclick="disable2FA()" data-i18n="disable_2fa_btn">Disable 2FA</button>
+              <div id="setting2FADisableErr" style="color: var(--danger); font-size: 0.8rem; margin-top: 4px;"></div>
+            </div>
+          </div>
+        </div>
       </div>
+
 
       <!-- Notification Channels Tab -->
       <div id="settingsPanelNotif" style="display: none; flex-direction: column; gap: 16px;">
@@ -1151,8 +1232,33 @@ const I18N = {
     "admin_password": "Admin Password",
     "login": "Login",
     "invalid_password": "Invalid password",
-    "restore_link": "\ud83d\udd04 Restore from Backup (GitHub / .enc File)",
+    "restore_link": "🔄 Restore from Backup (GitHub / .enc File)",
+    "enter_2fa_prompt": "Enter 6-digit authenticator code or recovery code",
+    "verify_code": "Verify & Login",
+    "back_to_password": "← Back to Password",
+    "invalid_2fa_code": "Invalid 2FA code or recovery code",
+    "session_expired_retry": "Session expired or too many attempts. Please enter password again.",
+    "attempts_left": "attempts remaining",
+    "two_factor_auth": "Two-Factor Authentication (2FA)",
+    "two_factor_auth_desc": "Protect your administrator account with a 6-digit code from an Authenticator app (Google Authenticator, Aegis, Bitwarden, etc.).",
+    "two_factor_enabled": "Active",
+    "two_factor_disabled": "Disabled",
+    "enable_2fa_btn": "🛡️ Enable 2FA",
+    "disable_2fa_btn": "Disable 2FA",
+    "setup_2fa_step1": "1. Scan QR code in your Authenticator app, or enter the secret key manually:",
+    "setup_2fa_step2": "2. Save Emergency Recovery Codes (Keep them in a safe place):",
+    "setup_2fa_step3": "3. Enter 6-digit confirmation code from your app:",
+    "copy_secret": "📋 Copy Secret",
+    "copy_recovery_codes": "📋 Copy All Codes",
+    "download_recovery_codes": "💾 Download (.txt)",
+    "confirm_and_enable_2fa": "Verify & Activate",
+    "cancel_setup": "Cancel",
+    "remaining_recovery_codes": "Remaining recovery codes:",
+    "enter_pass_and_totp_to_disable": "Enter admin password and current 6-digit TOTP code to disable 2FA:",
+    "2fa_enabled_success": "Two-Factor Authentication successfully activated!",
+    "2fa_disabled_success": "Two-Factor Authentication deactivated.",
     "transfers": "📦 Transfers",
+
     "transfers_title": "Cross-Host Transfers",
     "global_notes_title": "Global Notes",
     "alerts_badge": "ALERTS",
@@ -1497,8 +1603,33 @@ const I18N = {
     "admin_password": "Password Admin",
     "login": "Masuk",
     "invalid_password": "Password salah",
-    "restore_link": "\ud83d\udd04 Restore dari Backup (GitHub / File .enc)",
+    "restore_link": "🔄 Restore dari Backup (GitHub / File .enc)",
+    "enter_2fa_prompt": "Masukkan 6 digit kode dari aplikasi Authenticator atau Kode Pemulihan",
+    "verify_code": "Verifikasi & Masuk",
+    "back_to_password": "← Kembali ke Kata Sandi",
+    "invalid_2fa_code": "Kode 2FA atau kode pemulihan salah",
+    "session_expired_retry": "Sesi kedaluwarsa atau terlalu banyak percobaan. Silakan masukkan password kembali.",
+    "attempts_left": "percobaan tersisa",
+    "two_factor_auth": "Two-Factor Authentication (2FA)",
+    "two_factor_auth_desc": "Amankan login administrator dengan kode 6-digit dari aplikasi Authenticator (Google Authenticator, Aegis, Bitwarden, dll).",
+    "two_factor_enabled": "Aktif",
+    "two_factor_disabled": "Nonaktif",
+    "enable_2fa_btn": "🛡️ Aktifkan 2FA",
+    "disable_2fa_btn": "Nonaktifkan 2FA",
+    "setup_2fa_step1": "1. Pindai QR code pada aplikasi Authenticator Anda, atau masukkan kunci rahasia manual:",
+    "setup_2fa_step2": "2. Simpan Kode Pemulihan Darurat (Simpan di tempat yang aman):",
+    "setup_2fa_step3": "3. Masukkan kode verifikasi 6-digit dari aplikasi Anda:",
+    "copy_secret": "📋 Salin Kunci",
+    "copy_recovery_codes": "📋 Salin Semua Kode",
+    "download_recovery_codes": "💾 Unduh (.txt)",
+    "confirm_and_enable_2fa": "Verifikasi & Aktifkan",
+    "cancel_setup": "Batal",
+    "remaining_recovery_codes": "Sisa kode pemulihan:",
+    "enter_pass_and_totp_to_disable": "Masukkan password admin dan 6 digit kode TOTP saat ini untuk menonaktifkan 2FA:",
+    "2fa_enabled_success": "Two-Factor Authentication berhasil diaktifkan!",
+    "2fa_disabled_success": "Two-Factor Authentication telah dinonaktifkan.",
     "transfers": "📦 Transfers",
+
     "transfers_title": "Transfer Lintas-Host",
     "global_notes_title": "Catatan Global",
     "alerts_badge": "ALERTS",
@@ -1923,17 +2054,68 @@ async function checkAuth() {
 
 async function doLogin() {
   const pass = document.getElementById('loginPassword').value;
+  document.getElementById('loginErr').innerText = '';
   const res = await fetch('/api/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password: pass })
   });
   if (res.ok) {
+    const data = await res.json();
+    if (data.status === 'require_2fa') {
+      window.loginTempToken = data.temp_token;
+      document.getElementById('loginPassGroup').style.display = 'none';
+      document.getElementById('loginSubmitBtn').style.display = 'none';
+      document.getElementById('login2FAGroup').style.display = 'flex';
+      document.getElementById('loginErr').innerText = '';
+      setTimeout(() => document.getElementById('login2FACode')?.focus(), 50);
+      return;
+    }
     checkAuth();
   } else {
     document.getElementById('loginErr').innerText = t('invalid_password', 'Invalid password');
   }
 }
+
+async function doLogin2FA() {
+  const code = document.getElementById('login2FACode').value.trim();
+  if (!code) return;
+  document.getElementById('loginErr').innerText = '';
+  const res = await fetch('/api/login/2fa', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ temp_token: window.loginTempToken, code: code })
+  });
+  const data = await res.json();
+  if (res.ok && data.status === 'ok') {
+    cancel2FALogin();
+    checkAuth();
+  } else {
+    if (data.error === 'too_many_attempts' || data.error === 'invalid_or_expired_token') {
+      cancel2FALogin();
+      document.getElementById('loginErr').innerText = t('session_expired_retry', 'Session expired or too many attempts. Please enter password again.');
+    } else {
+      const remaining = data.remaining_attempts !== undefined ? ` (${data.remaining_attempts} ${t('attempts_left', 'attempts remaining')})` : '';
+      document.getElementById('loginErr').innerText = (t('invalid_2fa_code', 'Invalid 2FA code or recovery code') + remaining);
+    }
+  }
+}
+
+function cancel2FALogin() {
+  window.loginTempToken = null;
+  const passGroup = document.getElementById('loginPassGroup');
+  const submitBtn = document.getElementById('loginSubmitBtn');
+  const group2fa = document.getElementById('login2FAGroup');
+  if (passGroup) passGroup.style.display = 'flex';
+  if (submitBtn) submitBtn.style.display = 'block';
+  if (group2fa) group2fa.style.display = 'none';
+  const codeInput = document.getElementById('login2FACode');
+  if (codeInput) codeInput.value = '';
+  const errEl = document.getElementById('loginErr');
+  if (errEl) errEl.innerText = '';
+  setTimeout(() => document.getElementById('loginPassword')?.focus(), 50);
+}
+
 
 let confirmResolver = null;
 function showConfirm(options) {
@@ -4500,6 +4682,7 @@ async function openSettingsModal() {
 
   document.getElementById('settingsModal').classList.add('open');
   switchSettingsTab(currentSettingsTab || 'general');
+  load2FASettings();
   setTimeout(() => {
     const pubKeyEl = document.getElementById('settingPubKey');
     if (pubKeyEl) {
@@ -4508,6 +4691,168 @@ async function openSettingsModal() {
     }
   }, 50);
 }
+
+async function load2FASettings() {
+  try {
+    const res = await fetch('/api/2fa/status');
+    if (!res.ok) return;
+    const data = await res.json();
+    const badge = document.getElementById('setting2FAStatusBadge');
+    const disabledView = document.getElementById('setting2FADisabledView');
+    const enabledView = document.getElementById('setting2FAEnabledView');
+    const setupView = document.getElementById('setting2FASetupView');
+    const remainingCount = document.getElementById('setting2FARemainingCount');
+
+    if (setupView) setupView.style.display = 'none';
+    if (data.enabled) {
+      if (badge) {
+        badge.innerText = t('two_factor_enabled', 'Active');
+        badge.style.background = 'rgba(16, 185, 129, 0.2)';
+        badge.style.color = '#34d399';
+      }
+      if (disabledView) disabledView.style.display = 'none';
+      if (enabledView) enabledView.style.display = 'flex';
+      if (remainingCount) remainingCount.innerText = data.recovery_codes_count ?? 0;
+    } else {
+      if (badge) {
+        badge.innerText = t('two_factor_disabled', 'Disabled');
+        badge.style.background = 'rgba(239, 68, 68, 0.2)';
+        badge.style.color = '#f87171';
+      }
+      if (disabledView) disabledView.style.display = 'block';
+      if (enabledView) enabledView.style.display = 'none';
+    }
+  } catch (e) {
+    console.error('Failed to load 2FA status:', e);
+  }
+}
+
+async function start2FASetup() {
+  const errEl = document.getElementById('setting2FASetupErr');
+  if (errEl) errEl.innerText = '';
+  try {
+    const res = await fetch('/api/2fa/setup', { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to start setup');
+    const data = await res.json();
+    window.pending2FASetupData = data;
+
+    document.getElementById('setting2FAQRImg').src = '/api/2fa/qr?t=' + Date.now();
+    document.getElementById('setting2FASecretText').innerText = data.secret;
+
+    const listEl = document.getElementById('setting2FARecoveryList');
+    if (listEl) {
+      listEl.innerHTML = '';
+      (data.recovery_codes || []).forEach(code => {
+        const item = document.createElement('div');
+        item.style.padding = '4px 6px';
+        item.style.background = 'var(--card-bg)';
+        item.style.borderRadius = '4px';
+        item.style.textAlign = 'center';
+        item.style.border = '1px solid var(--card-border)';
+        item.innerText = code;
+        listEl.appendChild(item);
+      });
+    }
+
+    document.getElementById('setting2FADisabledView').style.display = 'none';
+    document.getElementById('setting2FASetupView').style.display = 'flex';
+    document.getElementById('setting2FAConfirmCode').value = '';
+    setTimeout(() => document.getElementById('setting2FAConfirmCode')?.focus(), 50);
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+function cancel2FASetup() {
+  window.pending2FASetupData = null;
+  const setupView = document.getElementById('setting2FASetupView');
+  const disabledView = document.getElementById('setting2FADisabledView');
+  if (setupView) setupView.style.display = 'none';
+  if (disabledView) disabledView.style.display = 'block';
+}
+
+async function confirmEnable2FA() {
+  const code = document.getElementById('setting2FAConfirmCode').value.trim();
+  const errEl = document.getElementById('setting2FASetupErr');
+  if (errEl) errEl.innerText = '';
+  if (!code) return;
+
+  try {
+    const res = await fetch('/api/2fa/enable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'enabled') {
+      showToast(t('2fa_enabled_success', 'Two-Factor Authentication successfully activated!'), 'success');
+      load2FASettings();
+    } else {
+      if (errEl) errEl.innerText = t('invalid_2fa_code', 'Invalid confirmation code');
+    }
+  } catch (e) {
+    if (errEl) errEl.innerText = e.message;
+  }
+}
+
+async function disable2FA() {
+  const password = document.getElementById('disable2FAPassword').value;
+  const code = document.getElementById('disable2FACode').value.trim();
+  const errEl = document.getElementById('setting2FADisableErr');
+  if (errEl) errEl.innerText = '';
+  if (!password || !code) {
+    if (errEl) errEl.innerText = 'Password and code are required';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/2fa/disable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: password, code: code })
+    });
+    const data = await res.json();
+    if (res.ok && data.status === 'disabled') {
+      document.getElementById('disable2FAPassword').value = '';
+      document.getElementById('disable2FACode').value = '';
+      showToast(t('2fa_disabled_success', 'Two-Factor Authentication deactivated.'), 'success');
+      load2FASettings();
+    } else {
+      if (errEl) errEl.innerText = data.error === 'invalid_password' ? t('invalid_password', 'Invalid password') : t('invalid_2fa_code', 'Invalid code');
+    }
+  } catch (e) {
+    if (errEl) errEl.innerText = e.message;
+  }
+}
+
+function copy2FASecret() {
+  const secret = document.getElementById('setting2FASecretText').innerText;
+  if (secret) {
+    navigator.clipboard.writeText(secret).then(() => {
+      showToast(t('copied', 'Copied to clipboard'), 'success');
+    });
+  }
+}
+
+function copy2FARecoveryCodes() {
+  if (!window.pending2FASetupData || !window.pending2FASetupData.recovery_codes) return;
+  const text = window.pending2FASetupData.recovery_codes.join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(t('copied', 'Copied to clipboard'), 'success');
+  });
+}
+
+function download2FARecoveryCodes() {
+  if (!window.pending2FASetupData || !window.pending2FASetupData.recovery_codes) return;
+  const text = "Pantau 2FA Emergency Recovery Codes\nGenerated at: " + new Date().toISOString() + "\n\n" + window.pending2FASetupData.recovery_codes.join('\n') + "\n\nEach code can only be used once.\n";
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pantau-2fa-recovery-codes.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 
 async function saveSettings() {
   const payload = {

@@ -32,16 +32,30 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+type temp2FAChallenge struct {
+	expiry   time.Time
+	attempts int
+}
+
+type pending2FASetupData struct {
+	secret        string
+	recoveryCodes []string
+	hashedCodes   []string
+	createdAt     time.Time
+}
+
 type Server struct {
-	db          *store.DB
-	inspector   *inspector.Inspector
-	dispatcher  *notify.Dispatcher
-	provisioner sshrunner.KeyProvisioner
-	transferMgr *transfer.Manager
-	snapshotMgr *snapshot.Manager
-	mux         *http.ServeMux
-	sessions    sync.Map // token -> expiry
-	htmlContent []byte
+	db                *store.DB
+	inspector         *inspector.Inspector
+	dispatcher        *notify.Dispatcher
+	provisioner       sshrunner.KeyProvisioner
+	transferMgr       *transfer.Manager
+	snapshotMgr       *snapshot.Manager
+	mux               *http.ServeMux
+	sessions          sync.Map // token -> expiry
+	temp2FAChallenges sync.Map // tempToken -> *temp2FAChallenge
+	pending2FASetup   sync.Map // sessionToken -> *pending2FASetupData
+	htmlContent       []byte
 }
 
 func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) *Server {
@@ -92,11 +106,17 @@ func (s *Server) routes() {
 		vendorHandler.ServeHTTP(w, r)
 	})
 
-	// Auth
+	// Auth & 2FA
 	s.mux.HandleFunc("/api/login", s.handleLogin)
+	s.mux.HandleFunc("/api/login/2fa", s.handleLogin2FA)
 	s.mux.HandleFunc("/api/logout", s.handleLogout)
 	s.mux.HandleFunc("/api/me", s.handleMe)
 	s.mux.HandleFunc("/api/password", s.authMiddleware(s.handleChangePassword))
+	s.mux.HandleFunc("/api/2fa/status", s.authMiddleware(s.handle2FAStatus))
+	s.mux.HandleFunc("/api/2fa/setup", s.authMiddleware(s.handle2FASetup))
+	s.mux.HandleFunc("/api/2fa/qr", s.authMiddleware(s.handle2FAQR))
+	s.mux.HandleFunc("/api/2fa/enable", s.authMiddleware(s.handle2FAEnable))
+	s.mux.HandleFunc("/api/2fa/disable", s.authMiddleware(s.handle2FADisable))
 
 	// Hosts
 	s.mux.HandleFunc("/api/hosts", s.authMiddleware(s.handleHosts))
@@ -153,6 +173,22 @@ func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (s *Server) issueSession(w http.ResponseWriter) string {
+	token := fmt.Sprintf("%d_%d", time.Now().UnixNano(), time.Now().Unix())
+	expiry := time.Now().Add(24 * 7 * time.Hour)
+	s.sessions.Store(token, expiry)
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "pantau_session",
+		Value:    token,
+		Path:     "/",
+		Expires:  expiry,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	return token
+}
+
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -177,21 +213,269 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token := fmt.Sprintf("%d_%d", time.Now().UnixNano(), time.Now().Unix())
-	expiry := time.Now().Add(24 * 7 * time.Hour)
-	s.sessions.Store(token, expiry)
+	// Check if 2FA is active
+	totpEnabled, _ := s.db.GetSetting("totp_enabled")
+	if totpEnabled == "true" {
+		tempToken := fmt.Sprintf("2fa_%d_%d", time.Now().UnixNano(), time.Now().Unix())
+		s.temp2FAChallenges.Store(tempToken, &temp2FAChallenge{
+			expiry:   time.Now().Add(5 * time.Minute),
+			attempts: 0,
+		})
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"status":     "require_2fa",
+			"temp_token": tempToken,
+		})
+		return
+	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "pantau_session",
-		Value:    token,
-		Path:     "/",
-		Expires:  expiry,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
-
+	s.issueSession(w)
 	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
 }
+
+func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		TempToken string `json:"temp_token"`
+		Code      string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	val, ok := s.temp2FAChallenges.Load(req.TempToken)
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_or_expired_token"})
+		return
+	}
+	ch := val.(*temp2FAChallenge)
+	if time.Now().After(ch.expiry) {
+		s.temp2FAChallenges.Delete(req.TempToken)
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_or_expired_token"})
+		return
+	}
+
+	if ch.attempts >= 5 {
+		s.temp2FAChallenges.Delete(req.TempToken)
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "too_many_attempts"})
+		return
+	}
+	ch.attempts++
+
+	cleanCode := strings.TrimSpace(req.Code)
+	secret, _ := s.db.GetSetting("totp_secret")
+	lastStepStr, _ := s.db.GetSetting("last_totp_step")
+	var lastStep int64
+	if lastStepStr != "" {
+		lastStep, _ = strconv.ParseInt(lastStepStr, 10, 64)
+	}
+
+	valid, matchedStep := ValidateTOTP(secret, cleanCode, lastStep, time.Now())
+	if valid {
+		_ = s.db.SetSetting("last_totp_step", strconv.FormatInt(matchedStep, 10))
+		s.temp2FAChallenges.Delete(req.TempToken)
+		s.issueSession(w)
+		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
+		return
+	}
+
+	// Check recovery codes
+	hashesJSON, _ := s.db.GetSetting("totp_recovery_codes")
+	var storedHashes []string
+	if hashesJSON != "" {
+		_ = json.Unmarshal([]byte(hashesJSON), &storedHashes)
+	}
+	recValid, remaining := ValidateRecoveryCode(cleanCode, storedHashes)
+	if recValid {
+		remBytes, _ := json.Marshal(remaining)
+		_ = s.db.SetSetting("totp_recovery_codes", string(remBytes))
+		s.temp2FAChallenges.Delete(req.TempToken)
+		s.issueSession(w)
+		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "recovery_used": true})
+		return
+	}
+
+	remainingAttempts := 5 - ch.attempts
+	if remainingAttempts <= 0 {
+		s.temp2FAChallenges.Delete(req.TempToken)
+	}
+	writeJSON(w, http.StatusUnauthorized, map[string]interface{}{
+		"error":              "invalid_code",
+		"remaining_attempts": remainingAttempts,
+	})
+}
+
+func (s *Server) handle2FAStatus(w http.ResponseWriter, r *http.Request) {
+	enabled, _ := s.db.GetSetting("totp_enabled")
+	hashesJSON, _ := s.db.GetSetting("totp_recovery_codes")
+	var storedHashes []string
+	if hashesJSON != "" {
+		_ = json.Unmarshal([]byte(hashesJSON), &storedHashes)
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"enabled":              enabled == "true",
+		"recovery_codes_count": len(storedHashes),
+	})
+}
+
+func (s *Server) handle2FASetup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	cookie, _ := r.Cookie("pantau_session")
+	secret, err := GenerateTOTPSecret()
+	if err != nil {
+		http.Error(w, "failed to generate secret", http.StatusInternalServerError)
+		return
+	}
+	plain, hashed, err := GenerateRecoveryCodes(8)
+	if err != nil {
+		http.Error(w, "failed to generate recovery codes", http.StatusInternalServerError)
+		return
+	}
+
+	s.pending2FASetup.Store(cookie.Value, &pending2FASetupData{
+		secret:        secret,
+		recoveryCodes: plain,
+		hashedCodes:   hashed,
+		createdAt:     time.Now(),
+	})
+
+	otpauthURL := fmt.Sprintf("otpauth://totp/Pantau:admin?secret=%s&issuer=Pantau", secret)
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"secret":         secret,
+		"otpauth_url":    otpauthURL,
+		"recovery_codes": plain,
+	})
+}
+
+func (s *Server) handle2FAQR(w http.ResponseWriter, r *http.Request) {
+	cookie, _ := r.Cookie("pantau_session")
+	if cookie == nil || cookie.Value == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	val, ok := s.pending2FASetup.Load(cookie.Value)
+	if !ok {
+		http.Error(w, "no pending 2fa setup", http.StatusBadRequest)
+		return
+	}
+	data := val.(*pending2FASetupData)
+	otpauthURL := fmt.Sprintf("otpauth://totp/Pantau:admin?secret=%s&issuer=Pantau", data.secret)
+	png, err := GenerateQRCodePNG(otpauthURL)
+	if err != nil {
+		http.Error(w, "failed to generate qr code", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(png)
+}
+
+func (s *Server) handle2FAEnable(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	cookie, _ := r.Cookie("pantau_session")
+	if cookie == nil || cookie.Value == "" {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	val, ok := s.pending2FASetup.Load(cookie.Value)
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no_pending_setup"})
+		return
+	}
+	data := val.(*pending2FASetupData)
+
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	valid, _ := ValidateTOTP(data.secret, req.Code, 0, time.Now())
+	if !valid {
+
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid_code"})
+		return
+	}
+
+	hashedJSON, _ := json.Marshal(data.hashedCodes)
+	_ = s.db.SetSetting("totp_enabled", "true")
+	_ = s.db.SetSetting("totp_secret", data.secret)
+	_ = s.db.SetSetting("totp_recovery_codes", string(hashedJSON))
+	_ = s.db.SetSetting("last_totp_step", "0")
+	s.pending2FASetup.Delete(cookie.Value)
+
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "enabled"})
+}
+
+func (s *Server) handle2FADisable(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Password string `json:"password"`
+		Code     string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	// Verify password
+	hash, err := s.db.GetSetting("admin_password_hash")
+	if err != nil || hash == "" {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)); err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_password"})
+		return
+	}
+
+	// Verify TOTP or recovery code
+	cleanCode := strings.TrimSpace(req.Code)
+	secret, _ := s.db.GetSetting("totp_secret")
+	lastStepStr, _ := s.db.GetSetting("last_totp_step")
+	var lastStep int64
+	if lastStepStr != "" {
+		lastStep, _ = strconv.ParseInt(lastStepStr, 10, 64)
+	}
+
+	valid, _ := ValidateTOTP(secret, cleanCode, lastStep, time.Now())
+	if !valid {
+		// Try recovery code
+		hashesJSON, _ := s.db.GetSetting("totp_recovery_codes")
+		var storedHashes []string
+		if hashesJSON != "" {
+			_ = json.Unmarshal([]byte(hashesJSON), &storedHashes)
+		}
+		recValid, _ := ValidateRecoveryCode(cleanCode, storedHashes)
+		if !recValid {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_code"})
+			return
+		}
+	}
+
+	_ = s.db.SetSetting("totp_enabled", "false")
+	_ = s.db.DeleteSetting("totp_secret")
+	_ = s.db.DeleteSetting("totp_recovery_codes")
+	_ = s.db.DeleteSetting("last_totp_step")
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "disabled"})
+}
+
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("pantau_session")
