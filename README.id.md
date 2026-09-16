@@ -13,7 +13,8 @@
 
 <p align="center">
   <a href="README.md"><b>English</b></a> •
-  <a href="README.id.md"><b>Bahasa Indonesia</b></a>
+  <a href="README.id.md"><b>Bahasa Indonesia</b></a> •
+  <a href="docs/user-guide.id.md"><b>📖 Panduan Penggunaan</b></a>
 </p>
 
 <p align="center">
@@ -34,6 +35,9 @@
 **Pantau** adalah sistem pemantauan dan manajemen infrastruktur server Linux mandiri (*self-hosted*), ringan, dan berformat *single binary* yang dibangun dengan Go. Berbeda dari sistem tradisional seperti Prometheus/Node-Exporter, Zabbix, atau Datadog, Pantau beroperasi **100% agentless** melalui protokol SSH standar (`port 22`). Server target **tidak memerlukan daemon tambahan, tidak ada instalasi agen, dan tidak ada scraper telemetri yang membebani sistem**.
 
 Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi kondisi sistem secara berkala terhadap aturan **Desired State**, mendiagnosis deviasi secara otomatis melalui **Root Cause Excerpt**, mentransfer file antar-host langsung lewat memori, serta menyediakan Web Terminal interaktif (xterm.js) dan SFTP Code Editor langsung dari browser.
+
+> [!TIP]
+> **Playbook Administrator**: Mencari alur kerja operasional langkah-demi-langkah, prosedur pemulihan bencana, atau panduan pengerasan keamanan? Baca [Panduan Administrator Pantau](docs/user-guide.id.md) ([English](docs/user-guide.md)).
 
 ---
 
