@@ -650,6 +650,30 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if parts[0] == "inspect-all" {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		hosts, err := s.db.ListHosts()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// ponytail: fire-and-forget concurrent inspection across all hosts, non-blocking for HTTP client
+		for _, h := range hosts {
+			go func(id int64) {
+				_ = s.inspector.InspectHost(id)
+			}(h.ID)
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"ok":      true,
+			"count":   len(hosts),
+			"message": fmt.Sprintf("Inspection started for %d hosts", len(hosts)),
+		})
+		return
+	}
+
 	hostID, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil {
 		http.Error(w, "invalid host id", http.StatusBadRequest)
@@ -1262,6 +1286,11 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		for k, v := range req {
 			if k != "ssh_public_key" && k != "ssh_private_key" && k != "admin_password_hash" {
+				if k == "poll_interval_sec" {
+					if sec, err := strconv.Atoi(v); err == nil && sec < 30 {
+						v = "30"
+					}
+				}
 				_ = s.db.SetSetting(k, v)
 			}
 		}

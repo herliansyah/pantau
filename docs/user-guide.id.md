@@ -18,6 +18,7 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
    - [Membuat 1-Click Desired State Baseline](#membuat-1-click-desired-state-baseline)
    - [Konfigurasi Backup Freshness & Protected Path](#konfigurasi-backup-freshness--protected-path)
 4. [Fase 3: Observabilitas, Analisis Drift & Respons Insiden](#4-fase-3-observabilitas-analisis-drift--respons-insiden)
+   - [Siklus Inspeksi, Inspeksi Massal & Kesegaran Data](#siklus-inspeksi-inspeksi-massal-inspect-all--kesegaran-data)
    - [Mendeteksi Drift & Root Cause Excerpt](#mendeteksi-drift--root-cause-excerpt)
    - [Investigasi Interaktif via Terminal Dock & Terminal Preset](#investigasi-interaktif-via-terminal-dock--terminal-preset)
    - [Evaluasi Kelayakan Server dengan Lifecycle Assessment](#evaluasi-kelayakan-server-dengan-lifecycle-assessment)
@@ -100,6 +101,17 @@ Pantau tidak hanya menampilkan metrik pasif; sistem ini secara aktif memverifika
 ---
 
 ## 4. Fase 3: Observabilitas, Analisis Drift & Respons Insiden
+
+### Siklus Inspeksi, Inspeksi Massal (Inspect All) & Kesegaran Data
+
+Pantau mengumpulkan telemetri actual state dan memvalidasi desired state melalui siklus inspeksi terjadwal maupun on-demand:
+
+- **Inspeksi Massal (Inspect All)**: Klik tombol `⚡ Inspect All` di bilah atas untuk memicu pembacaan kondisi seluruh armada server secara serentak (asinkron).
+- **Inspeksi Mandiri Per-Host**: Klik tombol petir `⚡` pada masing-masing kartu server atau gunakan tombol *Run Immediate Inspection* di modal detail host.
+- **Indikator Kesegaran Data (Inspection Recency)**: Setiap kartu dan baris tabel menyajikan waktu relatif inspeksi terakhir (contoh: `🕒 2m lalu`, `🕒 baru saja`) beserta tooltip jam presisi.
+- **Pendeteksian Data Usang (Stale Inspection)**: Jika sebuah host tidak berhasil diinspeksi melebihi batas waktu toleransi (> 10 menit atau 2× interval normal), Pantau menampilkan penanda peringatan oranye `⚠️ Data Usang` untuk mencegah false-confidence pada data telemetri lama.
+- **Auto-Refresh Dashboard**: Tampilan browser secara otomatis menyinkronkan status kartu host setiap 30 detik tanpa memerlukan reload halaman manual.
+- **Konfigurasi Interval Inspeksi**: Administrator dapat mengubah frekuensi inspeksi background (default 300 detik / 5 menit, minimal 30 detik) melalui modal **Settings** > tab **Access**.
 
 ### Mendeteksi Drift & Root Cause Excerpt
 

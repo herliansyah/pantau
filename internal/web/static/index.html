@@ -526,6 +526,10 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <button class="btn btn-icon" onclick="openTransfersModal()" title="Cross-Host Transfers" data-i18n-title="transfers_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 6h18"/><path d="m7 22-4-4 4-4"/><path d="M21 18H3"/></svg><span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
       <button class="btn btn-icon" onclick="openGlobalNotesModal()" title="Global Notes" data-i18n-title="global_notes_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>
       <span id="activeAlertBadge" style="display: none;" class="badge badge-down">0 ALERTS</span>
+      <button class="btn btn-sm" id="btnInspectAll" onclick="inspectAllHosts()" title="Trigger Inspection on All Hosts" data-i18n-title="btn_inspect_all_title" style="display: inline-flex; align-items: center; gap: 5px;">
+        <svg id="inspectAllIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+        <span data-i18n="btn_inspect_all">⚡ Inspect All</span>
+      </button>
       <button class="btn btn-primary" onclick="openAddHostModal()" data-i18n="add_host">+ Add Host</button>
       <button class="btn btn-icon" onclick="openSettingsModal()" title="Settings" data-i18n-title="settings_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
       <button class="btn btn-icon" onclick="openDocumentationModal()" title="Documentation" data-i18n-title="docs_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
@@ -918,6 +922,15 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
             <input type="password" id="oldPass" placeholder="Current Password" data-i18n-placeholder="current_password" />
             <input type="password" id="newPass" placeholder="New Password" data-i18n-placeholder="new_password" />
             <button class="btn btn-warning btn-sm" onclick="changePassword()" data-i18n="update_password">Update Password</button>
+          </div>
+        </div>
+
+        <div class="card" style="padding: 16px;">
+          <h4 style="margin-bottom: 8px;" data-i18n="inspection_settings">⚙️ Auto-Inspection Interval</h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;" data-i18n="inspection_interval_desc">Interval for background SSH inspection across all hosts in seconds (minimum 30 seconds).</p>
+          <div class="form-group" style="max-width: 400px; display: flex; gap: 8px;">
+            <input type="number" id="settingPollInterval" min="30" max="86400" placeholder="300" style="width: 140px;" />
+            <button class="btn btn-primary btn-sm" onclick="savePollInterval()" data-i18n="save_interval">Save Interval</button>
           </div>
         </div>
 
@@ -1375,6 +1388,22 @@ const I18N = {
     "btn_view": "\ud83d\udd0d View",
     "btn_inspect": "⚡ Inspect",
     "btn_inspect_title": "Run Inspection (Refresh)",
+    "btn_inspect_all": "⚡ Inspect All",
+    "btn_inspect_all_title": "Trigger Inspection on All Hosts",
+    "inspect_all_running": "Starting inspection for all hosts...",
+    "inspect_all_success": "Inspection triggered for all hosts",
+    "inspect_all_failed": "Failed to trigger inspection: ",
+    "last_inspected": "Last Inspected:",
+    "last_inspected_label": "Last Inspected:",
+    "never_inspected": "Never",
+    "just_now": "just now",
+    "ago": "ago",
+    "stale_data": "Stale Data (>10m)",
+    "col_last_inspected": "Inspected",
+    "inspection_settings": "⚙️ Auto-Inspection Interval",
+    "inspection_interval_desc": "Interval for background SSH inspection across all hosts in seconds (minimum 30 seconds).",
+    "save_interval": "Save Interval",
+    "min_interval_error": "Minimum inspection interval is 30 seconds",
     "btn_test": "🔌 Test",
     "btn_inject_key": "Inject Key",
     "more_actions": "More Actions",
@@ -1758,6 +1787,22 @@ const I18N = {
     "btn_view": "\ud83d\udd0d Lihat",
     "btn_inspect": "⚡ Inspeksi",
     "btn_inspect_title": "Jalankan Inspeksi (Refresh)",
+    "btn_inspect_all": "⚡ Inspeksi Semua",
+    "btn_inspect_all_title": "Jalankan Inspeksi ke Seluruh Host",
+    "inspect_all_running": "Memulai inspeksi seluruh host...",
+    "inspect_all_success": "Inspeksi berhasil dipicu untuk seluruh host",
+    "inspect_all_failed": "Gagal menjalankan inspeksi: ",
+    "last_inspected": "Terakhir Diinspeksi:",
+    "last_inspected_label": "Terakhir Diinspeksi:",
+    "never_inspected": "Belum pernah",
+    "just_now": "baru saja",
+    "ago": "lalu",
+    "stale_data": "Data Usang (>10m)",
+    "col_last_inspected": "Diinspeksi",
+    "inspection_settings": "⚙️ Interval Inspeksi Otomatis",
+    "inspection_interval_desc": "Interval inspeksi SSH latar belakang untuk seluruh host dalam detik (minimal 30 detik).",
+    "save_interval": "Simpan Interval",
+    "min_interval_error": "Interval inspeksi minimal 30 detik",
     "btn_test": "🔌 Uji",
     "btn_inject_key": "Inject Key",
     "more_actions": "Aksi Lainnya",
@@ -2136,6 +2181,7 @@ async function checkAuth() {
     loadTransfers();
     setInterval(loadAlerts, 15000);
     setInterval(loadTransfers, 15000);
+    setInterval(loadHosts, 30000);
     checkFreshStatus();
   } else {
     document.getElementById('loginView').style.display = 'flex';
@@ -2510,6 +2556,76 @@ function handleDropReorder(srcId, targetId) {
   reorderHostsAPI(orderedIds);
 }
 
+function formatRelativeTime(isoStr) {
+  if (!isoStr) return { relative: t('never_inspected', 'Never'), title: t('never_inspected', 'Never'), isStale: true };
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return { relative: '-', title: '-', isStale: false };
+  const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
+  const title = d.toLocaleString();
+  // ponytail: 600s (10 minutes) threshold marks telemetry as stale
+  const isStale = diffSec > 600;
+
+  if (diffSec < 10) return { relative: t('just_now', 'just now'), title, isStale: false };
+  if (diffSec < 60) return { relative: `${diffSec}s ` + t('ago', 'ago'), title, isStale: false };
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return { relative: `${diffMin}m ` + t('ago', 'ago'), title, isStale };
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return { relative: `${diffHours}h ` + t('ago', 'ago'), title, isStale };
+  const diffDays = Math.floor(diffHours / 24);
+  return { relative: `${diffDays}d ` + t('ago', 'ago'), title, isStale };
+}
+
+async function inspectAllHosts() {
+  const btn = document.getElementById('btnInspectAll');
+  const icon = document.getElementById('inspectAllIcon');
+  if (btn) {
+    btn.disabled = true;
+    if (icon) icon.classList.add('spinning');
+  }
+  showToast(t('inspect_all_running', 'Starting inspection for all hosts...'), 'info');
+  try {
+    const res = await fetch('/api/hosts/inspect-all', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      showToast(t('inspect_all_success', `Inspection triggered for ${data.count || ''} hosts`), 'success');
+      setTimeout(loadHosts, 2000);
+    } else {
+      showToast((data && data.error) || t('inspect_all_failed', 'Failed to trigger inspection: '), 'error');
+    }
+  } catch (e) {
+    showToast(t('inspect_all_failed', 'Failed to trigger inspection: ') + e.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      if (icon) icon.classList.remove('spinning');
+    }
+  }
+}
+
+async function savePollInterval() {
+  const input = document.getElementById('settingPollInterval');
+  if (!input) return;
+  const sec = parseInt(input.value, 10);
+  if (isNaN(sec) || sec < 30) {
+    showToast(t('min_interval_error', 'Minimum inspection interval is 30 seconds'), 'error');
+    return;
+  }
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ poll_interval_sec: String(sec) })
+    });
+    if (res.ok) {
+      showToast(t('settings_saved', 'Settings saved successfully'), 'success');
+    } else {
+      showToast(t('save_failed', 'Failed to save settings'), 'error');
+    }
+  } catch (e) {
+    showToast(t('save_failed', 'Failed to save settings') + ': ' + e.message, 'error');
+  }
+}
+
 function renderHosts() {
   const prefs = getUIPrefs();
   const viewMode = prefs.viewMode || 'grid';
@@ -2638,6 +2754,8 @@ function renderGridView(grid, isManualSort) {
         </div>
       `;
 
+      const recency = formatRelativeTime(h.last_inspected);
+
       card.innerHTML = `
         <div class="card-title">
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -2656,6 +2774,12 @@ function renderGridView(grid, isManualSort) {
         <div class="stat-row"><span>${t('address')}</span> <span>${h.host}:${h.port} (${h.user})</span></div>
         <div class="stat-row"><span>${t('os')}</span> <span>${escapeHtml(h.os_info || 'Unknown')}</span></div>
         <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(h.uptime || '-')}</span></div>
+        <div class="stat-row" style="align-items: center;">
+          <span>${t('last_inspected', 'Last Inspected:')}</span>
+          <span title="${recency.title}" style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; ${recency.isStale ? 'color: #fbbf24; font-weight: 600;' : 'color: var(--text-muted);'}">
+            ${recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : ''}🕒 ${recency.relative}
+          </span>
+        </div>
         <div>
           <div class="stat-row"><span>${t('ram_usage')}</span> <span>${ramPct}%</span></div>
           <div class="progress"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
@@ -2723,6 +2847,7 @@ function renderListView(listContainer, isManualSort) {
         <th>${t('col_name')}</th>
         <th>${t('col_address')}</th>
         <th>${t('col_os')}</th>
+        <th style="width: 110px;">${t('col_last_inspected', 'Inspected')}</th>
         <th style="width: 75px;">${t('col_score')}</th>
         <th style="width: 120px;">${t('col_ram')}</th>
         <th style="width: 120px;">${t('col_disk')}</th>
@@ -2743,7 +2868,7 @@ function renderListView(listContainer, isManualSort) {
       const headerRow = document.createElement('tr');
       headerRow.className = 'host-group-header-row';
       headerRow.innerHTML = `
-        <td colspan="${isManualSort ? 11 : 10}">
+        <td colspan="${isManualSort ? 12 : 11}">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span>📁 ${escapeHtml(grp.name)}</span>
             <span class="badge" style="font-size: 0.75rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8;">${grp.hosts.length}</span>
@@ -2806,6 +2931,8 @@ function renderListView(listContainer, isManualSort) {
         </div>
       `;
 
+      const recency = formatRelativeTime(h.last_inspected);
+
       tr.innerHTML = `
         ${isManualSort ? `<td style="text-align: center;"><span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span></td>` : ''}
         <td>
@@ -2824,6 +2951,9 @@ function renderListView(listContainer, isManualSort) {
         </td>
         <td>${h.host}:${h.port} <span style="color: var(--text-muted); font-size: 0.8rem;">(${h.user})</span></td>
         <td style="color: var(--text-muted);">${escapeHtml(h.os_info || '-')}</td>
+        <td title="${recency.title}" style="font-size: 0.8rem; white-space: nowrap; ${recency.isStale ? 'color: #fbbf24; font-weight: 600;' : 'color: var(--text-muted);'}">
+          ${recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : ''}🕒 ${recency.relative}
+        </td>
         <td><span class="score-badge" style="color: ${scoreColor}; font-size: 0.9rem;">${h.lifecycle_score}</span></td>
         <td>
           <div style="font-size: 0.8rem; margin-bottom: 2px;">${ramPct}%</div>
@@ -3190,6 +3320,8 @@ function switchTab(tab, presetID) {
       }
     } catch(e) {}
 
+    const detailRecency = formatRelativeTime(d.host.last_inspected);
+
     content.innerHTML = `
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
         <div class="card">
@@ -3198,6 +3330,12 @@ function switchTab(tab, presetID) {
           <div class="stat-row"><span>${t('kernel')}</span> <span>${escapeHtml(d.host.kernel)}</span></div>
           <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(d.host.uptime)}</span></div>
           <div class="stat-row"><span>${t('load_avg')}</span> <span>${escapeHtml(d.host.cpu_load)}</span></div>
+          <div class="stat-row">
+            <span>${t('last_inspected_label', 'Last Inspected:')}</span>
+            <span style="${detailRecency.isStale ? 'color: #fbbf24; font-weight: 600;' : ''}" title="${detailRecency.title}">
+              ${detailRecency.isStale ? '⚠️ ' : ''}${detailRecency.title} (${detailRecency.relative})
+            </span>
+          </div>
         </div>
         <div class="card">
           <h4>${t('lifecycle_assessment')}</h4>
@@ -4849,6 +4987,8 @@ async function openSettingsModal() {
   document.getElementById('settingTgToken').value = data.telegram_token || '';
   document.getElementById('settingTgChat').value = data.telegram_chat_id || '';
   document.getElementById('settingWebhook').value = data.webhook_url || '';
+  const pollEl = document.getElementById('settingPollInterval');
+  if (pollEl) pollEl.value = data.poll_interval_sec || '300';
 
   document.getElementById('settingGhEnabled').checked = data.github_backup_enabled === '1';
   document.getElementById('settingGhRepo').value = data.github_repo || '';
