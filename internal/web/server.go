@@ -2,6 +2,8 @@ package web
 
 import (
 	"bytes"
+	"compress/gzip"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -58,7 +60,22 @@ type Server struct {
 	temp2FAChallenges sync.Map // tempToken -> *temp2FAChallenge
 	pending2FASetup   sync.Map // sessionToken -> *pending2FASetupData
 	htmlContent       []byte
+	htmlContentGz     []byte
+	htmlETag          string
 	docsFS            fs.FS
+}
+
+func (s *Server) prepareHTML(raw []byte) {
+	s.htmlContent = raw
+	sum := sha256.Sum256(raw)
+	s.htmlETag = fmt.Sprintf(`"%x"`, sum[:8])
+
+	// ponytail: pre-compress HTML in-memory so endpoint / requires zero CPU compression work per request
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	_, _ = gw.Write(raw)
+	_ = gw.Close()
+	s.htmlContentGz = buf.Bytes()
 }
 
 func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) *Server {
@@ -70,8 +87,8 @@ func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) 
 		transferMgr: transfer.NewManager(db, nil),
 		snapshotMgr: snapshot.NewManager(db, nil),
 		mux:         http.NewServeMux(),
-		htmlContent: embeddedHTML,
 	}
+	s.prepareHTML(embeddedHTML)
 	s.routes()
 	return s
 }
@@ -89,7 +106,8 @@ func (s *Server) SetSnapshotManager(sm *snapshot.Manager) {
 
 func (s *Server) SetVersion(version string) {
 	if version != "" {
-		s.htmlContent = bytes.Replace(embeddedHTML, []byte(`<span class="footer-badge">v1.0.0</span>`), []byte(fmt.Sprintf(`<span class="footer-badge">%s</span>`, html.EscapeString(version))), 1)
+		newHTML := bytes.Replace(embeddedHTML, []byte(`<span class="footer-badge">v1.0.0</span>`), []byte(fmt.Sprintf(`<span class="footer-badge">%s</span>`, html.EscapeString(version))), 1)
+		s.prepareHTML(newHTML)
 	}
 }
 
@@ -1630,8 +1648,22 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("ETag", s.htmlETag)
 	// ponytail: strict CSP to guarantee 100% offline airgapped operation with no external CDN/font leaks
 	w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; font-src 'self' data:; img-src 'self' data:;")
+
+	if match := r.Header.Get("If-None-Match"); match != "" && match == s.htmlETag {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+
+	// ponytail: serve pre-compressed gzip payload if supported (wire size ~56KB vs ~261KB, zero runtime CPU)
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") && len(s.htmlContentGz) > 0 {
+		w.Header().Set("Content-Encoding", "gzip")
+		_, _ = w.Write(s.htmlContentGz)
+		return
+	}
+
 	_, _ = w.Write(s.htmlContent)
 }
 
