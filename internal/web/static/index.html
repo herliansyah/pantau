@@ -84,9 +84,10 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 4
 .modal-workspace { width: 75vw; height: 80vh; max-width: 1400px; min-width: 760px; }
 .modal-dialog { width: 100%; max-width: 520px; max-height: 90vh; }
 .modal-dialog-md { width: 100%; max-width: 600px; max-height: 90vh; }
+.modal-dialog-lg { width: 100%; max-width: 740px; max-height: 90vh; }
 @media (max-width: 768px) {
   .modal { padding: 0; }
-  .modal-workspace, .modal-dialog, .modal-dialog-md { width: 100vw; height: 100vh; max-width: 100vw; min-width: 100vw; border-radius: 0; border: none; }
+  .modal-workspace, .modal-dialog, .modal-dialog-md, .modal-dialog-lg { width: 100vw; height: 100vh; max-width: 100vw; min-width: 100vw; border-radius: 0; border: none; }
   header { padding: 0 12px; height: 52px; }
   footer { padding: 0 12px; height: 32px; font-size: 0.7rem; }
   .container { padding-top: 66px; padding-bottom: 46px; padding-left: 12px; padding-right: 12px; }
@@ -100,8 +101,8 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 4
 .tab { padding: 10px 16px; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; font-weight: 500; border-bottom: 2px solid transparent; flex-shrink: 0; transition: all 0.15s ease; }
 .tab:hover { color: #f8fafc; }
 .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
-/* ponytail: compact 4-column grid fits in 600px Action Dialog without scroll; upgrade to vertical nav if tabs exceed 4 */
-#settingsTabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; overflow-x: hidden; }
+/* ponytail: 6-column grid fits comfortably in 740px Action Dialog (modal-dialog-lg); scrollable on mobile */
+#settingsTabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; overflow-x: auto; }
 #settingsTabs .tab { padding: 10px 4px; text-align: center; justify-content: center; display: flex; align-items: center; white-space: nowrap; font-size: 0.82rem; }
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; color: var(--text-muted); flex: 1; gap: 10px; }
 .empty-state-icon { font-size: 2.5rem; opacity: 0.7; }
@@ -530,7 +531,10 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       </div>
       <h2 style="text-align: center; color: #60a5fa; margin: 0; font-size: 1.5rem; letter-spacing: 1px;">PANTAU</h2>
     </div>
-    <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-top: -6px;" data-i18n="brand_subtitle">Agentless Server Management</p>
+    <div id="loginAppVersion" style="display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: -6px;">
+      <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center; margin: 0;" data-i18n="brand_subtitle">Agentless Server Management</p>
+      <span class="footer-badge">v1.0.0</span>
+    </div>
     
     <div id="loginPassGroup" class="form-group">
       <input type="password" id="loginPassword" autofocus placeholder="Admin Password" data-i18n-placeholder="admin_password" onkeyup="if(event.key==='Enter') doLogin()" />
@@ -973,14 +977,15 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 
 <!-- Settings Modal -->
 <div id="settingsModal" class="modal">
-  <div class="modal-content modal-dialog-md">
+  <div class="modal-content modal-dialog-lg">
     <div class="modal-header">
       <h3 data-i18n="settings">⚙️ Settings</h3>
       <button class="btn btn-sm" onclick="closeModal('settingsModal')">✕</button>
     </div>
     <div class="modal-tabs-bar">
       <div class="tabs" id="settingsTabs">
-        <div class="tab active" id="tabSettingsGeneral" onclick="switchSettingsTab('general')" data-i18n="tab_settings_general">🔑 Access</div>
+        <div class="tab active" id="tabSettingsGeneral" onclick="switchSettingsTab('general')" data-i18n="tab_settings_general">⚙️ General</div>
+        <div class="tab" id="tabSettingsSecurity" onclick="switchSettingsTab('security')" data-i18n="tab_settings_security">🔒 Security</div>
         <div class="tab" id="tabSettingsNotif" onclick="switchSettingsTab('notif')" data-i18n="tab_settings_notif">🔔 Notifications</div>
         <div class="tab" id="tabSettingsBackup" onclick="switchSettingsTab('backup')" data-i18n="tab_settings_backup">💾 Backup</div>
         <div class="tab" id="tabSettingsPresets" onclick="switchSettingsTab('presets')" data-i18n="tab_settings_presets">💻 Presets</div>
@@ -988,32 +993,40 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       </div>
     </div>
     <div class="modal-body">
-      <!-- General & Access Tab -->
+      <!-- General Tab -->
       <div id="settingsPanelGeneral" style="display: flex; flex-direction: column; gap: 16px;">
         <div class="card" style="padding: 16px;">
-          <h4 style="margin-bottom: 8px;" data-i18n="global_pub_key">Global Pantau SSH Public Key</h4>
-          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;" data-i18n="global_pub_key_desc">This public key is placed into <code>~/.ssh/authorized_keys</code> on target servers for agentless SSH authentication.</p>
-          <div class="form-group">
-            <textarea id="settingPubKey" readonly onclick="this.select()" style="font-family: monospace; font-size: 0.8rem; resize: none; overflow: hidden; word-break: break-all; line-height: 1.45; padding: 10px;"></textarea>
-            <button class="btn btn-sm" id="btnCopyKey" onclick="copyPubKey()" data-i18n="copy_key">📋 Copy Key</button>
-          </div>
-        </div>
-
-        <div class="card" style="padding: 16px;">
-          <h4 style="margin-bottom: 8px;" data-i18n="change_admin_pass">Change Admin Password</h4>
-          <div class="form-group" style="max-width: 400px;">
-            <input type="password" id="oldPass" placeholder="Current Password" data-i18n-placeholder="current_password" />
-            <input type="password" id="newPass" placeholder="New Password" data-i18n-placeholder="new_password" />
-            <button class="btn btn-warning btn-sm" onclick="changePassword()" data-i18n="update_password">Update Password</button>
-          </div>
-        </div>
-
-        <div class="card" style="padding: 16px;">
           <h4 style="margin-bottom: 8px;" data-i18n="inspection_settings">⚙️ Auto-Inspection Interval</h4>
-          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;" data-i18n="inspection_interval_desc">Interval for background SSH inspection across all hosts in seconds (minimum 30 seconds).</p>
-          <div class="form-group" style="max-width: 400px; display: flex; gap: 8px;">
-            <input type="number" id="settingPollInterval" min="30" max="86400" placeholder="300" style="width: 140px;" />
-            <button class="btn btn-primary btn-sm" onclick="savePollInterval()" data-i18n="save_interval">Save Interval</button>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;" data-i18n="inspection_interval_desc">Interval for background SSH inspection across all hosts in seconds (minimum 30 seconds).</p>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <input type="number" id="settingPollInterval" min="30" max="86400" placeholder="300" style="width: 120px;" />
+              <span style="font-size: 0.85rem; color: var(--text-muted);" data-i18n="seconds_unit">seconds</span>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="savePollInterval()" style="width: auto; white-space: nowrap;" data-i18n="save_interval">Save Interval</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Security Tab -->
+      <div id="settingsPanelSecurity" style="display: none; flex-direction: column; gap: 16px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 16px;">
+          <div class="card" style="padding: 16px;">
+            <h4 style="margin-bottom: 8px;" data-i18n="change_admin_pass">Change Admin Password</h4>
+            <div class="form-group">
+              <input type="password" id="oldPass" placeholder="Current Password" data-i18n-placeholder="current_password" />
+              <input type="password" id="newPass" placeholder="New Password" data-i18n-placeholder="new_password" />
+              <button class="btn btn-warning btn-sm" onclick="changePassword()" style="align-self: flex-start;" data-i18n="update_password">Update Password</button>
+            </div>
+          </div>
+
+          <div class="card" style="padding: 16px;">
+            <h4 style="margin-bottom: 8px;" data-i18n="global_pub_key">Global Pantau SSH Public Key</h4>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px;" data-i18n="global_pub_key_desc">This public key is placed into <code>~/.ssh/authorized_keys</code> on target servers for agentless SSH authentication.</p>
+            <div class="form-group">
+              <textarea id="settingPubKey" readonly onclick="this.select()" style="font-family: monospace; font-size: 0.75rem; resize: none; overflow: hidden; word-break: break-all; line-height: 1.4; padding: 8px;"></textarea>
+              <button class="btn btn-sm" id="btnCopyKey" onclick="copyPubKey()" style="align-self: flex-start;" data-i18n="copy_key">📋 Copy Key</button>
+            </div>
           </div>
         </div>
 
@@ -1702,9 +1715,11 @@ const I18N = {
     "file_exists_overwrite": "File '{name}' already exists. Overwrite?",
     "edit_file": "Edit File",
     "btn_save": "\ud83d\udcbe Save",
-    "tab_settings_general": "🔑 Access",
+    "tab_settings_general": "⚙️ General",
+    "tab_settings_security": "🔒 Security",
     "tab_settings_notif": "🔔 Notifications",
     "tab_settings_backup": "💾 Backup",
+    "seconds_unit": "seconds",
     "global_pub_key": "Global Pantau SSH Public Key",
     "global_pub_key_desc": "This public key is placed into <code>~/.ssh/authorized_keys</code> on target servers for agentless SSH authentication.",
     "copy_key": "\ud83d\udccb Copy Key",
@@ -2115,10 +2130,12 @@ const I18N = {
     "cannot_delete_protected": "Protected Path: tidak dapat menghapus lokasi sistem.",
     "file_exists_overwrite": "Berkas '{name}' sudah ada. Timpa?",
     "edit_file": "Edit Berkas",
-    "btn_save": "\ud83d\udcbe Simpan",
-    "tab_settings_general": "🔑 Akses",
+    "btn_save": "💾 Simpan",
+    "tab_settings_general": "⚙️ Umum",
+    "tab_settings_security": "🔒 Keamanan",
     "tab_settings_notif": "🔔 Notifikasi",
     "tab_settings_backup": "💾 Backup",
+    "seconds_unit": "detik",
     "global_pub_key": "Global Pantau SSH Public Key",
     "global_pub_key_desc": "Kunci publik ini ditempelkan ke file <code>~/.ssh/authorized_keys</code> di server target untuk otentikasi SSH agentless.",
     "copy_key": "\ud83d\udccb Salin Kunci",
@@ -5115,23 +5132,32 @@ let currentSettingsTab = 'general';
 function switchSettingsTab(tab) {
   currentSettingsTab = tab;
   document.querySelectorAll('#settingsTabs .tab').forEach(t => t.classList.remove('active'));
-  if (tab === 'general') document.getElementById('tabSettingsGeneral').classList.add('active');
-  else if (tab === 'notif') document.getElementById('tabSettingsNotif').classList.add('active');
-  else if (tab === 'backup') document.getElementById('tabSettingsBackup').classList.add('active');
-  else if (tab === 'presets') document.getElementById('tabSettingsPresets').classList.add('active');
-  else if (tab === 'updates') document.getElementById('tabSettingsUpdates').classList.add('active');
+  if (tab === 'general') document.getElementById('tabSettingsGeneral')?.classList.add('active');
+  else if (tab === 'security') document.getElementById('tabSettingsSecurity')?.classList.add('active');
+  else if (tab === 'notif') document.getElementById('tabSettingsNotif')?.classList.add('active');
+  else if (tab === 'backup') document.getElementById('tabSettingsBackup')?.classList.add('active');
+  else if (tab === 'presets') document.getElementById('tabSettingsPresets')?.classList.add('active');
+  else if (tab === 'updates') document.getElementById('tabSettingsUpdates')?.classList.add('active');
 
-  document.getElementById('settingsPanelGeneral').style.display = tab === 'general' ? 'flex' : 'none';
-  document.getElementById('settingsPanelNotif').style.display = tab === 'notif' ? 'flex' : 'none';
-  document.getElementById('settingsPanelBackup').style.display = tab === 'backup' ? 'flex' : 'none';
-  document.getElementById('settingsPanelPresets').style.display = tab === 'presets' ? 'flex' : 'none';
-  document.getElementById('settingsPanelUpdates').style.display = tab === 'updates' ? 'flex' : 'none';
+  const panelGeneral = document.getElementById('settingsPanelGeneral');
+  const panelSecurity = document.getElementById('settingsPanelSecurity');
+  const panelNotif = document.getElementById('settingsPanelNotif');
+  const panelBackup = document.getElementById('settingsPanelBackup');
+  const panelPresets = document.getElementById('settingsPanelPresets');
+  const panelUpdates = document.getElementById('settingsPanelUpdates');
+
+  if (panelGeneral) panelGeneral.style.display = tab === 'general' ? 'flex' : 'none';
+  if (panelSecurity) panelSecurity.style.display = tab === 'security' ? 'flex' : 'none';
+  if (panelNotif) panelNotif.style.display = tab === 'notif' ? 'flex' : 'none';
+  if (panelBackup) panelBackup.style.display = tab === 'backup' ? 'flex' : 'none';
+  if (panelPresets) panelPresets.style.display = tab === 'presets' ? 'flex' : 'none';
+  if (panelUpdates) panelUpdates.style.display = tab === 'updates' ? 'flex' : 'none';
 
   if (tab === 'presets') {
     loadSettingsPresets();
   } else if (tab === 'updates') {
     checkForUpdates(false);
-  } else if (tab === 'general') {
+  } else if (tab === 'security') {
     setTimeout(() => {
       const pubKeyEl = document.getElementById('settingPubKey');
       if (pubKeyEl) {

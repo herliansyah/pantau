@@ -112,7 +112,7 @@ func (s *Server) SetUpdaterManager(um *updater.Manager) {
 
 func (s *Server) SetVersion(version string) {
 	if version != "" {
-		newHTML := bytes.Replace(embeddedHTML, []byte(`<span class="footer-badge">v1.0.0</span>`), []byte(fmt.Sprintf(`<span class="footer-badge">%s</span>`, html.EscapeString(version))), 1)
+		newHTML := bytes.ReplaceAll(embeddedHTML, []byte(`<span class="footer-badge">v1.0.0</span>`), []byte(fmt.Sprintf(`<span class="footer-badge">%s</span>`, html.EscapeString(version))))
 		s.prepareHTML(newHTML)
 	}
 }
