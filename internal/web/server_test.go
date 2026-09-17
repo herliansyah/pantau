@@ -645,3 +645,20 @@ func TestIndexGzipAndETagRevalidation(t *testing.T) {
 	}
 }
 
+func TestFavicon(t *testing.T) {
+	srv := NewServer(nil, nil, nil)
+	req := httptest.NewRequest("GET", "/favicon.ico", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200 for favicon, got %d", w.Code)
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "image/x-icon" {
+		t.Errorf("expected Content-Type image/x-icon, got %s", ct)
+	}
+	if w.Body.Len() == 0 {
+		t.Errorf("expected non-empty favicon body")
+	}
+}
+
