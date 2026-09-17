@@ -2,7 +2,9 @@ package web
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -556,6 +558,90 @@ func TestTerminalFontConfigurationUI(t *testing.T) {
 		if !strings.Contains(html, s) {
 			t.Errorf("expected embedded index.html to contain %q", s)
 		}
+	}
+}
+
+func TestIndexGzipAndETagRevalidation(t *testing.T) {
+	srv := NewServer(nil, nil, nil)
+
+	// 1. Raw request without Accept-Encoding: gzip
+	reqRaw := httptest.NewRequest("GET", "/", nil)
+	wRaw := httptest.NewRecorder()
+	srv.ServeHTTP(wRaw, reqRaw)
+
+	if wRaw.Code != http.StatusOK {
+		t.Fatalf("expected 200 for raw /, got %d", wRaw.Code)
+	}
+	etag := wRaw.Header().Get("ETag")
+	if etag == "" {
+		t.Fatalf("expected non-empty ETag header on /")
+	}
+	if wRaw.Header().Get("Content-Encoding") != "" {
+		t.Errorf("expected no Content-Encoding without Accept-Encoding header")
+	}
+	if wRaw.Body.Len() < 200000 {
+		t.Errorf("expected raw uncompressed body > 200KB, got %d bytes", wRaw.Body.Len())
+	}
+
+	// 2. Request with Accept-Encoding: gzip
+	reqGz := httptest.NewRequest("GET", "/", nil)
+	reqGz.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	wGz := httptest.NewRecorder()
+	srv.ServeHTTP(wGz, reqGz)
+
+	if wGz.Code != http.StatusOK {
+		t.Fatalf("expected 200 for gzipped /, got %d", wGz.Code)
+	}
+	if wGz.Header().Get("Content-Encoding") != "gzip" {
+		t.Fatalf("expected Content-Encoding: gzip, got %q", wGz.Header().Get("Content-Encoding"))
+	}
+	if wGz.Header().Get("ETag") != etag {
+		t.Errorf("expected matching ETag %s, got %s", etag, wGz.Header().Get("ETag"))
+	}
+	// Verify compression ratio: ~56KB vs ~261KB
+	if wGz.Body.Len() > 80000 {
+		t.Errorf("expected gzipped body < 80KB, got %d bytes", wGz.Body.Len())
+	}
+
+	// Decompress and compare with raw
+	gr, err := gzip.NewReader(wGz.Body)
+	if err != nil {
+		t.Fatalf("failed to create gzip reader: %v", err)
+	}
+	decompressed, err := io.ReadAll(gr)
+	_ = gr.Close()
+	if err != nil {
+		t.Fatalf("failed to read decompressed body: %v", err)
+	}
+	if !bytes.Equal(decompressed, wRaw.Body.Bytes()) {
+		t.Errorf("decompressed gzip payload does not match raw uncompressed body")
+	}
+
+	// 3. ETag 304 Not Modified revalidation
+	reqETag := httptest.NewRequest("GET", "/", nil)
+	reqETag.Header.Set("If-None-Match", etag)
+	wETag := httptest.NewRecorder()
+	srv.ServeHTTP(wETag, reqETag)
+
+	if wETag.Code != http.StatusNotModified {
+		t.Fatalf("expected 304 Not Modified, got %d", wETag.Code)
+	}
+	if wETag.Body.Len() != 0 {
+		t.Errorf("expected empty body on 304 Not Modified, got %d bytes", wETag.Body.Len())
+	}
+
+	// 4. SetVersion updates ETag and content
+	srv.SetVersion("v2.5.0")
+	reqVer := httptest.NewRequest("GET", "/", nil)
+	wVer := httptest.NewRecorder()
+	srv.ServeHTTP(wVer, reqVer)
+
+	newETag := wVer.Header().Get("ETag")
+	if newETag == etag {
+		t.Errorf("expected ETag to change after SetVersion, got %s", newETag)
+	}
+	if !strings.Contains(wVer.Body.String(), "v2.5.0") {
+		t.Errorf("expected updated version in HTML body")
 	}
 }
 
