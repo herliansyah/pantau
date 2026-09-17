@@ -267,11 +267,15 @@ func TestServerSetVersion(t *testing.T) {
 	srv.ServeHTTP(w, req)
 
 	body := w.Body.String()
-	if !strings.Contains(body, `<span class="footer-badge">v0.5.2-alpha</span>`) {
-		t.Errorf("expected custom version in footer badge, got body without it")
+	count := strings.Count(body, `<span class="footer-badge">v0.5.2-alpha</span>`)
+	if count < 2 {
+		t.Errorf("expected custom version in footer badge and login view (at least 2 occurrences), got %d", count)
+	}
+	if !strings.Contains(body, `id="loginAppVersion"`) {
+		t.Errorf("expected loginAppVersion badge to be present in body")
 	}
 	if strings.Contains(body, `<span class="footer-badge">v1.0.0</span>`) {
-		t.Errorf("expected default v1.0.0 to be replaced in footer badge")
+		t.Errorf("expected default v1.0.0 to be replaced in all badges")
 	}
 }
 
@@ -740,5 +744,44 @@ func TestUpdateEndpointsAndUI(t *testing.T) {
 		t.Errorf("expected 405 for GET on /api/update/apply, got %d", wMethod.Code)
 	}
 }
+
+func TestSettingsModalLayout(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-settings-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	srv := NewServer(db, nil, nil)
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	requiredSnippets := []string{
+		`modal-dialog-lg`,
+		`id="tabSettingsGeneral"`,
+		`id="tabSettingsSecurity"`,
+		`id="tabSettingsNotif"`,
+		`id="tabSettingsBackup"`,
+		`id="tabSettingsPresets"`,
+		`id="tabSettingsUpdates"`,
+		`id="settingsPanelGeneral"`,
+		`id="settingsPanelSecurity"`,
+		`repeat(6, 1fr)`,
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(body, snippet) {
+			t.Errorf("expected HTML body to contain %q", snippet)
+		}
+	}
+}
+
 
 

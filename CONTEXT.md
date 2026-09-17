@@ -98,7 +98,7 @@ Kontainer modal layar lebar berdimensi tetap (75vw × 80vh di desktop) untuk tug
 _Avoid_: Popup window, dynamic modal, fluid dialog
 
 **Action Dialog**:
-Kontainer modal terpusat berdimensi ringkas (lebar ~520px - 600px) untuk formulir input sekuensial, dialog pengaturan (Settings), atau konfirmasi aksi tunggal (Add Host, Direct Transfer, Restore Wizard).
+Kontainer modal terpusat berdimensi ringkas (lebar ~520px - 740px) untuk formulir input sekuensial, dialog pengaturan (Settings), atau konfirmasi aksi tunggal (Add Host, Direct Transfer, Restore Wizard).
 _Avoid_: Small modal, mini popup, submodal
 
 **Documentation Modal**:
