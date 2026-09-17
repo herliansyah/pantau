@@ -122,6 +122,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) routes() {
 	// Static / UI
 	s.mux.HandleFunc("/", s.handleIndex)
+	s.mux.HandleFunc("/favicon.ico", s.handleFavicon)
 
 	// In-App Documentation (Public & Private)
 	s.mux.HandleFunc("/api/docs", s.handleDocs)
@@ -1694,6 +1695,17 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, _ = w.Write(s.htmlContent)
+}
+
+func (s *Server) handleFavicon(w http.ResponseWriter, r *http.Request) {
+	data, err := embeddedFS.ReadFile("static/favicon.ico")
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "image/x-icon")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	_, _ = w.Write(data)
 }
 
 func (s *Server) handleTransfers(w http.ResponseWriter, r *http.Request) {

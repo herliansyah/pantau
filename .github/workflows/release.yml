@@ -26,25 +26,25 @@ jobs:
       - name: Build Binaries
         run: |
           mkdir -p dist
-          # Linux
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.ref_name }}" -o dist/pantau-linux-amd64 .
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${{ github.ref_name }}" -o dist/pantau-linux-arm64 .
-          # Windows
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${{ github.ref_name }}" -o dist/pantau-windows-amd64.exe .
-          CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${{ github.ref_name }}" -o dist/pantau-windows-arm64.exe .
-          cd dist
-          tar -czvf pantau-linux-amd64.tar.gz pantau-linux-amd64
-          tar -czvf pantau-linux-arm64.tar.gz pantau-linux-arm64
-          zip pantau-windows-amd64.zip pantau-windows-amd64.exe
-          zip pantau-windows-arm64.zip pantau-windows-arm64.exe
+          TAG="${{ github.ref_name }}"
+          # Linux amd64
+          mkdir -p dist/linux-amd64 && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${TAG}" -o dist/linux-amd64/pantau .
+          tar -czvf "dist/pantau-${TAG}-linux-amd64.tar.gz" -C dist/linux-amd64 pantau
+          # Linux arm64
+          mkdir -p dist/linux-arm64 && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${TAG}" -o dist/linux-arm64/pantau .
+          tar -czvf "dist/pantau-${TAG}-linux-arm64.tar.gz" -C dist/linux-arm64 pantau
+          # Windows amd64
+          mkdir -p dist/windows-amd64 && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=${TAG}" -o dist/windows-amd64/pantau.exe .
+          (cd dist/windows-amd64 && zip "../pantau-${TAG}-windows-amd64.zip" pantau.exe)
+          # Windows arm64
+          mkdir -p dist/windows-arm64 && CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags="-s -w -X main.Version=${TAG}" -o dist/windows-arm64/pantau.exe .
+          (cd dist/windows-arm64 && zip "../pantau-${TAG}-windows-arm64.zip" pantau.exe)
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            dist/pantau-linux-amd64.tar.gz
-            dist/pantau-linux-arm64.tar.gz
-            dist/pantau-windows-amd64.zip
-            dist/pantau-windows-arm64.zip
+            dist/pantau-*.tar.gz
+            dist/pantau-*.zip
           generate_release_notes: true
