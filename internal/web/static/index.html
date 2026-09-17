@@ -663,6 +663,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <span id="footerEngineText" style="font-weight: 500;" data-i18n="footer_engine_active">Engine Active</span>
       <span style="color: var(--card-border);">•</span>
       <span class="footer-badge">v1.0.0</span>
+      <span id="footerUpdateBadge" style="display: none; cursor: pointer; background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa;" class="footer-badge" onclick="openSettingsModal('updates')" title="Update Available"></span>
     </div>
     <div class="footer-zone footer-center" id="footerHostMetrics" style="font-family: monospace; font-size: 0.74rem;">
       <span id="footerMetricsText">0 Hosts • 0 Healthy • 0 Drift</span>
@@ -983,6 +984,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <div class="tab" id="tabSettingsNotif" onclick="switchSettingsTab('notif')" data-i18n="tab_settings_notif">🔔 Notifications</div>
         <div class="tab" id="tabSettingsBackup" onclick="switchSettingsTab('backup')" data-i18n="tab_settings_backup">💾 Backup</div>
         <div class="tab" id="tabSettingsPresets" onclick="switchSettingsTab('presets')" data-i18n="tab_settings_presets">💻 Presets</div>
+        <div class="tab" id="tabSettingsUpdates" onclick="switchSettingsTab('updates')" data-i18n="tab_settings_updates">🔄 Updates</div>
       </div>
     </div>
     <div class="modal-body">
@@ -1166,6 +1168,64 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
           <button class="btn btn-primary btn-sm" onclick="openCreatePresetModal()">➕ New Preset</button>
         </div>
         <div id="settingsPresetsList">Loading presets...</div>
+      </div>
+
+      <!-- Updates Tab -->
+      <div id="settingsPanelUpdates" style="display: none; flex-direction: column; gap: 16px;">
+        <div class="card" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div>
+              <h4 style="margin: 0 0 4px 0;" data-i18n="system_updates">🔄 System Updates</h4>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;" data-i18n="system_updates_desc">Check for releases and perform zero-ops self-updates.</p>
+            </div>
+            <button class="btn btn-sm" id="btnCheckUpdatesManual" onclick="checkForUpdates(true)" data-i18n="check_for_updates">🔍 Check for Updates</button>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 6px; font-size: 0.85rem;">
+            <div>
+              <span style="color: var(--text-muted);" data-i18n="current_version">Current Version</span>:
+              <strong id="updateCurrentVersion" style="font-family: monospace; margin-left: 6px;">-</strong>
+            </div>
+            <div>
+              <span style="color: var(--text-muted);" data-i18n="latest_version">Latest Version</span>:
+              <strong id="updateLatestVersion" style="font-family: monospace; margin-left: 6px;">-</strong>
+            </div>
+          </div>
+          <div id="updateStatusNotice" style="margin-top: 12px; font-size: 0.85rem; padding: 10px; border-radius: 6px; display: none;"></div>
+        </div>
+
+        <!-- Docker Environment Notice -->
+        <div id="updateDockerCard" class="card" style="padding: 16px; border-left: 4px solid #3b82f6; display: none;">
+          <div style="display: flex; gap: 10px; align-items: flex-start;">
+            <span style="font-size: 1.2rem;">🐳</span>
+            <div>
+              <strong style="font-size: 0.9rem;">Docker Container Detected</strong>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 8px 0;" data-i18n="docker_update_notice">Running inside Docker container. Binary self-update is disabled for containerized deployments. Update your container image using:</p>
+              <pre style="background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 0.8rem; margin: 0; color: #93c5fd;">docker compose pull &amp;&amp; docker compose up -d</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Available Update Actions (Standalone) -->
+        <div id="updateActionCard" class="card" style="padding: 16px; display: none;">
+          <h4 style="margin-bottom: 8px;" data-i18n="update_available">✨ New Version Available</h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">A new official release is ready to be downloaded and verified.</p>
+          <div id="updateReleaseNotesBox" style="background: rgba(0,0,0,0.25); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px; font-size: 0.8rem; max-height: 160px; overflow-y: auto; margin-bottom: 12px; white-space: pre-wrap; font-family: sans-serif;"></div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <a id="updateReleaseLink" href="https://github.com/herliansyah/pantau/releases" target="_blank" rel="noopener noreferrer" class="btn btn-sm" style="text-decoration: none;">GitHub Release ↗</a>
+            <button id="btnApplyUpdate" class="btn btn-primary btn-sm" onclick="applySelfUpdate()" data-i18n="update_now">🚀 Update Now</button>
+          </div>
+        </div>
+
+        <!-- Restart Banner -->
+        <div id="updateRestartCard" class="card" style="padding: 16px; border-left: 4px solid #10b981; display: none; background: rgba(16, 185, 129, 0.05);">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong style="color: #34d399; font-size: 0.9rem;" data-i18n="update_success_restart">Update installed successfully! Restart Pantau to apply changes.</strong>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 0 0;">Zero data loss. CLI arguments and database state are preserved.</p>
+            </div>
+            <button id="btnRestartNow" class="btn btn-success btn-sm" onclick="restartPantau()" data-i18n="restart_now">⚡ Restart Pantau Now</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1497,6 +1557,21 @@ const I18N = {
     "inspect_success": "Inspection completed for host",
     "injecting_key": "Injecting Pantau public key...",
     "tab_settings_presets": "💻 Presets",
+    "tab_settings_updates": "🔄 Updates",
+    "system_updates": "System Updates",
+    "system_updates_desc": "Check for releases and perform zero-ops self-updates.",
+    "current_version": "Current Version",
+    "latest_version": "Latest Version",
+    "check_for_updates": "Check for Updates",
+    "checking_updates": "Checking...",
+    "update_available": "Update Available",
+    "up_to_date": "Up to Date",
+    "update_now": "Update Now",
+    "updating": "Updating...",
+    "restart_now": "Restart Pantau Now",
+    "restarting": "Restarting...",
+    "docker_update_notice": "Running inside Docker container. Binary self-update is disabled for containerized deployments. Update your container image using:",
+    "update_success_restart": "Update installed successfully! Restart Pantau to apply changes.",
     "manage_presets": "Manage Terminal Presets",
     "add_preset": "Add Terminal Preset",
     "edit_preset": "Edit Terminal Preset",
@@ -1896,6 +1971,21 @@ const I18N = {
     "inspect_success": "Inspeksi selesai untuk host",
     "injecting_key": "Menginjeksi public key Pantau...",
     "tab_settings_presets": "💻 Preset",
+    "tab_settings_updates": "🔄 Pembaruan",
+    "system_updates": "Pembaruan Sistem",
+    "system_updates_desc": "Periksa ketersediaan rilis baru dan lakukan pembaruan mandiri satu-klik.",
+    "current_version": "Versi Saat Ini",
+    "latest_version": "Versi Terbaru",
+    "check_for_updates": "Periksa Pembaruan",
+    "checking_updates": "Memeriksa...",
+    "update_available": "Pembaruan Tersedia",
+    "up_to_date": "Sudah Terbaru",
+    "update_now": "Perbarui Sekarang",
+    "updating": "Memperbarui...",
+    "restart_now": "Restart Pantau Sekarang",
+    "restarting": "Me-restart...",
+    "docker_update_notice": "Berjalan di dalam container Docker. Pembaruan biner mandiri dinonaktifkan pada kontainer. Perbarui image container Anda menggunakan:",
+    "update_success_restart": "Pembaruan berhasil dipasang! Restart Pantau sekarang untuk menerapkan perubahan.",
     "manage_presets": "Kelola Terminal Preset",
     "add_preset": "Tambah Terminal Preset",
     "edit_preset": "Edit Terminal Preset",
@@ -2264,6 +2354,7 @@ async function checkAuth() {
     setInterval(loadTransfers, 15000);
     setInterval(loadHosts, 30000);
     checkFreshStatus();
+    setTimeout(() => checkForUpdates(false), 2000);
   } else {
     document.getElementById('loginView').style.display = 'flex';
     document.getElementById('appView').style.display = 'none';
@@ -5028,14 +5119,18 @@ function switchSettingsTab(tab) {
   else if (tab === 'notif') document.getElementById('tabSettingsNotif').classList.add('active');
   else if (tab === 'backup') document.getElementById('tabSettingsBackup').classList.add('active');
   else if (tab === 'presets') document.getElementById('tabSettingsPresets').classList.add('active');
+  else if (tab === 'updates') document.getElementById('tabSettingsUpdates').classList.add('active');
 
   document.getElementById('settingsPanelGeneral').style.display = tab === 'general' ? 'flex' : 'none';
   document.getElementById('settingsPanelNotif').style.display = tab === 'notif' ? 'flex' : 'none';
   document.getElementById('settingsPanelBackup').style.display = tab === 'backup' ? 'flex' : 'none';
   document.getElementById('settingsPanelPresets').style.display = tab === 'presets' ? 'flex' : 'none';
+  document.getElementById('settingsPanelUpdates').style.display = tab === 'updates' ? 'flex' : 'none';
 
   if (tab === 'presets') {
     loadSettingsPresets();
+  } else if (tab === 'updates') {
+    checkForUpdates(false);
   } else if (tab === 'general') {
     setTimeout(() => {
       const pubKeyEl = document.getElementById('settingPubKey');
@@ -5061,7 +5156,165 @@ function copyPubKey() {
     }, 1500);
   }
 }
-async function openSettingsModal() {
+
+let lastUpdateCheckData = null;
+
+async function checkForUpdates(force = false) {
+  const btn = document.getElementById('btnCheckUpdatesManual');
+  const originalText = btn ? btn.innerText : '';
+  if (btn && force) {
+    btn.disabled = true;
+    btn.innerText = t('checking_updates') || 'Checking...';
+  }
+
+  try {
+    const res = await fetch('/api/update/check' + (force ? '?force=true' : ''));
+    if (!res.ok) return;
+    const data = await res.json();
+    lastUpdateCheckData = data;
+
+    // Update footer badge
+    const footerBadge = document.getElementById('footerUpdateBadge');
+    if (footerBadge) {
+      if (data.available && data.latest_version) {
+        footerBadge.style.display = 'inline-block';
+        footerBadge.innerText = '✨ ' + data.latest_version;
+        footerBadge.title = (t('update_available') || 'Update Available') + ' (' + data.latest_version + ')';
+      } else {
+        footerBadge.style.display = 'none';
+      }
+    }
+
+    // Update settings modal elements if present
+    const curVerEl = document.getElementById('updateCurrentVersion');
+    const latVerEl = document.getElementById('updateLatestVersion');
+    const noticeEl = document.getElementById('updateStatusNotice');
+    const dockerCard = document.getElementById('updateDockerCard');
+    const actionCard = document.getElementById('updateActionCard');
+    const notesBox = document.getElementById('updateReleaseNotesBox');
+    const linkEl = document.getElementById('updateReleaseLink');
+
+    if (curVerEl) curVerEl.innerText = data.current_version || 'dev';
+    if (latVerEl) latVerEl.innerText = data.latest_version || '-';
+
+    if (dockerCard) {
+      dockerCard.style.display = data.is_docker ? 'block' : 'none';
+    }
+
+    if (actionCard) {
+      if (data.available && !data.is_docker) {
+        actionCard.style.display = 'block';
+        if (notesBox) notesBox.innerText = data.release_notes || 'Official release available.';
+        if (linkEl && data.release_url) linkEl.href = data.release_url;
+      } else {
+        actionCard.style.display = 'none';
+      }
+    }
+
+    if (noticeEl) {
+      noticeEl.style.display = 'block';
+      if (data.error) {
+        noticeEl.style.background = 'rgba(239, 68, 68, 0.1)';
+        noticeEl.style.color = '#f87171';
+        noticeEl.innerText = '⚠️ ' + data.error;
+      } else if (data.available) {
+        noticeEl.style.background = 'rgba(59, 130, 246, 0.1)';
+        noticeEl.style.color = '#93c5fd';
+        noticeEl.innerText = '✨ ' + (t('update_available') || 'Update Available') + ': ' + data.latest_version;
+      } else {
+        noticeEl.style.background = 'rgba(16, 185, 129, 0.1)';
+        noticeEl.style.color = '#34d399';
+        noticeEl.innerText = '✅ ' + (t('up_to_date') || 'Pantau is up to date.');
+      }
+    }
+  } catch (err) {
+    console.error('Update check failed:', err);
+  } finally {
+    if (btn && force) {
+      btn.disabled = false;
+      btn.innerText = originalText;
+    }
+  }
+}
+
+async function applySelfUpdate() {
+  const confirmed = await showConfirm({
+    title: t('update_now', 'Update Now'),
+    message: 'Download and install update now? Pantau will verify the SHA-256 manifest and run a pre-flight smoke test before replacing the binary.',
+    confirmText: t('update_now', 'Update Now'),
+    danger: false
+  });
+  if (!confirmed) return;
+
+  const btn = document.getElementById('btnApplyUpdate');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = t('updating') || 'Updating...';
+  }
+
+  showToast('info', 'Downloading verified update from GitHub Releases...');
+
+  try {
+    const res = await fetch('/api/update/apply', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      showToast('error', data.error || 'Failed to apply update');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = t('update_now') || 'Update Now';
+      }
+      return;
+    }
+
+    showToast('success', t('update_success_restart') || 'Update installed successfully!');
+    const actionCard = document.getElementById('updateActionCard');
+    if (actionCard) actionCard.style.display = 'none';
+    const restartCard = document.getElementById('updateRestartCard');
+    if (restartCard) restartCard.style.display = 'block';
+  } catch (err) {
+    showToast('error', 'Update error: ' + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = t('update_now') || 'Update Now';
+    }
+  }
+}
+
+async function restartPantau() {
+  const btn = document.getElementById('btnRestartNow');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = t('restarting') || 'Restarting...';
+  }
+
+  showToast('info', 'Restarting Pantau process...');
+
+  try {
+    await fetch('/api/update/restart', { method: 'POST' });
+  } catch (_) {
+    // Process might exit before response completes, which is expected
+  }
+
+  // Poll for reconnection
+  showToast('warning', 'Waiting for server to restart...');
+  const pollInterval = setInterval(async () => {
+    try {
+      const res = await fetch('/api/auth/status');
+      if (res.ok) {
+        clearInterval(pollInterval);
+        showToast('success', 'Server back online! Reloading...');
+        setTimeout(() => {
+          window.location.reload();
+        }, 800);
+      }
+    } catch (_) {
+      // server still rebooting
+    }
+  }, 1000);
+}
+
+async function openSettingsModal(tab) {
+  if (tab) currentSettingsTab = tab;
   const res = await fetch('/api/settings');
   const data = await res.json();
   document.getElementById('settingPubKey').value = data.ssh_public_key || '';

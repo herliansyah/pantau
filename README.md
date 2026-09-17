@@ -155,6 +155,14 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - **Persistent Floating Session Pill**: Minimize the dock into an unobtrusive bottom-right badge showing active shell count; explore dashboards and metrics while background processes run uninterrupted.
 - **Seamless Maximize & Split Views**: One-click maximize to full viewport without disconnecting SSH sessions or breaking active terminal utilities (`htop`, `tmux`, `nano`).
 
+### 15. 🔄 Update Checker & Zero-Ops Semi-Automatic Self-Update
+- **Asynchronous Update Checker**: Periodically checks for upstream GitHub releases (every 12 hours with 6-hour cache TTL) and displays update indicators on the web dashboard.
+- **SHA-256 Integrity Verification**: Validates downloaded release archives against official `checksums.txt` manifests before unpacking.
+- **Pre-flight Smoke Test & Rollback**: Verifies candidate binary execution (`pantau.tmp -v`) prior to swapping; immediately aborts if any architecture or runtime incompatibility is detected.
+- **Cross-Platform Atomic Swap**: In-place replacement on Linux and Windows (using `.exe.old` renaming to bypass OS executable file locking).
+- **Graceful Process Handover**: Zero-data-loss restart preserving CLI flags and database state, paired with auto-reconnecting browser clients.
+- **Airgapped-First & Docker Awareness**: Fails silently in airgapped environments (with `-disable-update-check` flag), and intelligently detects Docker containers to display `docker compose pull` recommendations instead of binary swapping.
+
 ---
 
 ## 🚀 Quick Start
@@ -243,6 +251,9 @@ systemctl enable --now pantau
 | `-db` | `PANTAU_DB` (or `DB_PATH`) | `pantau.db` | Path to SQLite database file |
 | `-open` | - | `true` (Windows) / `false` | Automatically open default web browser on launch |
 | `-disable-2fa` | - | `false` | Emergency bypass flag to disable TOTP 2FA directly from host terminal |
+| `-check-update` | - | `false` | Check for latest upstream release version and exit |
+| `-update` | - | `false` | Update Pantau executable to latest release and exit |
+| `-disable-update-check` | `PANTAU_DISABLE_UPDATE_CHECK` | `false` | Disable background update checker (recommended for airgapped environments) |
 | `-v`, `-version` | - | - | Print Pantau version and exit |
 
 ---

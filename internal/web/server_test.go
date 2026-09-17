@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"pantau/internal/store"
+	"pantau/internal/updater"
 )
 
 func TestIsProtectedPathString(t *testing.T) {
@@ -661,4 +662,83 @@ func TestFavicon(t *testing.T) {
 		t.Errorf("expected non-empty favicon body")
 	}
 }
+
+func TestUpdateEndpointsAndUI(t *testing.T) {
+	srv := NewServer(nil, nil, nil)
+
+	// 1. Verify UI elements exist in rendered HTML
+	reqUI := httptest.NewRequest("GET", "/", nil)
+	wUI := httptest.NewRecorder()
+	srv.ServeHTTP(wUI, reqUI)
+	body := wUI.Body.String()
+
+	if !strings.Contains(body, `id="footerUpdateBadge"`) {
+		t.Errorf("expected footerUpdateBadge in HTML")
+	}
+	if !strings.Contains(body, `id="tabSettingsUpdates"`) {
+		t.Errorf("expected tabSettingsUpdates in HTML")
+	}
+	if !strings.Contains(body, `id="settingsPanelUpdates"`) {
+		t.Errorf("expected settingsPanelUpdates in HTML")
+	}
+
+	// 2. Unauthenticated check returns 401
+	reqUnauth := httptest.NewRequest("GET", "/api/update/check", nil)
+	wUnauth := httptest.NewRecorder()
+	srv.ServeHTTP(wUnauth, reqUnauth)
+	if wUnauth.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for unauthenticated update check, got %d", wUnauth.Code)
+	}
+
+	// 3. Authenticated check with updater manager
+	token := "update_test_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authCookie := &http.Cookie{Name: "pantau_session", Value: token}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"tag_name":     "v2.0.0",
+			"body":         "Test changelog",
+			"html_url":     "http://example.com/release/v2.0.0",
+			"published_at": "2026-09-17T00:00:00Z",
+			"assets":       []interface{}{},
+		})
+	}))
+	defer ts.Close()
+
+	upd := updater.NewManager("v1.0.0", false)
+	upd.SetAPIURL(ts.URL)
+	srv.SetUpdaterManager(upd)
+
+	reqAuth := httptest.NewRequest("GET", "/api/update/check?force=true", nil)
+	reqAuth.AddCookie(authCookie)
+	wAuth := httptest.NewRecorder()
+	srv.ServeHTTP(wAuth, reqAuth)
+
+	if wAuth.Code != http.StatusOK {
+		t.Fatalf("expected 200 for authenticated update check, got %d", wAuth.Code)
+	}
+
+	var res updater.CheckResult
+	if err := json.NewDecoder(wAuth.Body).Decode(&res); err != nil {
+		t.Fatalf("failed to decode check result: %v", err)
+	}
+	if !res.Available {
+		t.Errorf("expected update to be available, got false")
+	}
+	if res.LatestVersion != "v2.0.0" {
+		t.Errorf("expected latest version v2.0.0, got %s", res.LatestVersion)
+	}
+
+	// 4. Method not allowed on POST routes with GET
+	reqMethod := httptest.NewRequest("GET", "/api/update/apply", nil)
+	reqMethod.AddCookie(authCookie)
+	wMethod := httptest.NewRecorder()
+	srv.ServeHTTP(wMethod, reqMethod)
+	if wMethod.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405 for GET on /api/update/apply, got %d", wMethod.Code)
+	}
+}
+
 
