@@ -1048,7 +1048,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
             <label data-i18n="snapshot_passphrase">Snapshot Passphrase (AES-256 Encryption Key)</label>
             <input type="password" id="settingGhPassphrase" placeholder="Secret passphrase for encryption" data-i18n-placeholder="snapshot_passphrase_ph" />
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start;">
             <div class="form-group">
               <label data-i18n="backup_interval_hours">Backup Interval (Hours)</label>
               <input type="number" id="settingGhInterval" value="24" min="1" max="168" />
@@ -1056,6 +1056,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
             <div class="form-group">
               <label data-i18n="repo_file_path">File Path in Repo</label>
               <input type="text" id="settingGhPath" value="pantau-state.enc" />
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; line-height: 1.3;" data-i18n="repo_file_path_hint">💡 Tip: Use distinct paths (e.g. snapshots/office.enc) if backing up multiple servers to one repo.</div>
             </div>
           </div>
           <div style="display: flex; gap: 8px; margin-top: 12px;">
@@ -1105,6 +1106,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <div class="form-group">
           <label data-i18n="repo_file_path">File Path in Repo</label>
           <input type="text" id="restoreGhPath" value="pantau-state.enc" />
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px; line-height: 1.3;" data-i18n="restore_gh_path_hint">💡 Ensure this path matches the server backup file you wish to restore.</div>
         </div>
         <div class="form-group">
           <label data-i18n="snapshot_passphrase">Snapshot Passphrase</label>
@@ -1554,6 +1556,8 @@ const I18N = {
     "snapshot_passphrase_ph": "Secret passphrase for encryption",
     "backup_interval_hours": "Backup Interval (Hours)",
     "repo_file_path": "File Path in Repo",
+    "repo_file_path_hint": "💡 Tip: Use distinct paths (e.g. snapshots/office.enc) if backing up multiple servers to one repo.",
+    "restore_gh_path_hint": "💡 Ensure this path matches the server backup file you wish to restore.",
     "save_gh_config": "\ud83d\udcbe Save Configuration",
     "sync_gh_now": "\ud83d\ude80 Sync to GitHub Now",
     "gh_config_saved": "GitHub backup configuration saved successfully!",
@@ -1935,6 +1939,8 @@ const I18N = {
     "snapshot_passphrase_ph": "Frasa sandi rahasia untuk enkripsi",
     "backup_interval_hours": "Interval Backup (Jam)",
     "repo_file_path": "File Path di Repo",
+    "repo_file_path_hint": "💡 Tip: Gunakan path unik (misal: snapshots/kantor.enc) jika mencadangkan banyak server ke satu repo.",
+    "restore_gh_path_hint": "💡 Pastikan path sesuai dengan file cadangan server yang ingin dipulihkan.",
     "save_gh_config": "\ud83d\udcbe Simpan Konfigurasi",
     "sync_gh_now": "\ud83d\ude80 Sync ke GitHub Sekarang",
     "gh_config_saved": "Konfigurasi backup GitHub berhasil disimpan!",

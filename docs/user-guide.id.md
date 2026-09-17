@@ -197,6 +197,8 @@ Untuk melindungi akses administratif dari kebocoran kata sandi:
 #### Sinkronisasi Otomatis ke Remote Storage Provider (GitHub):
 - Daftarkan GitHub Personal Access Token (PAT dengan izin `repo`) dan target repositori privat (`username/pantau-backups`).
 - Tentukan jadwal sinkronisasi berkala (misal: harian). Pantau akan mengunggah berkas `.enc` terenkripsi secara otomatis ke repositori GitHub privat tersebut.
+- **Tips Multi-Server**: Jika Anda menjalankan Pantau di beberapa server (misal: di kantor dan di home lab) dengan repositori GitHub yang sama, ubah kolom **File Path in Repo** di masing-masing server (misal: `snapshots/kantor.enc` dan `snapshots/homelab.enc`) agar backup tidak saling menimpa.
+
 
 #### Rekonstruksi Kluster dari Nol (Disaster Recovery Wizard):
 Jika server master Pantau mengalami kerusakan total:

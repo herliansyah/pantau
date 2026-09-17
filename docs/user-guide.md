@@ -197,6 +197,8 @@ A **System Snapshot** is a self-contained, encrypted archive containing the comp
 #### Automated Remote Storage Sync:
 - Configure a GitHub Personal Access Token (PAT with `repo` scope) and a private GitHub repository (`username/pantau-backups`).
 - Set an automated sync interval (e.g., daily). Pantau pushes the encrypted `.enc` file to the remote repository automatically.
+- **Multi-Server Tip**: If running multiple Pantau instances (e.g., office server and home lab) against the same GitHub repository, customize the **File Path in Repo** on each instance (e.g., `snapshots/office.enc` and `snapshots/homelab.enc`) so backups do not overwrite each other.
+
 
 #### Bare-Metal Recovery (Disaster Recovery Wizard):
 If the Pantau server is completely lost or destroyed:
