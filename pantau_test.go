@@ -1455,4 +1455,72 @@ func TestEmbeddedDocumentationEndpoint(t *testing.T) {
 	}
 }
 
+func TestInspectAllAndPollIntervalSetting(t *testing.T) {
+	env := setupTestEnv(t)
+	client := loginClient(t, env)
+
+	// Add 2 test hosts
+	h1 := &store.Host{
+		Name:   "host-alpha",
+		Host:   "10.0.0.1",
+		Port:   22,
+		User:   "root",
+		Status: "healthy",
+	}
+	h2 := &store.Host{
+		Name:   "host-beta",
+		Host:   "10.0.0.2",
+		Port:   22,
+		User:   "root",
+		Status: "healthy",
+	}
+	if _, err := env.db.CreateHost(h1); err != nil {
+		t.Fatalf("save h1: %v", err)
+	}
+	if _, err := env.db.CreateHost(h2); err != nil {
+		t.Fatalf("save h2: %v", err)
+	}
+
+	// Test POST /api/hosts/inspect-all
+	resp, err := client.Post(env.httpServer.URL+"/api/hosts/inspect-all", "application/json", nil)
+	if err != nil {
+		t.Fatalf("post inspect-all: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode inspect-all response: %v", err)
+	}
+
+	if result["ok"] != true {
+		t.Errorf("expected ok: true, got %v", result["ok"])
+	}
+	if count, ok := result["count"].(float64); !ok || int(count) != 2 {
+		t.Errorf("expected count: 2, got %v", result["count"])
+	}
+
+	// Test setting poll_interval_sec with minimum validation
+	body, _ := json.Marshal(map[string]string{
+		"poll_interval_sec": "15", // below 30s minimum
+	})
+	resp2, err := client.Post(env.httpServer.URL+"/api/settings", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("post settings: %v", err)
+	}
+	resp2.Body.Close()
+
+	val, err := env.db.GetSetting("poll_interval_sec")
+	if err != nil {
+		t.Fatalf("get poll_interval_sec setting: %v", err)
+	}
+	if val != "30" {
+		t.Errorf("expected poll_interval_sec to be clamped to min 30, got %q", val)
+	}
+}
+
 

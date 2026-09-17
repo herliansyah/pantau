@@ -88,6 +88,7 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - Collects real-time metrics (CPU Load, RAM, Disk partitions, Network Egress, Sockets, Uptime, Kernel) purely via standard POSIX SSH.
 - **One-Time Key Provisioning**: Provide target root/sudo password once in RAM. Pantau idempotently injects its universal RSA 4096-bit public key into `~/.ssh/authorized_keys` (universally supported across legacy OpenSSH 5.3+ through modern OpenSSH) and discards the password immediately from memory.
 - **Legacy Server Compatibility**: Native cipher fallbacks (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`) allow monitoring legacy Linux servers (CentOS 6, Debian 7, OpenSSH 5.3+).
+- **Mass Inspection & Freshness Indicators**: Trigger simultaneous concurrent inspection across all hosts via `⚡ Inspect All`, configurable background inspection intervals, dynamic time-ago indicators, and automated Stale Inspection warnings.
 
 ### 2. 📋 Desired State Baseline & Automated Drift Engine
 - **1-Click Baseline**: Auto-detects running Docker containers, disks, cron jobs, and database services (`mysqld`, `postgres`, `redis`, `nginx`).

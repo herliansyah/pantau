@@ -88,6 +88,7 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - Mengambil metrik sistem secara aktual (CPU Load, RAM, partisi Disk, Network Egress, Sockets, Uptime, Kernel) murni melalui koneksi SSH standar.
 - **One-Time Key Provisioning**: Masukkan password server target sekali di RAM. Pantau secara idempoten menyalin public key universal RSA 4096-bit ke `~/.ssh/authorized_keys` (didukung universal dari OpenSSH 5.3+ lawas hingga Linux modern) dan langsung menghapus password dari memori.
 - **Kompatibilitas Server Lawas**: Mendukung cipher warisan (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`) untuk memantau server Linux legasi (CentOS 6, Debian 7, OpenSSH 5.3+).
+- **Inspeksi Massal & Kesegaran Data**: Pemicuan inspeksi serentak seluruh host via tombol `⚡ Inspect All`, pembaruan otomatis berkala yang dapat dikonfigurasi, serta visualisasi waktu inspeksi relatif dan deteksi data usang (*Stale Inspection*).
 
 ### 2. 📋 Baseline Desired State & Otomatisasi Drift Engine
 - **1-Click Baseline**: Mendeteksi otomatis container Docker yang aktif, partisi disk, cron job, dan service database (`mysqld`, `postgres`, `redis`, `nginx`).

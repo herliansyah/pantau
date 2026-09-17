@@ -185,4 +185,13 @@ _Avoid_: Floating badge, minimized indicator, shell widget, dock bubble
 Penangguhan sementara proses verifikasi login (jeda pendinginan 30 detik setelah 3 kali kegagalan berturut-turut memasukkan token TOTP atau Recovery Code) untuk memitigasi upaya serangan tebak token otomatis (brute-force).
 _Avoid_: Account ban, login block, brute-force penalty
 
+**Stale Inspection**:
+Kondisi di mana Actual State sebuah Host belum berhasil diperbarui melampaui ambang batas toleransi (2× interval inspeksi normal), menandakan risiko koneksi SSH terputus, jaringan bermasalah, atau mesin target tidak responsif.
+_Avoid_: Outdated metrics, expired telemetry, laggy check
+
+**Inspect All**:
+Mekanisme eksekusi Inspeksi serentak secara asinkron ke seluruh Host yang terdaftar dalam satu tindakan operasional terpadu.
+_Avoid_: Bulk ping, refresh all, mass scan
+
+
 
