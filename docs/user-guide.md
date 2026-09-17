@@ -28,6 +28,11 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
 6. [Phase 5: Hardening, Snapshots & Disaster Recovery](#6-phase-5-hardening-snapshots--disaster-recovery)
    - [Two-Factor Authentication (2FA) & Emergency Bypass](#two-factor-authentication-2fa--emergency-bypass)
    - [Encrypted System Snapshots & GitHub Disaster Recovery](#encrypted-system-snapshots--github-disaster-recovery)
+7. [Phase 6: Maintenance & Updates (Update Checker & Self-Update)](#7-phase-6-maintenance--updates-update-checker--self-update)
+   - [Update Checker & Release Discovery](#update-checker--release-discovery)
+   - [One-Click Self-Update & SHA-256 Verification](#one-click-self-update--sha-256-verification)
+   - [Docker Container vs Standalone Environments](#docker-container-vs-standalone-environments)
+   - [Airgapped Deployments](#airgapped-deployments)
 
 ---
 
@@ -218,3 +223,36 @@ If the Pantau server is completely lost or destroyed:
 2. Launch the application; on first boot, click **Restore from System Snapshot**.
 3. Select your local `.enc` file or enter your GitHub repository credentials + token.
 4. Input your **Snapshot Passphrase**. Pantau decrypts the database, verifies integrity, reinstates the WAL SQLite database, and resumes background host inspection immediately.
+
+---
+
+## 7. Phase 6: Maintenance & Updates (Update Checker & Self-Update)
+
+Pantau provides a robust, zero-data-loss update lifecycle ensuring administrators can update the control plane safely without disrupting ongoing monitoring jobs.
+
+### Update Checker & Release Discovery
+- **Background Release Detection**: Scans upstream GitHub Releases every 12 hours (with a 6-hour local cache) to avoid hitting GitHub API IP rate limits.
+- **Visual Status Badges**: If a newer release is published, update badges and release notes appear non-obtrusively in the dashboard footer and Settings modal.
+- **On-Demand Checking**: Administrators can trigger immediate checks via the **Check for Updates** button in Settings.
+
+### One-Click Self-Update & SHA-256 Verification
+For standalone binary installations on Linux and Windows:
+1. Navigate to **Settings** → **System Updates** and select **Update Now**.
+2. **SHA-256 Verification**: Pantau downloads the official `checksums.txt` manifest from upstream and verifies archive integrity before extraction.
+3. **Pre-flight Smoke Testing**: Extracts candidate binary to a temporary path and runs `pantau.tmp -v`. If execution fails (e.g., incompatible architecture or corrupt download), the update is aborted with zero changes made (*automatic rollback*).
+4. **Cross-Platform Atomic Swap**:
+   - On Linux: Atomic swap via `os.Rename`.
+   - On Windows: Renames running locked binary (`pantau.exe` -> `pantau.exe.old`) and installs the new binary. The `.old` artifact is purged on subsequent launches.
+5. **Graceful Restart**: Clicking **Restart Pantau Now** triggers an orderly shutdown (finishing pending requests and closing the SQLite WAL safely), spawns the new binary with identical CLI parameters, and the web interface automatically re-establishes connection.
+
+### Docker Container vs Standalone Environments
+- When executing inside Docker (`/.dockerenv`), self-replacement of the binary file is automatically disabled to preserve container immutability.
+- The UI instead presents recommended update commands:
+  ```bash
+  docker compose pull && docker compose up -d
+  ```
+
+### Airgapped Deployments
+- In isolated enterprise intranets without public internet egress, the Update Checker operates *fail-silent* with a 3-second timeout, ensuring no UI errors or boot latency occur.
+- Automated update checks can be explicitly disabled using the `-disable-update-check` CLI flag or `PANTAU_DISABLE_UPDATE_CHECK=true` environment variable.
+

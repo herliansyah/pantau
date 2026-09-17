@@ -28,6 +28,11 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
 6. [Fase 5: Pengerasan Keamanan, Snapshot & Pemulihan Bencana](#6-fase-5-pengerasan-keamanan-snapshot--pemulihan-bencana)
    - [Two-Factor Authentication (2FA) & 2FA Bypass Flag](#two-factor-authentication-2fa--2fa-bypass-flag)
    - [System Snapshot Terenkripsi & Disaster Recovery GitHub](#system-snapshot-terenkripsi--disaster-recovery-github)
+7. [Fase 6: Pemeliharaan Sistem & Pembaruan (Update Checker & Self-Update)](#7-fase-6-pemeliharaan-sistem--pembaruan-update-checker--self-update)
+   - [Update Checker & Siklus Deteksi Rilis](#update-checker--siklus-deteksi-rilis)
+   - [Proses One-Click Self-Update & Verifikasi Integritas SHA-256](#proses-one-click-self-update--verifikasi-integritas-sha-256)
+   - [Diferensiasi Lingkungan Docker vs Standalone Binary](#diferensiasi-lingkungan-docker-vs-standalone-binary)
+   - [Kesiapan Lingkungan Airgapped](#kesiapan-lingkungan-airgapped)
 
 ---
 
@@ -218,3 +223,36 @@ Jika server master Pantau mengalami kerusakan total:
 2. Jalankan aplikasi; pada layar inisialisasi awal, pilih opsi **Restore from System Snapshot**.
 3. Unggah file `.enc` cadangan Anda atau masukkan kredensial repositori privat GitHub Anda.
 4. Masukkan **Snapshot Passphrase**. Pantau akan memverifikasi integritas data, mendekripsi basis data SQLite WAL, dan langsung melanjutkan pemantauan seluruh Host secara otomatis.
+
+---
+
+## 7. Fase 6: Pemeliharaan Sistem & Pembaruan (Update Checker & Self-Update)
+
+Pantau menyediakan siklus pemeliharaan semi-otomatis yang aman untuk menjaga ketersediaan fitur terbaru dan perbaikan keamanan tanpa merusak stabilitas pemantauan.
+
+### Update Checker & Siklus Deteksi Rilis
+- **Pengecekan Periodik Latar Belakang**: Secara otomatis memeriksa rilis terbaru di upstream GitHub Releases setiap 12 jam sekali, dengan hasil disimpan dalam cache selama 6 jam untuk mencegah pembatasan kuota rate limit GitHub API.
+- **Indikator Status UI**: Jika versi baru terdeteksi, badge status dan catatan rilis (*release notes*) akan ditampilkan secara elegan pada footer dashboard dan modal Settings.
+- **Pengecekan Manual**: Administrator dapat memicu pengecekan seketika dengan menekan tombol **Periksa Pembaruan** di menu Pengaturan.
+
+### Proses One-Click Self-Update & Verifikasi Integritas SHA-256
+Untuk instalasi binary mandiri (Linux dan Windows):
+1. Buka menu **Settings** → **System Updates** dan klik **Perbarui Sekarang**.
+2. **Validasi Hash SHA-256**: Pantau mengunduh manifest resmi `checksums.txt` dari rilis upstream dan memverifikasi integritas arsip biner sebelum ekstraksi.
+3. **Pre-flight Smoke Test**: Sebelum biner lama diganti, Pantau mengekstrak biner baru ke berkas sementara dan mengeksekusi tes smoke (`pantau.tmp -v`). Jika terjadi kegagalan (misal: binary korup atau ketidaksesuaian arsitektur), operasi dibatalkan dan sistem dikembalikan ke kondisi semula (*automatic rollback*).
+4. **Penggantian Biner Aman (Atomic Swap)**:
+   - Pada Linux: file aktif ditimpa secara atomik menggunakan `os.Rename`.
+   - Pada Windows: file aktif yang sedang terkunci di-rename menjadi `pantau.exe.old`, lalu biner baru dipindahkan ke `pantau.exe`. File `.old` akan dibersihkan pada startup berikutnya.
+5. **Graceful Restart**: Klik tombol **Restart Pantau Sekarang**. Server akan menyelesaikan proses yang sedang berjalan, menutup database dengan aman, men-spawn proses baru dengan argumen konfigurasi yang identik, dan antarmuka web akan otomatis memuat ulang saat server aktif kembali.
+
+### Diferensiasi Lingkungan Docker vs Standalone Binary
+- Jika Pantau dijalankan di dalam container Docker, tombol penggantian biner otomatis dinonaktifkan demi menjaga integritas pola kontainerisasi.
+- Antarmuka web akan menampilkan panduan penarikan image resmi:
+  ```bash
+  docker compose pull && docker compose up -d
+  ```
+
+### Kesiapan Lingkungan Airgapped
+- Pada instalasi server tertutup tanpa akses internet publik (intranet/airgapped), Update Checker beroperasi secara *fail-silent* dengan batas waktu request pendek (3 detik) sehingga tidak memblokir server maupun memunculkan alarm palsu.
+- Administrator juga dapat menonaktifkan fitur pengecekan pembaruan sepenuhnya dengan menyertakan flag startup `-disable-update-check` atau variabel lingkungan `PANTAU_DISABLE_UPDATE_CHECK=true`.
+

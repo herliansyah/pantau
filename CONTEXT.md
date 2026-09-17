@@ -193,5 +193,10 @@ _Avoid_: Outdated metrics, expired telemetry, laggy check
 Mekanisme eksekusi Inspeksi serentak secara asinkron ke seluruh Host yang terdaftar dalam satu tindakan operasional terpadu.
 _Avoid_: Bulk ping, refresh all, mass scan
 
+**Update Checker**:
+Mekanisme deteksi periodik asinkron terhadap ketersediaan rilis versi resmi terbaru Pantau di repositori upstream tanpa memblokir operasional utama sistem.
+_Avoid_: Version polling, release scraper, update sniffer
 
-
+**Self-Update**:
+Proses pengunduhan paket rilis, validasi integritas checksum, dan penggantian mandiri (in-place binary replacement) file executable Pantau yang dipicu atas konfirmasi eksplisit administrator.
+_Avoid_: Auto patch, silent updater, live patch, background updater

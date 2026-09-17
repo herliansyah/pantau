@@ -28,6 +28,7 @@ import (
 	"pantau/internal/snapshot"
 	"pantau/internal/store"
 	"pantau/internal/transfer"
+	"pantau/internal/updater"
 )
 
 var upgrader = websocket.Upgrader{
@@ -55,6 +56,7 @@ type Server struct {
 	provisioner       sshrunner.KeyProvisioner
 	transferMgr       *transfer.Manager
 	snapshotMgr       *snapshot.Manager
+	updaterMgr        *updater.Manager
 	mux               *http.ServeMux
 	sessions          sync.Map // token -> expiry
 	temp2FAChallenges sync.Map // tempToken -> *temp2FAChallenge
@@ -102,6 +104,10 @@ func (s *Server) SetTransferManager(tm *transfer.Manager) {
 }
 func (s *Server) SetSnapshotManager(sm *snapshot.Manager) {
 	s.snapshotMgr = sm
+}
+
+func (s *Server) SetUpdaterManager(um *updater.Manager) {
+	s.updaterMgr = um
 }
 
 func (s *Server) SetVersion(version string) {
@@ -153,7 +159,7 @@ func (s *Server) routes() {
 	// Rules
 	s.mux.HandleFunc("/api/rules/", s.authMiddleware(s.handleRuleRoute))
 
-	// Notes
+	// Global Notes
 	s.mux.HandleFunc("/api/notes", s.authMiddleware(s.handleGlobalNotes))
 
 	// Settings & Alerts
@@ -182,6 +188,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/snapshot/import", s.handleSnapshotImport)
 	s.mux.HandleFunc("/api/snapshot/github/sync", s.authMiddleware(s.handleSnapshotGitHubSync))
 	s.mux.HandleFunc("/api/snapshot/github/restore", s.handleSnapshotGitHubRestore)
+
+	// Self-Update & Release Management
+	s.mux.HandleFunc("/api/update/check", s.authMiddleware(s.handleUpdateCheck))
+	s.mux.HandleFunc("/api/update/apply", s.authMiddleware(s.handleUpdateApply))
+	s.mux.HandleFunc("/api/update/restart", s.authMiddleware(s.handleUpdateRestart))
 }
 
 func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -2067,3 +2078,59 @@ func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	_, _ = w.Write(data)
 }
+
+func (s *Server) handleUpdateCheck(w http.ResponseWriter, r *http.Request) {
+	if s.updaterMgr == nil {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"available": false,
+			"error":     "updater not initialized",
+		})
+		return
+	}
+	force := r.URL.Query().Get("force") == "true"
+	res, err := s.updaterMgr.Check(r.Context(), force)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (s *Server) handleUpdateApply(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.updaterMgr == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "updater not initialized"})
+		return
+	}
+	if err := s.updaterMgr.ApplyUpdate(r.Context()); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"message": "Update downloaded, verified, and installed successfully.",
+	})
+}
+
+func (s *Server) handleUpdateRestart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.updaterMgr == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "updater not initialized"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true,
+		"message": "Restarting Pantau...",
+	})
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		_ = s.updaterMgr.Restart()
+	}()
+}
+

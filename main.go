@@ -24,6 +24,7 @@ import (
 	"pantau/internal/snapshot"
 	"pantau/internal/sshrunner"
 	"pantau/internal/store"
+	"pantau/internal/updater"
 	"pantau/internal/web"
 )
 
@@ -113,8 +114,13 @@ func resolveConfig(flagPort int, flagDB string) (port int, dbPath string, portEx
 }
 
 func main() {
+	updater.CleanOldArtifacts()
+
 	versionFlag := flag.Bool("version", false, "Print version and exit")
 	flag.BoolVar(versionFlag, "v", false, "Print version and exit (shorthand)")
+	checkUpdateFlag := flag.Bool("check-update", false, "Check for newer Pantau release and exit")
+	updateFlag := flag.Bool("update", false, "Self-update Pantau to latest release and exit")
+	disableUpdateCheckFlag := flag.Bool("disable-update-check", false, "Disable background update checks (recommended for airgapped environments)")
 	portFlag := flag.Int("port", 8080, "HTTP server port")
 	dbFlag := flag.String("db", "pantau.db", "SQLite database file path")
 	openBrowserFlag := flag.Bool("open", runtime.GOOS == "windows", "Open default browser on start")
@@ -124,6 +130,43 @@ func main() {
 	ver := resolveVersion()
 	if *versionFlag {
 		printBanner(ver)
+		os.Exit(0)
+	}
+
+	if *checkUpdateFlag {
+		printBanner(ver)
+		mgr := updater.NewManager(ver, false)
+		fmt.Printf("🔍 Checking for updates (current version: %s)...\n", ver)
+		res, err := mgr.Check(context.Background(), true)
+		if err != nil || (res != nil && res.Error != "") {
+			errMsg := ""
+			if res != nil && res.Error != "" {
+				errMsg = res.Error
+			} else if err != nil {
+				errMsg = err.Error()
+			}
+			fmt.Printf("⚠️ Update check warning: %s\n", errMsg)
+			os.Exit(0)
+		}
+		if res.Available {
+			fmt.Printf("✨ New version available: %s\n", res.LatestVersion)
+			fmt.Printf("🔗 Release URL: %s\n", res.ReleaseURL)
+			fmt.Println("👉 Run 'pantau -update' to install the new version.")
+		} else {
+			fmt.Printf("✅ Pantau is up to date (%s).\n", ver)
+		}
+		os.Exit(0)
+	}
+
+	if *updateFlag {
+		printBanner(ver)
+		mgr := updater.NewManager(ver, false)
+		fmt.Printf("🚀 Updating Pantau from %s to latest release...\n", ver)
+		if err := mgr.ApplyUpdate(context.Background()); err != nil {
+			fmt.Printf("❌ Update failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("✅ Update completed successfully! Please restart Pantau.")
 		os.Exit(0)
 	}
 
@@ -157,7 +200,6 @@ func main() {
 		log.Println("[SECURITY] 2FA has been disabled via -disable-2fa CLI bypass flag.")
 	}
 
-
 	runnerFactory := sshrunner.DefaultFactory()
 	dispatcher := notify.New(db)
 	ins := inspector.New(db, runnerFactory, dispatcher)
@@ -170,10 +212,14 @@ func main() {
 	snapshotMgr := snapshot.NewManager(db, nil)
 	go snapshotMgr.Start(ctx)
 
+	disableUpdateCheck := *disableUpdateCheckFlag || os.Getenv("PANTAU_DISABLE_UPDATE_CHECK") == "true"
+	updaterMgr := updater.NewManager(ver, disableUpdateCheck)
+	updaterMgr.StartBackgroundTicker(ctx)
 
 	server := web.NewServer(db, ins, dispatcher)
 	server.SetVersion(ver)
 	server.SetSnapshotManager(snapshotMgr)
+	server.SetUpdaterManager(updaterMgr)
 	server.SetDocsFS(embeddedDocs)
 	var listener net.Listener
 	if !portExplicit {
@@ -203,6 +249,12 @@ func main() {
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: server,
 	}
+
+	updaterMgr.SetShutdownFunc(func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer shutdownCancel()
+		_ = httpServer.Shutdown(shutdownCtx)
+	})
 
 	go func() {
 		log.Printf("🛡️ Pantau running on http://0.0.0.0:%d (Default password: admin)", port)
