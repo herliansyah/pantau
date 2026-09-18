@@ -86,6 +86,8 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 
 ### 1. 🔍 Agentless SSH Inspection & 1-Click Key Provisioning
 - Collects real-time metrics (CPU Load, RAM, Disk partitions, Network Egress, Sockets, Uptime, Kernel) purely via standard POSIX SSH.
+- **Hardware Specs & Resource Metrics**: Extracts hardware model, CPU core count, normalized CPU load, and virtual memory (Swap) status. Displays inline absolute capacity (`used / total`) on RAM and Disk progress bars, and dedicated Swap indicators on host cards.
+- **Inspection Concurrency Guard & Timeout**: In-flight concurrency lock prevents overlapping inspection stampedes, with an enforced 30-second SSH execution timeout.
 - **One-Time Key Provisioning**: Provide target root/sudo password once in RAM. Pantau idempotently injects its universal RSA 4096-bit public key into `~/.ssh/authorized_keys` (universally supported across legacy OpenSSH 5.3+ through modern OpenSSH) and discards the password immediately from memory.
 - **Legacy Server Compatibility**: Native cipher fallbacks (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`) allow monitoring legacy Linux servers (CentOS 6, Debian 7, OpenSSH 5.3+).
 - **Mass Inspection & Freshness Indicators**: Trigger simultaneous concurrent inspection across all hosts via `⚡ Inspect All`, configurable background inspection intervals, dynamic time-ago indicators, and automated Stale Inspection warnings.
@@ -149,11 +151,11 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - **Brute-Force Rate Limiting**: Enforces an automatic 30-second cooling lockout after 3 consecutive failed verification attempts.
 - **Host Bypass Flag**: Emergency `-disable-2fa` startup flag disables 2FA directly via the host master console if all credentials are lost.
 
-### 14. 🖥️ Global Multi-Tab Terminal Dock & Persistent Session Pill
-- **Multi-Tab Terminal Dock**: Persistent application-wide dock hosting multiple concurrent SSH PTY terminal sessions across different remote servers.
-- **Dynamic Inline Renaming**: Rename terminal tabs on the fly to track multi-server maintenance workflows.
-- **Persistent Floating Session Pill**: Minimize the dock into an unobtrusive bottom-right badge showing active shell count; explore dashboards and metrics while background processes run uninterrupted.
-- **Seamless Maximize & Split Views**: One-click maximize to full viewport without disconnecting SSH sessions or breaking active terminal utilities (`htop`, `tmux`, `nano`).
+### 14. 🖥️ Global Multi-Tab Terminal Dock & Terminal Header Launcher
+- **Multi-Tab Terminal Dock**: Persistent application-wide dock hosting multiple concurrent SSH PTY terminal sessions across different remote servers with inline tab renaming and split-pane view (`Alt+\`).
+- **Terminal Header Launcher**: Integrated global launcher on the application header with a real-time active session badge. Acts as a smart toggle to minimize, restore, or quickly launch terminal sessions with a server picker dropdown.
+- **Reactive Host Session Badges**: Host cards in Grid and List views display live shell session count badges, showing at a glance which servers have active terminals running.
+- **Seamless Maximize & Hierarchical Navigation**: One-click maximize to full viewport without disconnecting SSH sessions; stacked modal layering and sequential `Escape` dismissal preserve terminal navigation.
 
 ### 15. 🔄 Update Checker & Zero-Ops Semi-Automatic Self-Update
 - **Asynchronous Update Checker**: Periodically checks for upstream GitHub releases (every 12 hours with 6-hour cache TTL) and displays update indicators on the web dashboard.
@@ -206,11 +208,12 @@ volumes:
   pantau-data:
 ```
 
-*(Note: Standard `PORT` and `DB_PATH` environment variables are also supported as automatic fallbacks).*
+*(Note: Official Docker images on GHCR are multi-architecture, supporting both `linux/amd64` and `linux/arm64` natively. Standard `PORT` and `DB_PATH` environment variables are also supported as automatic fallbacks).*
 
 ```bash
 docker compose up -d
 ```
+
 
 ---
 

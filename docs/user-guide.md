@@ -112,11 +112,20 @@ Pantau does not merely display metrics; it enforces continuous adherence to your
 Pantau collects actual state telemetry and validates desired state rules through periodic background cycles or on-demand triggers:
 
 - **Mass Inspection (Inspect All)**: Click the `⚡ Inspect All` button in the header toolbar to trigger asynchronous, concurrent inspections across all configured hosts.
-- **Per-Host Immediate Inspection**: Click the quick `⚡` inspect button on any host card or row, or click *Run Immediate Inspection* inside the host detail modal.
+- **Per-Host Immediate Inspection**: Click the quick `⚡` inspect button on any host card or list row, or click the compact refresh icon in the Host Detail modal header (next to the status badge).
 - **Inspection Recency Indicators**: Host cards and list rows show dynamic relative timestamps (e.g. `🕒 2m ago`, `🕒 just now`) with precise hover tooltips.
 - **Stale Inspection Detection**: When a host fails inspection or telemetry remains unrefreshed beyond tolerance (> 10 minutes or 2× the normal interval), an amber `⚠️ Stale Data` warning alerts operators to potential SSH disconnection or unresponsive nodes.
 - **Dashboard Auto-Refresh**: The browser UI automatically synchronizes host metrics and status every 30 seconds without requiring manual page reload.
-- **Configurable Inspection Interval**: Administrators can adjust background SSH inspection frequency (default: 300 seconds / 5 minutes, minimum 30 seconds) via **Settings** > **Access** tab.
+- **Configurable Inspection Interval**: Administrators can adjust background SSH inspection frequency (default: 300 seconds / 5 minutes, minimum 30 seconds) via **Settings** > **General** tab.
+- **Inspection Concurrency Guard & Timeout**: An in-flight concurrency guard locks ongoing inspections per host to prevent overlapping inspection stampedes. Every remote non-interactive command enforces a strict 30-second execution timeout to prevent stalled SSH sessions from blocking background workers.
+
+### Resource Metrics & Hardware Telemetry
+
+Telemetry collection continuously extracts granular system capacity:
+- **Absolute Capacity Indicators**: RAM and Disk progress bars render inline `used / total` metrics (e.g. `4.2 GB / 15.8 GB`) without layout displacement.
+- **Swap Telemetry**: A permanent Swap indicator row on each host card shows active memory paging, or displays a dimmed `Disabled` badge when swap is unconfigured on the machine.
+- **Normalized CPU Load**: Load averages are evaluated against the target's physical and logical CPU cores (`nproc`), rendering color-coded threshold alerts when process run-queues exceed core capacity.
+- **Sys Info Card**: The Host Detail modal presents hardware model, CPU core count, virtualization layer, and storage device topology.
 
 ### Detecting Drift & Root Cause Excerpts
 
@@ -134,9 +143,11 @@ During every scheduled **Inspection** cycle (default: every 5 minutes) or upon m
 When a drift or alert requires hands-on investigation:
 
 - **Terminal Dock**: Open a multi-tab interactive shell powered by `xterm.js` over WebSocket SSH PTY sessions.
+- **Terminal Header Launcher**: Access and toggle the global dock from the application header. A reactive session counter badge tracks all active PTY sessions system-wide. When empty, clicking the launcher presents a host selector dropdown to open new sessions instantly.
+- **Reactive Host Session Badges**: Host cards in Grid and List views show contextual session count badges whenever active shells are connected to that target.
 - **Split-Pane View (`Alt+\`)**: Split the terminal view to compare logs or configurations across two hosts side by side in real time.
-- **Terminal Preset**: Execute pre-configured one-click diagnostic commands (e.g., `htop`, `journalctl -f`, `docker stats`) without typing redundant commands.
-- **Session Pill**: Minimize the dock into a floating badge in the bottom-right corner. Background shell sessions, long-running tail jobs, or scripts continue running uninterrupted while you browse the dashboard.
+- **Terminal Preset**: Execute pre-configured one-click diagnostic commands (e.g., `htop`, `journalctl -f`, `docker stats`) bound globally or dynamically scoped to the active terminal tab's host context.
+- **Modal Stacking & Escape Key**: Child action dialogs (preset forms, rule modals, notes) dynamically stack above parent modals and maximized terminal docks. Pressing `Escape` hierarchically dismisses the top-most active dialog before passing keyboard input to lower layers.
 
 ### Evaluating Server Longevity with Lifecycle Assessment
 
@@ -246,6 +257,7 @@ For standalone binary installations on Linux and Windows:
 5. **Graceful Restart**: Clicking **Restart Pantau Now** triggers an orderly shutdown (finishing pending requests and closing the SQLite WAL safely), spawns the new binary with identical CLI parameters, and the web interface automatically re-establishes connection.
 
 ### Docker Container vs Standalone Environments
+- Official Docker images published to GitHub Container Registry (`ghcr.io/herliansyah/pantau:latest`) are multi-architecture builds providing native support for both `linux/amd64` and `linux/arm64`.
 - When executing inside Docker (`/.dockerenv`), self-replacement of the binary file is automatically disabled to preserve container immutability.
 - The UI instead presents recommended update commands:
   ```bash
