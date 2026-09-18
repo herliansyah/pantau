@@ -57,7 +57,7 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 4
 .dropdown-item.danger { color: #f87171; }
 .dropdown-item.danger:hover { background: rgba(239,68,68,0.15); color: #fca5a5; }
 .dropdown-divider { height: 1px; background: var(--card-border); margin: 4px 0; }
-#toastContainer { position: fixed; top: 68px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+#toastContainer { position: fixed; top: 68px; right: 24px; z-index: 999999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 .toast { pointer-events: auto; padding: 10px 16px; border-radius: 6px; font-size: 0.82rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); animation: toastIn 0.2s ease-out; transition: opacity 0.3s; max-width: 380px; }
 @keyframes toastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 .toast-success { background: #064e3b; border: 1px solid #059669; color: #34d399; }
@@ -182,7 +182,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
   overflow: hidden;
 }
 #confirmModal {
-  z-index: 100001 !important;
+  z-index: 100001;
 }
 .terminal-dock-content.dock-maximized {
   position: fixed !important;
@@ -1394,7 +1394,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <h3 data-i18n="manage_presets">Manage Terminal Presets</h3>
       </div>
       <div style="display: flex; gap: 8px;">
-        <button class="btn btn-primary btn-sm" onclick="openCreatePresetModal()">➕ Add Preset</button>
+        <button class="btn btn-primary btn-sm" onclick="openCreatePresetModal(null, currentPresetManagerHostId)">➕ Add Preset</button>
         <button class="btn btn-sm" onclick="closeModal('presetManagerModal')">✕</button>
       </div>
     </div>
@@ -2447,7 +2447,11 @@ function showConfirm(options) {
 
 function resolveConfirm(val) {
   const el = document.getElementById('confirmModal');
-  if (el) el.classList.remove('open');
+  if (el) {
+    el.classList.remove('open');
+    el.style.zIndex = '';
+  }
+  openModalStack = openModalStack.filter(mId => mId !== 'confirmModal');
   if (confirmResolver) {
     const res = confirmResolver;
     confirmResolver = null;
@@ -2492,7 +2496,7 @@ async function loadGlobalNotes() {
 async function openGlobalNotesModal() {
   await loadGlobalNotes();
   showGlobalNotesViewMode();
-  document.getElementById('globalNotesModal').classList.add('open');
+  openModal('globalNotesModal');
 }
 
 function showGlobalNotesViewMode() {
@@ -2563,7 +2567,7 @@ function openEditNoteModal(hostId, currentNote, hostName) {
   document.getElementById('editNoteHostId').value = hostId;
   document.getElementById('editNoteHostNameLabel').innerText = hostName ? `${t('col_name')}: ${hostName}` : t('host_note');
   document.getElementById('editNoteContent').value = currentNote || '';
-  document.getElementById('hostNoteModal').classList.add('open');
+  openModal('hostNoteModal');
   setTimeout(() => document.getElementById('editNoteContent').focus(), 50);
 }
 
@@ -3303,7 +3307,7 @@ function openAddHostModal() {
   document.getElementById('hostGroup').value = '';
   updateGroupSuggestions();
   document.getElementById('passGroup').style.display = 'flex';
-  document.getElementById('hostModal').classList.add('open');
+  openModal('hostModal');
 }
 
 function openEditHostModal(hostId) {
@@ -3321,7 +3325,7 @@ function openEditHostModal(hostId) {
   document.getElementById('hostNote').value = h.notes || '';
   document.getElementById('passGroup').style.display = 'none';
   updateGroupSuggestions();
-  document.getElementById('hostModal').classList.add('open');
+  openModal('hostModal');
 }
 
 function updateGroupSuggestions() {
@@ -3514,7 +3518,7 @@ async function openHostDetail(id) {
   const badge = document.getElementById('detailHostBadge');
   badge.className = 'badge badge-' + currentHost.status;
   badge.innerText = currentHost.status;
-  document.getElementById('hostDetailModal').classList.add('open');
+  openModal('hostDetailModal');
   if (currentTab === 'terminal') currentTab = 'overview';
   switchTab(currentTab || 'overview');
 }
@@ -4035,7 +4039,7 @@ async function openEditor(path) {
   if (!res.ok) { showToast(t('failed_read_file'), 'error'); return; }
   const data = await res.json();
   document.getElementById('editorFilePath').innerText = path;
-  document.getElementById('editorModal').classList.add('open');
+  openModal('editorModal');
 
   if (!codeEditor) {
     codeEditor = CodeMirror.fromTextArea(document.getElementById('codeEditorArea'), {
@@ -4200,8 +4204,8 @@ function createTabWorkspaceDOM(tab) {
         <div id="presetButtonsList_${tab.id}" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
           <span style="font-size: 0.72rem; color: var(--text-muted);">Loading...</span>
         </div>
-        <button class="btn btn-sm" onclick="openCreatePresetModal()" title="Add new preset" style="padding: 2px 7px; font-size: 0.72rem;">➕</button>
-        <button class="btn btn-sm" onclick="openPresetManagerModal()" title="Manage presets" style="padding: 2px 7px; font-size: 0.72rem;">⚙️</button>
+        <button class="btn btn-sm" onclick="openCreatePresetModal(null, ${tab.hostID})" title="Add new preset" style="padding: 2px 7px; font-size: 0.72rem;">➕</button>
+        <button class="btn btn-sm" onclick="openPresetManagerModal(${tab.hostID})" title="Manage presets" style="padding: 2px 7px; font-size: 0.72rem;">⚙️</button>
       </div>
       <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
         <div style="display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); padding: 1px 6px; border-radius: 6px;" title="${t('terminal_font_size', 'Terminal Font Size')}">
@@ -4763,7 +4767,7 @@ function showTerminalDock() {
   isTerminalDockMinimized = false;
   const modal = document.getElementById('terminalDockModal');
   if (modal) {
-    modal.classList.add('open');
+    openModal('terminalDockModal');
     modal.style.display = 'flex';
   }
   refitActiveTab();
@@ -4776,7 +4780,9 @@ function hideTerminalDock() {
   if (modal) {
     modal.classList.remove('open');
     modal.style.display = 'none';
+    modal.style.zIndex = '';
   }
+  openModalStack = openModalStack.filter(mId => mId !== 'terminalDockModal');
   updateTerminalSessionIndicators();
 }
 
@@ -4938,17 +4944,41 @@ function triggerPreset(presetId) {
   if (activeTerminalTabId) triggerTabPreset(activeTerminalTabId, presetId);
 }
 
-function openCreatePresetModal(editPreset = null) {
+let currentPresetTargetHost = null;
+let currentPresetManagerHostId = null;
+
+function openCreatePresetModal(editPreset = null, explicitHostId = null) {
   document.getElementById('editPresetId').value = editPreset ? editPreset.id : '';
   document.getElementById('presetModalTitle').innerText = editPreset ? t('edit_preset') : t('add_preset');
   document.getElementById('presetNameInput').value = editPreset ? editPreset.name : '';
   document.getElementById('presetCommandInput').value = editPreset ? editPreset.command : '';
   document.getElementById('presetTmuxCheckbox').checked = editPreset ? editPreset.use_tmux : false;
 
+  // Resolve target host in order of priority:
+  // 1. Explicit host ID argument
+  // 2. Preset's host_id if editing
+  // 3. Active terminal tab's hostID
+  // 4. Preset manager modal context host ID
+  // 5. Fallback to currentHost (dashboard host detail view)
+  let targetHost = null;
+  const targetId = explicitHostId || (editPreset ? editPreset.host_id : null) || (getActiveTerminalTab() ? getActiveTerminalTab().hostID : null) || currentPresetManagerHostId;
+  if (targetId) {
+    targetHost = (allRawHosts || []).find(h => h.id === targetId) || (currentHost && currentHost.id === targetId ? currentHost : null);
+    if (!targetHost && getActiveTerminalTab() && getActiveTerminalTab().hostID === targetId) {
+      targetHost = { id: targetId, name: getActiveTerminalTab().hostName };
+    }
+  }
+  if (!targetHost && currentHost) {
+    targetHost = currentHost;
+  }
+
+  currentPresetTargetHost = targetHost;
+
   const hostOpt = document.getElementById('presetScopeHostOption');
-  if (currentHost) {
+  if (targetHost) {
     hostOpt.style.display = 'block';
-    hostOpt.innerText = `🎯 ${t('scope_host')} (${currentHost.name})`;
+    // t('scope_host') already contains '🎯', do not prepend duplicate emoji
+    hostOpt.innerText = `${t('scope_host')} (${targetHost.name})`;
   } else {
     hostOpt.style.display = 'none';
   }
@@ -4960,7 +4990,7 @@ function openCreatePresetModal(editPreset = null) {
     scopeSelect.value = 'global';
   }
 
-  document.getElementById('presetModal').classList.add('open');
+  openModal('presetModal');
 }
 
 async function submitPresetForm() {
@@ -4976,8 +5006,8 @@ async function submitPresetForm() {
   }
 
   let hostId = null;
-  if (scope === 'host' && currentHost) {
-    hostId = currentHost.id;
+  if (scope === 'host' && currentPresetTargetHost) {
+    hostId = currentPresetTargetHost.id;
   }
 
   const payload = {
@@ -5005,9 +5035,7 @@ async function submitPresetForm() {
     closeModal('presetModal');
     showToast(t('preset_saved', 'Preset saved successfully'), 'success');
 
-    if (terminalHostLeft) {
-      loadTerminalPresets(terminalHostLeft);
-    }
+    terminalTabs.forEach(tab => loadTabPresets(tab));
     const pm = document.getElementById('presetManagerModal');
     if (pm && pm.classList.contains('open')) {
       loadPresetManagerList();
@@ -5018,8 +5046,9 @@ async function submitPresetForm() {
   }
 }
 
-async function openPresetManagerModal() {
-  document.getElementById('presetManagerModal').classList.add('open');
+async function openPresetManagerModal(hostId = null) {
+  currentPresetManagerHostId = hostId || (getActiveTerminalTab() ? getActiveTerminalTab().hostID : null);
+  openModal('presetManagerModal');
   loadPresetManagerList();
 }
 
@@ -5093,7 +5122,7 @@ async function deletePreset(id) {
       showToast(t('preset_deleted', 'Preset deleted successfully'), 'success');
       loadPresetManagerList();
       loadSettingsPresets();
-      if (terminalHostLeft) loadTerminalPresets(terminalHostLeft);
+      terminalTabs.forEach(tab => loadTabPresets(tab));
     } else {
       showToast(t('failed_prefix', 'Delete failed'), 'error');
     }
@@ -5408,7 +5437,7 @@ async function openSettingsModal(tab) {
   }
   document.getElementById('backupStatusText').innerText = statusText;
 
-  document.getElementById('settingsModal').classList.add('open');
+  openModal('settingsModal');
   switchSettingsTab(currentSettingsTab || 'general');
   load2FASettings();
   setTimeout(() => {
@@ -5697,7 +5726,7 @@ async function submitSnapshotExport() {
 function openRestoreModal() {
   document.getElementById('restoreGhMsg').innerText = '';
   document.getElementById('restoreFileMsg').innerText = '';
-  document.getElementById('restoreModal').classList.add('open');
+  openModal('restoreModal');
 }
 
 function switchRestoreTab(tab) {
@@ -5840,7 +5869,7 @@ async function openTransferDialog(srcPath, isDir) {
   });
   
   document.getElementById('transferDestPath').value = '/tmp';
-  document.getElementById('transferModal').classList.add('open');
+  openModal('transferModal');
 }
 
 async function submitTransfer() {
@@ -5886,7 +5915,7 @@ async function submitTransfer() {
 }
 
 function openTransfersModal() {
-  document.getElementById('transfersListModal').classList.add('open');
+  openModal('transfersListModal');
   loadTransfers();
   if (transferPollInterval) clearInterval(transferPollInterval);
   transferPollInterval = setInterval(loadTransfers, 2000);
@@ -5990,9 +6019,18 @@ async function loadTransfers() {
   }
 }
 
+let modalZIndexCounter = 100000;
+let openModalStack = [];
+
 function openModal(id) {
   const el = document.getElementById(id);
-  if (el) el.classList.add('open');
+  if (!el) return;
+  modalZIndexCounter += 10;
+  el.style.zIndex = modalZIndexCounter;
+  el.classList.add('open');
+  if (!openModalStack.includes(id)) {
+    openModalStack.push(id);
+  }
 }
 
 function closeModal(id) {
@@ -6009,7 +6047,11 @@ function closeModal(id) {
     return;
   }
   const el = document.getElementById(id);
-  if (el) el.classList.remove('open');
+  if (el) {
+    el.classList.remove('open');
+    el.style.zIndex = '';
+  }
+  openModalStack = openModalStack.filter(mId => mId !== id);
 }
 
 window.addEventListener('click', (e) => {
@@ -6063,8 +6105,17 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (e.key === 'Escape') {
-    // ponytail: never intercept Escape if Terminal Dock is focused/open to preserve vim, nano, htop CLI usage (ADR-0011)
-    if (isDockOpen) return;
+    // ponytail: never intercept Escape if Terminal Dock is open and no other modal is stacked above it (ADR-0011)
+    if (isDockOpen && (openModalStack.length <= 1 && (openModalStack[0] === 'terminalDockModal' || openModalStack.length === 0))) return;
+    if (openModalStack.length > 0) {
+      const topModalId = openModalStack[openModalStack.length - 1];
+      if (topModalId === 'confirmModal') {
+        resolveConfirm(false);
+      } else {
+        closeModal(topModalId);
+      }
+      return;
+    }
     const openModals = Array.from(document.querySelectorAll('.modal.open'));
     if (openModals.length > 0) {
       const topModal = openModals[openModals.length - 1];

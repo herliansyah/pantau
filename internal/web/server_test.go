@@ -799,5 +799,52 @@ func TestSettingsModalLayout(t *testing.T) {
 	}
 }
 
+func TestPresetModalAndModalStacking(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-preset-modal-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	srv := NewServer(db, nil, nil)
+	req := httptest.NewRequest("GET", "/", nil)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	// 1. Regression test: scope option must not have double emoji
+	if strings.Contains(body, "`🎯 ${t('scope_host')}") || strings.Contains(body, "🎯 ${t('scope_host')}") {
+		t.Errorf("found double emoji pattern in preset scope option")
+	}
+
+	// 2. Regression test: openCreatePresetModal must resolve target host from context
+	if !strings.Contains(body, "currentPresetTargetHost") || !strings.Contains(body, "openCreatePresetModal(editPreset = null, explicitHostId = null)") {
+		t.Errorf("expected openCreatePresetModal to support explicitHostId and context host resolution")
+	}
+
+	// 3. Regression test: dynamic modal stacking via openModal
+	requiredModalSnippets := []string{
+		`modalZIndexCounter += 10`,
+		`openModal('presetModal')`,
+		`openModal('presetManagerModal')`,
+		`openModal('settingsModal')`,
+		`openModal('ruleModal')`,
+		`openModal('hostNoteModal')`,
+		`openModal('snapshotExportModal')`,
+	}
+	for _, snippet := range requiredModalSnippets {
+		if !strings.Contains(body, snippet) {
+			t.Errorf("expected HTML body to contain modal stacking snippet %q", snippet)
+		}
+	}
+}
+
 
 
