@@ -380,15 +380,19 @@ func TestGlobalTerminalDockWebAssets(t *testing.T) {
 	body := w.Body.String()
 	requiredSnippets := []string{
 		"id=\"terminalDockModal\"",
-		"id=\"terminalMinimizedPill\"",
+		"id=\"btnHeaderTerminal\"",
+		"id=\"activeTerminalBadge\"",
+		"id=\"inspectBtnModal\"",
 		"id=\"terminalTabsList\"",
 		"id=\"newTabDropdownMenu\"",
 		"openTerminalForHost",
 		"startRenameTab",
+		"toggleTerminalDock",
 		"minimizeTerminalDock",
 		"restoreTerminalDock",
 		"toggleTerminalDockMaximize",
 		"closeTerminalTab",
+		"updateTerminalSessionIndicators",
 		"global_terminal_dock",
 		"close_all_terminals_confirm",
 	}
@@ -435,9 +439,21 @@ func TestGlobalTerminalDockWebAssets(t *testing.T) {
 		t.Errorf("expected active tab mask and hidden scrollbar on tabs container")
 	}
 
-	// 8. Minimized pill must be placed above footer
-	if !strings.Contains(body, "bottom: 48px;") {
-		t.Errorf("expected minimized pill to have bottom: 48px to clear footer")
+	// 8. Terminal tab removed from host detail tabs and floating pill eliminated
+	if strings.Contains(body, "id=\"terminalMinimizedPill\"") {
+		t.Errorf("expected floating terminalMinimizedPill to be removed in favor of header launcher")
+	}
+	if strings.Contains(body, `data-tab="terminal"`) {
+		t.Errorf("expected redundant terminal tab to be removed from host detail modal tabs")
+	}
+	if strings.Contains(body, "id=\"btnDetailTerminal\"") {
+		t.Errorf("expected btnDetailTerminal to be removed from modal header")
+	}
+	if !strings.Contains(body, "id=\"inspectBtnModal\"") {
+		t.Errorf("expected inspectBtnModal to be present in modal header")
+	}
+	if !strings.Contains(body, "btn-host-terminal") || !strings.Contains(body, "host-terminal-badge") {
+		t.Errorf("expected host cards to contain btn-host-terminal and host-terminal-badge")
 	}
 }
 

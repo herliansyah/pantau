@@ -355,39 +355,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
   background: #1e293b;
   color: #38bdf8;
 }
-.terminal-minimized-pill {
-  position: fixed;
-  bottom: 48px;
-  right: 20px;
-  z-index: 9998;
-  background: #0f172a;
-  border: 1px solid #38bdf8;
-  color: #f8fafc;
-  padding: 8px 16px;
-  border-radius: 9999px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 0 12px rgba(56, 189, 248, 0.25);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  user-select: none;
-}
-.terminal-minimized-pill:hover {
-  transform: translateY(-2px);
-  background: #1e293b;
-  box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.7), 0 0 16px rgba(56, 189, 248, 0.4);
-}
-.terminal-pill-ping {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #38bdf8;
-  box-shadow: 0 0 8px #38bdf8;
-  animation: pulseDot 1.2s infinite;
-}
+/* ponytail: minimized floating pill removed; terminal dock managed via header launcher and host card session badges */
 .terminal-workspaces-host {
   display: flex;
   flex-direction: column;
@@ -610,6 +578,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
     <div style="display: flex; gap: 10px; align-items: center;">
       <button class="btn btn-icon" onclick="openTransfersModal()" title="Cross-Host Transfers" data-i18n-title="transfers_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 6h18"/><path d="m7 22-4-4 4-4"/><path d="M21 18H3"/></svg><span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
       <button class="btn btn-icon" onclick="openGlobalNotesModal()" title="Global Notes" data-i18n-title="global_notes_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>
+      <button class="btn btn-icon" id="btnHeaderTerminal" onclick="toggleTerminalDock()" title="Terminal Dock" data-i18n-title="terminal_dock_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span id="activeTerminalBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
       <span id="activeAlertBadge" style="display: none;" class="badge badge-down">0 ALERTS</span>
       <button class="btn btn-sm" id="btnInspectAll" onclick="inspectAllHosts()" title="Trigger Inspection on All Hosts" data-i18n-title="btn_inspect_all_title" style="display: inline-flex; align-items: center; gap: 5px;">
         <svg id="inspectAllIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
@@ -890,9 +859,12 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 <div id="hostDetailModal" class="modal">
   <div class="modal-content modal-workspace">
     <div class="modal-header">
-      <div style="display: flex; align-items: center; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
         <h3 id="detailHostName">Host</h3>
         <span id="detailHostBadge" class="badge">UNKNOWN</span>
+        <button class="btn-inspect-quick" id="inspectBtnModal" onclick="inspectHost(currentHost ? currentHost.id : null, event)" title="Run Inspection (Refresh)" data-i18n-title="btn_inspect_title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+        </button>
       </div>
       <button class="btn btn-sm" onclick="closeModal('hostDetailModal')">✕</button>
     </div>
@@ -904,7 +876,6 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <div class="tab" data-tab="docker" onclick="switchTab('docker')" data-i18n="tab_docker">Docker</div>
         <div class="tab" data-tab="timeline" onclick="switchTab('timeline')" data-i18n="tab_timeline">Incident Timeline</div>
         <div class="tab" data-tab="files" onclick="switchTab('files')" data-i18n="tab_files">File Manager</div>
-        <div class="tab" data-tab="terminal" onclick="switchTab('terminal')" data-i18n="tab_terminal">Terminal</div>
       </div>
     </div>
     <div class="modal-body" id="tabContent"></div>
@@ -965,14 +936,6 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
     </div>
     <div id="terminalTabsWorkspaces" class="terminal-workspaces-host"></div>
   </div>
-</div>
-
-<!-- Floating Minimized Dock Pill (Bottom-Right) -->
-<div id="terminalMinimizedPill" class="terminal-minimized-pill" onclick="restoreTerminalDock()" style="display: none;">
-  <span style="font-size: 1rem;">💻</span>
-  <span id="terminalPillLabel">Terminal (0)</span>
-  <span id="terminalPillBadge" class="terminal-pill-ping" style="display: none;"></span>
-  <span style="font-size: 0.75rem; margin-left: 2px;">▴</span>
 </div>
 
 <!-- Settings Modal -->
@@ -1601,6 +1564,7 @@ const I18N = {
     "font_size_decrease": "Decrease font size",
     "font_size_increase": "Increase font size",
     "btn_terminal": "Terminal",
+    "terminal_dock_title": "Terminal Dock",
     "maximize_terminal": "Maximize",
     "minimize_terminal": "Restore",
     "close_all_terminals_confirm": "Close all terminal sessions? Active remote shell processes will be disconnected.",
@@ -2017,6 +1981,7 @@ const I18N = {
     "font_size_decrease": "Kecilkan ukuran font",
     "font_size_increase": "Besarkan ukuran font",
     "btn_terminal": "Terminal",
+    "terminal_dock_title": "Terminal Dock",
     "maximize_terminal": "Layar Penuh",
     "minimize_terminal": "Pulihkan",
     "close_all_terminals_confirm": "Tutup seluruh sesi terminal? Proses shell remote yang sedang aktif akan terputus.",
@@ -2992,9 +2957,12 @@ function renderGridView(grid, isManualSort) {
             <div>⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
           </div>
         </div>
+        `;
+        const hostTabsCount = terminalTabs.filter(t => t.hostID === h.id).length;
+        card.innerHTML += `
         <div style="display: flex; gap: 6px; margin-top: 6px; align-items: center;">
           <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
-          <button class="btn btn-sm" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}">💻</button>
+          <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}" style="display: inline-flex; align-items: center; gap: 4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'} margin-left: 2px; font-size: 0.72rem; padding: 1px 5px;">${hostTabsCount}</span></button>
           <div class="dropdown" style="margin-left: auto;">
             <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, ${h.id})" title="${t('more_actions', 'More Actions')}">⋮</button>
             <div class="dropdown-menu" id="dropdown-${h.id}">
@@ -3121,6 +3089,7 @@ function renderListView(listContainer, isManualSort) {
       `;
 
       const recency = formatRelativeTime(h.last_inspected);
+      const hostTabsCount = terminalTabs.filter(t => t.hostID === h.id).length;
 
       tr.innerHTML = `
         ${isManualSort ? `<td style="text-align: center;"><span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span></td>` : ''}
@@ -3160,7 +3129,7 @@ function renderListView(listContainer, isManualSort) {
         <td style="text-align: right;">
           <div style="display: inline-flex; gap: 4px; align-items: center;">
             <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
-            <button class="btn btn-sm" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}">💻</button>
+            <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}" style="display: inline-flex; align-items: center; gap: 4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'} margin-left: 2px; font-size: 0.72rem; padding: 1px 5px;">${hostTabsCount}</span></button>
             <div class="dropdown">
               <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, 'list-${h.id}')" title="${t('more_actions', 'More Actions')}">⋮</button>
               <div class="dropdown-menu" id="dropdown-list-${h.id}">
@@ -3442,7 +3411,8 @@ async function testHostSSH(id) {
 
 async function inspectHost(id, e) {
   if (e) e.stopPropagation();
-  const btns = [document.getElementById('inspectBtn-' + id), document.getElementById('inspectBtnList-' + id)].filter(Boolean);
+  const modalBtn = (currentHost && currentHost.id === id) ? document.getElementById('inspectBtnModal') : null;
+  const btns = [document.getElementById('inspectBtn-' + id), document.getElementById('inspectBtnList-' + id), modalBtn].filter(Boolean);
   btns.forEach(b => {
     b.classList.add('spinning');
     b.disabled = true;
@@ -3480,7 +3450,8 @@ async function openHostDetail(id) {
   badge.className = 'badge badge-' + currentHost.status;
   badge.innerText = currentHost.status;
   document.getElementById('hostDetailModal').classList.add('open');
-  switchTab(currentTab);
+  if (currentTab === 'terminal') currentTab = 'overview';
+  switchTab(currentTab || 'overview');
 }
 
 async function openHostTerminal(hostID, presetID) {
@@ -3565,9 +3536,6 @@ function switchTab(tab, presetID) {
             ${d.host.notes ? escapeHtml(d.host.notes) : '<span style="color: var(--text-muted); font-style: italic;">' + t('no_note_set') + '</span>'}
           </div>
         </div>
-      </div>
-      <div style="margin-top: 10px;">
-        <button class="btn btn-primary" onclick="inspectHost(${d.host.id})">${t('run_inspect')}</button>
       </div>
     `;
   } else if (tab === 'network') {
@@ -3777,18 +3745,6 @@ function switchTab(tab, presetID) {
     `;
   } else if (tab === 'files') {
     loadFiles('/');
-  } else if (tab === 'terminal') {
-    content.innerHTML = `
-      <div class="empty-state" style="padding: 48px 20px;">
-        <div class="empty-state-icon">💻</div>
-        <div class="empty-state-title" style="font-size: 1.1rem;">${t('global_terminal_dock')}</div>
-        <div class="empty-state-desc" style="margin: 8px 0 16px 0;">
-          ${t('global_terminal_dock_desc')}
-        </div>
-        <button class="btn btn-primary" onclick="openTerminalForHost(${d.host.id})">💻 ${t('focus_terminal_dock')}</button>
-      </div>
-    `;
-    openTerminalForHost(d.host.id, presetID);
   }
 }
 
@@ -4135,7 +4091,7 @@ function activateTerminalTab(tabId) {
   document.querySelectorAll('#terminalTabsWorkspaces .terminal-tab-workspace').forEach(el => {
     el.classList.toggle('active-workspace', el.id === 'workspace_' + tabId);
   });
-  updateMinimizedPill();
+  updateTerminalSessionIndicators();
   refitActiveTab();
   focusActiveTerminal();
 }
@@ -4325,7 +4281,7 @@ function initTabLeftTerminal(tab, presetID) {
       if (!tab.hasActivity) {
         tab.hasActivity = true;
         renderTerminalTabsList();
-        updateMinimizedPill();
+        updateTerminalSessionIndicators();
       }
     }
   };
@@ -4412,7 +4368,7 @@ function initTabRightTerminal(tab, hostID, presetID) {
       if (!tab.hasActivity) {
         tab.hasActivity = true;
         renderTerminalTabsList();
-        updateMinimizedPill();
+        updateTerminalSessionIndicators();
       }
     }
   };
@@ -4669,11 +4625,10 @@ function closeTerminalTab(e, tabId) {
     } else {
       activeTerminalTabId = null;
       hideTerminalDock();
-      hideMinimizedPill();
     }
   }
   renderTerminalTabsList();
-  updateMinimizedPill();
+  updateTerminalSessionIndicators();
 }
 
 function closeAllTerminalTabs() {
@@ -4690,7 +4645,7 @@ function closeAllTerminalTabs() {
   saveTerminalTabsToStorage();
   renderTerminalTabsList();
   hideTerminalDock();
-  hideMinimizedPill();
+  updateTerminalSessionIndicators();
 }
 
 async function closeTerminalDock() {
@@ -4701,10 +4656,28 @@ async function closeTerminalDock() {
   closeAllTerminalTabs();
 }
 
+function toggleTerminalDock() {
+  const modal = document.getElementById('terminalDockModal');
+  const isOpen = modal && modal.classList.contains('open') && modal.style.display !== 'none';
+  if (isOpen) {
+    minimizeTerminalDock();
+  } else {
+    if (terminalTabs.length === 0) {
+      showTerminalDock();
+      setTimeout(() => {
+        const btn = document.getElementById('btnNewTerminalTab');
+        if (btn) btn.click();
+      }, 100);
+    } else {
+      restoreTerminalDock();
+    }
+  }
+}
+
 function minimizeTerminalDock() {
   isTerminalDockMinimized = true;
   hideTerminalDock();
-  showMinimizedPill();
+  updateTerminalSessionIndicators();
 }
 
 function restoreTerminalDock() {
@@ -4714,6 +4687,7 @@ function restoreTerminalDock() {
     activateTerminalTab(activeTerminalTabId);
   }
   refitActiveTab();
+  updateTerminalSessionIndicators();
 }
 
 function showTerminalDock() {
@@ -4723,9 +4697,9 @@ function showTerminalDock() {
     modal.classList.add('open');
     modal.style.display = 'flex';
   }
-  hideMinimizedPill();
   refitActiveTab();
   focusActiveTerminal();
+  updateTerminalSessionIndicators();
 }
 
 function hideTerminalDock() {
@@ -4734,35 +4708,34 @@ function hideTerminalDock() {
     modal.classList.remove('open');
     modal.style.display = 'none';
   }
+  updateTerminalSessionIndicators();
 }
 
-function showMinimizedPill() {
-  if (terminalTabs.length === 0) return;
-  const pill = document.getElementById('terminalMinimizedPill');
-  if (pill) pill.style.display = 'inline-flex';
-  updateMinimizedPill();
-}
-
-function hideMinimizedPill() {
-  const pill = document.getElementById('terminalMinimizedPill');
-  if (pill) pill.style.display = 'none';
-}
-
-function updateMinimizedPill() {
-  const pill = document.getElementById('terminalMinimizedPill');
-  const label = document.getElementById('terminalPillLabel');
-  const badge = document.getElementById('terminalPillBadge');
-  if (terminalTabs.length === 0) {
-    if (pill) pill.style.display = 'none';
-    return;
+function updateTerminalSessionIndicators() {
+  // ponytail: reactive indicators for header launcher and individual host cards
+  const headerBadge = document.getElementById('activeTerminalBadge');
+  if (headerBadge) {
+    const total = terminalTabs.length;
+    if (total > 0) {
+      headerBadge.innerText = total;
+      headerBadge.style.display = 'inline-block';
+    } else {
+      headerBadge.style.display = 'none';
+    }
   }
-  if (label) {
-    label.innerText = `Terminal (${terminalTabs.length})`;
-  }
-  if (badge) {
-    const hasAny = terminalTabs.some(t => t.hasActivity);
-    badge.style.display = hasAny ? 'inline-block' : 'none';
-  }
+  document.querySelectorAll('.btn-host-terminal').forEach(btn => {
+    const hid = parseInt(btn.getAttribute('data-host-id'), 10);
+    const badge = btn.querySelector('.host-terminal-badge');
+    if (badge) {
+      const count = terminalTabs.filter(t => t.hostID === hid).length;
+      if (count > 0) {
+        badge.innerText = count;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  });
 }
 
 function toggleTerminalDockMaximize() {
@@ -4833,7 +4806,7 @@ function restoreSavedTerminalTabs() {
     if (!raw) return;
     const meta = JSON.parse(raw);
     if (!Array.isArray(meta) || meta.length === 0) return;
-    // ponytail: restore saved tab metadata into minimized pill without creating live WebSockets until dock is restored or tab activated
+    // ponytail: restore saved tab metadata into header launcher and host indicators without creating live WebSockets until dock is restored or tab activated
     meta.forEach(m => {
       if (m && m.hostID) {
         const host = (allRawHosts || []).find(h => h.id === m.hostID) || { id: m.hostID, name: m.hostName || ('Host ' + m.hostID), host: '' };
