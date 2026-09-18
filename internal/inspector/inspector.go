@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"pantau/internal/sshrunner"
@@ -23,6 +24,7 @@ type Inspector struct {
 	db       *store.DB
 	factory  sshrunner.RunnerFactory
 	notifier Notifier
+	inFlight sync.Map
 }
 
 func New(db *store.DB, factory sshrunner.RunnerFactory, notifier Notifier) *Inspector {
@@ -34,6 +36,12 @@ func New(db *store.DB, factory sshrunner.RunnerFactory, notifier Notifier) *Insp
 		factory:  factory,
 		notifier: notifier,
 	}
+}
+
+// IsInspecting reports whether an inspection is currently in-flight for the given host.
+func (ins *Inspector) IsInspecting(hostID int64) bool {
+	_, loaded := ins.inFlight.Load(hostID)
+	return loaded
 }
 
 func (ins *Inspector) GetRunnerForHost(h *store.Host) (sshrunner.Runner, error) {
@@ -50,6 +58,12 @@ func (ins *Inspector) GetRunnerForHost(h *store.Host) (sshrunner.Runner, error) 
 
 // InspectHost performs a full health check, metrics scrape, and drift detection on a single host.
 func (ins *Inspector) InspectHost(hostID int64) error {
+	if _, loaded := ins.inFlight.LoadOrStore(hostID, struct{}{}); loaded {
+		// ponytail: Concurrency guard / singleflight prevents overlapping inspections and SSH process stampedes.
+		return nil
+	}
+	defer ins.inFlight.Delete(hostID)
+
 	host, err := ins.db.GetHost(hostID)
 	if err != nil {
 		return err
@@ -91,7 +105,7 @@ func (ins *Inspector) InspectHost(hostID int64) error {
 
 // SystemMetricsBatchCmd is the single-shot batch command to gather system, network, and security metrics.
 // ponytail: Universal polyglot batching keeps agentless overhead near zero on modern & legacy Linux.
-const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; df -Pk / 2>/dev/null; echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l; echo "---"; (nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1); echo "---"; (cat /sys/class/dmi/id/bios_date 2>/dev/null || echo ""); echo "---"; (cat /sys/class/dmi/id/sys_vendor 2>/dev/null || cat /sys/class/dmi/id/product_name 2>/dev/null || echo ""); echo "---"; (stat -c %Y /etc/machine-id 2>/dev/null || stat -c %Y /etc/ssh/ssh_host_rsa_key 2>/dev/null || stat -c %Y /var/log 2>/dev/null || echo 0)`
+const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; df -Pk / 2>/dev/null; echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 -m 4 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 -m 4 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l; echo "---"; (nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1); echo "---"; (cat /sys/class/dmi/id/bios_date 2>/dev/null || echo ""); echo "---"; (cat /sys/class/dmi/id/sys_vendor 2>/dev/null || cat /sys/class/dmi/id/product_name 2>/dev/null || echo ""); echo "---"; (stat -c %Y /etc/machine-id 2>/dev/null || stat -c %Y /etc/ssh/ssh_host_rsa_key 2>/dev/null || stat -c %Y /var/log 2>/dev/null || echo 0)`
 
 func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner) error {
 	stdout, _, _, err := runner.Exec(SystemMetricsBatchCmd)
@@ -814,9 +828,8 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 				status = "ok"
 			} else {
 				status = "drift"
-				// Top directory usage diagnostic
-				topUsage, _, _, _ := runner.Exec(`du -sh /* 2>/dev/null | sort -rh | head -n 10`)
-				rootCause = fmt.Sprintf("Disk usage %d%% exceeded limit <%d%%\n--- Top space consumers ---\n%s", pct, limit, topUsage)
+				// ponytail: Omit periodic heavy recursive du; df provides instant usage without saturating disk I/O.
+				rootCause = fmt.Sprintf("Disk usage on %s is %d%%, exceeding threshold <%d%%", target, pct, limit)
 			}
 		} else {
 			current = "unknown"

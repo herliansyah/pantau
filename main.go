@@ -315,7 +315,7 @@ func startInspectionWorker(ctx context.Context, db *store.DB, ins *inspector.Ins
 
 			now := time.Now()
 			for _, h := range hosts {
-				if h.LastInspected == nil || now.Sub(*h.LastInspected) >= interval {
+				if (h.LastInspected == nil || now.Sub(*h.LastInspected) >= interval) && !ins.IsInspecting(h.ID) {
 					go func(hostID int64) {
 						_ = ins.InspectHost(hostID)
 					}(h.ID)

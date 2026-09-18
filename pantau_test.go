@@ -1523,4 +1523,129 @@ func TestInspectAllAndPollIntervalSetting(t *testing.T) {
 	}
 }
 
+func TestDiskUsageDriftNoDu(t *testing.T) {
+	env := setupTestEnv(t)
+	hostID, err := env.db.CreateHost(&store.Host{
+		Name: "disk-test-host",
+		Host: "192.168.1.50",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatalf("create host: %v", err)
+	}
+
+	// Add desired rule for disk: <80%
+	err = env.db.SaveDesiredRule(&store.DesiredRule{
+		HostID:   hostID,
+		Kind:     "disk",
+		Target:   "/",
+		Expected: "<80%",
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatalf("create rule: %v", err)
+	}
+
+	// Mock df -Pk / to return 90% usage (9000 used / 10000 total)
+	env.mockRunner.Handlers[`df -Pk / 2>/dev/null`] = func() (string, string, int, error) {
+		return "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda1 10000 9000 1000 90% /", "", 0, nil
+	}
+
+	err = env.inspector.InspectHost(hostID)
+	if err != nil {
+		t.Fatalf("inspect host failed: %v", err)
+	}
+
+	// Verify that du -sh was NEVER executed
+	for _, cmd := range env.mockRunner.ExecHistory {
+		if strings.Contains(cmd, "du -sh") {
+			t.Errorf("dangerous command 'du -sh' was executed during inspection: %s", cmd)
+		}
+	}
+
+	// Verify actual items recorded drift
+	items, err := env.db.ListActualItems(hostID)
+	if err != nil {
+		t.Fatalf("get actual items: %v", err)
+	}
+	var diskItem *store.ActualItem
+	for i := range items {
+		if items[i].Kind == "disk" {
+			diskItem = &items[i]
+			break
+		}
+	}
+	if diskItem == nil {
+		t.Fatalf("expected disk actual item, found none")
+	}
+	if diskItem.Status != "drift" {
+		t.Errorf("expected status 'drift', got %s", diskItem.Status)
+	}
+	if diskItem.Current != "90%" {
+		t.Errorf("expected current '90%%', got %s", diskItem.Current)
+	}
+}
+
+func TestInspectionConcurrencyInFlightGuard(t *testing.T) {
+	env := setupTestEnv(t)
+	hostID, err := env.db.CreateHost(&store.Host{
+		Name: "concurrency-test-host",
+		Host: "192.168.1.51",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatalf("create host: %v", err)
+	}
+
+	// Channel to block the first inspection inside a runner handler
+	started := make(chan struct{})
+	unblock := make(chan struct{})
+
+	env.mockRunner.Handlers[inspector.SystemMetricsBatchCmd] = func() (string, string, int, error) {
+		close(started)
+		<-unblock
+		// Return standard dummy batch metrics
+		return env.mockRunner.DefaultExec(inspector.SystemMetricsBatchCmd)
+	}
+
+	doneFirst := make(chan struct{})
+	go func() {
+		_ = env.inspector.InspectHost(hostID)
+		close(doneFirst)
+	}()
+
+	<-started
+
+	// Verify IsInspecting reports true
+	if !env.inspector.IsInspecting(hostID) {
+		t.Errorf("expected IsInspecting(%d) to be true", hostID)
+	}
+
+	// Second concurrent call should return immediately without blocking
+	doneSecond := make(chan error, 1)
+	go func() {
+		doneSecond <- env.inspector.InspectHost(hostID)
+	}()
+
+	select {
+	case err := <-doneSecond:
+		if err != nil {
+			t.Errorf("expected nil error on skipped inspection, got %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("second concurrent InspectHost blocked instead of returning immediately")
+	}
+
+	// Unblock first inspection and wait for it to complete
+	close(unblock)
+	<-doneFirst
+
+	if env.inspector.IsInspecting(hostID) {
+		t.Errorf("expected IsInspecting(%d) to be false after completion", hostID)
+	}
+}
+
+
 
