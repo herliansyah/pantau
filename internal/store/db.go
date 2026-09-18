@@ -37,6 +37,10 @@ type Host struct {
 	RAMTotalBytes  int64     `json:"ram_total_bytes"`
 	DiskUsedBytes     int64      `json:"disk_used_bytes"`
 	DiskTotalBytes    int64      `json:"disk_total_bytes"`
+	CPUCores          int        `json:"cpu_cores"`
+	HardwareModel     string     `json:"hardware_model"`
+	SwapUsedBytes     int64      `json:"swap_used_bytes"`
+	SwapTotalBytes    int64      `json:"swap_total_bytes"`
 	LifecycleScore    int        `json:"lifecycle_score"`
 	LifecycleNotes    string     `json:"lifecycle_notes"`
 	LifecycleBreakdown string    `json:"lifecycle_breakdown"`
@@ -174,6 +178,10 @@ func (d *DB) migrate() error {
 		ram_total_bytes INTEGER DEFAULT 0,
 		disk_used_bytes INTEGER DEFAULT 0,
 		disk_total_bytes INTEGER DEFAULT 0,
+		cpu_cores INTEGER DEFAULT 1,
+		hardware_model TEXT DEFAULT '',
+		swap_used_bytes INTEGER DEFAULT 0,
+		swap_total_bytes INTEGER DEFAULT 0,
 		lifecycle_score INTEGER DEFAULT 100,
 		lifecycle_notes TEXT DEFAULT '',
 		lifecycle_breakdown TEXT DEFAULT '[]',
@@ -269,6 +277,10 @@ func (d *DB) migrate() error {
 	_ = d.alterAddColumn("hosts", "sort_order", "INTEGER DEFAULT 0")
 	_ = d.alterAddColumn("hosts", "group_name", "TEXT DEFAULT ''")
 	_ = d.alterAddColumn("hosts", "lifecycle_breakdown", "TEXT DEFAULT '[]'")
+	_ = d.alterAddColumn("hosts", "cpu_cores", "INTEGER DEFAULT 1")
+	_ = d.alterAddColumn("hosts", "hardware_model", "TEXT DEFAULT ''")
+	_ = d.alterAddColumn("hosts", "swap_used_bytes", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "swap_total_bytes", "INTEGER DEFAULT 0")
 
 	return nil
 }
@@ -431,7 +443,8 @@ func (d *DB) ListHosts() ([]Host, error) {
 		COALESCE(net_rx_bytes, 0), COALESCE(net_tx_bytes, 0), COALESCE(net_rx_speed_bps, 0), COALESCE(net_tx_speed_bps, 0),
 		COALESCE(internet_online, 0), COALESCE(internet_latency_ms, 0), COALESCE(public_ip, ''), COALESCE(active_conn_count, 0),
 		COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, ''),
-		COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, '')
+		COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, ''),
+		COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0)
 		FROM hosts ORDER BY sort_order ASC, id ASC`)
 	if err != nil {
 		return nil, err
@@ -447,7 +460,8 @@ func (d *DB) ListHosts() ([]Host, error) {
 			&h.NetRxBytes, &h.NetTxBytes, &h.NetRxSpeedBps, &h.NetTxSpeedBps,
 			&online, &h.InternetLatencyMs, &h.PublicIP, &h.ActiveConnCount,
 			&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts,
-			&h.Notes, &h.SortOrder, &h.GroupName); err != nil {
+			&h.Notes, &h.SortOrder, &h.GroupName,
+			&h.CPUCores, &h.HardwareModel, &h.SwapUsedBytes, &h.SwapTotalBytes); err != nil {
 			return nil, err
 		}
 		h.InternetOnline = online == 1
@@ -467,13 +481,15 @@ func (d *DB) GetHost(id int64) (*Host, error) {
 		COALESCE(net_rx_bytes, 0), COALESCE(net_tx_bytes, 0), COALESCE(net_rx_speed_bps, 0), COALESCE(net_tx_speed_bps, 0),
 		COALESCE(internet_online, 0), COALESCE(internet_latency_ms, 0), COALESCE(public_ip, ''), COALESCE(active_conn_count, 0),
 		COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, ''),
-		COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, '')
+		COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, ''),
+		COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0)
 		FROM hosts WHERE id = ?`, id).Scan(
 		&h.ID, &h.Name, &h.Host, &h.Port, &h.User, &h.CustomKey, &h.Status, &h.OSInfo, &h.Kernel, &h.Uptime, &h.CPULoad, &h.RAMUsedBytes, &h.RAMTotalBytes, &h.DiskUsedBytes, &h.DiskTotalBytes, &h.LifecycleScore, &h.LifecycleNotes, &h.LifecycleBreakdown, &inspected, &h.CreatedAt,
 		&h.NetRxBytes, &h.NetTxBytes, &h.NetRxSpeedBps, &h.NetTxSpeedBps,
 		&online, &h.InternetLatencyMs, &h.PublicIP, &h.ActiveConnCount,
 		&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts,
 		&h.Notes, &h.SortOrder, &h.GroupName,
+		&h.CPUCores, &h.HardwareModel, &h.SwapUsedBytes, &h.SwapTotalBytes,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -547,9 +563,10 @@ func (d *DB) UpdateHostInspection(h *Host) error {
 	if h.InternetOnline {
 		onlineInt = 1
 	}
-	_, err := d.Exec(`UPDATE hosts SET status=?, os_info=?, kernel=?, uptime=?, cpu_load=?, ram_used_bytes=?, ram_total_bytes=?, disk_used_bytes=?, disk_total_bytes=?, lifecycle_score=?, lifecycle_notes=?, lifecycle_breakdown=?, last_inspected=?, net_rx_bytes=?, net_tx_bytes=?, net_rx_speed_bps=?, net_tx_speed_bps=?, internet_online=?, internet_latency_ms=?, public_ip=?, active_conn_count=?, failed_logins_count=?, top_connections=?, listening_ports=? WHERE id=?`,
+	_, err := d.Exec(`UPDATE hosts SET status=?, os_info=?, kernel=?, uptime=?, cpu_load=?, ram_used_bytes=?, ram_total_bytes=?, disk_used_bytes=?, disk_total_bytes=?, lifecycle_score=?, lifecycle_notes=?, lifecycle_breakdown=?, last_inspected=?, net_rx_bytes=?, net_tx_bytes=?, net_rx_speed_bps=?, net_tx_speed_bps=?, internet_online=?, internet_latency_ms=?, public_ip=?, active_conn_count=?, failed_logins_count=?, top_connections=?, listening_ports=?, cpu_cores=?, hardware_model=?, swap_used_bytes=?, swap_total_bytes=? WHERE id=?`,
 		h.Status, h.OSInfo, h.Kernel, h.Uptime, h.CPULoad, h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, h.LifecycleScore, h.LifecycleNotes, h.LifecycleBreakdown, now,
 		h.NetRxBytes, h.NetTxBytes, h.NetRxSpeedBps, h.NetTxSpeedBps, onlineInt, h.InternetLatencyMs, h.PublicIP, h.ActiveConnCount, h.FailedLoginsCount, h.TopConnections, h.ListeningPorts,
+		h.CPUCores, h.HardwareModel, h.SwapUsedBytes, h.SwapTotalBytes,
 		h.ID)
 	return err
 }

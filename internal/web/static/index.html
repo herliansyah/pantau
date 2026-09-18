@@ -1495,8 +1495,17 @@ const I18N = {
     "address": "Address:",
     "os": "OS:",
     "uptime": "Uptime:",
-    "ram_usage": "RAM Usage",
-    "disk_usage": "Disk Usage",
+    "cpu_label": "CPU:",
+    "cores": "Cores",
+    "core": "Core",
+    "ram_usage": "RAM",
+    "swap_usage": "Swap",
+    "swap_disabled": "Disabled",
+    "disk_usage": "Disk",
+    "hardware_vendor": "Hardware / Platform:",
+    "virtual_mem": "Virtual Memory (Swap):",
+    "phys_mem": "Physical Memory (RAM):",
+    "root_storage": "Root Storage (/):",
     "lifecycle_score": "Lifecycle Score:",
     "internet": "Internet:",
     "online": "Online",
@@ -1912,8 +1921,17 @@ const I18N = {
     "address": "Alamat:",
     "os": "OS:",
     "uptime": "Uptime:",
-    "ram_usage": "Penggunaan RAM",
-    "disk_usage": "Penggunaan Disk",
+    "cpu_label": "CPU:",
+    "cores": "Core",
+    "core": "Core",
+    "ram_usage": "RAM",
+    "swap_usage": "Swap",
+    "swap_disabled": "Nonaktif",
+    "disk_usage": "Disk",
+    "hardware_vendor": "Perangkat Keras / Platform:",
+    "virtual_mem": "Memori Virtual (Swap):",
+    "phys_mem": "Memori Fisik (RAM):",
+    "root_storage": "Penyimpanan Utama (/):",
     "lifecycle_score": "Lifecycle Score:",
     "internet": "Internet:",
     "online": "Online",
@@ -2892,7 +2910,35 @@ function renderGridView(grid, isManualSort) {
       }
 
       const ramPct = h.ram_total_bytes > 0 ? Math.round((h.ram_used_bytes / h.ram_total_bytes) * 100) : 0;
+      const ramUsedStr = formatBytes(h.ram_used_bytes || 0);
+      const ramTotStr = formatBytes(h.ram_total_bytes || 0);
+
+      const swapTot = h.swap_total_bytes || 0;
+      const swapUsd = h.swap_used_bytes || 0;
+      const swapPct = swapTot > 0 ? Math.round((swapUsd / swapTot) * 100) : 0;
+      const swapUsedStr = formatBytes(swapUsd);
+      const swapTotStr = formatBytes(swapTot);
+
       const diskPct = h.disk_total_bytes > 0 ? Math.round((h.disk_used_bytes / h.disk_total_bytes) * 100) : 0;
+      const diskUsedStr = formatBytes(h.disk_used_bytes || 0);
+      const diskTotStr = formatBytes(h.disk_total_bytes || 0);
+
+      let load1m = 0;
+      if (h.cpu_load) {
+        const parts = h.cpu_load.split(',');
+        if (parts.length > 0) {
+          load1m = parseFloat(parts[0].trim()) || 0;
+        }
+      }
+      const cores = h.cpu_cores > 0 ? h.cpu_cores : 1;
+      let cpuColor = 'var(--text, #e2e8f0)';
+      if (load1m > cores * 1.5) {
+        cpuColor = 'var(--danger, #f87171)';
+      } else if (load1m > cores) {
+        cpuColor = '#fbbf24';
+      } else if (h.cpu_load) {
+        cpuColor = 'var(--success, #34d399)';
+      }
 
       let scoreColor = '#34d399';
       if (h.lifecycle_score < 50) scoreColor = '#f87171';
@@ -2934,12 +2980,31 @@ function renderGridView(grid, isManualSort) {
             ${recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : ''}🕒 ${recency.relative}
           </span>
         </div>
+        <div class="stat-row" style="align-items: center;">
+          <span>${t('cpu_label', 'CPU:')}</span>
+          <span>${cores} ${cores > 1 ? t('cores', 'Cores') : t('core', 'Core')} <span style="color: ${cpuColor}; font-weight: 600;">(Load: ${load1m.toFixed(2)})</span></span>
+        </div>
         <div>
-          <div class="stat-row"><span>${t('ram_usage')}</span> <span>${ramPct}%</span></div>
+          <div class="stat-row">
+            <span>${t('ram_usage', 'RAM')}</span>
+            <span>${ramUsedStr} / ${ramTotStr} (${ramPct}%)</span>
+          </div>
           <div class="progress"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
         </div>
         <div>
-          <div class="stat-row"><span>${t('disk_usage')}</span> <span>${diskPct}%</span></div>
+          <div class="stat-row">
+            <span>${t('swap_usage', 'Swap')}</span>
+            ${swapTot > 0 
+              ? `<span>${swapUsedStr} / ${swapTotStr} (${swapPct}%)</span>` 
+              : `<span style="color: var(--text-muted);">${t('swap_disabled', 'Disabled')}</span>`}
+          </div>
+          <div class="progress" style="${swapTot === 0 ? 'opacity: 0.35;' : ''}"><div class="progress-fill ${swapPct > 80 ? 'danger' : (swapPct > 30 ? 'warn' : '')}" style="width: ${swapPct}%"></div></div>
+        </div>
+        <div>
+          <div class="stat-row">
+            <span>${t('disk_usage', 'Disk')}</span>
+            <span>${diskUsedStr} / ${diskTotStr} (${diskPct}%)</span>
+          </div>
           <div class="progress"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
         </div>
         <div class="stat-row" style="align-items: center; border-top: 1px solid var(--card-border); padding-top: 8px;">
@@ -3113,12 +3178,12 @@ function renderListView(listContainer, isManualSort) {
           ${recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : ''}🕒 ${recency.relative}
         </td>
         <td><span class="score-badge" style="color: ${scoreColor}; font-size: 0.9rem;">${h.lifecycle_score}</span></td>
-        <td>
-          <div style="font-size: 0.8rem; margin-bottom: 2px;">${ramPct}%</div>
+        <td title="${formatBytes(h.ram_used_bytes || 0)} / ${formatBytes(h.ram_total_bytes || 0)}">
+          <div style="font-size: 0.8rem; margin-bottom: 2px;">${ramPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.ram_total_bytes || 0)})</span></div>
           <div class="progress" style="height: 4px;"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
         </td>
-        <td>
-          <div style="font-size: 0.8rem; margin-bottom: 2px;">${diskPct}%</div>
+        <td title="${formatBytes(h.disk_used_bytes || 0)} / ${formatBytes(h.disk_total_bytes || 0)}">
+          <div style="font-size: 0.8rem; margin-bottom: 2px;">${diskPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.disk_total_bytes || 0)})</span></div>
           <div class="progress" style="height: 4px;"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
         </td>
         <td style="font-size: 0.8rem; font-family: monospace;">
@@ -3486,10 +3551,14 @@ function switchTab(tab, presetID) {
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
         <div class="card">
           <h4>${t('sys_info')}</h4>
+          <div class="stat-row"><span>${t('hardware_vendor', 'Hardware / Platform:')}</span> <span>${escapeHtml(d.host.hardware_model || 'Unknown / Standard')}</span></div>
           <div class="stat-row"><span>${t('os')}</span> <span>${escapeHtml(d.host.os_info)}</span></div>
           <div class="stat-row"><span>${t('kernel')}</span> <span>${escapeHtml(d.host.kernel)}</span></div>
+          <div class="stat-row"><span>${t('cpu_label', 'CPU:')}</span> <span>${d.host.cpu_cores || 1} ${(d.host.cpu_cores || 1) > 1 ? t('cores', 'Cores') : t('core', 'Core')} <span style="color: var(--text-muted); font-size: 0.82rem;">(Load: ${escapeHtml(d.host.cpu_load || '-')})</span></span></div>
+          <div class="stat-row"><span>${t('phys_mem', 'RAM:')}</span> <span>${formatBytes(d.host.ram_used_bytes || 0)} / ${formatBytes(d.host.ram_total_bytes || 0)} (${d.host.ram_total_bytes > 0 ? Math.round(((d.host.ram_used_bytes || 0) / d.host.ram_total_bytes) * 100) : 0}%)</span></div>
+          <div class="stat-row"><span>${t('virtual_mem', 'Swap:')}</span> <span>${d.host.swap_total_bytes > 0 ? formatBytes(d.host.swap_used_bytes || 0) + ' / ' + formatBytes(d.host.swap_total_bytes) + ' (' + Math.round(((d.host.swap_used_bytes || 0) / d.host.swap_total_bytes) * 100) + '%)' : '<span style="color: var(--text-muted);">' + t('swap_disabled', 'Disabled') + '</span>'}</span></div>
+          <div class="stat-row"><span>${t('root_storage', 'Root Storage (/):')}</span> <span>${formatBytes(d.host.disk_used_bytes || 0)} / ${formatBytes(d.host.disk_total_bytes || 0)} (${d.host.disk_total_bytes > 0 ? Math.round(((d.host.disk_used_bytes || 0) / d.host.disk_total_bytes) * 100) : 0}%)</span></div>
           <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(d.host.uptime)}</span></div>
-          <div class="stat-row"><span>${t('load_avg')}</span> <span>${escapeHtml(d.host.cpu_load)}</span></div>
           <div class="stat-row">
             <span>${t('last_inspected_label', 'Last Inspected:')}</span>
             <span style="${detailRecency.isStale ? 'color: #fbbf24; font-weight: 600;' : ''}" title="${detailRecency.title}">
