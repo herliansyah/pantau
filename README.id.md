@@ -86,6 +86,8 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 
 ### 1. 🔍 Inspeksi Agentless SSH & 1-Click Key Provisioning
 - Mengambil metrik sistem secara aktual (CPU Load, RAM, partisi Disk, Network Egress, Sockets, Uptime, Kernel) murni melalui koneksi SSH standar.
+- **Spesifikasi Hardware & Resource Metrics**: Mengekstrak tipe model perangkat keras, jumlah core CPU, beban antrian CPU ternormalisasi, serta memori virtual (Swap). Menampilkan kapasitas absolut inline (`terpakai / total`) pada bar RAM dan Disk, serta status Swap permanen pada kartu Host.
+- **Inspection Concurrency Guard & Timeout**: Penguncian in-flight mencegah penumpukan inspeksi paralel (*inspection stampede*), diperkuat batas waktu eksekusi SSH maksimum 30 detik.
 - **One-Time Key Provisioning**: Masukkan password server target sekali di RAM. Pantau secara idempoten menyalin public key universal RSA 4096-bit ke `~/.ssh/authorized_keys` (didukung universal dari OpenSSH 5.3+ lawas hingga Linux modern) dan langsung menghapus password dari memori.
 - **Kompatibilitas Server Lawas**: Mendukung cipher warisan (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`) untuk memantau server Linux legasi (CentOS 6, Debian 7, OpenSSH 5.3+).
 - **Inspeksi Massal & Kesegaran Data**: Pemicuan inspeksi serentak seluruh host via tombol `⚡ Inspect All`, pembaruan otomatis berkala yang dapat dikonfigurasi, serta visualisasi waktu inspeksi relatif dan deteksi data usang (*Stale Inspection*).
@@ -149,11 +151,11 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **Proteksi Brute-Force Rate Limiting**: Menerapkan masa jeda pendinginan otomatis selama 30 detik setelah 3 kali percobaan verifikasi gagal secara berturut-turut.
 - **Flag Bypass Darurat Host**: Argumen startup `-disable-2fa` memungkinkan administrator menonaktifkan 2FA langsung melalui konsol server utama jika perangkat authenticator dan kode pemulihan hilang.
 
-### 14. 🖥️ Global Multi-Tab Terminal Dock & Persistent Session Pill
-- **Multi-Tab Terminal Dock**: Dok terminal terintegrasi di bagian bawah aplikasi yang dapat menampung banyak sesi shell SSH PTY bersamaan ke berbagai server remote berbeda.
-- **Penamaan Tab Dinamis (Inline Rename)**: Ubah nama label tab terminal langsung dari UI untuk mempermudah identifikasi tugas pemeliharaan antar-server.
-- **Session Pill Mengambang Persisten**: Minimalkan dock menjadi tombol pil (*Session Pill*) elegan di pojok kanan bawah yang menampilkan jumlah sesi aktif; navigasi dashboard dan pantau metrik tanpa memutus proses shell atau tail log yang sedang berjalan.
-- **Peralihan Tampilan Fleksibel**: Buka tutup dok, bagi layar menjadi dua (*Split-Pane* `Alt+\`), atau maksimalkan ke layar penuh (*full-viewport*) dalam satu klik tanpa merusak sesi SSH maupun aplikasi interaktif (`htop`, `tmux`, `nano`).
+### 14. 🖥️ Global Multi-Tab Terminal Dock & Terminal Header Launcher
+- **Multi-Tab Terminal Dock**: Dok terminal terintegrasi di bagian bawah aplikasi yang dapat menampung banyak sesi shell SSH PTY bersamaan ke berbagai server remote berbeda dengan penamaan tab dinamis (*inline rename*) dan tampilan belah layar (*Split-Pane* `Alt+\`).
+- **Terminal Header Launcher**: Tombol kendali terpadu pada header navigasi atas dengan lencana jumlah sesi aktif secara real-time. Berfungsi sebagai toggle cerdas untuk meminimalkan, membuka kembali, atau meluncurkan sesi baru dengan dropdown pemilih server.
+- **Reactive Host Session Badges**: Tombol terminal pada kartu Host (Grid View) dan baris tabel (List View) menampilkan badge jumlah sesi shell aktif, memberikan visibilitas instan server mana saja yang sedang dikelola.
+- **Peralihan Tampilan Fleksibel & Modal Stack**: Buka tutup dok atau maksimalkan ke layar penuh (*full-viewport*) dalam satu klik tanpa merusak sesi SSH; pengelolaan tumpukan modal dan penutupan berjenjang tombol `Escape` menjaga navigasi terminal tetap lancar.
 
 ### 15. 🔄 Update Checker & Self-Update Semi-Otomatis (Zero-Ops)
 - **Deteksi Rilis Asinkron (Update Checker)**: Memeriksa ketersediaan versi rilis baru secara periodik (setiap 12 jam dengan cache 6 jam) dan menyajikan notifikasi pembaruan di antarmuka web.
@@ -206,11 +208,12 @@ volumes:
   pantau-data:
 ```
 
-*(Catatan: Variabel lingkungan standar `PORT` dan `DB_PATH` juga didukung sebagai fallback otomatis).*
+*(Catatan: Image resmi Docker di GHCR mendukung multi-arsitektur secara native untuk `linux/amd64` dan `linux/arm64`. Variabel lingkungan standar `PORT` dan `DB_PATH` juga didukung sebagai fallback otomatis).*
 
 ```bash
 docker compose up -d
 ```
+
 
 ---
 

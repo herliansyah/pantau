@@ -208,3 +208,8 @@ _Avoid_: Auto patch, silent updater, live patch, background updater
 **Resource Metrics**:
 Rangkuman metrik kapasitas komputasi riil sebuah Host yang mencakup kuantitas core CPU, beban antrian proses (*load average*), kapasitas memori fisik (RAM), memori virtual (Swap), dan utilisasi penyimpanan root (Disk).
 _Avoid_: Machine specs, server performance counters, hardware telemetry
+
+**Inspection Concurrency Guard**:
+Mekanisme penguncian in-flight pada level Host untuk mencegah penumpukan inspeksi paralel (*inspection stampede*) saat inspeksi latar belakang dan inspeksi manual dipicu bersamaan atau ketika server lambat merespons.
+_Avoid_: Inspection lock, polling mutex, stampede blocker
+

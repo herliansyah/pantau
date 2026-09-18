@@ -112,11 +112,20 @@ Pantau tidak hanya menampilkan metrik pasif; sistem ini secara aktif memverifika
 Pantau mengumpulkan telemetri actual state dan memvalidasi desired state melalui siklus inspeksi terjadwal maupun on-demand:
 
 - **Inspeksi Massal (Inspect All)**: Klik tombol `⚡ Inspect All` di bilah atas untuk memicu pembacaan kondisi seluruh armada server secara serentak (asinkron).
-- **Inspeksi Mandiri Per-Host**: Klik tombol petir `⚡` pada masing-masing kartu server atau gunakan tombol *Run Immediate Inspection* di modal detail host.
+- **Inspeksi Mandiri Per-Host**: Klik tombol petir `⚡` pada masing-masing kartu server atau baris tabel, atau gunakan ikon refresh kompak pada header modal detail host (di samping badge status).
 - **Indikator Kesegaran Data (Inspection Recency)**: Setiap kartu dan baris tabel menyajikan waktu relatif inspeksi terakhir (contoh: `🕒 2m lalu`, `🕒 baru saja`) beserta tooltip jam presisi.
 - **Pendeteksian Data Usang (Stale Inspection)**: Jika sebuah host tidak berhasil diinspeksi melebihi batas waktu toleransi (> 10 menit atau 2× interval normal), Pantau menampilkan penanda peringatan oranye `⚠️ Data Usang` untuk mencegah false-confidence pada data telemetri lama.
 - **Auto-Refresh Dashboard**: Tampilan browser secara otomatis menyinkronkan status kartu host setiap 30 detik tanpa memerlukan reload halaman manual.
-- **Konfigurasi Interval Inspeksi**: Administrator dapat mengubah frekuensi inspeksi background (default 300 detik / 5 menit, minimal 30 detik) melalui modal **Settings** > tab **Access**.
+- **Konfigurasi Interval Inspeksi**: Administrator dapat mengubah frekuensi inspeksi background (default 300 detik / 5 menit, minimal 30 detik) melalui modal **Settings** > tab **General**.
+- **Inspection Concurrency Guard & Timeout**: Mekanisme penguncian in-flight pada level host mencegah penumpukan inspeksi paralel (*inspection stampede*). Seluruh perintah non-interaktif SSH dibatasi oleh batas waktu ketat 30 detik agar sesi SSH yang tertahan tidak membebani sistem.
+
+### Resource Metrics & Telemetri Perangkat Keras
+
+Pengambilan telemetri mengekstrak metrik kapasitas komputasi riil secara berkelanjutan:
+- **Kapasitas Absolut Inline**: Bar progress RAM dan Disk menyajikan angka riil `terpakai / total` (misal `4.2 GB / 15.8 GB`) langsung secara inline tanpa penalti layout vertikal.
+- **Telemetri Swap**: Baris Swap permanen pada setiap kartu host menyajikan pemakaian memori virtual aktif, atau menampilkan penanda redup `Disabled` jika swap belum dikonfigurasi di server.
+- **Beban CPU Ternormalisasi**: Beban antrian sistem (*load average*) dievaluasi terhadap jumlah core CPU fisik dan logis (`nproc`), menampilkan aksen warna peringatan ketika antrian melampaui kapasitas core.
+- **Kartu Sys Info**: Modal Detail Host menyajikan tipe model hardware, lapisan virtualisasi, kuantitas core CPU, dan topologi partisi penyimpanan.
 
 ### Mendeteksi Drift & Root Cause Excerpt
 
@@ -134,9 +143,11 @@ Pada setiap siklus **Inspection** berkala (standar: setiap 5 menit) atau saat di
 Saat insiden memerlukan penanganan terminal langsung:
 
 - **Terminal Dock**: Buka sesi shell interaktif multi-tab berbasis WebSocket PTY (`xterm.js`).
+- **Terminal Header Launcher**: Akses dan kontrol dok terminal dari header navigasi utama. Lencana sesi aktif menampilkan akumulasi sesi PTY di seluruh sistem. Saat dok kosong, mengklik launcher akan langsung membuka dropdown pemilih host untuk memulai sesi baru.
+- **Reactive Host Session Badges**: Kartu host pada Grid View dan List View menyematkan badge angka reaktif ketika terdapat sesi shell yang aktif untuk server tersebut.
 - **Split-Pane View (`Alt+\`)**: Belah area kerja terminal menjadi dua jendela berdampingan untuk mengamati log dari dua host berbeda secara sinkron.
-- **Terminal Preset**: Jalankan perintah investigasi rutin yang telah disimpan (misal: `htop`, `journalctl -f`, `docker stats`) hanya dengan satu kali klik.
-- **Session Pill**: Minimalkan dok terminal menjadi lencana mengambang di pojok kanan bawah. Perintah shell yang sedang berjalan (seperti proses kompilasi atau tailing log) akan terus aktif di latar belakang saat Anda memeriksa dashboard.
+- **Terminal Preset**: Jalankan perintah investigasi rutin yang telah disimpan (misal: `htop`, `journalctl -f`, `docker stats`) baik berlingkup global maupun terikat secara dinamis pada host aktif di tab terminal.
+- **Modal Stacking & Tombol Escape**: Dialog aksi turunan (form preset, aturan desired state, catatan) menumpuk di atas modal induk secara dinamis dengan layer z-index bertingkat. Penekanan tombol `Escape` menutup dialog paling atas secara berurutan tanpa merusak sesi terminal di bawahnya.
 
 ### Evaluasi Kelayakan Server dengan Lifecycle Assessment
 
@@ -246,6 +257,7 @@ Untuk instalasi binary mandiri (Linux dan Windows):
 5. **Graceful Restart**: Klik tombol **Restart Pantau Sekarang**. Server akan menyelesaikan proses yang sedang berjalan, menutup database dengan aman, men-spawn proses baru dengan argumen konfigurasi yang identik, dan antarmuka web akan otomatis memuat ulang saat server aktif kembali.
 
 ### Diferensiasi Lingkungan Docker vs Standalone Binary
+- Image Docker resmi di GitHub Container Registry (`ghcr.io/herliansyah/pantau:latest`) mendukung multi-arsitektur secara native untuk platform `linux/amd64` dan `linux/arm64`.
 - Jika Pantau dijalankan di dalam container Docker, tombol penggantian biner otomatis dinonaktifkan demi menjaga integritas pola kontainerisasi.
 - Antarmuka web akan menampilkan panduan penarikan image resmi:
   ```bash
