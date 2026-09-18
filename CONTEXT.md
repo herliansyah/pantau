@@ -177,9 +177,13 @@ _Avoid_: Backup pin, emergency password, rescue code
 Opsi argumen baris perintah (`-disable-2fa`) pada binary Pantau untuk menonaktifkan 2FA secara darurat melalui akses terminal host master.
 _Avoid_: Emergency unlock, force reset flag
 
-**Session Pill**:
-Indikator status sesi terminal mengambang di pojok bawah antarmuka web saat Terminal Dock diminimalkan, menampilkan jumlah koneksi PTY aktif dan nama Host target untuk pemulihan tampilan dok secara instan.
-_Avoid_: Floating badge, minimized indicator, shell widget, dock bubble
+**Terminal Header Launcher**:
+Tombol aksi terminal global terpadu pada header utama Pantau yang memicu tampilan Terminal Dock, dilengkapi badge indikator jumlah sesi PTY aktif secara real-time.
+_Avoid_: Floating pill, session pill, dock launcher, terminal shortcut
+
+**Terminal Session Badge**:
+Indikator numerik reaktif pada tombol terminal kartu Host dan Terminal Header Launcher yang merefleksikan jumlah sesi shell aktif untuk masing-masing Host atau seluruh sistem.
+_Avoid_: Tab counter, active count pill, connection tag
 
 **2FA Lockout**:
 Penangguhan sementara proses verifikasi login (jeda pendinginan 30 detik setelah 3 kali kegagalan berturut-turut memasukkan token TOTP atau Recovery Code) untuk memitigasi upaya serangan tebak token otomatis (brute-force).
