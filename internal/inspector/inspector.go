@@ -125,7 +125,7 @@ func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner
 		h.Uptime, h.CPULoad = parseUptime(uptimeOut)
 	}
 	if len(sections) >= 4 {
-		h.RAMUsedBytes, h.RAMTotalBytes = parseFree(sections[3])
+		h.RAMUsedBytes, h.RAMTotalBytes, h.SwapUsedBytes, h.SwapTotalBytes = parseFree(sections[3])
 	}
 	if len(sections) >= 5 {
 		h.DiskUsedBytes, h.DiskTotalBytes = parseDf(sections[4])
@@ -142,6 +142,7 @@ func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner
 			cpuCores = c
 		}
 	}
+	h.CPUCores = cpuCores
 
 	biosDateStr := ""
 	if len(sections) >= 14 {
@@ -151,6 +152,7 @@ func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner
 	if len(sections) >= 15 {
 		vendorStr = strings.TrimSpace(sections[14])
 	}
+	h.HardwareModel = vendorStr
 	osInstallEpoch := int64(0)
 	if len(sections) >= 16 {
 		osInstallEpoch, _ = strconv.ParseInt(strings.TrimSpace(sections[15]), 10, 64)
@@ -372,9 +374,10 @@ func parseUptime(line string) (uptimeStr, loadStr string) {
 	return uptimeStr, loadStr
 }
 
-func parseFree(output string) (used, total int64) {
+func parseFree(output string) (ramUsed, ramTotal, swapUsed, swapTotal int64) {
 	lines := strings.Split(output, "\n")
 	var memTot, memUsd int64
+	var swpTot, swpUsd int64
 	var bufCacheUsed int64
 	hasBufCache := false
 
@@ -385,6 +388,12 @@ func parseFree(output string) (used, total int64) {
 			if len(fields) >= 3 {
 				memTot, _ = strconv.ParseInt(fields[1], 10, 64)
 				memUsd, _ = strconv.ParseInt(fields[2], 10, 64)
+			}
+		} else if strings.HasPrefix(l, "Swap:") {
+			fields := strings.Fields(l)
+			if len(fields) >= 3 {
+				swpTot, _ = strconv.ParseInt(fields[1], 10, 64)
+				swpUsd, _ = strconv.ParseInt(fields[2], 10, 64)
 			}
 		} else if strings.Contains(l, "buffers/cache:") {
 			// Legacy free format on pre-3.14 kernels (CentOS 6): "-/+ buffers/cache: used free"
@@ -401,13 +410,11 @@ func parseFree(output string) (used, total int64) {
 		}
 	}
 
-	if memTot > 0 {
-		if hasBufCache && bufCacheUsed > 0 {
-			return bufCacheUsed, memTot
-		}
-		return memUsd, memTot
+	finalRamUsed := memUsd
+	if hasBufCache && bufCacheUsed > 0 {
+		finalRamUsed = bufCacheUsed
 	}
-	return 0, 0
+	return finalRamUsed, memTot, swpUsd, swpTot
 }
 
 func parseDf(output string) (used, total int64) {
