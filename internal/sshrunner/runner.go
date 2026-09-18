@@ -16,6 +16,7 @@ import (
 
 type Runner interface {
 	Exec(cmd string) (stdout, stderr string, exitCode int, err error)
+	ExecTimeout(cmd string, timeout time.Duration) (stdout, stderr string, exitCode int, err error)
 	Stream(cmd string, out io.Writer) error
 	PipeCommand(cmd string, in io.Reader, out io.Writer) error
 	SFTP() (*sftp.Client, error)
@@ -161,7 +162,13 @@ func DefaultKeyProvisioner(host string, port int, user, password, pubKey string)
 	return nil
 }
 
+const DefaultExecTimeout = 30 * time.Second
+
 func (r *LiveSSHRunner) Exec(cmd string) (stdout, stderr string, exitCode int, err error) {
+	return r.ExecTimeout(cmd, DefaultExecTimeout)
+}
+
+func (r *LiveSSHRunner) ExecTimeout(cmd string, timeout time.Duration) (stdout, stderr string, exitCode int, err error) {
 	session, err := r.client.NewSession()
 	if err != nil {
 		return "", "", -1, err
@@ -172,9 +179,31 @@ func (r *LiveSSHRunner) Exec(cmd string) (stdout, stderr string, exitCode int, e
 	session.Stdout = &stdoutBuf
 	session.Stderr = &stderrBuf
 
+	if timeout <= 0 {
+		timeout = DefaultExecTimeout
+	}
+
+	var timedOut bool
+	var mu sync.Mutex
+	timer := time.AfterFunc(timeout, func() {
+		mu.Lock()
+		timedOut = true
+		mu.Unlock()
+		_ = session.Close()
+	})
+	defer timer.Stop()
+
 	execErr := session.Run(cmd)
 	stdout = stdoutBuf.String()
 	stderr = stderrBuf.String()
+
+	mu.Lock()
+	isTimeout := timedOut
+	mu.Unlock()
+
+	if isTimeout {
+		return stdout, stderr, -1, fmt.Errorf("command timed out after %v", timeout)
+	}
 
 	if execErr != nil {
 		if exitErr, ok := execErr.(*ssh.ExitError); ok {
@@ -309,6 +338,10 @@ func (m *MockRunner) Exec(cmd string) (stdout, stderr string, exitCode int, err 
 	m.mu.Unlock()
 
 	return defaultHandler(cmd)
+}
+
+func (m *MockRunner) ExecTimeout(cmd string, timeout time.Duration) (stdout, stderr string, exitCode int, err error) {
+	return m.Exec(cmd)
 }
 
 func (m *MockRunner) Stream(cmd string, out io.Writer) error {
