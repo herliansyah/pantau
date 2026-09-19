@@ -87,10 +87,11 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 ### 1. 🔍 Agentless SSH Inspection & 1-Click Key Provisioning
 - Collects real-time metrics (CPU Load, RAM, Disk partitions, Network Egress, Sockets, Uptime, Kernel) purely via standard POSIX SSH.
 - **Hardware Specs & Resource Metrics**: Extracts hardware model, CPU core count, normalized CPU load, and virtual memory (Swap) status. Displays inline absolute capacity (`used / total`) on RAM and Disk progress bars, and dedicated Swap indicators on host cards.
-- **Inspection Concurrency Guard & Timeout**: In-flight concurrency lock prevents overlapping inspection stampedes, with an enforced 30-second SSH execution timeout.
+- **Structured Inspection Runs & Telemetry**: Records per-host execution history (started timestamp, roundtrip duration in milliseconds, status badge, human-readable summary, and root cause diagnostic excerpts) in SQLite. Displays real-time execution duration metrics (`duration_ms`) on host cards and list views, with automatic inline rolling pruning maintaining a strict 100 runs limit per host with zero background schedulers.
+- **Inspection Guard, Anti-Flood Cooldown & Hung NFS Protection**: Enforces a 15-second per-host cooldown on manual inspections (`HTTP 429 Too Many Requests`), an explicit in-flight concurrency lock (`HTTP 409 Conflict`), an enforced 45-second total hard timeout budget, and isolated local filesystem queries (`df -lPk /`) with 5-second execution timeouts to prevent hung NFS/network storage deadlocks.
 - **One-Time Key Provisioning**: Provide target root/sudo password once in RAM. Pantau idempotently injects its universal RSA 4096-bit public key into `~/.ssh/authorized_keys` (universally supported across legacy OpenSSH 5.3+ through modern OpenSSH) and discards the password immediately from memory.
 - **Legacy Server Compatibility**: Native cipher fallbacks (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`) allow monitoring legacy Linux servers (CentOS 6, Debian 7, OpenSSH 5.3+).
-- **Mass Inspection & Freshness Indicators**: Trigger simultaneous concurrent inspection across all hosts via `⚡ Inspect All`, configurable background inspection intervals, dynamic time-ago indicators, and automated Stale Inspection warnings.
+- **Mass Inspection & Freshness Indicators**: Trigger simultaneous bulk inspection across all hosts via `⚡ Inspect All` running through a bounded worker pool (max 5 parallel host sessions) with an anti-flood lock, configurable background inspection intervals, dynamic time-ago indicators, and automated Stale Inspection warnings.
 
 ### 2. 📋 Desired State Baseline & Automated Drift Engine
 - **1-Click Baseline**: Auto-detects running Docker containers, disks, cron jobs, and database services (`mysqld`, `postgres`, `redis`, `nginx`).
@@ -164,6 +165,11 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - **Cross-Platform Atomic Swap**: In-place replacement on Linux and Windows (using `.exe.old` renaming to bypass OS executable file locking).
 - **Graceful Process Handover**: Zero-data-loss restart preserving CLI flags and database state, paired with auto-reconnecting browser clients.
 - **Airgapped-First & Docker Awareness**: Fails silently in airgapped environments (with `-disable-update-check` flag), and intelligently detects Docker containers to display `docker compose pull` recommendations instead of binary swapping.
+
+### 16. 📖 Airgapped In-App Documentation Modal & Embedded Changelog
+- **Embedded Single-Source Guides**: Pantau's official README, User Guide (bilingual EN/ID), and Changelog are embedded directly inside the single binary via `go:embed`.
+- **Zero-Dependency In-App Reader**: Read operational guides offline without internet or external CDN dependencies via the **Documentation Modal** (`75vw × 80vh`), featuring an integrated micro-parser, theme-aware syntax styling, and smooth-scrolling dynamic Table of Contents.
+- **Dual Entry Point**: Accessible before login on initial setup and disaster recovery screens, as well as post-authentication via header `(?)`, footer version badge, and Settings links.
 
 ---
 
