@@ -2053,6 +2053,8 @@ func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request) {
 		} else {
 			filePath = "docs/user-guide.md"
 		}
+	case "changelog":
+		filePath = "CHANGELOG.md"
 	default:
 		http.Error(w, "Invalid document name", http.StatusBadRequest)
 		return

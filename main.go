@@ -30,7 +30,7 @@ import (
 
 //go:generate go run github.com/tc-hib/go-winres@v0.3.3 make --arch amd64,arm64
 
-//go:embed README.md README.id.md docs/user-guide.md docs/user-guide.id.md
+//go:embed README.md README.id.md docs/user-guide.md docs/user-guide.id.md CHANGELOG.md
 var embeddedDocs embed.FS
 
 var Version = "dev"

@@ -463,6 +463,7 @@ func TestHandleDocs(t *testing.T) {
 		"README.id.md":          &fstest.MapFile{Data: []byte("# Pantau\n\nRingkasan Bahasa Indonesia")},
 		"docs/user-guide.md":    &fstest.MapFile{Data: []byte("# User Guide\n\nEnglish Guide")},
 		"docs/user-guide.id.md": &fstest.MapFile{Data: []byte("# Panduan Pengguna\n\nPanduan Bahasa Indonesia")},
+		"CHANGELOG.md":          &fstest.MapFile{Data: []byte("# Changelog\n\nAll notable changes")},
 	}
 
 	srv := NewServer(nil, nil, nil)
@@ -515,7 +516,18 @@ func TestHandleDocs(t *testing.T) {
 		t.Errorf("expected Indonesian guide, got %q", rec.Body.String())
 	}
 
-	// 5. Invalid name -> 400 Bad Request
+	// 5. GET /api/docs?name=changelog -> CHANGELOG.md (language agnostic fallback)
+	req = httptest.NewRequest(http.MethodGet, "/api/docs?name=changelog&lang=id", nil)
+	rec = httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for changelog, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "All notable changes") {
+		t.Errorf("expected Changelog content, got %q", rec.Body.String())
+	}
+
+	// 6. Invalid name -> 400 Bad Request
 	req = httptest.NewRequest(http.MethodGet, "/api/docs?name=unknown", nil)
 	rec = httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
