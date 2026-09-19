@@ -62,6 +62,7 @@ type Host struct {
 	Notes             string `json:"notes"`
 	SortOrder         int    `json:"sort_order"`
 	GroupName         string `json:"group_name"`
+	LastDurationMs    int64  `json:"last_duration_ms"`
 }
 
 type TopConn struct {
@@ -129,6 +130,17 @@ type TerminalPreset struct {
 	SortOrder int       `json:"sort_order"`
 	UseTmux   bool      `json:"use_tmux"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type InspectionRun struct {
+	ID         int64     `json:"id"`
+	HostID     int64     `json:"host_id"`
+	StartedAt  time.Time `json:"started_at"`
+	DurationMs int64     `json:"duration_ms"`
+	Status     string    `json:"status"` // ok, drift, degraded, down, error
+	Summary    string    `json:"summary"`
+	Details    string    `json:"details"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 func Open(dbPath string) (*DB, error) {
@@ -255,6 +267,18 @@ func (d *DB) migrate() error {
 		use_tmux INTEGER DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
+
+	CREATE TABLE IF NOT EXISTS inspection_runs (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+		started_at DATETIME NOT NULL,
+		duration_ms INTEGER NOT NULL,
+		status TEXT NOT NULL,
+		summary TEXT NOT NULL,
+		details TEXT DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_inspection_runs_host ON inspection_runs(host_id, id DESC);
 	`
 	_, err := d.Exec(schema)
 	if err != nil {
@@ -281,6 +305,7 @@ func (d *DB) migrate() error {
 	_ = d.alterAddColumn("hosts", "hardware_model", "TEXT DEFAULT ''")
 	_ = d.alterAddColumn("hosts", "swap_used_bytes", "INTEGER DEFAULT 0")
 	_ = d.alterAddColumn("hosts", "swap_total_bytes", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "last_duration_ms", "INTEGER DEFAULT 0")
 
 	return nil
 }
@@ -444,7 +469,8 @@ func (d *DB) ListHosts() ([]Host, error) {
 		COALESCE(internet_online, 0), COALESCE(internet_latency_ms, 0), COALESCE(public_ip, ''), COALESCE(active_conn_count, 0),
 		COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, ''),
 		COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, ''),
-		COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0)
+		COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0),
+		COALESCE(last_duration_ms, 0)
 		FROM hosts ORDER BY sort_order ASC, id ASC`)
 	if err != nil {
 		return nil, err
@@ -461,7 +487,8 @@ func (d *DB) ListHosts() ([]Host, error) {
 			&online, &h.InternetLatencyMs, &h.PublicIP, &h.ActiveConnCount,
 			&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts,
 			&h.Notes, &h.SortOrder, &h.GroupName,
-			&h.CPUCores, &h.HardwareModel, &h.SwapUsedBytes, &h.SwapTotalBytes); err != nil {
+			&h.CPUCores, &h.HardwareModel, &h.SwapUsedBytes, &h.SwapTotalBytes,
+			&h.LastDurationMs); err != nil {
 			return nil, err
 		}
 		h.InternetOnline = online == 1
@@ -482,7 +509,8 @@ func (d *DB) GetHost(id int64) (*Host, error) {
 		COALESCE(internet_online, 0), COALESCE(internet_latency_ms, 0), COALESCE(public_ip, ''), COALESCE(active_conn_count, 0),
 		COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, ''),
 		COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, ''),
-		COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0)
+		COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0),
+		COALESCE(last_duration_ms, 0)
 		FROM hosts WHERE id = ?`, id).Scan(
 		&h.ID, &h.Name, &h.Host, &h.Port, &h.User, &h.CustomKey, &h.Status, &h.OSInfo, &h.Kernel, &h.Uptime, &h.CPULoad, &h.RAMUsedBytes, &h.RAMTotalBytes, &h.DiskUsedBytes, &h.DiskTotalBytes, &h.LifecycleScore, &h.LifecycleNotes, &h.LifecycleBreakdown, &inspected, &h.CreatedAt,
 		&h.NetRxBytes, &h.NetTxBytes, &h.NetRxSpeedBps, &h.NetTxSpeedBps,
@@ -490,6 +518,7 @@ func (d *DB) GetHost(id int64) (*Host, error) {
 		&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts,
 		&h.Notes, &h.SortOrder, &h.GroupName,
 		&h.CPUCores, &h.HardwareModel, &h.SwapUsedBytes, &h.SwapTotalBytes,
+		&h.LastDurationMs,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -563,12 +592,50 @@ func (d *DB) UpdateHostInspection(h *Host) error {
 	if h.InternetOnline {
 		onlineInt = 1
 	}
-	_, err := d.Exec(`UPDATE hosts SET status=?, os_info=?, kernel=?, uptime=?, cpu_load=?, ram_used_bytes=?, ram_total_bytes=?, disk_used_bytes=?, disk_total_bytes=?, lifecycle_score=?, lifecycle_notes=?, lifecycle_breakdown=?, last_inspected=?, net_rx_bytes=?, net_tx_bytes=?, net_rx_speed_bps=?, net_tx_speed_bps=?, internet_online=?, internet_latency_ms=?, public_ip=?, active_conn_count=?, failed_logins_count=?, top_connections=?, listening_ports=?, cpu_cores=?, hardware_model=?, swap_used_bytes=?, swap_total_bytes=? WHERE id=?`,
+	_, err := d.Exec(`UPDATE hosts SET status=?, os_info=?, kernel=?, uptime=?, cpu_load=?, ram_used_bytes=?, ram_total_bytes=?, disk_used_bytes=?, disk_total_bytes=?, lifecycle_score=?, lifecycle_notes=?, lifecycle_breakdown=?, last_inspected=?, net_rx_bytes=?, net_tx_bytes=?, net_rx_speed_bps=?, net_tx_speed_bps=?, internet_online=?, internet_latency_ms=?, public_ip=?, active_conn_count=?, failed_logins_count=?, top_connections=?, listening_ports=?, cpu_cores=?, hardware_model=?, swap_used_bytes=?, swap_total_bytes=?, last_duration_ms=? WHERE id=?`,
 		h.Status, h.OSInfo, h.Kernel, h.Uptime, h.CPULoad, h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, h.LifecycleScore, h.LifecycleNotes, h.LifecycleBreakdown, now,
 		h.NetRxBytes, h.NetTxBytes, h.NetRxSpeedBps, h.NetTxSpeedBps, onlineInt, h.InternetLatencyMs, h.PublicIP, h.ActiveConnCount, h.FailedLoginsCount, h.TopConnections, h.ListeningPorts,
-		h.CPUCores, h.HardwareModel, h.SwapUsedBytes, h.SwapTotalBytes,
+		h.CPUCores, h.HardwareModel, h.SwapUsedBytes, h.SwapTotalBytes, h.LastDurationMs,
 		h.ID)
 	return err
+}
+
+// Inspection Run operations
+func (d *DB) RecordInspectionRun(run *InspectionRun) error {
+	if run.StartedAt.IsZero() {
+		run.StartedAt = time.Now()
+	}
+	res, err := d.Exec(`INSERT INTO inspection_runs(host_id, started_at, duration_ms, status, summary, details) VALUES (?, ?, ?, ?, ?, ?)`,
+		run.HostID, run.StartedAt, run.DurationMs, run.Status, run.Summary, run.Details)
+	if err != nil {
+		return err
+	}
+	run.ID, _ = res.LastInsertId()
+
+	// ponytail: Inline auto-pruning maintains strict 100 runs limit per host with zero background schedulers
+	_, _ = d.Exec(`DELETE FROM inspection_runs WHERE host_id = ? AND id NOT IN (SELECT id FROM inspection_runs WHERE host_id = ? ORDER BY id DESC LIMIT 100)`, run.HostID, run.HostID)
+	return nil
+}
+
+func (d *DB) ListInspectionRuns(hostID int64, limit int) ([]InspectionRun, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := d.Query(`SELECT id, host_id, started_at, duration_ms, status, summary, details, created_at FROM inspection_runs WHERE host_id = ? ORDER BY id DESC LIMIT ?`, hostID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var runs []InspectionRun
+	for rows.Next() {
+		var r InspectionRun
+		if err := rows.Scan(&r.ID, &r.HostID, &r.StartedAt, &r.DurationMs, &r.Status, &r.Summary, &r.Details, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		runs = append(runs, r)
+	}
+	return runs, nil
 }
 
 // Desired State operations

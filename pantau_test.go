@@ -1661,5 +1661,101 @@ func TestInspectionConcurrencyInFlightGuard(t *testing.T) {
 	}
 }
 
+func TestInspectionRuns_LifecycleAndAutoPruning(t *testing.T) {
+	env := setupTestEnv(t)
+	defer os.Remove(env.dbPath)
+	defer env.httpServer.Close()
+	client := loginClient(t, env)
+
+	hostID, err := env.db.CreateHost(&store.Host{
+		Name: "Inspection Test Host",
+		Host: "127.0.0.1",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatalf("create host failed: %v", err)
+	}
+
+	// 1. Trigger InspectHost
+	if err := env.inspector.InspectHost(hostID); err != nil {
+		t.Fatalf("InspectHost failed: %v", err)
+	}
+
+	// Verify host last_duration_ms is recorded
+	host, err := env.db.GetHost(hostID)
+	if err != nil || host == nil {
+		t.Fatalf("failed to get host: %v", err)
+	}
+	if host.LastDurationMs < 0 {
+		t.Errorf("expected LastDurationMs >= 0, got %d", host.LastDurationMs)
+	}
+
+	// 2. Verify inspection_runs via DB
+	runs, err := env.db.ListInspectionRuns(hostID, 10)
+	if err != nil {
+		t.Fatalf("ListInspectionRuns failed: %v", err)
+	}
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 inspection run, got %d", len(runs))
+	}
+	if runs[0].Status != "ok" {
+		t.Errorf("expected status 'ok', got %q", runs[0].Status)
+	}
+	if runs[0].Summary == "" {
+		t.Errorf("expected non-empty summary")
+	}
+
+	// 3. Verify /api/hosts/{id}/runs via HTTP API
+	resp, err := client.Get(fmt.Sprintf("%s/api/hosts/%d/runs", env.httpServer.URL, hostID))
+	if err != nil {
+		t.Fatalf("GET /api/hosts/{id}/runs failed: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+	}
+	var apiRuns []store.InspectionRun
+	if err := json.NewDecoder(resp.Body).Decode(&apiRuns); err != nil {
+		t.Fatalf("decode runs failed: %v", err)
+	}
+	if len(apiRuns) != 1 {
+		t.Fatalf("expected 1 run from API, got %d", len(apiRuns))
+	}
+
+	// 4. Verify /api/hosts/{id} includes runs
+	detailResp, err := client.Get(fmt.Sprintf("%s/api/hosts/%d", env.httpServer.URL, hostID))
+	if err != nil {
+		t.Fatalf("GET /api/hosts/{id} failed: %v", err)
+	}
+	defer detailResp.Body.Close()
+	var detailData map[string]interface{}
+	if err := json.NewDecoder(detailResp.Body).Decode(&detailData); err != nil {
+		t.Fatalf("decode host detail failed: %v", err)
+	}
+	rawRuns, ok := detailData["runs"].([]interface{})
+	if !ok || len(rawRuns) != 1 {
+		t.Errorf("expected detailData['runs'] to have 1 item, got %v", rawRuns)
+	}
+
+	// 5. Verify Rolling Auto-pruning (max 100 entries per host)
+	for i := 0; i < 110; i++ {
+		_ = env.db.RecordInspectionRun(&store.InspectionRun{
+			HostID:     hostID,
+			StartedAt:  time.Now(),
+			DurationMs: int64(i + 1),
+			Status:     "ok",
+			Summary:    fmt.Sprintf("Run #%d", i),
+		})
+	}
+	allRuns, err := env.db.ListInspectionRuns(hostID, 200)
+	if err != nil {
+		t.Fatalf("ListInspectionRuns after prune failed: %v", err)
+	}
+	if len(allRuns) != 100 {
+		t.Errorf("expected auto-prune to cap at exactly 100 runs, got %d", len(allRuns))
+	}
+}
+
 
 

@@ -703,11 +703,13 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			rules, _ := s.db.ListDesiredRules(hostID)
 			items, _ := s.db.ListActualItems(hostID)
 			incidents, _ := s.db.ListIncidents(hostID, 20)
+			runs, _ := s.db.ListInspectionRuns(hostID, 50)
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"host":         host,
 				"rules":        rules,
 				"actual_items": items,
 				"incidents":    incidents,
+				"runs":         runs,
 			})
 		case http.MethodPut:
 			var h store.Host
@@ -836,6 +838,18 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		}
 		host, _ := s.db.GetHost(hostID)
 		writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "host": host})
+
+	case "runs":
+		// GET /api/hosts/{id}/runs
+		runs, err := s.db.ListInspectionRuns(hostID, 100)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if runs == nil {
+			runs = []store.InspectionRun{}
+		}
+		writeJSON(w, http.StatusOK, runs)
 
 	case "baseline":
 		// POST /api/hosts/{id}/baseline
