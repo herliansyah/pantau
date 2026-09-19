@@ -111,13 +111,18 @@ Pantau does not merely display metrics; it enforces continuous adherence to your
 
 Pantau collects actual state telemetry and validates desired state rules through periodic background cycles or on-demand triggers:
 
-- **Mass Inspection (Inspect All)**: Click the `⚡ Inspect All` button in the header toolbar to trigger asynchronous, concurrent inspections across all configured hosts.
+- **Mass Inspection (Inspect All)**: Click the `⚡ Inspect All` button in the header toolbar to trigger asynchronous, concurrent inspections across all configured hosts. Bulk executions are queued through a bounded worker pool (maximum 5 concurrent workers) with an anti-flood cooldown to prevent bandwidth saturation and CPU spikes.
 - **Per-Host Immediate Inspection**: Click the quick `⚡` inspect button on any host card or list row, or click the compact refresh icon in the Host Detail modal header (next to the status badge).
-- **Inspection Recency Indicators**: Host cards and list rows show dynamic relative timestamps (e.g. `🕒 2m ago`, `🕒 just now`) with precise hover tooltips.
+- **Anti-Flood Inspection Cooldown**: To protect remote hosts from connection flooding, manual inspections enforce a 15-second per-host cooldown. Triggering inspections during this window returns `HTTP 429 Too Many Requests` and displays an amber toast notification indicating remaining cooldown seconds.
+- **In-Flight Concurrency Guard**: An active in-flight guard locks ongoing inspections per host. Attempting to inspect a host while an inspection is already actively processing returns `HTTP 409 Conflict` and triggers a spinning state on the action button until execution finishes.
+- **Structured Inspection Runs & Execution History**: Every inspection automatically persists an audit record in the `inspection_runs` SQLite store (started timestamp, roundtrip duration in milliseconds, status badge, summary, and root cause diagnostic excerpts). Operators can review historical execution traces under the **Riwayat Inspeksi (Inspection Runs)** tab in the Host Detail Workspace Modal.
+- **Automatic Inline Rolling Prune**: Zero-configuration inline pruning automatically maintains a strict 100 runs limit per host in SQLite, ensuring predictable database storage footprints without requiring background scheduler cron jobs.
+- **Hung NFS & Network Mount Protection**: Disk evaluations strictly isolate local filesystems (`df -lPk /`) to prevent remote storage locks, and wrap partition checks in a 5-second execution timeout. Stale or unresponsive network storage mounts (NFS, CIFS) are flagged with actionable drift diagnostics instead of freezing the inspection worker.
+- **Enforced Hard Timeout Budget**: Each host inspection cycle is constrained to an enforced 45-second total timeout budget. Stalled or hung SSH connections are terminated on timeout and marked down to preserve queue availability.
+- **Inspection Recency & Roundtrip Duration Indicators**: Host cards and list rows show dynamic relative timestamps (e.g. `🕒 2m ago`, `🕒 just now`) alongside precise execution roundtrip duration badges (e.g. `⚡ 320ms`).
 - **Stale Inspection Detection**: When a host fails inspection or telemetry remains unrefreshed beyond tolerance (> 10 minutes or 2× the normal interval), an amber `⚠️ Stale Data` warning alerts operators to potential SSH disconnection or unresponsive nodes.
 - **Dashboard Auto-Refresh**: The browser UI automatically synchronizes host metrics and status every 30 seconds without requiring manual page reload.
 - **Configurable Inspection Interval**: Administrators can adjust background SSH inspection frequency (default: 300 seconds / 5 minutes, minimum 30 seconds) via **Settings** > **General** tab.
-- **Inspection Concurrency Guard & Timeout**: An in-flight concurrency guard locks ongoing inspections per host to prevent overlapping inspection stampedes. Every remote non-interactive command enforces a strict 30-second execution timeout to prevent stalled SSH sessions from blocking background workers.
 
 ### Resource Metrics & Hardware Telemetry
 
@@ -267,4 +272,16 @@ For standalone binary installations on Linux and Windows:
 ### Airgapped Deployments
 - In isolated enterprise intranets without public internet egress, the Update Checker operates *fail-silent* with a 3-second timeout, ensuring no UI errors or boot latency occur.
 - Automated update checks can be explicitly disabled using the `-disable-update-check` CLI flag or `PANTAU_DISABLE_UPDATE_CHECK=true` environment variable.
+
+---
+
+## 8. Embedded Documentation & In-App Changelog
+
+Pantau ships with complete, self-contained documentation embedded directly inside the compiled binary via `go:embed`:
+
+- **Airgapped-Ready Workspace Modal**: Access full operational guides offline without internet connectivity via the **Documentation Modal** (`75vw × 80vh`).
+- **Multiple Document Tabs**: Read the project overview (**README**), operational handbook (**User Guide**), and chronological release history (**Changelog**) directly within the app.
+- **Bilingual Support & In-Modal Switcher**: Seamlessly switch between English and Bahasa Indonesia using the in-modal language button `🌐 EN` / `🌐 ID`.
+- **Dynamic Table of Contents**: Automatically generates heading-based navigation for smooth-scrolling directly to specific sections or release versions.
+- **Universal Entry Points**: Open the documentation modal prior to authentication (via help links on the Initial Setup and Disaster Recovery screens) or after logging in (via the header `(?)` button, clicking the version badge in the dashboard footer, or clicking the Changelog link in the Settings modal).
 

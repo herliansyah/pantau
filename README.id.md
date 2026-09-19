@@ -87,10 +87,11 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 ### 1. 🔍 Inspeksi Agentless SSH & 1-Click Key Provisioning
 - Mengambil metrik sistem secara aktual (CPU Load, RAM, partisi Disk, Network Egress, Sockets, Uptime, Kernel) murni melalui koneksi SSH standar.
 - **Spesifikasi Hardware & Resource Metrics**: Mengekstrak tipe model perangkat keras, jumlah core CPU, beban antrian CPU ternormalisasi, serta memori virtual (Swap). Menampilkan kapasitas absolut inline (`terpakai / total`) pada bar RAM dan Disk, serta status Swap permanen pada kartu Host.
-- **Inspection Concurrency Guard & Timeout**: Penguncian in-flight mencegah penumpukan inspeksi paralel (*inspection stampede*), diperkuat batas waktu eksekusi SSH maksimum 30 detik.
+- **Structured Inspection Runs & Telemetri Eksekusi**: Mencatat riwayat eksekusi terstruktur (waktu eksekusi, durasi roundtrip dalam milidetik, status badge, ringkasan, dan rincian diagnostik jika terjadi anomali) di basis data internal SQLite. Menampilkan metrik durasi eksekusi riil (`duration_ms`) pada kartu Host dan tampilan tabel, diperkuat pembersihan otomatis (*rolling auto-pruning*) yang menjaga kuota 100 riwayat per host tanpa background scheduler.
+- **Inspection Guard, Anti-Flood Cooldown & Proteksi Hung NFS**: Menerapkan jeda waktu minimum 15 detik untuk inspeksi manual per-host (`HTTP 429 Too Many Requests`), penolakan eksplisit inspeksi paralel (*in-flight guard*, `HTTP 409 Conflict`), batas waktu eksekusi total 45 detik, serta isolasi perintah partisi lokal (`df -lPk /`) dengan batas waktu 5 detik untuk mencegah kebuntuan akibat network storage (NFS/CIFS) yang bermasalah.
 - **One-Time Key Provisioning**: Masukkan password server target sekali di RAM. Pantau secara idempoten menyalin public key universal RSA 4096-bit ke `~/.ssh/authorized_keys` (didukung universal dari OpenSSH 5.3+ lawas hingga Linux modern) dan langsung menghapus password dari memori.
 - **Kompatibilitas Server Lawas**: Mendukung cipher warisan (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`) untuk memantau server Linux legasi (CentOS 6, Debian 7, OpenSSH 5.3+).
-- **Inspeksi Massal & Kesegaran Data**: Pemicuan inspeksi serentak seluruh host via tombol `⚡ Inspect All`, pembaruan otomatis berkala yang dapat dikonfigurasi, serta visualisasi waktu inspeksi relatif dan deteksi data usang (*Stale Inspection*).
+- **Inspeksi Massal & Kesegaran Data**: Pemicuan inspeksi serentak seluruh host via tombol `⚡ Inspect All` yang diproses melalui *bounded worker pool* (maksimal 5 pekerja paralel) dengan proteksi anti-flood, pembaruan otomatis berkala yang dapat dikonfigurasi, serta visualisasi waktu inspeksi relatif dan deteksi data usang (*Stale Inspection*).
 
 ### 2. 📋 Baseline Desired State & Otomatisasi Drift Engine
 - **1-Click Baseline**: Mendeteksi otomatis container Docker yang aktif, partisi disk, cron job, dan service database (`mysqld`, `postgres`, `redis`, `nginx`).
@@ -164,6 +165,11 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **Atomic Rename Swap Lintas Platform**: Penggantian in-place biner yang aman di Linux dan Windows (menggunakan teknik rename `.exe.old` untuk mengatasi file-lock OS).
 - **Graceful Process Handover**: Restart aman dengan mempertahankan argumen CLI dan koneksi basis data, disertai rekoneksi otomatis pada antarmuka web pengguna.
 - **Kesiapan Airgapped & Deteksi Docker**: Beroperasi fail-silent di jaringan tanpa akses internet publik (opsi `-disable-update-check`), serta secara cerdas mendeteksi lingkungan container Docker untuk menyajikan panduan `docker compose pull`.
+
+### 16. 📖 Dokumentasi In-App Airgapped & Embedded Changelog
+- **Dokumentasi Terintegrasi Single-Source**: Panduan resmi Pantau (README, Panduan Pengguna dwibahasa ID/EN, dan Changelog) disematkan langsung ke dalam binary tunggal via `go:embed`.
+- **In-App Reader Zero-Dependency**: Baca dokumentasi teknis secara offline tanpa internet atau dependensi CDN eksternal melalui **Documentation Modal** (`75vw × 80vh`), dilengkapi micro-parser Markdown bawaan, styling tema Nord, dan daftar isi dinamis (*Table of Contents*) dengan *smooth-scrolling*.
+- **Akses Fleksibel Pra dan Pasca-Login**: Tersedia sebelum login pada layar Initial Setup dan Disaster Recovery, serta setelah login melalui tombol bantuan `(?)` di header navigasi, klik badge nomor versi di footer, dan tautan di modal Settings.
 
 ---
 

@@ -11,8 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Automatic inline rolling prune maintaining strict 100 runs limit per Host in SQLite without background scheduler overhead.
 - Inspection Runs history tab in Host Detail Workspace Modal with interactive status badges and diagnostic expanders.
 - Real-time execution roundtrip duration display (`last_duration_ms`) on Host cards, list view, and overview detail.
+- Anti-flood inspection cooldown: 15-second minimum wait window per host for manual inspections returning `HTTP 429 Too Many Requests`.
+- Explicit in-flight concurrency guard returning `HTTP 409 Conflict` when an inspection is already actively running on the target host.
+- Stale and hung network mount (NFS/CIFS) protection isolating local partitions (`df -lPk /`) and enforcing 5s hard timeouts on disk checks.
+- Bounded concurrency worker pool (maximum 5 concurrent hosts) and global in-flight lock for mass inspection (`Inspect All`).
+- Enforced 45-second total hard timeout budget per inspection run.
 - In-app Changelog viewer integrated into Documentation Modal.
 - Footer version link and Settings update card link to view Changelog.
+### Changed
+- Polished dashboard header with responsive Inspect All button layout and distinct amber warning toast styling.
 
 ## [0.12.1] - 2026-09-18
 ### Fixed

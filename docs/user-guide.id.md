@@ -111,13 +111,18 @@ Pantau tidak hanya menampilkan metrik pasif; sistem ini secara aktif memverifika
 
 Pantau mengumpulkan telemetri actual state dan memvalidasi desired state melalui siklus inspeksi terjadwal maupun on-demand:
 
-- **Inspeksi Massal (Inspect All)**: Klik tombol `⚡ Inspect All` di bilah atas untuk memicu pembacaan kondisi seluruh armada server secara serentak (asinkron).
+- **Inspeksi Massal (Inspect All)**: Klik tombol `⚡ Inspect All` di bilah atas untuk memicu pembacaan kondisi seluruh armada server secara serentak (asinkron). Eksekusi massal diproses melalui antrean worker pool terbatas (maksimal 5 host bersamaan) dengan proteksi anti-flood cooldown guna mencegah saturasi bandwidth dan lonjakan beban CPU.
 - **Inspeksi Mandiri Per-Host**: Klik tombol petir `⚡` pada masing-masing kartu server atau baris tabel, atau gunakan ikon refresh kompak pada header modal detail host (di samping badge status).
-- **Indikator Kesegaran Data (Inspection Recency)**: Setiap kartu dan baris tabel menyajikan waktu relatif inspeksi terakhir (contoh: `🕒 2m lalu`, `🕒 baru saja`) beserta tooltip jam presisi.
+- **Anti-Flood Inspection Cooldown**: Guna mencegah pembanjiran koneksi (*connection flooding*), inspeksi manual menerapkan jeda waktu minimum 15 detik per host. Pemicuan inspeksi dalam rentang jeda ini mengembalikan `HTTP 429 Too Many Requests` disertai notifikasi toast peringatan sisa detik tunggu.
+- **In-Flight Concurrency Guard**: Mekanisme penguncian aktif pada level host mencegah inspeksi ganda (*in-flight conflict*). Meminta inspeksi ketika proses sebelumnya masih berjalan akan menghasilkan `HTTP 409 Conflict` dan menampilkan animasi spinner pada tombol tindakan hingga proses tuntas.
+- **Structured Inspection Runs & Riwayat Audit**: Setiap siklus inspeksi secara otomatis merekam data riwayat audit terstruktur di basis data SQLite internal `inspection_runs` (waktu mulai, durasi roundtrip dalam milidetik, badge status, ringkasan manusiawi, dan rincian diagnostik root cause saat anomali). Operator dapat memantau riwayat ini pada tab **Riwayat Inspeksi** di Workspace Modal Host Detail.
+- **Pembersihan Otomatis (Inline Rolling Prune)**: Fitur auto-pruning sebaris tanpa konfigurasi secara otomatis mempertahankan kuota 100 riwayat terbaru per host di SQLite, menjaga ukuran database tetap efisien dan stabil tanpa membebani scheduler latar belakang.
+- **Proteksi Hung NFS & Stale Storage Mounts**: Evaluasi partisi disk secara ketat mengisolasi filesystem lokal (`df -lPk /`) untuk melompati remote storage, serta membungkus pengecekan disk dengan batas waktu 5 detik. Mount network storage yang macet (NFS, CIFS) ditandai sebagai indikasi *drift* diagnostik yang jelas tanpa membuat proses inspeksi membeku.
+- **Hard Timeout Budget Total 45 Detik**: Setiap siklus inspeksi dibatasi batas waktu absolut maksimum 45 detik. Sesi SSH yang gantung akan diputus paksa di sisi Pantau dan dicatat berstatus *down* untuk menjaga ketersediaan antrean worker.
+- **Indikator Kesegaran & Durasi Eksekusi**: Setiap kartu dan baris tabel menyajikan waktu relatif inspeksi terakhir (contoh: `🕒 2m lalu`, `🕒 baru saja`) berdampingan dengan badge durasi roundtrip riil (contoh: `⚡ 320ms`).
 - **Pendeteksian Data Usang (Stale Inspection)**: Jika sebuah host tidak berhasil diinspeksi melebihi batas waktu toleransi (> 10 menit atau 2× interval normal), Pantau menampilkan penanda peringatan oranye `⚠️ Data Usang` untuk mencegah false-confidence pada data telemetri lama.
 - **Auto-Refresh Dashboard**: Tampilan browser secara otomatis menyinkronkan status kartu host setiap 30 detik tanpa memerlukan reload halaman manual.
 - **Konfigurasi Interval Inspeksi**: Administrator dapat mengubah frekuensi inspeksi background (default 300 detik / 5 menit, minimal 30 detik) melalui modal **Settings** > tab **General**.
-- **Inspection Concurrency Guard & Timeout**: Mekanisme penguncian in-flight pada level host mencegah penumpukan inspeksi paralel (*inspection stampede*). Seluruh perintah non-interaktif SSH dibatasi oleh batas waktu ketat 30 detik agar sesi SSH yang tertahan tidak membebani sistem.
 
 ### Resource Metrics & Telemetri Perangkat Keras
 
@@ -267,4 +272,16 @@ Untuk instalasi binary mandiri (Linux dan Windows):
 ### Kesiapan Lingkungan Airgapped
 - Pada instalasi server tertutup tanpa akses internet publik (intranet/airgapped), Update Checker beroperasi secara *fail-silent* dengan batas waktu request pendek (3 detik) sehingga tidak memblokir server maupun memunculkan alarm palsu.
 - Administrator juga dapat menonaktifkan fitur pengecekan pembaruan sepenuhnya dengan menyertakan flag startup `-disable-update-check` atau variabel lingkungan `PANTAU_DISABLE_UPDATE_CHECK=true`.
+
+---
+
+## 8. Dokumentasi In-App & Viewer Changelog
+
+Pantau dilengkapi dokumentasi operasional mandiri yang disematkan langsung ke dalam biner berekstensi tunggal via `go:embed`:
+
+- **Workspace Modal Ramah Airgapped**: Akses panduan operasional lengkap secara offline tanpa koneksi internet publik melalui **Documentation Modal** (`75vw × 80vh`).
+- **Navigasi Multi-Tab Dokumen**: Membaca ringkasan proyek (**README**), buku panduan teknis (**Panduan Pengguna**), serta catatan rilis historis (**Changelog**) langsung dari dalam antarmuka web.
+- **Dukungan Dwibahasa & Pengalih Bahasa**: Beralih antara Bahasa Indonesia dan Bahasa Inggris secara instan menggunakan tombol bahasa `🌐 ID` / `🌐 EN` di dalam modal.
+- **Daftar Isi Dinamis (Dynamic Table of Contents)**: Menghasilkan navigasi heading otomatis untuk *smooth-scrolling* langsung ke bab bahasan atau nomor versi rilis yang dituju.
+- **Titik Akses Universal**: Modal dokumentasi dapat dibuka sebelum login (via tautan bantuan di layar Initial Setup dan Disaster Recovery) maupun setelah login (melalui tombol `(?)` di header utama, klik badge nomor versi di footer dashboard, atau tautan Changelog di modal Settings).
 
