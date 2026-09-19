@@ -48,6 +48,16 @@ func (ins *Inspector) IsInspecting(hostID int64) bool {
 	return loaded
 }
 
+// InFlightCount returns the number of hosts currently being inspected.
+func (ins *Inspector) InFlightCount() int {
+	count := 0
+	ins.inFlight.Range(func(key, value any) bool {
+		count++
+		return true
+	})
+	return count
+}
+
 func (ins *Inspector) GetRunnerForHost(h *store.Host) (sshrunner.Runner, error) {
 	key := h.CustomKey
 	if strings.TrimSpace(key) == "" {
