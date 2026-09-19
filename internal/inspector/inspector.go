@@ -64,6 +64,8 @@ func (ins *Inspector) InspectHost(hostID int64) error {
 	}
 	defer ins.inFlight.Delete(hostID)
 
+	startTime := time.Now()
+
 	host, err := ins.db.GetHost(hostID)
 	if err != nil {
 		return err
@@ -74,31 +76,81 @@ func (ins *Inspector) InspectHost(hostID int64) error {
 
 	runner, err := ins.GetRunnerForHost(host)
 	if err != nil {
+		duration := time.Since(startTime).Milliseconds()
 		host.Status = "down"
+		host.LastDurationMs = duration
 		host.LifecycleNotes = fmt.Sprintf("SSH connection failed: %v", err)
 		_ = ins.db.UpdateHostInspection(host)
+		_ = ins.db.RecordInspectionRun(&store.InspectionRun{
+			HostID:     host.ID,
+			StartedAt:  startTime,
+			DurationMs: duration,
+			Status:     "down",
+			Summary:    "SSH connection failed",
+			Details:    err.Error(),
+		})
 		return err
 	}
 	defer runner.Close()
 
 	// 1. Inspect System Metrics
 	if err := ins.scrapeSystemMetrics(host, runner); err != nil {
+		duration := time.Since(startTime).Milliseconds()
 		host.Status = "degraded"
+		host.LastDurationMs = duration
 		_ = ins.db.UpdateHostInspection(host)
+		_ = ins.db.RecordInspectionRun(&store.InspectionRun{
+			HostID:     host.ID,
+			StartedAt:  startTime,
+			DurationMs: duration,
+			Status:     "degraded",
+			Summary:    "Failed to scrape system metrics",
+			Details:    err.Error(),
+		})
 		return err
 	}
 
 	// 2. Evaluate Desired State Rules & Detect Drift
-	driftFound, err := ins.evaluateDesiredRules(host, runner)
+	driftFound, driftSummaries, ruleCount, err := ins.evaluateDesiredRules(host, runner)
 	if err != nil {
+		duration := time.Since(startTime).Milliseconds()
+		host.Status = "degraded"
+		host.LastDurationMs = duration
+		_ = ins.db.UpdateHostInspection(host)
+		_ = ins.db.RecordInspectionRun(&store.InspectionRun{
+			HostID:     host.ID,
+			StartedAt:  startTime,
+			DurationMs: duration,
+			Status:     "error",
+			Summary:    "Error evaluating desired state rules",
+			Details:    err.Error(),
+		})
 		return err
 	}
 
+	duration := time.Since(startTime).Milliseconds()
+	host.LastDurationMs = duration
+
+	runStatus := "ok"
+	summary := fmt.Sprintf("Healthy (%d rules checked)", ruleCount)
+	details := ""
 	if driftFound {
 		host.Status = "degraded"
+		runStatus = "drift"
+		summary = fmt.Sprintf("Drift detected in %d rule(s)", len(driftSummaries))
+		details = strings.Join(driftSummaries, "\n")
 	} else {
 		host.Status = "healthy"
 	}
+
+	_ = ins.db.RecordInspectionRun(&store.InspectionRun{
+		HostID:     host.ID,
+		StartedAt:  startTime,
+		DurationMs: duration,
+		Status:     runStatus,
+		Summary:    summary,
+		Details:    details,
+	})
 
 	return ins.db.UpdateHostInspection(host)
 }
@@ -693,22 +745,30 @@ func calculateLifecycleScore(osInfo, loadStr string, cpuCores int, ramUsed, ramT
 	return score, notesStr, string(breakdownBytes)
 }
 
-func (ins *Inspector) evaluateDesiredRules(h *store.Host, runner sshrunner.Runner) (bool, error) {
+func (ins *Inspector) evaluateDesiredRules(h *store.Host, runner sshrunner.Runner) (bool, []string, int, error) {
 	rules, err := ins.db.ListDesiredRules(h.ID)
 	if err != nil {
-		return false, err
+		return false, nil, 0, err
 	}
 
 	driftFound := false
+	var driftSummaries []string
+	checkedCount := 0
 
 	for _, rule := range rules {
 		if !rule.Enabled {
 			continue
 		}
+		checkedCount++
 
 		current, status, details, rootCause := ins.evaluateRule(h, runner, &rule)
 		if status == "drift" {
 			driftFound = true
+			msg := fmt.Sprintf("%s '%s': %s", rule.Kind, rule.Target, details)
+			if rootCause != "" {
+				msg += fmt.Sprintf(" (%s)", rootCause)
+			}
+			driftSummaries = append(driftSummaries, msg)
 		}
 
 		// Check previous status for incident recording
@@ -769,7 +829,7 @@ func (ins *Inspector) evaluateDesiredRules(h *store.Host, runner sshrunner.Runne
 		}
 	}
 
-	return driftFound, nil
+	return driftFound, driftSummaries, checkedCount, nil
 }
 
 func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule *store.DesiredRule) (current, status, details, rootCause string) {

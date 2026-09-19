@@ -876,6 +876,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <div class="tab" data-tab="desired" onclick="switchTab('desired')" data-i18n="tab_desired">Desired State (Drift)</div>
         <div class="tab" data-tab="docker" onclick="switchTab('docker')" data-i18n="tab_docker">Docker</div>
         <div class="tab" data-tab="timeline" onclick="switchTab('timeline')" data-i18n="tab_timeline">Incident Timeline</div>
+        <div class="tab" data-tab="runs" onclick="switchTab('runs')" data-i18n="tab_runs">Inspection Runs</div>
         <div class="tab" data-tab="files" onclick="switchTab('files')" data-i18n="tab_files">File Manager</div>
       </div>
     </div>
@@ -1609,6 +1610,14 @@ const I18N = {
     "tab_desired": "Desired State (Drift)",
     "tab_docker": "Docker",
     "tab_timeline": "Incident Timeline",
+    "tab_runs": "Inspection Runs",
+    "runs_title": "Inspection Runs History",
+    "run_time": "Time",
+    "run_duration": "Duration",
+    "run_status": "Status",
+    "run_summary": "Summary",
+    "no_runs_desc": "No inspection runs recorded yet for this host.",
+    "view_diagnostics": "View Diagnostic Details",
     "tab_files": "File Manager",
     "tab_terminal": "Terminal",
     "sys_info": "System Information",
@@ -2038,6 +2047,14 @@ const I18N = {
     "tab_desired": "Desired State (Drift)",
     "tab_docker": "Docker",
     "tab_timeline": "Timeline Insiden",
+    "tab_runs": "Riwayat Inspeksi",
+    "runs_title": "Riwayat Inspeksi (Inspection Runs)",
+    "run_time": "Waktu",
+    "run_duration": "Durasi",
+    "run_status": "Status",
+    "run_summary": "Ringkasan",
+    "no_runs_desc": "Belum ada riwayat inspeksi yang tercatat untuk host ini.",
+    "view_diagnostics": "Lihat Rincian Diagnostik",
     "tab_files": "File Manager",
     "tab_terminal": "Terminal",
     "sys_info": "Informasi Sistem",
@@ -2998,7 +3015,7 @@ function renderGridView(grid, isManualSort) {
         <div class="stat-row" style="align-items: center;">
           <span>${t('last_inspected', 'Last Inspected:')}</span>
           <span title="${recency.title}" style="display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; ${recency.isStale ? 'color: #fbbf24; font-weight: 600;' : 'color: var(--text-muted);'}">
-            ${recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : ''}🕒 ${recency.relative}
+            ${recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : ''}🕒 ${recency.relative}${h.last_duration_ms > 0 ? ` <span style="font-size:0.75rem; color: #34d399; font-weight: 600;">(${h.last_duration_ms}ms)</span>` : ''}
           </span>
         </div>
         <div class="stat-row" style="align-items: center;">
@@ -3196,7 +3213,7 @@ function renderListView(listContainer, isManualSort) {
         <td>${h.host}:${h.port} <span style="color: var(--text-muted); font-size: 0.8rem;">(${h.user})</span></td>
         <td style="color: var(--text-muted);">${escapeHtml(h.os_info || '-')}</td>
         <td title="${recency.title}" style="font-size: 0.8rem; white-space: nowrap; ${recency.isStale ? 'color: #fbbf24; font-weight: 600;' : 'color: var(--text-muted);'}">
-          ${recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : ''}🕒 ${recency.relative}
+          ${recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : ''}🕒 ${recency.relative}${h.last_duration_ms > 0 ? `<div style="font-size: 0.72rem; color: #34d399; font-weight: 600;">${h.last_duration_ms}ms</div>` : ''}
         </td>
         <td><span class="score-badge" style="color: ${scoreColor}; font-size: 0.9rem;">${h.lifecycle_score}</span></td>
         <td title="${formatBytes(h.ram_used_bytes || 0)} / ${formatBytes(h.ram_total_bytes || 0)}">
@@ -3583,7 +3600,7 @@ function switchTab(tab, presetID) {
           <div class="stat-row">
             <span>${t('last_inspected_label', 'Last Inspected:')}</span>
             <span style="${detailRecency.isStale ? 'color: #fbbf24; font-weight: 600;' : ''}" title="${detailRecency.title}">
-              ${detailRecency.isStale ? '⚠️ ' : ''}${detailRecency.title} (${detailRecency.relative})
+              ${detailRecency.isStale ? '⚠️ ' : ''}${detailRecency.title} (${detailRecency.relative})${d.host.last_duration_ms > 0 ? ` • <strong style="color: #34d399;">${d.host.last_duration_ms}ms</strong>` : ''}
             </span>
           </div>
         </div>
@@ -3833,9 +3850,99 @@ function switchTab(tab, presetID) {
         </div>
       `}
     `;
+  } else if (tab === 'runs') {
+    renderInspectionRunsTab();
   } else if (tab === 'files') {
     loadFiles('/');
   }
+}
+
+async function renderInspectionRunsTab() {
+  const content = document.getElementById('tabContent');
+  const d = window.detailData;
+  if (!d || !d.host) return;
+
+  content.innerHTML = `
+    <h4 style="margin: 0 0 12px 0; flex-shrink: 0;">${t('runs_title', 'Inspection Runs History')}</h4>
+    <div id="runsContainer" style="overflow-y: auto; flex: 1;">
+      <div style="text-align: center; padding: 24px; color: var(--text-muted);">${t('loading', 'Loading...')}</div>
+    </div>
+  `;
+
+  await loadAndDisplayInspectionRuns(d.host.id);
+}
+
+async function loadAndDisplayInspectionRuns(hostID) {
+  const container = document.getElementById('runsContainer');
+  if (!container) return;
+
+  let runs = [];
+  try {
+    const res = await fetch('/api/hosts/' + hostID + '/runs');
+    if (res.ok) {
+      runs = await res.json();
+    }
+  } catch (e) {
+    console.error('Failed to load inspection runs', e);
+  }
+
+  if (!runs || runs.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📋</div>
+        <div class="empty-state-title">${t('runs_title', 'Inspection Runs History')}</div>
+        <div class="empty-state-desc">${t('no_runs_desc', 'No inspection runs recorded yet for this host.')}</div>
+      </div>
+    `;
+    return;
+  }
+
+  const rowsHtml = runs.map(run => {
+    let badgeClass = 'badge-success';
+    let badgeText = 'OK';
+    let borderColor = 'var(--success)';
+    if (run.status === 'drift') {
+      badgeClass = 'badge-warning';
+      badgeText = 'DRIFT';
+      borderColor = 'var(--warning)';
+    } else if (run.status === 'down' || run.status === 'error') {
+      badgeClass = 'badge-danger';
+      badgeText = run.status.toUpperCase();
+      borderColor = 'var(--danger)';
+    } else if (run.status === 'degraded') {
+      badgeClass = 'badge-warning';
+      badgeText = 'DEGRADED';
+      borderColor = 'var(--warning)';
+    }
+
+    const durationColor = run.duration_ms < 1000 ? '#34d399' : (run.duration_ms < 3000 ? '#fbbf24' : '#f87171');
+    const runTime = formatRelativeTime(run.started_at);
+
+    return `
+      <div class="card" style="padding: 12px 14px; margin-bottom: 8px; border-left: 4px solid ${borderColor};">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="badge ${badgeClass}" style="font-size: 0.75rem;">${badgeText}</span>
+            <span style="font-size: 0.85rem; font-weight: 600;">${escapeHtml(run.summary)}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; font-size: 0.8rem;">
+            <span title="${t('run_duration', 'Duration')}">⚡ <strong style="color: ${durationColor}; font-family: monospace;">${run.duration_ms}ms</strong></span>
+            <span style="color: var(--text-muted);" title="${runTime.title}">🕒 ${runTime.relative}</span>
+          </div>
+        </div>
+        ${run.details ? `
+          <details style="margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 6px;">
+            <summary style="cursor: pointer; font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">
+              🔍 ${t('view_diagnostics', 'View Diagnostic Details')}
+            </summary>
+            <pre style="margin-top: 6px; font-size: 0.78rem; max-height: 200px; overflow-y: auto;">${escapeHtml(run.details)}</pre>
+          </details>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
+
+  container.innerHTML = `<div style="display: flex; flex-direction: column; gap: 6px;">${rowsHtml}</div>`;
 }
 
 async function generateBaseline(hostID) {

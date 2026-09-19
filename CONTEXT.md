@@ -217,3 +217,7 @@ _Avoid_: Machine specs, server performance counters, hardware telemetry
 Mekanisme penguncian in-flight pada level Host untuk mencegah penumpukan inspeksi paralel (*inspection stampede*) saat inspeksi latar belakang dan inspeksi manual dipicu bersamaan atau ketika server lambat merespons.
 _Avoid_: Inspection lock, polling mutex, stampede blocker
 
+**Inspection Run**:
+Catatan riwayat satu kali eksekusi Inspeksi pada Host, mendokumentasikan timestamp, durasi eksekusi (ms), status hasil (sukses/gagal/drift), dan rincian diagnostik saat terjadi deviasi atau kegagalan.
+_Avoid_: Task log, execution audit, polling history, health log
+
