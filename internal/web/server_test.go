@@ -16,6 +16,8 @@ import (
 	"testing/fstest"
 	"time"
 
+	"pantau/internal/inspector"
+	"pantau/internal/sshrunner"
 	"pantau/internal/store"
 	"pantau/internal/updater"
 )
@@ -855,6 +857,109 @@ func TestPresetModalAndModalStacking(t *testing.T) {
 		if !strings.Contains(body, snippet) {
 			t.Errorf("expected HTML body to contain modal stacking snippet %q", snippet)
 		}
+	}
+}
+
+func TestInspectHost_CooldownAndInFlight(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-web-ins-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "", "", 0, nil
+	}
+	factory := func(host string, port int, user, key string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}
+	ins := inspector.New(db, factory, nil)
+	srv := NewServer(db, ins, nil)
+	token := "test_inspect_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{
+			Name:  "pantau_session",
+			Value: token,
+		})
+	}
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name: "Test Node",
+		Host: "192.168.1.100",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. First inspect: succeeds
+	req1 := httptest.NewRequest("POST", "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/inspect", nil)
+	authReq(req1)
+	w1 := httptest.NewRecorder()
+	srv.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("first inspect expected 200, got %d: %s", w1.Code, w1.Body.String())
+	}
+
+	// 2. Immediate second inspect: must trigger 429 Too Many Requests (cooldown guard)
+	req2 := httptest.NewRequest("POST", "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/inspect", nil)
+	authReq(req2)
+	w2 := httptest.NewRecorder()
+	srv.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusTooManyRequests {
+		t.Fatalf("second inspect expected 429, got %d: %s", w2.Code, w2.Body.String())
+	}
+	var res2 map[string]interface{}
+	if err := json.NewDecoder(w2.Body).Decode(&res2); err != nil {
+		t.Fatal(err)
+	}
+	if res2["cooldown"] != true {
+		t.Fatalf("expected cooldown: true, got %v", res2)
+	}
+
+	// 3. In-flight inspect: set LastInspected to 1 hour ago so cooldown passes, but mark host as in-flight
+	past := time.Now().Add(-1 * time.Hour)
+	h, _ := db.GetHost(hostID)
+	h.LastInspected = &past
+	_ = db.UpdateHostInspection(h)
+
+	// Artificially trigger in-flight state in Inspector using exported method or by calling with blocking runner
+	blockCh := make(chan struct{})
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		<-blockCh
+		return "", "", 0, nil
+	}
+	go func() {
+		_ = ins.InspectHost(hostID)
+	}()
+	// Wait a tiny bit for goroutine to acquire inFlight lock
+	time.Sleep(20 * time.Millisecond)
+
+	req3 := httptest.NewRequest("POST", "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/inspect", nil)
+	authReq(req3)
+	w3 := httptest.NewRecorder()
+	srv.ServeHTTP(w3, req3)
+
+	close(blockCh) // release the blocked inspection
+
+	if w3.Code != http.StatusConflict {
+		t.Fatalf("in-flight inspect expected 409 Conflict, got %d: %s", w3.Code, w3.Body.String())
+	}
+	var res3 map[string]interface{}
+	if err := json.NewDecoder(w3.Body).Decode(&res3); err != nil {
+		t.Fatal(err)
+	}
+	if res3["in_flight"] != true {
+		t.Fatalf("expected in_flight: true, got %v", res3)
 	}
 }
 
