@@ -67,6 +67,9 @@ type Server struct {
 	htmlContentGz     []byte
 	htmlETag          string
 	docsFS            fs.FS
+	inspectAllMu      sync.Mutex
+	inspectAllActive  bool
+	lastInspectAll    time.Time
 }
 
 func (s *Server) prepareHTML(raw []byte) {
@@ -665,26 +668,83 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if parts[0] == "inspect-all" {
+		if r.Method == http.MethodGet {
+			s.inspectAllMu.Lock()
+			active := s.inspectAllActive || (s.inspector != nil && s.inspector.InFlightCount() > 0)
+			elapsed := time.Since(s.lastInspectAll)
+			remaining := 0
+			if !s.lastInspectAll.IsZero() && elapsed < 15*time.Second {
+				remaining = int(math.Ceil((15*time.Second - elapsed).Seconds()))
+			}
+			s.inspectAllMu.Unlock()
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"in_flight":     active,
+				"cooldown":      remaining > 0,
+				"remaining_sec": remaining,
+			})
+			return
+		}
+
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+
+		s.inspectAllMu.Lock()
+		if s.inspectAllActive || (s.inspector != nil && s.inspector.InFlightCount() > 0) {
+			s.inspectAllMu.Unlock()
+			writeJSON(w, http.StatusConflict, map[string]interface{}{
+				"ok":        false,
+				"in_flight": true,
+				"error":     "Inspeksi untuk host sedang berjalan, harap tunggu hingga selesai.",
+			})
+			return
+		}
+
+		elapsed := time.Since(s.lastInspectAll)
+		if !s.lastInspectAll.IsZero() && elapsed < 15*time.Second {
+			remaining := int(math.Ceil((15*time.Second - elapsed).Seconds()))
+			s.inspectAllMu.Unlock()
+			writeJSON(w, http.StatusTooManyRequests, map[string]interface{}{
+				"ok":            false,
+				"cooldown":      true,
+				"remaining_sec": remaining,
+				"error":         fmt.Sprintf("Cooldown aktif. Harap tunggu %d detik sebelum melakukan inspeksi ulang.", remaining),
+			})
+			return
+		}
+
 		hosts, err := s.db.ListHosts()
 		if err != nil {
+			s.inspectAllMu.Unlock()
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		if len(hosts) == 0 {
+			s.inspectAllMu.Unlock()
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"ok":      true,
+				"count":   0,
+				"message": "Tidak ada host terdaftar",
+			})
+			return
+		}
+
+		s.inspectAllActive = true
+		s.inspectAllMu.Unlock()
+
 		// ponytail: Bounded worker pool (max 5 concurrent host inspections) prevents host flooding and CPU exhaustion.
 		go func() {
+			defer func() {
+				s.inspectAllMu.Lock()
+				s.inspectAllActive = false
+				s.lastInspectAll = time.Now()
+				s.inspectAllMu.Unlock()
+			}()
 			sem := make(chan struct{}, 5)
 			var wg sync.WaitGroup
 			for _, h := range hosts {
-				if s.inspector.IsInspecting(h.ID) {
-					continue
-				}
-				if h.LastInspected != nil && time.Since(*h.LastInspected) < 15*time.Second {
-					continue
-				}
 				wg.Add(1)
 				sem <- struct{}{}
 				go func(id int64) {

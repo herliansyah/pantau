@@ -215,6 +215,13 @@ func TestShellStaticHTML(t *testing.T) {
 		"showToast",
 		"openModal",
 		"closeModal",
+		"header-divider",
+		"header-cluster",
+		"btnInspectAll",
+		"inspect_all_confirm_msg",
+		"inspect_all_confirm_title",
+		".toast-warning",
+		".badge-warning",
 	}
 	for _, s := range requiredStrings {
 		if !strings.Contains(html, s) {
@@ -962,6 +969,97 @@ func TestInspectHost_CooldownAndInFlight(t *testing.T) {
 		t.Fatalf("expected in_flight: true, got %v", res3)
 	}
 }
+
+func TestInspectAll_CooldownAndInFlight(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-web-ins-all-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mockRunner := sshrunner.NewMockRunner()
+	blockCh := make(chan struct{})
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		<-blockCh
+		return "", "", 0, nil
+	}
+	factory := func(host string, port int, user, key string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}
+	ins := inspector.New(db, factory, nil)
+	srv := NewServer(db, ins, nil)
+	token := "test_inspect_all_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{
+			Name:  "pantau_session",
+			Value: token,
+		})
+	}
+
+	_, err = db.CreateHost(&store.Host{
+		Name: "Host 1",
+		Host: "192.168.1.101",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. First inspect-all: starts in background, runner blocks on blockCh
+	req1 := httptest.NewRequest("POST", "/api/hosts/inspect-all", nil)
+	authReq(req1)
+	w1 := httptest.NewRecorder()
+	srv.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusOK {
+		t.Fatalf("first inspect-all expected 200, got %d: %s", w1.Code, w1.Body.String())
+	}
+
+	// Wait a moment for worker to acquire host in-flight lock
+	time.Sleep(20 * time.Millisecond)
+
+	// 2. Second inspect-all while first is in-flight: must be rejected with 409 Conflict
+	req2 := httptest.NewRequest("POST", "/api/hosts/inspect-all", nil)
+	authReq(req2)
+	w2 := httptest.NewRecorder()
+	srv.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusConflict {
+		close(blockCh)
+		t.Fatalf("concurrent inspect-all expected 409 Conflict, got %d: %s", w2.Code, w2.Body.String())
+	}
+
+	// Unblock first inspection and wait for it to complete
+	close(blockCh)
+	for i := 0; i < 100; i++ {
+		sRes := httptest.NewRecorder()
+		sReq := httptest.NewRequest("GET", "/api/hosts/inspect-all", nil)
+		authReq(sReq)
+		srv.ServeHTTP(sRes, sReq)
+		var st map[string]interface{}
+		_ = json.NewDecoder(sRes.Body).Decode(&st)
+		if st["in_flight"] == false {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// 3. Third inspect-all immediately after first finishes: must trigger 429 Too Many Requests (cooldown guard)
+	req3 := httptest.NewRequest("POST", "/api/hosts/inspect-all", nil)
+	authReq(req3)
+	w3 := httptest.NewRecorder()
+	srv.ServeHTTP(w3, req3)
+	if w3.Code != http.StatusTooManyRequests {
+		t.Fatalf("inspect-all within cooldown expected 429, got %d: %s", w3.Code, w3.Body.String())
+	}
+}
+
 
 
 

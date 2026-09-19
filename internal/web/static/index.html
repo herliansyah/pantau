@@ -49,7 +49,7 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 4
 .btn-inspect-quick { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--card-border); color: var(--text-muted); border-radius: 4px; cursor: pointer; transition: all 0.15s; }
 .btn-inspect-quick:hover { color: #60a5fa; border-color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-.spinning { animation: spin 0.8s linear infinite; pointer-events: none; opacity: 0.7; }
+.spinning { animation: spin 0.8s linear infinite; pointer-events: none; opacity: 0.7; transform-origin: center; display: inline-block; }
 .dropdown { position: relative; display: inline-block; }
 .dropdown-menu { display: none; position: absolute; right: 0; bottom: 100%; margin-bottom: 6px; background: #1e293b; border: 1px solid var(--card-border); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); min-width: 180px; z-index: 60; padding: 4px; }
 .dropdown.open .dropdown-menu { display: block; }
@@ -58,17 +58,20 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 4
 .dropdown-item.danger { color: #f87171; }
 .dropdown-item.danger:hover { background: rgba(239,68,68,0.15); color: #fca5a5; }
 .dropdown-divider { height: 1px; background: var(--card-border); margin: 4px 0; }
+.header-divider { width: 1px; height: 20px; background: var(--card-border); margin: 0 4px; flex-shrink: 0; }
+.header-cluster { display: flex; gap: 6px; align-items: center; }
 #toastContainer { position: fixed; top: 68px; right: 24px; z-index: 999999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
-.toast { pointer-events: auto; padding: 10px 16px; border-radius: 6px; font-size: 0.82rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); animation: toastIn 0.2s ease-out; transition: opacity 0.3s; max-width: 380px; }
+.toast { pointer-events: auto; padding: 10px 16px; border-radius: 6px; font-size: 0.82rem; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); animation: toastIn 0.2s ease-out; transition: opacity 0.3s; max-width: 380px; background: #1e293b; border: 1px solid var(--card-border); color: #f8fafc; }
 @keyframes toastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 .toast-success { background: #064e3b; border: 1px solid #059669; color: #34d399; }
 .toast-error { background: #7f1d1d; border: 1px solid #dc2626; color: #fca5a5; }
+.toast-warning { background: #451a03; border: 1px solid #d97706; color: #fbbf24; }
 .toast-info { background: #1e293b; border: 1px solid var(--card-border); color: #94a3b8; }
 .badge { padding: 3px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
-.badge-healthy { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-.badge-degraded { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-.badge-down { background: rgba(239, 68, 68, 0.2); color: #f87171; }
-.badge-unknown { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
+.badge-healthy, .badge-success { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+.badge-degraded, .badge-warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+.badge-down, .badge-danger { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+.badge-unknown, .badge-info { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
 .container { max-width: 1400px; margin: 0 auto; padding: 24px; padding-top: 76px; padding-bottom: 56px; width: 100%; flex: 1; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
 .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
@@ -576,20 +579,27 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       </svg>
       <span>PANTAU</span>
     </div>
-    <div style="display: flex; gap: 10px; align-items: center;">
-      <button class="btn btn-icon" onclick="openTransfersModal()" title="Cross-Host Transfers" data-i18n-title="transfers_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 6h18"/><path d="m7 22-4-4 4-4"/><path d="M21 18H3"/></svg><span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
-      <button class="btn btn-icon" onclick="openGlobalNotesModal()" title="Global Notes" data-i18n-title="global_notes_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>
-      <button class="btn btn-icon" id="btnHeaderTerminal" onclick="toggleTerminalDock()" title="Terminal Dock" data-i18n-title="terminal_dock_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span id="activeTerminalBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
-      <span id="activeAlertBadge" style="display: none;" class="badge badge-down">0 ALERTS</span>
-      <button class="btn btn-sm" id="btnInspectAll" onclick="inspectAllHosts()" title="Trigger Inspection on All Hosts" data-i18n-title="btn_inspect_all_title" style="display: inline-flex; align-items: center; gap: 5px;">
-        <svg id="inspectAllIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
-        <span data-i18n="btn_inspect_all">⚡ Inspect All</span>
-      </button>
-      <button class="btn btn-primary" onclick="openAddHostModal()" data-i18n="add_host">+ Add Host</button>
-      <button class="btn btn-icon" onclick="openSettingsModal()" title="Settings" data-i18n-title="settings_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-      <button class="btn btn-icon" onclick="openDocumentationModal()" title="Documentation" data-i18n-title="docs_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
-      <button class="btn" id="langToggleBtn" onclick="toggleLanguage()" title="Switch Language">🌐 EN</button>
-      <button class="btn btn-icon" onclick="doLogout()" title="Logout" data-i18n-title="logout_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <div class="header-cluster">
+        <button class="btn btn-icon" onclick="openTransfersModal()" title="Cross-Host Transfers" data-i18n-title="transfers_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 6h18"/><path d="m7 22-4-4 4-4"/><path d="M21 18H3"/></svg><span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
+        <button class="btn btn-icon" onclick="openGlobalNotesModal()" title="Global Notes" data-i18n-title="global_notes_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>
+        <button class="btn btn-icon" id="btnHeaderTerminal" onclick="toggleTerminalDock()" title="Terminal Dock" data-i18n-title="terminal_dock_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span id="activeTerminalBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
+      </div>
+      <div class="header-divider"></div>
+      <div class="header-cluster">
+        <span id="activeAlertBadge" style="display: none;" class="badge badge-down">0 ALERTS</span>
+        <button class="btn btn-icon" id="btnInspectAll" onclick="inspectAllHosts()" title="Inspect All Hosts" data-i18n-title="btn_inspect_all_title" aria-label="Inspect All Hosts">
+          <svg id="inspectAllIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+        </button>
+        <button class="btn btn-primary" onclick="openAddHostModal()" data-i18n="add_host" style="height: 32px; display: inline-flex; align-items: center;">+ Add Host</button>
+      </div>
+      <div class="header-divider"></div>
+      <div class="header-cluster">
+        <button class="btn btn-icon" onclick="openSettingsModal()" title="Settings" data-i18n-title="settings_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l-.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+        <button class="btn btn-icon" onclick="openDocumentationModal()" title="Documentation" data-i18n-title="docs_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
+        <button class="btn" id="langToggleBtn" onclick="toggleLanguage()" title="Switch Language" style="height: 32px; padding: 0 10px; display: inline-flex; align-items: center; font-size: 0.8rem;">🌐 EN</button>
+        <button class="btn btn-icon" onclick="doLogout()" title="Logout" data-i18n-title="logout_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
+      </div>
     </div>
   </header>
 
@@ -1525,9 +1535,13 @@ const I18N = {
     "btn_inspect": "⚡ Inspect",
     "btn_inspect_title": "Run Inspection (Refresh)",
     "btn_inspect_all": "⚡ Inspect All",
-    "btn_inspect_all_title": "Trigger Inspection on All Hosts",
+    "btn_inspect_all_title": "Inspect All Hosts",
+    "inspect_all_confirm_title": "Inspect All Hosts",
+    "inspect_all_confirm_msg": "Pantau will trigger parallel SSH inspections on {count} registered hosts to update Actual State and detect Drift. Continue?",
+    "inspect_all_confirm_btn": "Start Inspection",
     "inspect_all_running": "Starting inspection for all hosts...",
     "inspect_all_success": "Inspection triggered for all hosts",
+    "inspect_all_done": "All hosts inspection completed",
     "inspect_all_failed": "Failed to trigger inspection: ",
     "last_inspected": "Last Inspected:",
     "last_inspected_label": "Last Inspected:",
@@ -1964,9 +1978,13 @@ const I18N = {
     "btn_inspect": "⚡ Inspeksi",
     "btn_inspect_title": "Jalankan Inspeksi (Refresh)",
     "btn_inspect_all": "⚡ Inspeksi Semua",
-    "btn_inspect_all_title": "Jalankan Inspeksi ke Seluruh Host",
+    "btn_inspect_all_title": "Inspeksi Seluruh Host",
+    "inspect_all_confirm_title": "Inspeksi Seluruh Host",
+    "inspect_all_confirm_msg": "Pantau akan memicu koneksi SSH paralel ke {count} host terdaftar untuk memperbarui Actual State dan mendeteksi Drift. Lanjutkan?",
+    "inspect_all_confirm_btn": "Mulai Inspeksi",
     "inspect_all_running": "Memulai inspeksi seluruh host...",
     "inspect_all_success": "Inspeksi berhasil dipicu untuk seluruh host",
+    "inspect_all_done": "Inspeksi seluruh host selesai",
     "inspect_all_failed": "Gagal menjalankan inspeksi: ",
     "last_inspected": "Terakhir Diinspeksi:",
     "last_inspected_label": "Terakhir Diinspeksi:",
@@ -2392,6 +2410,7 @@ async function checkAuth() {
     setInterval(loadTransfers, 15000);
     setInterval(loadHosts, 30000);
     checkFreshStatus();
+    checkInspectAllStatus();
     setTimeout(() => checkForUpdates(false), 2000);
   } else {
     document.getElementById('loginView').style.display = 'flex';
@@ -2789,30 +2808,94 @@ function formatRelativeTime(isoStr) {
   return { relative: `${diffDays}d ` + t('ago', 'ago'), title, isStale };
 }
 
-async function inspectAllHosts() {
+let inspectAllPollingInterval = null;
+
+function setInspectAllRunning(running) {
   const btn = document.getElementById('btnInspectAll');
   const icon = document.getElementById('inspectAllIcon');
-  if (btn) {
-    btn.disabled = true;
-    if (icon) icon.classList.add('spinning');
+  if (btn) btn.disabled = running;
+  if (icon) {
+    if (running) icon.classList.add('spinning');
+    else icon.classList.remove('spinning');
   }
+}
+
+async function checkInspectAllStatus() {
+  try {
+    const res = await fetch('/api/hosts/inspect-all');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.in_flight) {
+      setInspectAllRunning(true);
+      if (!inspectAllPollingInterval) {
+        startInspectAllPolling();
+      }
+    }
+  } catch(e) {}
+}
+
+function startInspectAllPolling() {
+  if (inspectAllPollingInterval) clearInterval(inspectAllPollingInterval);
+  const startTime = Date.now();
+  inspectAllPollingInterval = setInterval(async () => {
+    try {
+      const sRes = await fetch('/api/hosts/inspect-all');
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        if (!sData.in_flight || Date.now() - startTime > 60000) {
+          clearInterval(inspectAllPollingInterval);
+          inspectAllPollingInterval = null;
+          setInspectAllRunning(false);
+          loadHosts();
+          showToast(t('inspect_all_done', 'All hosts inspection completed'), 'success');
+        }
+      }
+    } catch (err) {
+      clearInterval(inspectAllPollingInterval);
+      inspectAllPollingInterval = null;
+      setInspectAllRunning(false);
+    }
+  }, 1500);
+}
+
+async function inspectAllHosts() {
+  const count = (allRawHosts && allRawHosts.length) || 0;
+  const msg = t('inspect_all_confirm_msg', 'Pantau will trigger parallel SSH inspections on {count} registered hosts to update Actual State and detect Drift. Continue?').replace('{count}', count);
+  const confirmed = await showConfirm({
+    title: t('inspect_all_confirm_title', 'Inspect All Hosts'),
+    message: msg,
+    confirmText: t('inspect_all_confirm_btn', 'Start Inspection'),
+    danger: false
+  });
+  if (!confirmed) return;
+
+  setInspectAllRunning(true);
   showToast(t('inspect_all_running', 'Starting inspection for all hosts...'), 'info');
   try {
     const res = await fetch('/api/hosts/inspect-all', { method: 'POST' });
     const data = await res.json();
-    if (res.ok && data.ok) {
-      showToast(t('inspect_all_success', `Inspection triggered for ${data.count || ''} hosts`), 'success');
-      setTimeout(loadHosts, 2000);
-    } else {
-      showToast((data && data.error) || t('inspect_all_failed', 'Failed to trigger inspection: '), 'error');
+    if (res.status === 409 || (data && data.in_flight)) {
+      showToast(data.error || t('inspect_in_flight', 'Inspection is already in progress for one or more hosts'), 'warning');
+      setInspectAllRunning(true);
+      startInspectAllPolling();
+      return;
     }
+    if (res.status === 429 || (data && data.cooldown)) {
+      showToast(data.error || t('inspect_cooldown', 'Hosts were recently inspected. Please wait a moment.'), 'warning');
+      setInspectAllRunning(false);
+      return;
+    }
+    if (!res.ok || !data.ok) {
+      showToast((data && data.error) || t('inspect_all_failed', 'Failed to trigger inspection: '), 'error');
+      setInspectAllRunning(false);
+      return;
+    }
+
+    showToast(t('inspect_all_success', `Inspection triggered for ${data.count || ''} hosts`), 'success');
+    startInspectAllPolling();
   } catch (e) {
     showToast(t('inspect_all_failed', 'Failed to trigger inspection: ') + e.message, 'error');
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      if (icon) icon.classList.remove('spinning');
-    }
+    setInspectAllRunning(false);
   }
 }
 
@@ -3422,11 +3505,18 @@ async function saveHost() {
 }
 
 function showToast(message, type = 'info', duration = 4000) {
+  const validTypes = ['success', 'error', 'warning', 'info'];
+  if (validTypes.includes(message) && typeof type === 'string' && !validTypes.includes(type)) {
+    const tmp = message;
+    message = type;
+    type = tmp;
+  }
   const container = document.getElementById('toastContainer');
   if (!container) return;
   const toast = document.createElement('div');
-  toast.className = 'toast toast-' + type;
-  const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+  const safeType = validTypes.includes(type) ? type : 'info';
+  toast.className = 'toast toast-' + safeType;
+  const icon = safeType === 'success' ? '✅' : safeType === 'error' ? '❌' : safeType === 'warning' ? '⚠️' : 'ℹ️';
   toast.innerHTML = `<span>${icon}</span><span>${escapeHtml(message)}</span>`;
   container.appendChild(toast);
   setTimeout(() => {
@@ -5481,13 +5571,13 @@ async function applySelfUpdate() {
     btn.innerText = t('updating') || 'Updating...';
   }
 
-  showToast('info', 'Downloading verified update from GitHub Releases...');
+  showToast('Downloading verified update from GitHub Releases...', 'info');
 
   try {
     const res = await fetch('/api/update/apply', { method: 'POST' });
     const data = await res.json();
     if (!res.ok || data.error) {
-      showToast('error', data.error || 'Failed to apply update');
+      showToast(data.error || 'Failed to apply update', 'error');
       if (btn) {
         btn.disabled = false;
         btn.innerText = t('update_now') || 'Update Now';
@@ -5495,13 +5585,13 @@ async function applySelfUpdate() {
       return;
     }
 
-    showToast('success', t('update_success_restart') || 'Update installed successfully!');
+    showToast(t('update_success_restart') || 'Update installed successfully!', 'success');
     const actionCard = document.getElementById('updateActionCard');
     if (actionCard) actionCard.style.display = 'none';
     const restartCard = document.getElementById('updateRestartCard');
     if (restartCard) restartCard.style.display = 'block';
   } catch (err) {
-    showToast('error', 'Update error: ' + err.message);
+    showToast('Update error: ' + err.message, 'error');
     if (btn) {
       btn.disabled = false;
       btn.innerText = t('update_now') || 'Update Now';
@@ -5516,7 +5606,7 @@ async function restartPantau() {
     btn.innerText = t('restarting') || 'Restarting...';
   }
 
-  showToast('info', 'Restarting Pantau process...');
+  showToast('Restarting Pantau process...', 'info');
 
   try {
     await fetch('/api/update/restart', { method: 'POST' });
@@ -5525,13 +5615,13 @@ async function restartPantau() {
   }
 
   // Poll for reconnection
-  showToast('warning', 'Waiting for server to restart...');
+  showToast('Waiting for server to restart...', 'warning');
   const pollInterval = setInterval(async () => {
     try {
       const res = await fetch('/api/auth/status');
       if (res.ok) {
         clearInterval(pollInterval);
-        showToast('success', 'Server back online! Reloading...');
+        showToast('Server back online! Reloading...', 'success');
         setTimeout(() => {
           window.location.reload();
         }, 800);
