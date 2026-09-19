@@ -1,0 +1,100 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+### Added
+- In-app Changelog viewer integrated into Documentation Modal.
+- Footer version link and Settings update card link to view Changelog.
+
+## [0.12.1] - 2026-09-18
+### Fixed
+- Terminal preset scope host binding and modal layering z-index.
+- Synchronized bilingual documentation and user guides with v0.12 architecture.
+
+## [0.12.0] - 2026-09-18
+### Added
+- Hardware specs and capacity metrics: CPU cores, load average, absolute RAM (GB/MB), Swap capacity, and root disk capacity.
+- Terminal Header Launcher: global action button in header with real-time reactive active shell session count badges.
+- Reactive host session badges on host cards.
+
+## [0.11.0] - 2026-09-18
+### Added
+- Multi-arch Docker images (`linux/amd64` and `linux/arm64`) automatically built and pushed to GitHub Container Registry (GHCR).
+### Changed
+- Inspector I/O optimization: removed heavy periodic recursive `du` scanning to prevent disk thrashing.
+- Added SSH command execution timeout guards and inspection concurrency guard to eliminate inspection stampedes.
+
+## [0.10.0] - 2026-09-17
+### Added
+- Application version display on initial setup and login screens.
+### Changed
+- Reorganized Settings dialog layout for clearer navigation.
+
+## [0.9.1] - 2026-09-17
+### Fixed
+- Release test update pipeline and verification assets.
+
+## [0.9.0] - 2026-09-17
+### Added
+- Semi-automatic Update Checker and in-place Self-Update with SHA-256 integrity verification.
+- Release checksums generation via GitHub Actions.
+
+## [0.8.0] - 2026-09-17
+### Added
+- Mass host inspection ("Inspect All") for asynchronous bulk health refreshes.
+- Multi-instance snapshot file path isolation.
+- Windows executable icon embedding and favicon.
+### Changed
+- In-memory gzip compression and ETag conditional validation for web assets.
+
+## [0.7.0] - 2026-09-16
+### Added
+- Airgapped TOTP two-factor authentication (2FA) with emergency recovery codes and CLI bypass flag.
+- Global multi-tab Terminal Dock with collapsible floating dock bar.
+- Embedded in-app Documentation Modal for airgapped bilingual guides (README and User Guide).
+- Transparent 6-factor Lifecycle Assessment, productive lifespan estimation, and hardware refresh recommendations.
+### Security
+- Self-contained web assets with strict Content Security Policy (CSP), eliminating all external CDN dependencies.
+
+## [0.6.0] - 2026-09-09
+### Added
+- Host grouping by logical environment/function.
+- Terminal maximize mode for full-viewport shell observability.
+- Port auto-scan during server startup to automatically select next available port if default is busy.
+- CLI startup banner and `-v` version flag.
+- Toast notifications and Promise-based confirmation dialogs replacing native browser popups.
+
+## [0.5.1] - 2026-09-09
+### Added
+- Automated Windows binary release builds (`amd64` and `arm64`).
+
+## [0.5.0] - 2026-09-09
+### Added
+- Bilingual interface support (English and Indonesian).
+- Windows portable server compatibility with POSIX remote path enforcement.
+- Encrypted System Snapshot backup (AES-256-GCM) with optional GitHub Private Repository sync.
+- Terminal Presets for reusable quick command shortcuts.
+- Protected filesystem paths prevention in file manager.
+- Host notes, global operational notes, and custom manual host ordering.
+
+## [0.4.0] - 2026-09-09
+### Added
+- Legacy Linux server compatibility (CentOS 6, Debian 7, pre-systemd environments) and universal SSH key support.
+
+## [0.3.0] - 2026-09-09
+### Added
+- Agentless Network & Security Observability: bandwidth rate, egress latency, socket connection profiling, and port exposure auditing.
+
+## [0.2.0] - 2026-09-08
+### Added
+- Piped cross-host direct file/directory transfers without intermediate disk caching.
+- On-the-fly streaming folder downloads (`zip` / `tar.gz`).
+
+## [0.1.0] - 2026-09-08
+### Added
+- Initial release of Pantau: agentless SSH server monitoring and management system.
+- Desired state verification, automated drift detection, root cause excerpts, and terminal file manager.

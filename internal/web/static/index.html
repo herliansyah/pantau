@@ -27,7 +27,8 @@ button, input, select, textarea { font-family: inherit; }
 header { position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 40; background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--card-border); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; }
 footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 40; background: rgba(30, 41, 59, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-top: 1px solid var(--card-border); box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4); padding: 0 20px; display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); }
 .footer-zone { display: flex; align-items: center; gap: 8px; }
-.footer-badge { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 1px 6px; border-radius: 4px; font-size: 0.7rem; font-family: monospace; color: var(--text-muted); }
+.footer-badge { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); padding: 1px 6px; border-radius: 4px; font-size: 0.7rem; font-family: monospace; color: var(--text-muted); cursor: pointer; transition: all 0.15s ease; }
+.footer-badge:hover { color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.12); }
 .footer-pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 9999px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); color: #f1f5f9; text-decoration: none; font-size: 0.72rem; transition: all 0.15s ease; }
 .footer-pill:hover { background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; text-decoration: none; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
@@ -899,6 +900,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <div class="tabs">
         <div class="tab active" id="tabDocReadme" onclick="switchDoc('readme')" data-i18n="doc_readme">README</div>
         <div class="tab" id="tabDocGuide" onclick="switchDoc('guide')" data-i18n="doc_guide">User Guide</div>
+        <div class="tab" id="tabDocChangelog" onclick="switchDoc('changelog')" data-i18n="doc_changelog">Changelog</div>
       </div>
     </div>
     <div style="display: flex; flex: 1; min-height: 0; overflow: hidden;">
@@ -1166,6 +1168,9 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
               <strong id="updateLatestVersion" style="font-family: monospace; margin-left: 6px;">-</strong>
             </div>
           </div>
+          <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+            <a href="javascript:void(0)" onclick="openDocumentationModal('changelog')" style="font-size: 0.8rem; color: var(--primary); text-decoration: none;" data-i18n="view_changelog">📜 View Changelog</a>
+          </div>
           <div id="updateStatusNotice" style="margin-top: 12px; font-size: 0.85rem; padding: 10px; border-radius: 6px; display: none;"></div>
         </div>
 
@@ -1187,6 +1192,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
           <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">A new official release is ready to be downloaded and verified.</p>
           <div id="updateReleaseNotesBox" style="background: rgba(0,0,0,0.25); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px; font-size: 0.8rem; max-height: 160px; overflow-y: auto; margin-bottom: 12px; white-space: pre-wrap; font-family: sans-serif;"></div>
           <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <button class="btn btn-sm" onclick="openDocumentationModal('changelog')" data-i18n="view_changelog">📜 View Changelog</button>
             <a id="updateReleaseLink" href="https://github.com/herliansyah/pantau/releases" target="_blank" rel="noopener noreferrer" class="btn btn-sm" style="text-decoration: none;">GitHub Release ↗</a>
             <button id="btnApplyUpdate" class="btn btn-primary btn-sm" onclick="applySelfUpdate()" data-i18n="update_now">🚀 Update Now</button>
           </div>
@@ -1462,6 +1468,9 @@ const I18N = {
     "docs_link": "📖 Documentation & Guide",
     "doc_readme": "README (Overview)",
     "doc_guide": "User Guide",
+    "doc_changelog": "Changelog",
+    "docs_lang_en_only": "Available in English only",
+    "view_changelog": "📜 View Changelog",
     "doc_toc": "Table of Contents",
     "doc_loading": "Loading documentation...",
     "doc_error": "Failed to load documentation.",
@@ -1888,6 +1897,9 @@ const I18N = {
     "docs_link": "📖 Dokumentasi & Panduan",
     "doc_readme": "README (Ringkasan)",
     "doc_guide": "Panduan Pengguna",
+    "doc_changelog": "Changelog",
+    "docs_lang_en_only": "Hanya tersedia dalam Bahasa Inggris",
+    "view_changelog": "📜 Lihat Changelog",
     "doc_toc": "Daftar Isi",
     "doc_loading": "Memuat dokumentasi...",
     "doc_error": "Gagal memuat dokumentasi.",
@@ -2326,6 +2338,11 @@ function setLanguage(lang) {
     updateDocsLangButton();
     loadDocContent(currentDoc, docsModalLang);
   }
+  document.querySelectorAll('.footer-badge').forEach(el => {
+    if (el.id !== 'footerUpdateBadge') {
+      el.title = t('view_changelog', 'View Changelog');
+    }
+  });
 }
 
 function toggleLanguage() {
@@ -6139,17 +6156,40 @@ const docsCache = {};
 
 function updateDocsLangButton() {
   const btn = document.getElementById('docsLangToggleBtn');
-  if (btn) btn.innerText = docsModalLang === 'en' ? '🌐 EN' : '🌐 ID';
+  if (!btn) return;
+  if (currentDoc === 'changelog') {
+    btn.innerText = '🌐 EN';
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.style.cursor = 'not-allowed';
+    btn.title = t('docs_lang_en_only', 'Available in English only');
+  } else {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+    btn.title = t('switch_language', 'Switch Language');
+    btn.innerText = docsModalLang === 'en' ? '🌐 EN' : '🌐 ID';
+  }
 }
 
-function openDocumentationModal() {
+function openDocumentationModal(docName) {
+  if (docName) {
+    currentDoc = docName;
+  }
   docsModalLang = currentLang || 'en';
   updateDocsLangButton();
+  const tabReadme = document.getElementById('tabDocReadme');
+  const tabGuide = document.getElementById('tabDocGuide');
+  const tabChangelog = document.getElementById('tabDocChangelog');
+  if (tabReadme) tabReadme.classList.toggle('active', currentDoc === 'readme');
+  if (tabGuide) tabGuide.classList.toggle('active', currentDoc === 'guide');
+  if (tabChangelog) tabChangelog.classList.toggle('active', currentDoc === 'changelog');
   openModal('documentationModal');
   loadDocContent(currentDoc, docsModalLang);
 }
 
 function toggleDocsLanguage() {
+  if (currentDoc === 'changelog') return;
   docsModalLang = docsModalLang === 'en' ? 'id' : 'en';
   updateDocsLangButton();
   loadDocContent(currentDoc, docsModalLang);
@@ -6159,12 +6199,14 @@ function switchDoc(name, lang) {
   currentDoc = name;
   if (lang) {
     docsModalLang = lang;
-    updateDocsLangButton();
   }
+  updateDocsLangButton();
   const tabReadme = document.getElementById('tabDocReadme');
   const tabGuide = document.getElementById('tabDocGuide');
+  const tabChangelog = document.getElementById('tabDocChangelog');
   if (tabReadme) tabReadme.classList.toggle('active', name === 'readme');
   if (tabGuide) tabGuide.classList.toggle('active', name === 'guide');
+  if (tabChangelog) tabChangelog.classList.toggle('active', name === 'changelog');
   loadDocContent(currentDoc, docsModalLang);
 }
 
@@ -6177,7 +6219,10 @@ function sanitizeHtml(htmlStr) {
     }
     return m;
   });
-  clean = clean.replace(/href=["']([^"']*(?:README|user-guide)[^"']*\.md)["']/gi, (m, target) => {
+  clean = clean.replace(/href=["']([^"']*(?:README|user-guide|CHANGELOG)[^"']*\.md)["']/gi, (m, target) => {
+    if (target.includes('CHANGELOG')) {
+      return `href="javascript:void(0)" onclick="switchDoc('changelog', 'en')"`;
+    }
     const isGuide = target.includes('user-guide');
     const isId = target.includes('.id.');
     const docName = isGuide ? 'guide' : 'readme';
@@ -6441,6 +6486,12 @@ function scrollToDocAnchor(id) {
     });
   }
 }
+
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.classList.contains('footer-badge') && e.target.id !== 'footerUpdateBadge') {
+    openDocumentationModal('changelog');
+  }
+});
 
 setLanguage(currentLang);
 checkAuth();

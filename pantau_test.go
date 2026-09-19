@@ -1453,6 +1453,20 @@ func TestEmbeddedDocumentationEndpoint(t *testing.T) {
 	if !strings.Contains(string(bodyID), "Pantau") {
 		t.Errorf("expected embedded user-guide.id.md to contain 'Pantau', got %q", string(bodyID))
 	}
+
+	// Changelog unauthenticated request
+	resChangelog, err := http.Get(env.httpServer.URL + "/api/docs?name=changelog")
+	if err != nil {
+		t.Fatalf("failed to get changelog: %v", err)
+	}
+	defer resChangelog.Body.Close()
+	if resChangelog.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK for changelog, got %d", resChangelog.StatusCode)
+	}
+	bodyChangelog, _ := io.ReadAll(resChangelog.Body)
+	if !strings.Contains(string(bodyChangelog), "Changelog") || !strings.Contains(string(bodyChangelog), "0.12.1") {
+		t.Errorf("expected embedded CHANGELOG.md to contain 'Changelog' and '0.12.1', got %q", string(bodyChangelog))
+	}
 }
 
 func TestInspectAllAndPollIntervalSetting(t *testing.T) {

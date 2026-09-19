@@ -102,8 +102,12 @@ Kontainer modal terpusat berdimensi ringkas (lebar ~520px - 740px) untuk formuli
 _Avoid_: Small modal, mini popup, submodal
 
 **Documentation Modal**:
-Kontainer Workspace Modal interaktif berdimensi tetap (75vw × 80vh) untuk membaca panduan operasional Pantau (README dan User Guide) secara mandiri (airgapped) dan dwibahasa (ID/EN) tanpa ketergantungan jaringan eksternal.
+Kontainer Workspace Modal interaktif berdimensi tetap (75vw × 80vh) untuk membaca panduan operasional Pantau (README, User Guide, dan Changelog) secara mandiri (airgapped) tanpa ketergantungan jaringan eksternal.
 _Avoid_: Help popup, docs reader, guide dialog, manual tab, external wiki
+
+**Changelog**:
+Catatan historis kronologis terstruktur (berbasis standar Keep a Changelog) yang mendokumentasikan penambahan fitur, perubahan perilaku, dan perbaikan bug di setiap rilis Pantau, disematkan langsung ke dalam biner aplikasi untuk akses in-app pada lingkungan terisolasi (airgapped).
+_Avoid_: Release notes, commit log, version summary, update history
 
 **Host Note**:
 Catatan bebas berbasis teks yang disematkan pada Host oleh administrator untuk mencatat konteks operasional atau panduan pemeliharaan spesifik mesin tersebut.
