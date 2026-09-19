@@ -6,10 +6,12 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
 	"io/fs"
+	"math"
 	"net/http"
 	"os"
 	"path"
@@ -672,12 +674,29 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		// ponytail: fire-and-forget concurrent inspection across all hosts, non-blocking for HTTP client
-		for _, h := range hosts {
-			go func(id int64) {
-				_ = s.inspector.InspectHost(id)
-			}(h.ID)
-		}
+		// ponytail: Bounded worker pool (max 5 concurrent host inspections) prevents host flooding and CPU exhaustion.
+		go func() {
+			sem := make(chan struct{}, 5)
+			var wg sync.WaitGroup
+			for _, h := range hosts {
+				if s.inspector.IsInspecting(h.ID) {
+					continue
+				}
+				if h.LastInspected != nil && time.Since(*h.LastInspected) < 15*time.Second {
+					continue
+				}
+				wg.Add(1)
+				sem <- struct{}{}
+				go func(id int64) {
+					defer func() {
+						<-sem
+						wg.Done()
+					}()
+					_ = s.inspector.InspectHost(id)
+				}(h.ID)
+			}
+			wg.Wait()
+		}()
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"ok":      true,
 			"count":   len(hosts),
@@ -831,13 +850,54 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 
 	case "inspect":
 		// POST /api/hosts/{id}/inspect
-		err := s.inspector.InspectHost(hostID)
+		host, err := s.db.GetHost(hostID)
+		if err != nil || host == nil {
+			http.Error(w, "host not found", http.StatusNotFound)
+			return
+		}
+
+		// 1. In-flight guard: check if host is currently being inspected
+		if s.inspector.IsInspecting(hostID) {
+			writeJSON(w, http.StatusConflict, map[string]interface{}{
+				"ok":        false,
+				"in_flight": true,
+				"error":     "Inspeksi untuk host ini sedang berjalan, harap tunggu hingga selesai.",
+			})
+			return
+		}
+
+		// 2. Cooldown guard: 15 seconds per host
+		if host.LastInspected != nil {
+			elapsed := time.Since(*host.LastInspected)
+			if elapsed < 15*time.Second {
+				remaining := int(math.Ceil((15*time.Second - elapsed).Seconds()))
+				writeJSON(w, http.StatusTooManyRequests, map[string]interface{}{
+					"ok":            false,
+					"cooldown":      true,
+					"remaining_sec": remaining,
+					"error":         fmt.Sprintf("Host baru saja diinspeksi %d detik lalu. Harap tunggu %d detik lagi.", int(elapsed.Seconds()), remaining),
+				})
+				return
+			}
+		}
+
+		// Execute inspection
+		err = s.inspector.InspectHost(hostID)
 		if err != nil {
+			if errors.Is(err, inspector.ErrAlreadyInspecting) {
+				writeJSON(w, http.StatusConflict, map[string]interface{}{
+					"ok":        false,
+					"in_flight": true,
+					"error":     "Inspeksi untuk host ini sedang berjalan, harap tunggu hingga selesai.",
+				})
+				return
+			}
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "error": err.Error()})
 			return
 		}
-		host, _ := s.db.GetHost(hostID)
+		host, _ = s.db.GetHost(hostID)
 		writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "host": host})
+		return
 
 	case "runs":
 		// GET /api/hosts/{id}/runs

@@ -1,7 +1,9 @@
 package inspector
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -15,6 +17,8 @@ import (
 	"pantau/internal/sshrunner"
 	"pantau/internal/store"
 )
+
+var ErrAlreadyInspecting = errors.New("inspection already in progress for this host")
 
 type Notifier interface {
 	SendAlert(host *store.Host, rule *store.DesiredRule, summary, rootCause string)
@@ -58,11 +62,22 @@ func (ins *Inspector) GetRunnerForHost(h *store.Host) (sshrunner.Runner, error) 
 
 // InspectHost performs a full health check, metrics scrape, and drift detection on a single host.
 func (ins *Inspector) InspectHost(hostID int64) error {
+	return ins.InspectHostWithTimeout(hostID, 45*time.Second)
+}
+
+// InspectHostWithTimeout executes an inspection with a bounded timeout budget to prevent hanging on unreachable hosts.
+func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration) error {
 	if _, loaded := ins.inFlight.LoadOrStore(hostID, struct{}{}); loaded {
 		// ponytail: Concurrency guard / singleflight prevents overlapping inspections and SSH process stampedes.
-		return nil
+		return ErrAlreadyInspecting
 	}
 	defer ins.inFlight.Delete(hostID)
+
+	if timeout <= 0 {
+		timeout = 45 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	startTime := time.Now()
 
@@ -93,37 +108,73 @@ func (ins *Inspector) InspectHost(hostID int64) error {
 	}
 	defer runner.Close()
 
+	// Ensure runner connection is immediately aborted if context timeout expires, unblocking any hung commands.
+	doneChan := make(chan struct{})
+	defer close(doneChan)
+	go func() {
+		select {
+		case <-doneChan:
+		case <-ctx.Done():
+			_ = runner.Close()
+		}
+	}()
+
 	// 1. Inspect System Metrics
-	if err := ins.scrapeSystemMetrics(host, runner); err != nil {
+	if err := ins.scrapeSystemMetrics(host, runner); err != nil || ctx.Err() != nil {
+		if err == nil {
+			err = ctx.Err()
+		}
 		duration := time.Since(startTime).Milliseconds()
-		host.Status = "degraded"
+		status := "degraded"
+		summary := "Failed to scrape system metrics"
+		details := err.Error()
+		if ctx.Err() == context.DeadlineExceeded {
+			status = "down"
+			summary = fmt.Sprintf("Inspection timed out after %v", timeout)
+			details = "Inspection cancelled: context deadline exceeded"
+		}
+		host.Status = status
 		host.LastDurationMs = duration
 		_ = ins.db.UpdateHostInspection(host)
 		_ = ins.db.RecordInspectionRun(&store.InspectionRun{
 			HostID:     host.ID,
 			StartedAt:  startTime,
 			DurationMs: duration,
-			Status:     "degraded",
-			Summary:    "Failed to scrape system metrics",
-			Details:    err.Error(),
+			Status:     status,
+			Summary:    summary,
+			Details:    details,
 		})
 		return err
 	}
 
 	// 2. Evaluate Desired State Rules & Detect Drift
 	driftFound, driftSummaries, ruleCount, err := ins.evaluateDesiredRules(host, runner)
-	if err != nil {
+	if err != nil || ctx.Err() != nil {
+		if err == nil {
+			err = ctx.Err()
+		}
 		duration := time.Since(startTime).Milliseconds()
+		status := "error"
+		summary := "Error evaluating desired state rules"
+		details := err.Error()
+		if ctx.Err() == context.DeadlineExceeded {
+			status = "down"
+			summary = fmt.Sprintf("Inspection timed out after %v", timeout)
+			details = "Inspection cancelled: context deadline exceeded"
+		}
 		host.Status = "degraded"
+		if status == "down" {
+			host.Status = "down"
+		}
 		host.LastDurationMs = duration
 		_ = ins.db.UpdateHostInspection(host)
 		_ = ins.db.RecordInspectionRun(&store.InspectionRun{
 			HostID:     host.ID,
 			StartedAt:  startTime,
 			DurationMs: duration,
-			Status:     "error",
-			Summary:    "Error evaluating desired state rules",
-			Details:    err.Error(),
+			Status:     status,
+			Summary:    summary,
+			Details:    details,
 		})
 		return err
 	}
@@ -157,7 +208,8 @@ func (ins *Inspector) InspectHost(hostID int64) error {
 
 // SystemMetricsBatchCmd is the single-shot batch command to gather system, network, and security metrics.
 // ponytail: Universal polyglot batching keeps agentless overhead near zero on modern & legacy Linux.
-const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; df -Pk / 2>/dev/null; echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 -m 4 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 -m 4 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l; echo "---"; (nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1); echo "---"; (cat /sys/class/dmi/id/bios_date 2>/dev/null || echo ""); echo "---"; (cat /sys/class/dmi/id/sys_vendor 2>/dev/null || cat /sys/class/dmi/id/product_name 2>/dev/null || echo ""); echo "---"; (stat -c %Y /etc/machine-id 2>/dev/null || stat -c %Y /etc/ssh/ssh_host_rsa_key 2>/dev/null || stat -c %Y /var/log 2>/dev/null || echo 0)`
+// ponytail: Uses df -lPk with timeout fallback to guard against hung NFS / network storage.
+const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; (timeout -k 2s 5s df -lPk / 2>/dev/null || df -lPk / 2>/dev/null); echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 -m 4 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 -m 4 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l; echo "---"; (nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1); echo "---"; (cat /sys/class/dmi/id/bios_date 2>/dev/null || echo ""); echo "---"; (cat /sys/class/dmi/id/sys_vendor 2>/dev/null || cat /sys/class/dmi/id/product_name 2>/dev/null || echo ""); echo "---"; (stat -c %Y /etc/machine-id 2>/dev/null || stat -c %Y /etc/ssh/ssh_host_rsa_key 2>/dev/null || stat -c %Y /var/log 2>/dev/null || echo 0)`
 
 func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner) error {
 	stdout, _, _, err := runner.Exec(SystemMetricsBatchCmd)
@@ -871,8 +923,15 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 		if target == "" {
 			target = "/"
 		}
-		dfCmd := fmt.Sprintf(`df -Pk %s 2>/dev/null`, target)
+		// ponytail: Use timeout wrapper to prevent hanging on stale NFS/remote mounts
+		dfCmd := fmt.Sprintf(`timeout -k 2s 5s df -Pk %s 2>/dev/null || df -Pk %s 2>/dev/null`, target, target)
 		out, _, exitCode, _ := runner.Exec(dfCmd)
+		if exitCode == 124 {
+			current = "unresponsive"
+			status = "drift"
+			rootCause = fmt.Sprintf("Storage/mount point '%s' timed out (possible hung NFS or storage deadlock)", target)
+			return
+		}
 		if exitCode != 0 {
 			current = "unreachable"
 			status = "drift"

@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -1645,8 +1646,8 @@ func TestInspectionConcurrencyInFlightGuard(t *testing.T) {
 
 	select {
 	case err := <-doneSecond:
-		if err != nil {
-			t.Errorf("expected nil error on skipped inspection, got %v", err)
+		if !errors.Is(err, inspector.ErrAlreadyInspecting) {
+			t.Errorf("expected ErrAlreadyInspecting on skipped inspection, got %v", err)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatalf("second concurrent InspectHost blocked instead of returning immediately")

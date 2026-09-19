@@ -221,3 +221,7 @@ _Avoid_: Inspection lock, polling mutex, stampede blocker
 Catatan riwayat satu kali eksekusi Inspeksi pada Host, mendokumentasikan timestamp, durasi eksekusi (ms), status hasil (sukses/gagal/drift), dan rincian diagnostik saat terjadi deviasi atau kegagalan.
 _Avoid_: Task log, execution audit, polling history, health log
 
+**Inspection Cooldown**:
+Jeda waktu minimum (15 detik) yang diwajibkan antar eksekusi Inspeksi manual pada Host yang sama guna mencegah pembanjiran koneksi SSH (*connection flooding*) dan lonjakan beban CPU target.
+_Avoid_: Rate limit window, inspect debounce, retry wait
+

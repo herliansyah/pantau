@@ -1550,6 +1550,8 @@ const I18N = {
     "testing_ssh": "Testing SSH connection...",
     "ssh_test_success": "SSH Connection Success: ",
     "inspect_success": "Inspection completed for host",
+    "inspect_in_flight": "Inspection is already in progress for this host",
+    "inspect_cooldown": "Host was recently inspected. Please wait a moment.",
     "injecting_key": "Injecting Pantau public key...",
     "tab_settings_presets": "💻 Presets",
     "tab_settings_updates": "🔄 Updates",
@@ -1987,6 +1989,8 @@ const I18N = {
     "testing_ssh": "Menguji koneksi SSH...",
     "ssh_test_success": "Koneksi SSH Berhasil: ",
     "inspect_success": "Inspeksi selesai untuk host",
+    "inspect_in_flight": "Inspeksi sedang berjalan untuk host ini",
+    "inspect_cooldown": "Host baru saja diinspeksi. Harap tunggu sebentar.",
     "injecting_key": "Menginjeksi public key Pantau...",
     "tab_settings_presets": "💻 Preset",
     "tab_settings_updates": "🔄 Pembaruan",
@@ -3529,6 +3533,10 @@ async function inspectHost(id, e) {
       if (currentHost && currentHost.id === id) {
         openHostDetail(id);
       }
+    } else if (res.status === 409 || data.in_flight) {
+      showToast(data.error || t('inspect_in_flight', 'Inspection is already in progress for this host'), 'warning');
+    } else if (res.status === 429 || data.cooldown) {
+      showToast(data.error || t('inspect_cooldown', 'Host was recently inspected. Please wait a moment.'), 'warning');
     } else {
       showToast(t('inspect_failed', 'Inspection failed: ') + (data.error || 'Unknown error'), 'error');
     }
