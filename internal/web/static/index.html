@@ -137,6 +137,19 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 .view-mode-toggle { display: inline-flex; align-items: center; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 2px; height: 36px; box-sizing: border-box; }
 .view-mode-toggle .view-btn { background: transparent; border: none; border-radius: 4px; padding: 0 10px; height: 100%; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); cursor: pointer; font-size: 0.85rem; }
 .view-mode-toggle .view-btn.active { background: var(--card-border); color: #f8fafc; }
+.file-filter-toolbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; }
+.file-search-box { display: flex; align-items: center; gap: 6px; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 0 8px; height: 32px; box-sizing: border-box; flex: 1; max-width: 320px; min-width: 180px; }
+.file-search-box input { border: none; background: transparent; padding: 0 4px; outline: none; height: 100%; box-sizing: border-box; font-size: 0.82rem; color: #fff; width: 100%; }
+.file-search-box input:focus { outline: none; }
+.file-search-clear { background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.85rem; padding: 0 4px; line-height: 1; display: none; align-items: center; }
+.file-search-clear:hover { color: #f8fafc; }
+.file-pill-group { display: inline-flex; align-items: center; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 2px; height: 32px; box-sizing: border-box; }
+.file-pill-btn { background: transparent; border: none; border-radius: 4px; padding: 0 10px; height: 100%; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); cursor: pointer; font-size: 0.8rem; font-weight: 500; transition: all 0.15s ease; white-space: nowrap; }
+.file-pill-btn:hover { color: #f8fafc; }
+.file-pill-btn.active { background: var(--card-border); color: #38bdf8; font-weight: 600; }
+.sortable-th { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 4px; transition: color 0.15s ease; }
+.sortable-th:hover { color: #38bdf8; }
+.sortable-th .sort-arrow { font-size: 0.75rem; color: #38bdf8; margin-left: 2px; }
 .host-list-view { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; overflow-x: auto; }
 .host-list-table { width: 100%; border-collapse: collapse; }
 .host-list-table th { background: rgba(15, 23, 42, 0.6); padding: 12px 14px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -1720,6 +1733,12 @@ const I18N = {
     "cannot_upload_protected": "Protected Path: cannot upload to system location.",
     "cannot_delete_protected": "Protected Path: cannot delete system location.",
     "file_exists_overwrite": "File '{name}' already exists. Overwrite?",
+    "filter_placeholder": "Search / filter files (Esc to clear)...",
+    "filter_all": "All",
+    "filter_folders": "📁 Folders",
+    "filter_files": "📄 Files",
+    "showing_entries": "Showing {count} of {total} entries",
+    "no_matching_files": "No matching files or folders found",
     "edit_file": "Edit File",
     "btn_save": "\ud83d\udcbe Save",
     "tab_settings_general": "⚙️ General",
@@ -2163,6 +2182,12 @@ const I18N = {
     "cannot_upload_protected": "Protected Path: tidak dapat mengunggah ke lokasi sistem.",
     "cannot_delete_protected": "Protected Path: tidak dapat menghapus lokasi sistem.",
     "file_exists_overwrite": "Berkas '{name}' sudah ada. Timpa?",
+    "filter_placeholder": "Cari / filter berkas (Esc untuk reset)...",
+    "filter_all": "Semua",
+    "filter_folders": "📁 Folder",
+    "filter_files": "📄 Berkas",
+    "showing_entries": "Menampilkan {count} dari {total} entri",
+    "no_matching_files": "Tidak ada berkas atau folder yang cocok",
     "edit_file": "Edit Berkas",
     "btn_save": "💾 Simpan",
     "tab_settings_general": "⚙️ Umum",
@@ -4127,7 +4152,13 @@ async function dockerAction(container, action) {
   }
 }
 
-// SFTP File Manager
+// SFTP File Manager State
+let currentFilesData = null;
+let fileFilterQuery = '';
+let fileFilterType = 'all'; // 'all' | 'dir' | 'file'
+let fileSortColumn = 'name'; // 'name' | 'size' | 'mod_time'
+let fileSortOrder = 'asc'; // 'asc' | 'desc'
+
 async function loadFiles(path) {
   const content = document.getElementById('tabContent');
   content.innerHTML = '<p>' + t('loading_files') + '</p>';
@@ -4137,10 +4168,20 @@ async function loadFiles(path) {
     return;
   }
   const data = await res.json();
+  currentFilesData = data;
+  fileFilterQuery = '';
+  renderFilesView();
+}
+
+function renderFilesView() {
+  const content = document.getElementById('tabContent');
+  if (!content || !currentFilesData) return;
+  const data = currentFilesData;
   const isProtectedDir = !!data.is_protected;
-  const parent = path === '/' ? '/' : path.substring(0, path.lastIndexOf('/')) || '/';
+  const parent = data.path === '/' ? '/' : data.path.substring(0, data.path.lastIndexOf('/')) || '/';
+
   content.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
       <div style="font-weight: 600; font-family: monospace; display: flex; align-items: center; gap: 8px;">
         <span>${t('path_label')} ${escapeHtml(data.path)}</span>
         ${isProtectedDir ? `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;">🔒 ${t('protected_path')}</span>` : ''}
@@ -4151,40 +4192,167 @@ async function loadFiles(path) {
         <button class="btn btn-primary btn-sm" ${isProtectedDir ? 'disabled title="' + t('cannot_upload_protected') + '"' : ''} onclick="document.getElementById('fileUploadInput').click()">${t('upload_file')}</button>
       </div>
     </div>
+    <div class="file-filter-toolbar">
+      <div class="file-search-box">
+        <span style="font-size: 0.85rem; opacity: 0.6;">🔍</span>
+        <input type="text" id="fileSearchInput" placeholder="${t('filter_placeholder')}" value="${escapeHtml(fileFilterQuery)}" oninput="onFileFilterInput(this.value)" onkeydown="if(event.key==='Escape'){clearFileFilter();}" />
+        <button type="button" id="fileSearchClear" class="file-search-clear" onclick="clearFileFilter()" title="Clear filter">✕</button>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <div class="file-pill-group">
+          <button type="button" class="file-pill-btn ${fileFilterType === 'all' ? 'active' : ''}" onclick="setFileTypeFilter('all')">${t('filter_all')}</button>
+          <button type="button" class="file-pill-btn ${fileFilterType === 'dir' ? 'active' : ''}" onclick="setFileTypeFilter('dir')">${t('filter_folders')}</button>
+          <button type="button" class="file-pill-btn ${fileFilterType === 'file' ? 'active' : ''}" onclick="setFileTypeFilter('file')">${t('filter_files')}</button>
+        </div>
+        <span id="fileCountLabel" style="font-size: 0.78rem; color: var(--text-muted); white-space: nowrap;"></span>
+      </div>
+    </div>
     <table>
-      <thead><tr><th>${t('file_name')}</th><th>${t('file_size')}</th><th>${t('file_perms')}</th><th>${t('file_modified')}</th><th>${t('file_actions')}</th></tr></thead>
-      <tbody>
-        ${(data.files || []).map(f => {
-          const fullPath = data.path === '/' ? '/' + f.name : data.path + '/' + f.name;
-          const isItemProtected = !!(f.is_protected || isProtectedDir);
-          return `
-          <tr>
-            <td>
-              ${f.is_dir 
-                ? '<a class="folder-link" href="javascript:void(0)" onclick="loadFiles(\'' + fullPath + '\')"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>' + escapeHtml(f.name) + '</b></a>' 
-                : '📄 ' + escapeHtml(f.name)}
-              ${isItemProtected ? '<span title="' + t('protected_path') + '" style="margin-left: 6px; font-size: 0.85em;">🔒</span>' : ''}
-            </td>
-            <td>${f.is_dir ? '-' : formatBytes(f.size)}</td>
-            <td>${f.mode}</td>
-            <td>${f.mod_time}</td>
-            <td style="white-space: nowrap;">
-              <div class="action-grid">
-                ${!f.is_dir 
-                  ? `<button class="btn btn-primary btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openEditor('${escapeHtml(fullPath)}')">${t('edit')}</button>` 
-                  : '<span style="display:inline-block;"></span>'}
-                ${f.is_dir 
-                  ? `<button class="btn btn-sm" title="Download Folder Archive" onclick="downloadFolder('${escapeHtml(fullPath)}')">⬇️</button>` 
-                  : `<a class="btn btn-sm" title="Download File" href="/api/hosts/${currentHost.id}/files/download?path=${encodeURIComponent(fullPath)}">⬇️</a>`}
-                <button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(fullPath)}', ${f.is_dir})">${t('copy_to_host')}</button>
-                <button class="btn btn-danger btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_delete_protected') + '"' : ''} onclick="deleteRemoteFile('${escapeHtml(fullPath)}', '${escapeHtml(data.path)}')">🗑️</button>
-              </div>
-            </td>
-          </tr>
-        `;}).join('')}
-      </tbody>
+      <thead>
+        <tr>
+          <th><span class="sortable-th" onclick="toggleFileSort('name')">${t('file_name')} <span id="sortArrow_name" class="sort-arrow"></span></span></th>
+          <th><span class="sortable-th" onclick="toggleFileSort('size')">${t('file_size')} <span id="sortArrow_size" class="sort-arrow"></span></span></th>
+          <th>${t('file_perms')}</th>
+          <th><span class="sortable-th" onclick="toggleFileSort('mod_time')">${t('file_modified')} <span id="sortArrow_mod_time" class="sort-arrow"></span></span></th>
+          <th>${t('file_actions')}</th>
+        </tr>
+      </thead>
+      <tbody id="filesTableBody"></tbody>
     </table>
   `;
+
+  renderFilesTableBody();
+}
+
+function renderFilesTableBody() {
+  if (!currentFilesData) return;
+  const tbody = document.getElementById('filesTableBody');
+  const countLabel = document.getElementById('fileCountLabel');
+  const clearBtn = document.getElementById('fileSearchClear');
+  if (!tbody) return;
+
+  if (clearBtn) {
+    clearBtn.style.display = fileFilterQuery ? 'inline-flex' : 'none';
+  }
+
+  // Update header sort arrows
+  ['name', 'size', 'mod_time'].forEach(col => {
+    const el = document.getElementById('sortArrow_' + col);
+    if (el) {
+      el.textContent = fileSortColumn === col ? (fileSortOrder === 'asc' ? '▲' : '▼') : '';
+    }
+  });
+
+  // Update pill active classes
+  document.querySelectorAll('.file-pill-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  const activePill = document.querySelector(`.file-pill-btn[onclick="setFileTypeFilter('${fileFilterType}')"]`);
+  if (activePill) activePill.classList.add('active');
+
+  const allFiles = currentFilesData.files || [];
+  const q = fileFilterQuery.trim().toLowerCase();
+
+  const filtered = allFiles.filter(f => {
+    if (fileFilterType === 'dir' && !f.is_dir) return false;
+    if (fileFilterType === 'file' && f.is_dir) return false;
+    if (q && !f.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  // Sort: Folders always first, then by fileSortColumn
+  filtered.sort((a, b) => {
+    if (a.is_dir !== b.is_dir) {
+      return a.is_dir ? -1 : 1;
+    }
+    let res = 0;
+    if (fileSortColumn === 'name') {
+      res = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    } else if (fileSortColumn === 'size') {
+      res = (a.size || 0) - (b.size || 0);
+    } else if (fileSortColumn === 'mod_time') {
+      res = (a.mod_time || '').localeCompare(b.mod_time || '');
+    }
+    return fileSortOrder === 'asc' ? res : -res;
+  });
+
+  if (countLabel) {
+    countLabel.textContent = t('showing_entries')
+      .replace('{count}', filtered.length)
+      .replace('{total}', allFiles.length);
+  }
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px 16px;">
+          ${t('no_matching_files')}
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  const isProtectedDir = !!currentFilesData.is_protected;
+  tbody.innerHTML = filtered.map(f => {
+    const fullPath = currentFilesData.path === '/' ? '/' + f.name : currentFilesData.path + '/' + f.name;
+    const isItemProtected = !!(f.is_protected || isProtectedDir);
+    return `
+      <tr>
+        <td>
+          ${f.is_dir 
+            ? '<a class="folder-link" href="javascript:void(0)" onclick="loadFiles(\'' + fullPath + '\')"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>' + escapeHtml(f.name) + '</b></a>' 
+            : '📄 ' + escapeHtml(f.name)}
+          ${isItemProtected ? '<span title="' + t('protected_path') + '" style="margin-left: 6px; font-size: 0.85em;">🔒</span>' : ''}
+        </td>
+        <td>${f.is_dir ? '-' : formatBytes(f.size)}</td>
+        <td>${f.mode}</td>
+        <td>${f.mod_time}</td>
+        <td style="white-space: nowrap;">
+          <div class="action-grid">
+            ${!f.is_dir 
+              ? `<button class="btn btn-primary btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openEditor('${escapeHtml(fullPath)}')">${t('edit')}</button>` 
+              : '<span style="display:inline-block;"></span>'}
+            ${f.is_dir 
+              ? `<button class="btn btn-sm" title="Download Folder Archive" onclick="downloadFolder('${escapeHtml(fullPath)}')">⬇️</button>` 
+              : `<a class="btn btn-sm" title="Download File" href="/api/hosts/${currentHost.id}/files/download?path=${encodeURIComponent(fullPath)}">⬇️</a>`}
+            <button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(fullPath)}', ${f.is_dir})">${t('copy_to_host')}</button>
+            <button class="btn btn-danger btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_delete_protected') + '"' : ''} onclick="deleteRemoteFile('${escapeHtml(fullPath)}', '${escapeHtml(currentFilesData.path)}')">🗑️</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function onFileFilterInput(val) {
+  fileFilterQuery = val;
+  renderFilesTableBody();
+}
+
+function clearFileFilter() {
+  fileFilterQuery = '';
+  const inp = document.getElementById('fileSearchInput');
+  if (inp) {
+    inp.value = '';
+    inp.focus();
+  }
+  renderFilesTableBody();
+}
+
+function setFileTypeFilter(type) {
+  fileFilterType = type;
+  renderFilesTableBody();
+}
+
+function toggleFileSort(col) {
+  if (fileSortColumn === col) {
+    fileSortOrder = fileSortOrder === 'asc' ? 'desc' : 'asc';
+  } else {
+    fileSortColumn = col;
+    fileSortOrder = 'asc';
+  }
+  renderFilesTableBody();
 }
 
 async function downloadFolder(path) {

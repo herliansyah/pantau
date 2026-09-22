@@ -1060,6 +1060,49 @@ func TestInspectAll_CooldownAndInFlight(t *testing.T) {
 	}
 }
 
+func TestFileManagerFilterAndSortUI(t *testing.T) {
+	html := string(embeddedHTML)
+
+	requiredUIElements := []string{
+		"file-filter-toolbar",
+		"file-search-box",
+		"fileSearchInput",
+		"fileSearchClear",
+		"file-pill-group",
+		"file-pill-btn",
+		"fileCountLabel",
+		"sortable-th",
+		"toggleFileSort('name')",
+		"toggleFileSort('size')",
+		"toggleFileSort('mod_time')",
+		"setFileTypeFilter('all')",
+		"setFileTypeFilter('dir')",
+		"setFileTypeFilter('file')",
+		"clearFileFilter()",
+		"onFileFilterInput",
+		"renderFilesTableBody",
+	}
+	for _, el := range requiredUIElements {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected embedded index.html to contain file manager UI element %q", el)
+		}
+	}
+
+	requiredI18nKeys := []string{
+		`"filter_placeholder":`,
+		`"filter_all":`,
+		`"filter_folders":`,
+		`"filter_files":`,
+		`"showing_entries":`,
+		`"no_matching_files":`,
+	}
+	for _, key := range requiredI18nKeys {
+		if strings.Count(html, key) < 2 {
+			t.Errorf("expected i18n key %q to exist in at least 2 dictionaries (EN and ID), found %d", key, strings.Count(html, key))
+		}
+	}
+}
+
 
 
 
