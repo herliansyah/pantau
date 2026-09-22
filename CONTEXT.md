@@ -225,3 +225,15 @@ _Avoid_: Task log, execution audit, polling history, health log
 Jeda waktu minimum (15 detik) yang diwajibkan antar eksekusi Inspeksi manual pada Host yang sama guna mencegah pembanjiran koneksi SSH (*connection flooding*) dan lonjakan beban CPU target.
 _Avoid_: Rate limit window, inspect debounce, retry wait
 
+**Instance Guard**:
+Mekanisme proteksi proses tunggal berbasis file lock kernel OS yang terikat pada file database untuk mendeteksi instance Pantau yang sedang berjalan, mencegah eksekusi ganda pada database yang sama, dan memberikan notifikasi lokasi port serta PID aktif kepada pengguna.
+_Avoid_: App lock, multi-instance blocker, process mutex
+
+**Directory Filter**:
+Penyaringan reaktif instan pada entri berkas dan folder di direktori aktif SFTP File Manager berdasarkan kata kunci nama berkas atau filter tipe entri (semua, folder, berkas) tanpa pemuatan ulang jaringan.
+_Avoid_: File search, search bar, deep finder
+
+**File Sorting**:
+Pengorganisasian urutan entri berkas dan folder pada antarmuka SFTP File Manager berdasarkan atribut kolom (nama, ukuran, tanggal modifikasi) dengan prioritas entri folder di atas berkas (*folders first*).
+_Avoid_: File order, column ordering
+

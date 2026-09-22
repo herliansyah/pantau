@@ -20,6 +20,7 @@ import (
 	"github.com/mattn/go-isatty"
 
 	"pantau/internal/inspector"
+	"pantau/internal/instance"
 	"pantau/internal/notify"
 	"pantau/internal/snapshot"
 	"pantau/internal/sshrunner"
@@ -183,6 +184,32 @@ func main() {
 		portExplicit = true
 	}
 
+	guard, runningMeta, err := instance.Acquire(dbPath, port)
+	if err == instance.ErrAlreadyRunning {
+		activePort := port
+		activePID := 0
+		if runningMeta != nil {
+			if runningMeta.Port > 0 {
+				activePort = runningMeta.Port
+			}
+			activePID = runningMeta.PID
+		}
+		if activePID > 0 {
+			log.Printf("ℹ️ Pantau is already running on http://localhost:%d (PID %d)", activePort, activePID)
+		} else {
+			log.Printf("ℹ️ Pantau is already running on http://localhost:%d", activePort)
+		}
+		if *openBrowserFlag {
+			openBrowser(fmt.Sprintf("http://localhost:%d", activePort))
+		}
+		os.Exit(0)
+	}
+	if err != nil {
+		log.Printf("⚠️ Warning: could not acquire instance lock: %v", err)
+	} else {
+		defer guard.Close()
+	}
+
 	log.Printf("Starting Pantau %s...", ver)
 	log.Printf("Database path: %s", dbPath)
 
@@ -243,6 +270,10 @@ func main() {
 			log.Fatalf("Failed to bind port %d: %v", port, err)
 		}
 		listener = l
+	}
+
+	if guard != nil {
+		_ = guard.UpdatePort(port)
 	}
 
 	httpServer := &http.Server{
