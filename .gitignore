@@ -3,5 +3,6 @@ data/
 *.db
 *.db-wal
 *.db-shm
+*.db.lock
 *.tar.gz
 dist/
