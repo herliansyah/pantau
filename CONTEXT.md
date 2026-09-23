@@ -194,8 +194,12 @@ Penangguhan sementara proses verifikasi login (jeda pendinginan 30 detik setelah
 _Avoid_: Account ban, login block, brute-force penalty
 
 **Stale Inspection**:
-Kondisi di mana Actual State sebuah Host belum berhasil diperbarui melampaui ambang batas toleransi (2× interval inspeksi normal), menandakan risiko koneksi SSH terputus, jaringan bermasalah, atau mesin target tidak responsif.
+Kondisi di mana Actual State sebuah Host belum berhasil diperbarui melampaui ambang batas toleransi (2× interval inspeksi normal), menandakan risiko koneksi SSH terputus, jaringan bermasalah, atau mesin target tidak responsif. Penanda peringatan ini otomatis disupresi ketika Background Inspection dinonaktifkan secara sengaja oleh administrator.
 _Avoid_: Outdated metrics, expired telemetry, laggy check
+
+**Background Inspection**:
+Mekanisme eksekusi Inspeksi berkala di latar belakang untuk seluruh Host secara otomatis sesuai interval waktu yang dikonfigurasi, yang dapat dinonaktifkan (diatur ke 0 detik) untuk beralih sepenuhnya ke mode inspeksi manual (*On-Demand Inspection*).
+_Avoid_: Background polling, auto scrape worker, periodic cron
 
 **Inspect All**:
 Mekanisme eksekusi Inspeksi serentak secara asinkron ke seluruh Host yang terdaftar dalam satu tindakan operasional terpadu.

@@ -333,25 +333,39 @@ func startInspectionWorker(ctx context.Context, db *store.DB, ins *inspector.Ins
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			hosts, err := db.ListHosts()
-			if err != nil {
-				continue
-			}
-			interval := 300 * time.Second
-			if pollStr, err := db.GetSetting("poll_interval_sec"); err == nil && pollStr != "" {
-				if sec, err := strconv.Atoi(pollStr); err == nil && sec > 0 {
-					interval = time.Duration(sec) * time.Second
-				}
-			}
+			runInspectionCycle(db, ins)
+		}
+	}
+}
 
-			now := time.Now()
-			for _, h := range hosts {
-				if (h.LastInspected == nil || now.Sub(*h.LastInspected) >= interval) && !ins.IsInspecting(h.ID) {
-					go func(hostID int64) {
-						_ = ins.InspectHost(hostID)
-					}(h.ID)
-				}
+// runInspectionCycle executes a single inspection sweep across hosts that are due.
+// Returns false if background inspection is disabled (poll_interval_sec = 0) or on error.
+func runInspectionCycle(db *store.DB, ins *inspector.Inspector) bool {
+	interval := 300 * time.Second
+	if pollStr, err := db.GetSetting("poll_interval_sec"); err == nil && pollStr != "" {
+		if sec, err := strconv.Atoi(pollStr); err == nil {
+			// ponytail: Setting poll_interval_sec to 0 disables background inspection, running purely on-demand.
+			if sec == 0 {
+				return false
+			}
+			if sec >= 30 {
+				interval = time.Duration(sec) * time.Second
 			}
 		}
 	}
+
+	hosts, err := db.ListHosts()
+	if err != nil {
+		return false
+	}
+
+	now := time.Now()
+	for _, h := range hosts {
+		if (h.LastInspected == nil || now.Sub(*h.LastInspected) >= interval) && !ins.IsInspecting(h.ID) {
+			go func(hostID int64) {
+				_ = ins.InspectHost(hostID)
+			}(h.ID)
+		}
+	}
+	return true
 }
