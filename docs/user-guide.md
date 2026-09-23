@@ -120,9 +120,9 @@ Pantau collects actual state telemetry and validates desired state rules through
 - **Hung NFS & Network Mount Protection**: Disk evaluations strictly isolate local filesystems (`df -lPk /`) to prevent remote storage locks, and wrap partition checks in a 5-second execution timeout. Stale or unresponsive network storage mounts (NFS, CIFS) are flagged with actionable drift diagnostics instead of freezing the inspection worker.
 - **Enforced Hard Timeout Budget**: Each host inspection cycle is constrained to an enforced 45-second total timeout budget. Stalled or hung SSH connections are terminated on timeout and marked down to preserve queue availability.
 - **Inspection Recency & Roundtrip Duration Indicators**: Host cards and list rows show dynamic relative timestamps (e.g. `🕒 2m ago`, `🕒 just now`) alongside precise execution roundtrip duration badges (e.g. `⚡ 320ms`).
-- **Stale Inspection Detection**: When a host fails inspection or telemetry remains unrefreshed beyond tolerance (> 10 minutes or 2× the normal interval), an amber `⚠️ Stale Data` warning alerts operators to potential SSH disconnection or unresponsive nodes.
+- **Stale Inspection Detection**: When a host fails inspection or telemetry remains unrefreshed beyond tolerance (> 10 minutes or 2× the normal interval), an amber `⚠️ Stale Data` warning alerts operators to potential SSH disconnection or unresponsive nodes. When Background Inspection is intentionally disabled (set to `0`), stale warnings are automatically suppressed to eliminate false alarms.
 - **Dashboard Auto-Refresh**: The browser UI automatically synchronizes host metrics and status every 30 seconds without requiring manual page reload.
-- **Configurable Inspection Interval**: Administrators can adjust background SSH inspection frequency (default: 300 seconds / 5 minutes, minimum 30 seconds) via **Settings** > **General** tab.
+- **Configurable Inspection Interval & Disable Switch**: Administrators can adjust background SSH inspection frequency (default: 300 seconds / 5 minutes, minimum 30 seconds, or set to `0` to disable background inspection completely for on-demand manual inspection only) via **Settings** > **General** tab. When disabled, an indicator badge (`⏸️ Background Inspection Paused`) appears on the dashboard toolbar and engine footer.
 
 ### Resource Metrics & Hardware Telemetry
 

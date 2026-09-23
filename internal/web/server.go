@@ -1433,8 +1433,13 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		for k, v := range req {
 			if k != "ssh_public_key" && k != "ssh_private_key" && k != "admin_password_hash" {
 				if k == "poll_interval_sec" {
-					if sec, err := strconv.Atoi(v); err == nil && sec < 30 {
-						v = "30"
+					if sec, err := strconv.Atoi(v); err == nil {
+						// ponytail: 0 disables background inspection, clamped to min 30s if between 1 and 29.
+						if sec <= 0 {
+							v = "0"
+						} else if sec < 30 {
+							v = "30"
+						}
 					}
 				}
 				_ = s.db.SetSetting(k, v)

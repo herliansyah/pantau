@@ -626,6 +626,9 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <button id="clearSearchBtn" class="btn btn-sm" style="display: none; padding: 2px 6px; background: transparent; color: var(--text-muted);" onclick="clearSearch()">✕</button>
       </div>
       <div class="toolbar-controls">
+        <span id="inspectionPausedBadge" style="display: none; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.35); color: #fbbf24; font-size: 0.78rem; font-weight: 500; cursor: pointer;" onclick="openSettingsModal('general')" title="Background Inspection is paused. Click to open Settings.">
+          ⏸️ <span data-i18n="inspection_paused_badge">Background Inspection Paused</span>
+        </span>
         <select id="groupFilterSelect" onchange="onSearchFilterChange()" style="width: auto;">
           <option value="all" data-i18n="filter_all_groups">All Groups</option>
         </select>
@@ -986,11 +989,11 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <div id="settingsPanelGeneral" style="display: flex; flex-direction: column; gap: 16px;">
         <div class="card" style="padding: 16px;">
           <h4 style="margin-bottom: 8px;" data-i18n="inspection_settings">⚙️ Auto-Inspection Interval</h4>
-          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;" data-i18n="inspection_interval_desc">Interval for background SSH inspection across all hosts in seconds (minimum 30 seconds).</p>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;" data-i18n="inspection_interval_desc">Interval for background SSH inspection across all hosts in seconds (minimum 30 seconds, or 0 to disable).</p>
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <div style="display: flex; align-items: center; gap: 6px;">
-              <input type="number" id="settingPollInterval" min="30" max="86400" placeholder="300" style="width: 120px;" />
-              <span style="font-size: 0.85rem; color: var(--text-muted);" data-i18n="seconds_unit">seconds</span>
+              <input type="number" id="settingPollInterval" min="0" max="86400" placeholder="300" style="width: 120px;" />
+              <span style="font-size: 0.85rem; color: var(--text-muted);" data-i18n="seconds_unit">seconds (0 = disabled)</span>
             </div>
             <button class="btn btn-primary btn-sm" onclick="savePollInterval()" style="width: auto; white-space: nowrap;" data-i18n="save_interval">Save Interval</button>
           </div>
@@ -1564,9 +1567,11 @@ const I18N = {
     "stale_data": "Stale Data (>10m)",
     "col_last_inspected": "Inspected",
     "inspection_settings": "⚙️ Auto-Inspection Interval",
-    "inspection_interval_desc": "Interval for background SSH inspection across all hosts in seconds (minimum 30 seconds).",
+    "inspection_interval_desc": "Interval for background SSH inspection across all hosts in seconds (minimum 30 seconds, or 0 to disable).",
     "save_interval": "Save Interval",
-    "min_interval_error": "Minimum inspection interval is 30 seconds",
+    "min_interval_error": "Minimum inspection interval is 30 seconds (or 0 to disable)",
+    "inspection_paused_badge": "Background Inspection Paused",
+    "inspection_paused_footer": "Inspection Paused",
     "btn_test": "🔌 Test",
     "btn_inject_key": "Inject Key",
     "more_actions": "More Actions",
@@ -1745,7 +1750,7 @@ const I18N = {
     "tab_settings_security": "🔒 Security",
     "tab_settings_notif": "🔔 Notifications",
     "tab_settings_backup": "💾 Backup",
-    "seconds_unit": "seconds",
+    "seconds_unit": "seconds (0 = disabled)",
     "global_pub_key": "Global Pantau SSH Public Key",
     "global_pub_key_desc": "This public key is placed into <code>~/.ssh/authorized_keys</code> on target servers for agentless SSH authentication.",
     "copy_key": "\ud83d\udccb Copy Key",
@@ -2013,9 +2018,11 @@ const I18N = {
     "stale_data": "Data Usang (>10m)",
     "col_last_inspected": "Diinspeksi",
     "inspection_settings": "⚙️ Interval Inspeksi Otomatis",
-    "inspection_interval_desc": "Interval inspeksi SSH latar belakang untuk seluruh host dalam detik (minimal 30 detik).",
+    "inspection_interval_desc": "Interval inspeksi SSH latar belakang untuk seluruh host dalam detik (minimal 30 detik, atau 0 untuk menonaktifkan).",
     "save_interval": "Simpan Interval",
-    "min_interval_error": "Interval inspeksi minimal 30 detik",
+    "min_interval_error": "Interval inspeksi minimal 30 detik (atau 0 untuk menonaktifkan)",
+    "inspection_paused_badge": "Inspeksi Latar Belakang Dijeda",
+    "inspection_paused_footer": "Inspeksi Dijeda",
     "btn_test": "🔌 Uji",
     "btn_inject_key": "Inject Key",
     "more_actions": "Aksi Lainnya",
@@ -2194,7 +2201,7 @@ const I18N = {
     "tab_settings_security": "🔒 Keamanan",
     "tab_settings_notif": "🔔 Notifikasi",
     "tab_settings_backup": "💾 Backup",
-    "seconds_unit": "detik",
+    "seconds_unit": "detik (0 = nonaktif)",
     "global_pub_key": "Global Pantau SSH Public Key",
     "global_pub_key_desc": "Kunci publik ini ditempelkan ke file <code>~/.ssh/authorized_keys</code> di server target untuk otentikasi SSH agentless.",
     "copy_key": "\ud83d\udccb Salin Kunci",
@@ -2428,6 +2435,7 @@ async function checkAuth() {
     document.getElementById('appView').style.display = 'flex';
     initDashboardToolbar();
     loadGlobalNotes();
+    loadInspectionSettings();
     loadHosts();
     loadAlerts();
     loadTransfers();
@@ -2814,14 +2822,45 @@ function handleDropReorder(srcId, targetId) {
   reorderHostsAPI(orderedIds);
 }
 
+let currentPollInterval = 300;
+
+function updateInspectionStatusUI() {
+  const isPaused = currentPollInterval === 0;
+  const badge = document.getElementById('inspectionPausedBadge');
+  if (badge) {
+    badge.style.display = isPaused ? 'inline-flex' : 'none';
+  }
+  const engineTxt = document.getElementById('footerEngineText');
+  if (engineTxt && lastEngineStatus) {
+    if (isPaused) {
+      engineTxt.innerHTML = `${t('footer_engine_active', 'Engine Active')} <span style="color: #fbbf24; font-size: 0.72rem; margin-left: 4px;">(${t('inspection_paused_footer', 'Inspection Paused')})</span>`;
+    } else {
+      engineTxt.innerText = t('footer_engine_active', 'Engine Active');
+    }
+  }
+}
+
+async function loadInspectionSettings() {
+  try {
+    const res = await fetch('/api/settings');
+    if (res.ok) {
+      const data = await res.json();
+      const val = parseInt(data.poll_interval_sec !== undefined ? data.poll_interval_sec : '300', 10);
+      currentPollInterval = isNaN(val) ? 300 : val;
+      updateInspectionStatusUI();
+    }
+  } catch (e) {}
+}
+
 function formatRelativeTime(isoStr) {
-  if (!isoStr) return { relative: t('never_inspected', 'Never'), title: t('never_inspected', 'Never'), isStale: true };
+  if (!isoStr) return { relative: t('never_inspected', 'Never'), title: t('never_inspected', 'Never'), isStale: (currentPollInterval !== 0) };
   const d = new Date(isoStr);
   if (isNaN(d.getTime())) return { relative: '-', title: '-', isStale: false };
   const diffSec = Math.floor((Date.now() - d.getTime()) / 1000);
   const title = d.toLocaleString();
-  // ponytail: 600s (10 minutes) threshold marks telemetry as stale
-  const isStale = diffSec > 600;
+  // ponytail: 600s (10 minutes) threshold marks telemetry as stale when background inspection is active.
+  // Suppress stale warning if background inspection is intentionally disabled (interval = 0).
+  const isStale = (currentPollInterval !== 0) && (diffSec > 600);
 
   if (diffSec < 10) return { relative: t('just_now', 'just now'), title, isStale: false };
   if (diffSec < 60) return { relative: `${diffSec}s ` + t('ago', 'ago'), title, isStale: false };
@@ -2928,8 +2967,8 @@ async function savePollInterval() {
   const input = document.getElementById('settingPollInterval');
   if (!input) return;
   const sec = parseInt(input.value, 10);
-  if (isNaN(sec) || sec < 30) {
-    showToast(t('min_interval_error', 'Minimum inspection interval is 30 seconds'), 'error');
+  if (isNaN(sec) || (sec !== 0 && sec < 30)) {
+    showToast(t('min_interval_error', 'Minimum inspection interval is 30 seconds (or 0 to disable)'), 'error');
     return;
   }
   try {
@@ -2939,6 +2978,9 @@ async function savePollInterval() {
       body: JSON.stringify({ poll_interval_sec: String(sec) })
     });
     if (res.ok) {
+      currentPollInterval = sec;
+      updateInspectionStatusUI();
+      renderHosts();
       showToast(t('settings_saved', 'Settings saved successfully'), 'success');
     } else {
       showToast(t('save_failed', 'Failed to save settings'), 'error');
@@ -3372,7 +3414,11 @@ function setEngineStatus(online) {
   if (!dot || !txt) return;
   if (online) {
     dot.className = 'status-dot online';
-    txt.innerText = t('footer_engine_active', 'Engine Active');
+    if (currentPollInterval === 0) {
+      txt.innerHTML = `${t('footer_engine_active', 'Engine Active')} <span style="color: #fbbf24; font-size: 0.72rem; margin-left: 4px;">(${t('inspection_paused_footer', 'Inspection Paused')})</span>`;
+    } else {
+      txt.innerText = t('footer_engine_active', 'Engine Active');
+    }
     txt.style.color = 'var(--text-muted)';
   } else {
     dot.className = 'status-dot offline';
@@ -5809,7 +5855,7 @@ async function openSettingsModal(tab) {
   document.getElementById('settingTgChat').value = data.telegram_chat_id || '';
   document.getElementById('settingWebhook').value = data.webhook_url || '';
   const pollEl = document.getElementById('settingPollInterval');
-  if (pollEl) pollEl.value = data.poll_interval_sec || '300';
+  if (pollEl) pollEl.value = (data.poll_interval_sec !== undefined && data.poll_interval_sec !== '') ? data.poll_interval_sec : '300';
 
   document.getElementById('settingGhEnabled').checked = data.github_backup_enabled === '1';
   document.getElementById('settingGhRepo').value = data.github_repo || '';

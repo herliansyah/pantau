@@ -1536,6 +1536,55 @@ func TestInspectAllAndPollIntervalSetting(t *testing.T) {
 	if val != "30" {
 		t.Errorf("expected poll_interval_sec to be clamped to min 30, got %q", val)
 	}
+
+	// Test setting poll_interval_sec to 0 (disabled)
+	body0, _ := json.Marshal(map[string]string{
+		"poll_interval_sec": "0",
+	})
+	resp0, err := client.Post(env.httpServer.URL+"/api/settings", "application/json", bytes.NewReader(body0))
+	if err != nil {
+		t.Fatalf("post settings 0: %v", err)
+	}
+	resp0.Body.Close()
+
+	val0, err := env.db.GetSetting("poll_interval_sec")
+	if err != nil {
+		t.Fatalf("get poll_interval_sec setting: %v", err)
+	}
+	if val0 != "0" {
+		t.Errorf("expected poll_interval_sec to allow 0 (disabled), got %q", val0)
+	}
+}
+
+func TestBackgroundInspectionDisableAndCycle(t *testing.T) {
+	env := setupTestEnv(t)
+	hostID, err := env.db.CreateHost(&store.Host{
+		Name: "cycle-test-host",
+		Host: "192.168.1.99",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatalf("create host: %v", err)
+	}
+
+	// 1. When poll_interval_sec is 0 (disabled), runInspectionCycle returns false and does not inspect
+	_ = env.db.SetSetting("poll_interval_sec", "0")
+	active := runInspectionCycle(env.db, env.inspector)
+	if active {
+		t.Errorf("expected runInspectionCycle to return false when poll_interval_sec=0")
+	}
+	h, _ := env.db.GetHost(hostID)
+	if h.LastInspected != nil {
+		t.Errorf("expected host to not be inspected when background inspection is disabled")
+	}
+
+	// 2. When poll_interval_sec is set to active (e.g. 30s), runInspectionCycle returns true
+	_ = env.db.SetSetting("poll_interval_sec", "30")
+	active = runInspectionCycle(env.db, env.inspector)
+	if !active {
+		t.Errorf("expected runInspectionCycle to return true when poll_interval_sec=30")
+	}
 }
 
 func TestDiskUsageDriftNoDu(t *testing.T) {
