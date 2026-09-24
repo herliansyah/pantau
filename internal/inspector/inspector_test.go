@@ -161,3 +161,90 @@ func TestInspectHost_TimeoutAbortsRunner(t *testing.T) {
 		t.Fatalf("expected host status 'down' or 'degraded', got %q", h.Status)
 	}
 }
+
+func TestInspectHost_AutoResolveAlertsOnHealthy(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-ins-autoresolve-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name: "Server Healthy",
+		Host: "1.2.3.4",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create an active alert for this host
+	_, err = db.CreateAlert(&store.Alert{
+		HostID:  hostID,
+		Level:   "critical",
+		Message: "Previous drift alert",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	alerts, _ := db.ListActiveAlerts()
+	if len(alerts) != 1 {
+		t.Fatalf("expected 1 active alert before inspection, got %d", len(alerts))
+	}
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		// Mock SystemMetricsBatchCmd
+		if strings.Contains(cmd, "uname -r") {
+			parts := []string{
+				"5.15.0-generic", "---",
+				"NAME=\"Ubuntu\"\nVERSION=\"22.04 LTS\"", "---",
+				"up 10 days, 1 user, load average: 0.10, 0.20, 0.15", "---",
+				"Mem: 8000000000 4000000000 4000000000", "---",
+				"/dev/sda1 100000 50000 50000 50% /", "---",
+				"0", "---",
+				"1000 1000", "---",
+				"time=12.5", "---",
+				"1.1.1.1", "---",
+				"127.0.0.1:80 127.0.0.1:12345", "---",
+				"LISTEN 127.0.0.1:80", "---",
+				"0", "---",
+				"4", "---",
+				"01/01/2022", "---",
+				"KVM", "---",
+				"1640995200",
+			}
+			return strings.Join(parts, "\n"), "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	factory := func(host string, port int, user, key string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}
+
+	ins := New(db, factory, nil)
+	err = ins.InspectHost(hostID)
+	if err != nil {
+		t.Fatalf("unexpected inspection error: %v", err)
+	}
+
+	// Verify host is healthy and active alerts were auto-resolved
+	h, _ := db.GetHost(hostID)
+	if h.Status != "healthy" {
+		t.Fatalf("expected host status 'healthy', got %q", h.Status)
+	}
+
+	activeAlerts, _ := db.ListActiveAlerts()
+	if len(activeAlerts) != 0 {
+		t.Fatalf("expected active alerts to be auto-resolved, but found %d", len(activeAlerts))
+	}
+}

@@ -960,8 +960,15 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		return
 
 	case "runs":
-		// GET /api/hosts/{id}/runs
-		runs, err := s.db.ListInspectionRuns(hostID, 100)
+		// GET /api/hosts/{id}/runs?filter=issues&limit=100
+		filter := r.URL.Query().Get("filter")
+		limit := 100
+		if lStr := r.URL.Query().Get("limit"); lStr != "" {
+			if l, err := strconv.Atoi(lStr); err == nil && l > 0 {
+				limit = l
+			}
+		}
+		runs, err := s.db.ListInspectionRuns(hostID, limit, filter)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -1486,6 +1493,11 @@ func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAlertDetail(w http.ResponseWriter, r *http.Request) {
 	subpath := strings.TrimPrefix(r.URL.Path, "/api/alerts/")
 	parts := strings.Split(subpath, "/")
+	if len(parts) >= 1 && (parts[0] == "ack-all" || parts[0] == "ack_all") && r.Method == http.MethodPost {
+		_ = s.db.AcknowledgeAllAlerts()
+		writeJSON(w, http.StatusOK, map[string]string{"status": "acknowledged_all"})
+		return
+	}
 	if len(parts) >= 2 && parts[1] == "ack" && r.Method == http.MethodPost {
 		id, _ := strconv.ParseInt(parts[0], 10, 64)
 		_ = s.db.AcknowledgeAlert(id)

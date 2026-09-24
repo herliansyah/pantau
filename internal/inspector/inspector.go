@@ -202,6 +202,8 @@ func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration
 		details = strings.Join(driftSummaries, "\n")
 	} else {
 		host.Status = "healthy"
+		// ponytail: Auto-resolve/acknowledge active alerts when host recovers to fully healthy/desired state.
+		_ = ins.db.AcknowledgeHostAlerts(host.ID)
 	}
 
 	_ = ins.db.RecordInspectionRun(&store.InspectionRun{
