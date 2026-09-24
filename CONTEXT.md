@@ -241,3 +241,15 @@ _Avoid_: File search, search bar, deep finder
 Pengorganisasian urutan entri berkas dan folder pada antarmuka SFTP File Manager berdasarkan atribut kolom (nama, ukuran, tanggal modifikasi) dengan prioritas entri folder di atas berkas (*folders first*).
 _Avoid_: File order, column ordering
 
+**Alert Banner**:
+Bilah ringkasan peringatan deviasi sistem pada dashboard Pantau yang menyajikan kuantitas alert aktif dan host terdampak secara non-blocking dengan panel rincian mengambang (*floating overlay*) dan pembersihan massal (*dismiss all*).
+_Avoid_: Warning list, alert strip, popup banner
+
+**Alert Auto-Resolution**:
+Mekanisme penutupan otomatis terhadap status peringatan aktif pada Host ketika hasil pembacaan inspeksi berikutnya memverifikasi bahwa kondisi sistem telah pulih sepenuhnya ke Desired State tanpa deviasi (*healthy*).
+_Avoid_: Auto clear, alert wipe, drift expiry
+
+**Dual-Bucket Pruning**:
+Kebijakan penyimpanan riwayat inspeksi pada basis data internal yang mengalokasikan kuota retensi bergulir terpisah antara eksekusi normal dan eksekusi bermasalah (*drift/error/down*) guna menjamin ketersediaan jejak audit deviasi historis tanpa memicu pembengkakan ukuran file.
+_Avoid_: Multi-retention, split purge, error archiving
+

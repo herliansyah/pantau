@@ -279,6 +279,7 @@ func (d *DB) migrate() error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE INDEX IF NOT EXISTS idx_inspection_runs_host ON inspection_runs(host_id, id DESC);
+	CREATE INDEX IF NOT EXISTS idx_inspection_runs_status ON inspection_runs(host_id, status, id DESC);
 	`
 	_, err := d.Exec(schema)
 	if err != nil {
@@ -612,16 +613,26 @@ func (d *DB) RecordInspectionRun(run *InspectionRun) error {
 	}
 	run.ID, _ = res.LastInsertId()
 
-	// ponytail: Inline auto-pruning maintains strict 100 runs limit per host with zero background schedulers
-	_, _ = d.Exec(`DELETE FROM inspection_runs WHERE host_id = ? AND id NOT IN (SELECT id FROM inspection_runs WHERE host_id = ? ORDER BY id DESC LIMIT 100)`, run.HostID, run.HostID)
+	// ponytail: Dual-bucket auto-pruning preserves up to 100 latest OK runs and 100 latest issue runs (drift/error/down/degraded) per host without background schedulers.
+	_, _ = d.Exec(`DELETE FROM inspection_runs WHERE host_id = ? AND status = 'ok' AND id NOT IN (SELECT id FROM inspection_runs WHERE host_id = ? AND status = 'ok' ORDER BY id DESC LIMIT 100)`, run.HostID, run.HostID)
+	_, _ = d.Exec(`DELETE FROM inspection_runs WHERE host_id = ? AND status != 'ok' AND id NOT IN (SELECT id FROM inspection_runs WHERE host_id = ? AND status != 'ok' ORDER BY id DESC LIMIT 100)`, run.HostID, run.HostID)
 	return nil
 }
 
-func (d *DB) ListInspectionRuns(hostID int64, limit int) ([]InspectionRun, error) {
+func (d *DB) ListInspectionRuns(hostID int64, limit int, filter ...string) ([]InspectionRun, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := d.Query(`SELECT id, host_id, started_at, duration_ms, status, summary, details, created_at FROM inspection_runs WHERE host_id = ? ORDER BY id DESC LIMIT ?`, hostID, limit)
+	var query string
+	var args []interface{}
+	if len(filter) > 0 && filter[0] == "issues" {
+		query = `SELECT id, host_id, started_at, duration_ms, status, summary, details, created_at FROM inspection_runs WHERE host_id = ? AND status != 'ok' ORDER BY id DESC LIMIT ?`
+		args = []interface{}{hostID, limit}
+	} else {
+		query = `SELECT id, host_id, started_at, duration_ms, status, summary, details, created_at FROM inspection_runs WHERE host_id = ? ORDER BY id DESC LIMIT ?`
+		args = []interface{}{hostID, limit}
+	}
+	rows, err := d.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -760,6 +771,16 @@ func (d *DB) ListActiveAlerts() ([]Alert, error) {
 
 func (d *DB) AcknowledgeAlert(id int64) error {
 	_, err := d.Exec(`UPDATE alerts SET acknowledged = 1 WHERE id = ?`, id)
+	return err
+}
+
+func (d *DB) AcknowledgeAllAlerts() error {
+	_, err := d.Exec(`UPDATE alerts SET acknowledged = 1 WHERE acknowledged = 0`)
+	return err
+}
+
+func (d *DB) AcknowledgeHostAlerts(hostID int64) error {
+	_, err := d.Exec(`UPDATE alerts SET acknowledged = 1 WHERE host_id = ? AND acknowledged = 0`, hostID)
 	return err
 }
 

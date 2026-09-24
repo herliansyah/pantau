@@ -124,6 +124,16 @@ select, select option { background-color: #1e293b !important; color: #f8fafc !im
 .action-grid { display: inline-grid; grid-template-columns: 65px 38px auto 38px; gap: 6px; align-items: center; }
 .form-group { display: flex; flex-direction: column; gap: 6px; }
 .alert-bar { background: rgba(239, 68, 68, 0.15); border-left: 4px solid var(--danger); padding: 12px 16px; margin-bottom: 16px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
+#alertBannerArea { position: relative; margin-bottom: 14px; }
+.alert-summary-bar { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-left: 4px solid var(--danger); border-radius: 6px; padding: 8px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.alert-summary-left { display: flex; align-items: center; gap: 10px; }
+.alert-summary-actions { display: flex; align-items: center; gap: 8px; }
+.alert-overlay-panel { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 1050; background: #0b1120; border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 8px; box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7); max-height: 340px; display: flex; flex-direction: column; overflow: hidden; }
+.alert-overlay-header { padding: 10px 14px; background: #0f172a; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center; }
+.alert-overlay-body { overflow-y: auto; max-height: 280px; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.alert-overlay-item { background: #111827; border: 1px solid rgba(255, 255, 255, 0.07); border-left: 3px solid var(--danger); border-radius: 6px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.alert-overlay-main { flex: 1; min-width: 0; }
+.alert-overlay-item-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
 pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; overflow-x: auto; color: #38bdf8; max-height: 250px; }
 .terminal-container { flex: 1; height: 100%; min-height: 380px; background: #000; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; }
 .terminal-container .xterm { height: 100%; }
@@ -600,7 +610,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       </div>
       <div class="header-divider"></div>
       <div class="header-cluster">
-        <span id="activeAlertBadge" style="display: none;" class="badge badge-down">0 ALERTS</span>
+        <span id="activeAlertBadge" style="display: none; cursor: pointer;" class="badge badge-down" onclick="toggleAlertOverlay(event)" title="Click to view alerts">0 ALERTS</span>
         <button class="btn btn-icon" id="btnInspectAll" onclick="inspectAllHosts()" title="Inspect All Hosts" data-i18n-title="btn_inspect_all_title" aria-label="Inspect All Hosts">
           <svg id="inspectAllIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
         </button>
@@ -1646,6 +1656,15 @@ const I18N = {
     "tab_timeline": "Incident Timeline",
     "tab_runs": "Inspection Runs",
     "runs_title": "Inspection Runs History",
+    "runs_filter_all": "All History",
+    "runs_filter_issues": "Last 100 Issues (Audit Trail)",
+    "no_issues_title": "No Issues Recorded",
+    "no_issues_desc": "No drift or errors recorded in recent inspection runs.",
+    "active_alerts_count": "{count} Active Alerts",
+    "active_alerts_title": "Active Alerts",
+    "view_details": "View Details",
+    "dismiss_all": "Dismiss All",
+    "open_host": "Open Host",
     "run_time": "Time",
     "run_duration": "Duration",
     "run_status": "Status",
@@ -2097,6 +2116,15 @@ const I18N = {
     "tab_timeline": "Timeline Insiden",
     "tab_runs": "Riwayat Inspeksi",
     "runs_title": "Riwayat Inspeksi (Inspection Runs)",
+    "runs_filter_all": "Semua Riwayat",
+    "runs_filter_issues": "100 Masalah Terakhir (Audit Trail)",
+    "no_issues_title": "Tidak Ada Masalah",
+    "no_issues_desc": "Tidak ada catatan drift atau error pada riwayat inspeksi.",
+    "active_alerts_count": "{count} Peringatan Aktif",
+    "active_alerts_title": "Peringatan Aktif",
+    "view_details": "Lihat Rincian",
+    "dismiss_all": "Tutup Semua",
+    "open_host": "Buka Host",
     "run_time": "Waktu",
     "run_duration": "Durasi",
     "run_status": "Status",
@@ -3458,6 +3486,31 @@ async function loadHosts() {
   }
 }
 
+let alertOverlayOpen = false;
+
+function toggleAlertOverlay(e) {
+  if (e) e.stopPropagation();
+  alertOverlayOpen = !alertOverlayOpen;
+  renderAlertOverlayState();
+}
+
+function closeAlertOverlay() {
+  if (!alertOverlayOpen) return;
+  alertOverlayOpen = false;
+  renderAlertOverlayState();
+}
+
+function renderAlertOverlayState() {
+  const panel = document.getElementById('alertOverlayPanel');
+  const btn = document.getElementById('btnToggleAlertPanel');
+  if (panel) {
+    panel.style.display = alertOverlayOpen ? 'flex' : 'none';
+  }
+  if (btn) {
+    btn.innerHTML = `${t('view_details', 'View Details')} ${alertOverlayOpen ? '▲' : '▼'}`;
+  }
+}
+
 async function loadAlerts() {
   const res = await fetch('/api/alerts');
   if (!res.ok) return;
@@ -3467,17 +3520,67 @@ async function loadAlerts() {
   if (alerts && alerts.length > 0) {
     badge.innerText = alerts.length + ' ALERTS';
     badge.style.display = 'inline-block';
-    banner.innerHTML = alerts.map(a => `
-      <div class="alert-bar">
-        <div>
-          <b>[${escapeHtml(a.host_name)}]</b> ${escapeHtml(a.message)}
+
+    const hostSet = new Set();
+    alerts.forEach(a => { if (a.host_name) hostSet.add(a.host_name); });
+    const hostCount = hostSet.size;
+
+    banner.innerHTML = `
+      <div class="alert-summary-bar">
+        <div class="alert-summary-left">
+          <span style="font-size: 1.1rem;">⚠️</span>
+          <span style="font-size: 0.88rem; font-weight: 600; color: #f87171;">
+            ${alerts.length} ${t('active_alerts_title', 'Active Alerts')}
+            <span style="color: var(--text-muted); font-weight: 400; font-size: 0.8rem; margin-left: 4px;">(${hostCount} ${t('hosts', 'Hosts')})</span>
+          </span>
         </div>
-        <button class="btn btn-sm" onclick="ackAlert(${a.id})">Dismiss</button>
+        <div class="alert-summary-actions">
+          <button class="btn btn-sm" id="btnToggleAlertPanel" onclick="toggleAlertOverlay(event)" style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24;">
+            ${t('view_details', 'View Details')} ${alertOverlayOpen ? '▲' : '▼'}
+          </button>
+          <button class="btn btn-sm btn-danger" onclick="ackAllAlerts()">${t('dismiss_all', 'Dismiss All')}</button>
+        </div>
       </div>
-    `).join('');
+      <div id="alertOverlayPanel" class="alert-overlay-panel" style="display: ${alertOverlayOpen ? 'flex' : 'none'};">
+        <div class="alert-overlay-header">
+          <span style="font-weight: 600; font-size: 0.82rem; color: #fca5a5;">⚠️ ${t('active_alerts_title', 'Active Alerts')} (${alerts.length})</span>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn btn-sm btn-danger" onclick="ackAllAlerts()">${t('dismiss_all', 'Dismiss All')}</button>
+            <button class="btn btn-sm" onclick="closeAlertOverlay()" style="padding: 2px 8px; font-weight: bold;" title="${t('close', 'Close')}">✕</button>
+          </div>
+        </div>
+        <div class="alert-overlay-body">
+          ${alerts.map(a => {
+            const relTime = formatRelativeTime(a.created_at);
+            return `
+              <div class="alert-overlay-item">
+                <div class="alert-overlay-main">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 8px;">
+                    <span style="font-weight: 600; font-size: 0.82rem; color: #38bdf8;">[${escapeHtml(a.host_name)}]</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted);" title="${relTime.title}">🕒 ${relTime.relative}</span>
+                  </div>
+                  <div style="font-size: 0.82rem; color: #f1f5f9; line-height: 1.4;">${escapeHtml(a.message)}</div>
+                  ${a.root_cause ? `
+                    <details style="margin-top: 6px; font-size: 0.78rem;">
+                      <summary style="cursor: pointer; color: var(--text-muted); font-weight: 500;">🔍 ${t('root_cause_excerpt', 'Root Cause')}</summary>
+                      <pre style="margin-top: 4px; padding: 6px 8px; font-size: 0.75rem; max-height: 120px; overflow-y: auto;">${escapeHtml(a.root_cause)}</pre>
+                    </details>
+                  ` : ''}
+                </div>
+                <div class="alert-overlay-item-actions">
+                  ${a.host_id ? `<button class="btn btn-sm" style="font-size: 0.75rem; padding: 3px 8px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="openHostDetailFromAlert(${a.host_id})">${t('open_host', 'Open Host')}</button>` : ''}
+                  <button class="btn btn-sm" style="font-size: 0.75rem; padding: 3px 8px;" onclick="ackAlert(${a.id})">${t('dismiss', 'Dismiss')}</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
   } else {
     badge.style.display = 'none';
     banner.innerHTML = '';
+    alertOverlayOpen = false;
   }
 }
 
@@ -3485,6 +3588,27 @@ async function ackAlert(id) {
   await fetch('/api/alerts/' + id + '/ack', { method: 'POST' });
   loadAlerts();
 }
+
+async function ackAllAlerts() {
+  await fetch('/api/alerts/ack-all', { method: 'POST' });
+  alertOverlayOpen = false;
+  loadAlerts();
+}
+
+function openHostDetailFromAlert(hostID) {
+  closeAlertOverlay();
+  openHostDetail(hostID);
+}
+
+document.addEventListener('click', function(e) {
+  const panel = document.getElementById('alertOverlayPanel');
+  const bar = document.querySelector('.alert-summary-bar');
+  const badge = document.getElementById('activeAlertBadge');
+  if (!panel || !alertOverlayOpen) return;
+  if (!panel.contains(e.target) && (!bar || !bar.contains(e.target)) && (!badge || !badge.contains(e.target))) {
+    closeAlertOverlay();
+  }
+});
 
 function openAddHostModal() {
   document.getElementById('hostModalTitle').innerText = t('add_host_title');
@@ -4026,28 +4150,60 @@ function switchTab(tab, presetID) {
   }
 }
 
+let activeRunsFilter = 'all';
+
 async function renderInspectionRunsTab() {
   const content = document.getElementById('tabContent');
   const d = window.detailData;
   if (!d || !d.host) return;
 
+  activeRunsFilter = 'all';
+
   content.innerHTML = `
-    <h4 style="margin: 0 0 12px 0; flex-shrink: 0;">${t('runs_title', 'Inspection Runs History')}</h4>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
+      <h4 style="margin: 0;">${t('runs_title', 'Inspection Runs History')}</h4>
+      <div style="display: inline-flex; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 2px;">
+        <button id="btnRunsFilterAll" class="btn btn-sm btn-primary" style="border: none; border-radius: 4px; padding: 4px 12px; font-size: 0.78rem;" onclick="switchRunsFilter('all')">
+          📋 ${t('runs_filter_all', 'All History')}
+        </button>
+        <button id="btnRunsFilterIssues" class="btn btn-sm" style="border: none; border-radius: 4px; padding: 4px 12px; font-size: 0.78rem;" onclick="switchRunsFilter('issues')">
+          ⚠️ ${t('runs_filter_issues', 'Last 100 Issues (Audit Trail)')}
+        </button>
+      </div>
+    </div>
     <div id="runsContainer" style="overflow-y: auto; flex: 1;">
       <div style="text-align: center; padding: 24px; color: var(--text-muted);">${t('loading', 'Loading...')}</div>
     </div>
   `;
 
-  await loadAndDisplayInspectionRuns(d.host.id);
+  await loadAndDisplayInspectionRuns(d.host.id, 'all');
 }
 
-async function loadAndDisplayInspectionRuns(hostID) {
+function switchRunsFilter(filter) {
+  activeRunsFilter = filter;
+  const d = window.detailData;
+  if (!d || !d.host) return;
+  const btnAll = document.getElementById('btnRunsFilterAll');
+  const btnIssues = document.getElementById('btnRunsFilterIssues');
+  if (btnAll && btnIssues) {
+    if (filter === 'issues') {
+      btnAll.className = 'btn btn-sm';
+      btnIssues.className = 'btn btn-sm btn-danger';
+    } else {
+      btnAll.className = 'btn btn-sm btn-primary';
+      btnIssues.className = 'btn btn-sm';
+    }
+  }
+  loadAndDisplayInspectionRuns(d.host.id, filter);
+}
+
+async function loadAndDisplayInspectionRuns(hostID, filter = 'all') {
   const container = document.getElementById('runsContainer');
   if (!container) return;
 
   let runs = [];
   try {
-    const res = await fetch('/api/hosts/' + hostID + '/runs');
+    const res = await fetch('/api/hosts/' + hostID + '/runs?filter=' + filter + '&limit=100');
     if (res.ok) {
       runs = await res.json();
     }
@@ -4056,16 +4212,18 @@ async function loadAndDisplayInspectionRuns(hostID) {
   }
 
   if (!runs || runs.length === 0) {
+    const isIssues = filter === 'issues';
     container.innerHTML = `
       <div class="empty-state">
-        <div class="empty-state-icon">📋</div>
-        <div class="empty-state-title">${t('runs_title', 'Inspection Runs History')}</div>
-        <div class="empty-state-desc">${t('no_runs_desc', 'No inspection runs recorded yet for this host.')}</div>
+        <div class="empty-state-icon">${isIssues ? '🛡️' : '📋'}</div>
+        <div class="empty-state-title">${isIssues ? t('no_issues_title', 'No Issues Recorded') : t('runs_title', 'Inspection Runs History')}</div>
+        <div class="empty-state-desc">${isIssues ? t('no_issues_desc', 'No drift or errors recorded in recent inspection runs.') : t('no_runs_desc', 'No inspection runs recorded yet for this host.')}</div>
       </div>
     `;
     return;
   }
 
+  const isIssues = filter === 'issues';
   const rowsHtml = runs.map(run => {
     let badgeClass = 'badge-success';
     let badgeText = 'OK';
@@ -4086,6 +4244,8 @@ async function loadAndDisplayInspectionRuns(hostID) {
 
     const durationColor = run.duration_ms < 1000 ? '#34d399' : (run.duration_ms < 3000 ? '#fbbf24' : '#f87171');
     const runTime = formatRelativeTime(run.started_at);
+    const startDate = new Date(run.started_at);
+    const fullDateStr = isNaN(startDate.getTime()) ? run.started_at : startDate.toLocaleString();
 
     return `
       <div class="card" style="padding: 12px 14px; margin-bottom: 8px; border-left: 4px solid ${borderColor};">
@@ -4096,11 +4256,11 @@ async function loadAndDisplayInspectionRuns(hostID) {
           </div>
           <div style="display: flex; align-items: center; gap: 12px; font-size: 0.8rem;">
             <span title="${t('run_duration', 'Duration')}">⚡ <strong style="color: ${durationColor}; font-family: monospace;">${run.duration_ms}ms</strong></span>
-            <span style="color: var(--text-muted);" title="${runTime.title}">🕒 ${runTime.relative}</span>
+            <span style="color: var(--text-muted);" title="${fullDateStr}">🕒 ${fullDateStr} <span style="font-size: 0.75rem; opacity: 0.8;">(${runTime.relative})</span></span>
           </div>
         </div>
         ${run.details ? `
-          <details style="margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 6px;">
+          <details ${isIssues ? 'open' : ''} style="margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 6px;">
             <summary style="cursor: pointer; font-size: 0.78rem; color: var(--text-muted); font-weight: 600;">
               🔍 ${t('view_diagnostics', 'View Diagnostic Details')}
             </summary>

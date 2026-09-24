@@ -1103,6 +1103,104 @@ func TestFileManagerFilterAndSortUI(t *testing.T) {
 	}
 }
 
+func TestAlertAckAllAndRunsFilter(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-web-alerts-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	srv := NewServer(db, nil, nil)
+	token := "test_alert_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{
+			Name:  "pantau_session",
+			Value: token,
+		})
+	}
+
+	hID, _ := db.CreateHost(&store.Host{Name: "Server X", Host: "10.0.0.1", Port: 22, User: "root"})
+
+	// 1. Create alerts & test /api/alerts/ack-all
+	_, _ = db.CreateAlert(&store.Alert{HostID: hID, Level: "critical", Message: "Drift in rule 1"})
+	_, _ = db.CreateAlert(&store.Alert{HostID: hID, Level: "warning", Message: "Drift in rule 2"})
+
+	reqAckAll := httptest.NewRequest("POST", "/api/alerts/ack-all", nil)
+	authReq(reqAckAll)
+	wAckAll := httptest.NewRecorder()
+	srv.ServeHTTP(wAckAll, reqAckAll)
+	if wAckAll.Code != http.StatusOK {
+		t.Fatalf("expected 200 from ack-all, got %d", wAckAll.Code)
+	}
+
+	activeAlerts, _ := db.ListActiveAlerts()
+	if len(activeAlerts) != 0 {
+		t.Fatalf("expected 0 active alerts after ack-all, got %d", len(activeAlerts))
+	}
+
+	// 2. Create runs & test /api/hosts/{id}/runs?filter=issues
+	_ = db.RecordInspectionRun(&store.InspectionRun{HostID: hID, Status: "ok", Summary: "All ok"})
+	_ = db.RecordInspectionRun(&store.InspectionRun{HostID: hID, Status: "drift", Summary: "Drift container", Details: "Exited with 1"})
+	_ = db.RecordInspectionRun(&store.InspectionRun{HostID: hID, Status: "error", Summary: "SSH timeout", Details: "Connection timed out"})
+
+	reqIssues := httptest.NewRequest("GET", "/api/hosts/"+strconv.FormatInt(hID, 10)+"/runs?filter=issues", nil)
+	authReq(reqIssues)
+	wIssues := httptest.NewRecorder()
+	srv.ServeHTTP(wIssues, reqIssues)
+	if wIssues.Code != http.StatusOK {
+		t.Fatalf("expected 200 from runs?filter=issues, got %d", wIssues.Code)
+	}
+
+	var issueRuns []store.InspectionRun
+	if err := json.Unmarshal(wIssues.Body.Bytes(), &issueRuns); err != nil {
+		t.Fatalf("failed unmarshaling issue runs: %v", err)
+	}
+	if len(issueRuns) != 2 {
+		t.Fatalf("expected 2 issue runs, got %d", len(issueRuns))
+	}
+	for _, r := range issueRuns {
+		if r.Status == "ok" {
+			t.Fatalf("expected non-ok status, got %s", r.Status)
+		}
+	}
+
+	// 3. UI checks in embedded HTML
+	html := string(embeddedHTML)
+	requiredUI := []string{
+		"alert-summary-bar",
+		"alert-overlay-panel",
+		"toggleAlertOverlay",
+		"ackAllAlerts",
+		"btnRunsFilterAll",
+		"btnRunsFilterIssues",
+		"switchRunsFilter",
+	}
+	for _, el := range requiredUI {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected embedded index.html to contain %q", el)
+		}
+	}
+
+	requiredI18n := []string{
+		`"runs_filter_all":`,
+		`"runs_filter_issues":`,
+		`"active_alerts_count":`,
+		`"dismiss_all":`,
+	}
+	for _, k := range requiredI18n {
+		if strings.Count(html, k) < 2 {
+			t.Errorf("expected i18n key %q to exist in both EN and ID dictionaries, found %d", k, strings.Count(html, k))
+		}
+	}
+}
+
 
 
 
