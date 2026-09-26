@@ -44,6 +44,10 @@ _Avoid_: Hardware durability, server lifetime
 Rekomendasi penggantian atau peremajaan server yang telah melampaui masa pakai produktif atau terdepresiasi penuh untuk mencegah kegagalan perangkat keras tak terduga.
 _Avoid_: Hardware upgrade, server replacement
 
+**Hardware Commission Date**:
+Tanggal resmi dimulainya masa operasional atau penempatan server oleh administrator yang diinput secara manual sebagai acuan utama evaluasi masa pakai produktif hardware, mengesampingkan pembacaan otomatis tanggal BIOS atau deployment OS pada kasus unit stok lama (New Old Stock).
+_Avoid_: Purchase date, install date, server birthday, warranty start
+
 **Backup Freshness**:
 Status kevalidan backup berdasarkan keberadaan file di path tujuan, timestamp perubahan terbaru (recency), dan ukuran file yang wajar (> 0 byte).
 _Avoid_: Backup validation, dump check

@@ -1201,6 +1201,183 @@ func TestAlertAckAllAndRunsFilter(t *testing.T) {
 	}
 }
 
+func TestCommissionDate_RoutesAndRecalculate(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-comm-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ins := inspector.New(db, nil, nil)
+	srv := NewServer(db, ins, nil)
+	token := "test_comm_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{
+			Name:  "pantau_session",
+			Value: token,
+		})
+	}
+
+	// 1. Create a physical host with 2017 BIOS and initial penalized score (75)
+	past := time.Now().Add(-1 * time.Hour)
+	host := &store.Host{
+		Name:               "NOS Baremetal",
+		Host:               "10.0.0.99",
+		Port:               22,
+		User:               "root",
+		HardwareModel:      "HP ProLiant",
+		BIOSDate:           "05/10/2017",
+		OSInfo:             "Ubuntu 22.04 LTS",
+		CPUCores:           4,
+		CPULoad:            "0.1, 0.1",
+		RAMUsedBytes:       2000000000,
+		RAMTotalBytes:      8000000000,
+		DiskUsedBytes:      20000000000,
+		DiskTotalBytes:     100000000000,
+		LifecycleScore:     75,
+		LifecycleNotes:     "Exceeds 8-yr critical lifespan",
+		LifecycleBreakdown: `[{"name":"Productive Lifespan","status":"fail","score_deduction":-25,"detail":"Exceeds 8-yr critical lifespan"}]`,
+		LastInspected:      &past,
+	}
+	hostID, err := db.CreateHost(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host.ID = hostID
+	_ = db.UpdateHostInspection(host)
+
+	// 2. Reject future commission date
+	futurePayload := `{"commission_date":"2099-01-01"}`
+	reqFuture := httptest.NewRequest("POST", "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/commission-date", strings.NewReader(futurePayload))
+	authReq(reqFuture)
+	wFuture := httptest.NewRecorder()
+	srv.ServeHTTP(wFuture, reqFuture)
+	if wFuture.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request for future date, got %d", wFuture.Code)
+	}
+
+	// 3. Reject commission date earlier than motherboard BIOS
+	beforeBIOSPayload := `{"commission_date":"2015-05-01"}`
+	reqBefore := httptest.NewRequest("POST", "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/commission-date", strings.NewReader(beforeBIOSPayload))
+	authReq(reqBefore)
+	wBefore := httptest.NewRecorder()
+	srv.ServeHTTP(wBefore, reqBefore)
+	if wBefore.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request for date before BIOS, got %d", wBefore.Code)
+	}
+	if !strings.Contains(wBefore.Body.String(), "cannot be earlier than motherboard BIOS date") {
+		t.Fatalf("expected error message to mention BIOS date constraint, got: %s", wBefore.Body.String())
+	}
+
+	// 3b. Virtual machines must NOT be blocked if commission date is earlier than VM emulator BIOS date
+	vmHost := &store.Host{
+		Name:          "QEMU Guest",
+		Host:          "10.0.0.100",
+		Port:          22,
+		User:          "root",
+		HardwareModel: "QEMU Standard PC (i440FX + PIIX, 1996)",
+		BIOSDate:      "04/01/2026", // recent emulator release
+	}
+	vmID, err := db.CreateHost(vmHost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vmHost.ID = vmID
+	_ = db.UpdateHostInspection(vmHost)
+	vmPayload := `{"commission_date":"2023-01-01"}`
+	reqVM := httptest.NewRequest("POST", "/api/hosts/"+strconv.FormatInt(vmID, 10)+"/commission-date", strings.NewReader(vmPayload))
+	authReq(reqVM)
+	wVM := httptest.NewRecorder()
+	srv.ServeHTTP(wVM, reqVM)
+	if wVM.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for VM commission date even if earlier than emulator BIOS date, got %d: %s", wVM.Code, wVM.Body.String())
+	}
+
+	// 4. Accept valid recent commission date and verify immediate recalculation
+	recentDate := time.Now().AddDate(0, -6, 0).Format("2006-01-02")
+	validPayload := `{"commission_date":"` + recentDate + `"}`
+	reqValid := httptest.NewRequest("POST", "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/commission-date", strings.NewReader(validPayload))
+	authReq(reqValid)
+	wValid := httptest.NewRecorder()
+	srv.ServeHTTP(wValid, reqValid)
+	if wValid.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for valid commission date, got %d", wValid.Code)
+	}
+
+	// Verify host in DB has updated score and breakdown
+	updatedHost, err := db.GetHost(hostID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updatedHost.CommissionDate != recentDate {
+		t.Fatalf("expected commission_date %q, got %q", recentDate, updatedHost.CommissionDate)
+	}
+	if updatedHost.LifecycleScore != 100 {
+		t.Fatalf("expected immediate recalculation to update lifecycle_score to 100, got %d", updatedHost.LifecycleScore)
+	}
+	if !strings.Contains(updatedHost.LifecycleBreakdown, "Commissioned: "+recentDate) {
+		t.Fatalf("expected breakdown to contain Commissioned date, got: %s", updatedHost.LifecycleBreakdown)
+	}
+	if !strings.Contains(updatedHost.LifecycleBreakdown, "Motherboard BIOS: May 2017") {
+		t.Fatalf("expected breakdown to retain Motherboard BIOS audit note, got: %s", updatedHost.LifecycleBreakdown)
+	}
+	// 4b. Test PUT /api/hosts/{id} validation
+	putFuturePayload := `{"name":"NOS Baremetal","host":"10.0.0.99","port":22,"user":"root","commission_date":"2099-01-01"}`
+	reqPUTFuture := httptest.NewRequest("PUT", "/api/hosts/"+strconv.FormatInt(hostID, 10), strings.NewReader(putFuturePayload))
+	authReq(reqPUTFuture)
+	wPUTFuture := httptest.NewRecorder()
+	srv.ServeHTTP(wPUTFuture, reqPUTFuture)
+	if wPUTFuture.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request on PUT host with future date, got %d", wPUTFuture.Code)
+	}
+
+	putBeforeBIOSPayload := `{"name":"NOS Baremetal","host":"10.0.0.99","port":22,"user":"root","commission_date":"2015-05-01"}`
+	reqPUTBefore := httptest.NewRequest("PUT", "/api/hosts/"+strconv.FormatInt(hostID, 10), strings.NewReader(putBeforeBIOSPayload))
+	authReq(reqPUTBefore)
+	wPUTBefore := httptest.NewRecorder()
+	srv.ServeHTTP(wPUTBefore, reqPUTBefore)
+	if wPUTBefore.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request on PUT host with date before BIOS, got %d", wPUTBefore.Code)
+	}
+
+	// 5. Test UI elements & i18n keys
+	html := string(embeddedHTML)
+	uiChecks := []string{
+		"hostCommissionDate",
+		"commissionDateModal",
+		"openCommissionDateModal",
+		"submitQuickCommissionDate",
+		"clearCommissionDate",
+	}
+	for _, el := range uiChecks {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected embedded index.html to contain %q", el)
+		}
+	}
+
+	commI18n := []string{
+		`"commission_date_label":`,
+		`"commission_date_hint":`,
+		`"commission_date_title":`,
+		`"edit_commission_date":`,
+		`"set_commission_date":`,
+	}
+	for _, k := range commI18n {
+		if strings.Count(html, k) < 2 {
+			t.Errorf("expected i18n key %q to exist in both EN and ID dictionaries, found %d", k, strings.Count(html, k))
+		}
+	}
+}
+
+
+
 
 
 

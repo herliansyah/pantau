@@ -248,3 +248,121 @@ func TestInspectHost_AutoResolveAlertsOnHealthy(t *testing.T) {
 		t.Fatalf("expected active alerts to be auto-resolved, but found %d", len(activeAlerts))
 	}
 }
+
+func TestLifecycleScore_CommissionDateOverride(t *testing.T) {
+	// Scenario: Physical server with old BIOS (May 2017 -> ~9 yrs old)
+	// Without override, Productive Lifespan penalty is -25 (score <= 75).
+	scoreNoOverride, notesNoOverride, breakdownNoOverride := calculateLifecycleScore(
+		"Ubuntu 22.04 LTS", "0.10, 0.20", 4,
+		2000000000, 8000000000, 20000000000, 100000000000,
+		0, "05/10/2017", "Dell Inc.", 0, "",
+	)
+	if scoreNoOverride > 75 {
+		t.Fatalf("expected score deduction for 2017 BIOS without override, got %d", scoreNoOverride)
+	}
+	if !strings.Contains(breakdownNoOverride, "Exceeds 8-yr critical lifespan") {
+		t.Fatalf("expected critical lifespan warning without override, got %s", breakdownNoOverride)
+	}
+
+	// With commission date override (e.g. commissioned 6 months ago):
+	recentDate := time.Now().AddDate(0, -6, 0).Format("2006-01-02")
+	scoreWithOverride, _, breakdownWithOverride := calculateLifecycleScore(
+		"Ubuntu 22.04 LTS", "0.10, 0.20", 4,
+		2000000000, 8000000000, 20000000000, 100000000000,
+		0, "05/10/2017", "Dell Inc.", 0, recentDate,
+	)
+	if scoreWithOverride != 100 {
+		t.Fatalf("expected 100 score with recent commission date override, got %d", scoreWithOverride)
+	}
+	if !strings.Contains(breakdownWithOverride, "Commissioned: "+recentDate) {
+		t.Fatalf("expected breakdown to mention Commissioned date, got: %s", breakdownWithOverride)
+	}
+	if !strings.Contains(breakdownWithOverride, "Motherboard BIOS: May 2017") {
+		t.Fatalf("expected breakdown to retain Motherboard BIOS audit note, got: %s", breakdownWithOverride)
+	}
+
+	// Commission date in future must be ignored/fallback to BIOS
+	futureDate := time.Now().AddDate(1, 0, 0).Format("2006-01-02")
+	scoreFuture, _, _ := calculateLifecycleScore(
+		"Ubuntu 22.04 LTS", "0.10, 0.20", 4,
+		2000000000, 8000000000, 20000000000, 100000000000,
+		0, "05/10/2017", "Dell Inc.", 0, futureDate,
+	)
+	if scoreFuture == 100 {
+		t.Fatalf("future commission date must not override old BIOS score, got %d", scoreFuture)
+	}
+
+	// Commission date before BIOS date must be ignored/fallback to BIOS
+	scoreBeforeBIOS, _, _ := calculateLifecycleScore(
+		"Ubuntu 22.04 LTS", "0.10, 0.20", 4,
+		2000000000, 8000000000, 20000000000, 100000000000,
+		0, "05/10/2017", "Dell Inc.", 0, "2015-01-01",
+	)
+	if scoreBeforeBIOS == 100 {
+		t.Fatalf("commission date before BIOS date must not override old BIOS score, got %d", scoreBeforeBIOS)
+	}
+	_ = notesNoOverride
+}
+
+func TestRecalculateHostLifecycle(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-recalc-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name:          "NOS Physical Server",
+		Host:          "192.168.1.50",
+		Port:          22,
+		User:          "root",
+		HardwareModel: "Supermicro",
+		BIOSDate:      "01/15/2016", // 10 years old
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h, _ := db.GetHost(hostID)
+	h.OSInfo = "Ubuntu 22.04 LTS"
+	h.CPUCores = 8
+	h.CPULoad = "0.5, 0.5"
+	h.RAMUsedBytes = 4000000000
+	h.RAMTotalBytes = 16000000000
+	h.DiskUsedBytes = 20000000000
+	h.DiskTotalBytes = 200000000000
+	past := time.Now().Add(-1 * time.Hour)
+	h.LastInspected = &past
+	h.LifecycleScore = 75
+	h.LifecycleNotes = "Exceeds 8-yr critical lifespan"
+	_ = db.UpdateHostInspection(h)
+
+	ins := New(db, nil, nil)
+
+	// Set commission date to 3 months ago and recalculate
+	h.CommissionDate = time.Now().AddDate(0, -3, 0).Format("2006-01-02")
+	_ = db.UpdateHost(h)
+
+	err = ins.RecalculateHostLifecycle(hostID)
+	if err != nil {
+		t.Fatalf("recalculate error: %v", err)
+	}
+
+	updated, err := db.GetHost(hostID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.LifecycleScore != 100 {
+		t.Fatalf("expected updated lifecycle score to be 100 after commission date, got %d", updated.LifecycleScore)
+	}
+	if !strings.Contains(updated.LifecycleBreakdown, "Commissioned: "+h.CommissionDate) {
+		t.Fatalf("expected breakdown to show commission date, got: %s", updated.LifecycleBreakdown)
+	}
+}
+
