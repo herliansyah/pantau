@@ -580,6 +580,28 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "password_updated"})
 }
 
+func (s *Server) validateCommissionDate(commDate string, existingHost *store.Host) error {
+	commDate = strings.TrimSpace(commDate)
+	if commDate == "" {
+		return nil
+	}
+	ct, ok := inspector.ParseCommissionDate(commDate)
+	if !ok {
+		return errors.New("invalid commission date format (use YYYY-MM-DD)")
+	}
+	if inspector.IsFutureDate(ct) {
+		return errors.New("commission date cannot be in the future")
+	}
+	if existingHost != nil && !inspector.IsVirtualSystem(existingHost.HardwareModel) && existingHost.BIOSDate != "" {
+		if bt, ok := inspector.ParseBIOSDate(existingHost.BIOSDate); ok {
+			if ct.Before(bt) {
+				return fmt.Errorf("commission date (%s) cannot be earlier than motherboard BIOS date (%s)", ct.Format("2006-01-02"), bt.Format("Jan 2006"))
+			}
+		}
+	}
+	return nil
+}
+
 func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -602,8 +624,13 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 		h.Name = strings.TrimSpace(h.Name)
 		h.Host = strings.TrimSpace(h.Host)
 		h.User = strings.TrimSpace(h.User)
+		h.CommissionDate = strings.TrimSpace(h.CommissionDate)
 		if h.Name == "" || h.Host == "" {
 			http.Error(w, "name and host are required", http.StatusBadRequest)
+			return
+		}
+		if err := s.validateCommissionDate(h.CommissionDate, nil); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		if h.Port <= 0 {
@@ -800,9 +827,24 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			h.Name = strings.TrimSpace(h.Name)
 			h.Host = strings.TrimSpace(h.Host)
 			h.User = strings.TrimSpace(h.User)
+			h.CommissionDate = strings.TrimSpace(h.CommissionDate)
+
+			existing, _ := s.db.GetHost(hostID)
+			if existing == nil {
+				http.Error(w, "host not found", http.StatusNotFound)
+				return
+			}
+			if err := s.validateCommissionDate(h.CommissionDate, existing); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
 			if err := s.db.UpdateHost(&h); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
+			}
+			if s.inspector != nil {
+				_ = s.inspector.RecalculateHostLifecycle(hostID)
 			}
 			writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 		case http.MethodDelete:
@@ -819,6 +861,39 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 
 	action := parts[1]
 	switch action {
+	case "commission-date":
+		if r.Method != http.MethodPut && r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			CommissionDate string `json:"commission_date"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		req.CommissionDate = strings.TrimSpace(req.CommissionDate)
+		host, err := s.db.GetHost(hostID)
+		if err != nil || host == nil {
+			http.Error(w, "host not found", http.StatusNotFound)
+			return
+		}
+		if err := s.validateCommissionDate(req.CommissionDate, host); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		host.CommissionDate = req.CommissionDate
+		if err := s.db.UpdateHost(host); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if s.inspector != nil {
+			_ = s.inspector.RecalculateHostLifecycle(hostID)
+		}
+		updated, _ := s.db.GetHost(hostID)
+		writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "host": updated})
+
 	case "notes":
 		if r.Method != http.MethodPut && r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

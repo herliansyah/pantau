@@ -269,13 +269,15 @@ func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner
 		vendorStr = strings.TrimSpace(sections[14])
 	}
 	h.HardwareModel = vendorStr
+	h.BIOSDate = biosDateStr
 	osInstallEpoch := int64(0)
 	if len(sections) >= 16 {
 		osInstallEpoch, _ = strconv.ParseInt(strings.TrimSpace(sections[15]), 10, 64)
 	}
+	h.OSInstallEpoch = osInstallEpoch
 
 	// Calculate Lifecycle Score (0-100) and transparent breakdown
-	score, notes, breakdownJSON := calculateLifecycleScore(h.OSInfo, h.CPULoad, cpuCores, h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, ioErrors, biosDateStr, vendorStr, osInstallEpoch)
+	score, notes, breakdownJSON := calculateLifecycleScore(h.OSInfo, h.CPULoad, cpuCores, h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, ioErrors, biosDateStr, vendorStr, osInstallEpoch, h.CommissionDate)
 	h.LifecycleScore = score
 	h.LifecycleNotes = notes
 	h.LifecycleBreakdown = breakdownJSON
@@ -553,7 +555,7 @@ type LifecycleFactor struct {
 	Detail         string `json:"detail"`
 }
 
-func parseBIOSDate(s string) (time.Time, bool) {
+func ParseBIOSDate(s string) (time.Time, bool) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return time.Time{}, false
@@ -567,7 +569,26 @@ func parseBIOSDate(s string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-func isVirtualSystem(vendor string) bool {
+func ParseCommissionDate(s string) (time.Time, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, false
+	}
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil || t.Year() < 1990 {
+		return time.Time{}, false
+	}
+	return t, true
+}
+
+func IsFutureDate(t time.Time) bool {
+	todayLocal := time.Now().Format("2006-01-02")
+	todayUTC := time.Now().UTC().Format("2006-01-02")
+	dateStr := t.Format("2006-01-02")
+	return dateStr > todayLocal && dateStr > todayUTC
+}
+
+func IsVirtualSystem(vendor string) bool {
 	v := strings.ToLower(vendor)
 	virtualSignatures := []string{
 		"qemu", "kvm", "vmware", "virtualbox", "xen",
@@ -583,7 +604,7 @@ func isVirtualSystem(vendor string) bool {
 	return false
 }
 
-func calculateLifecycleScore(osInfo, loadStr string, cpuCores int, ramUsed, ramTotal, diskUsed, diskTotal int64, ioErrors int, biosDateStr, vendorStr string, osInstallEpoch int64) (int, string, string) {
+func calculateLifecycleScore(osInfo, loadStr string, cpuCores int, ramUsed, ramTotal, diskUsed, diskTotal int64, ioErrors int, biosDateStr, vendorStr string, osInstallEpoch int64, commissionDateStr string) (int, string, string) {
 	if cpuCores <= 0 {
 		cpuCores = 1
 	}
@@ -631,16 +652,50 @@ func calculateLifecycleScore(osInfo, loadStr string, cpuCores int, ramUsed, ramT
 	// 2. Productive Lifespan / Hardware Age check (MTBF degradation zone)
 	var ageYears float64 = -1
 	var ageDetail string
-	isVirt := isVirtualSystem(vendorStr)
+	isVirt := IsVirtualSystem(vendorStr)
 
+	var bt time.Time
+	hasBT := false
 	if !isVirt {
-		if bt, ok := parseBIOSDate(biosDateStr); ok {
-			ageYears = time.Since(bt).Hours() / (24 * 365.25)
-			ageDetail = fmt.Sprintf("Physical hardware BIOS: %s (~%.1f yrs)", bt.Format("Jan 2006"), ageYears)
+		if t, ok := ParseBIOSDate(biosDateStr); ok {
+			bt = t
+			hasBT = true
 		}
 	}
 
-	// If virtual or physical BIOS date missing/invalid, fallback to OS deployment age
+	var commTime time.Time
+	hasValidComm := false
+	commIgnoredReason := ""
+	if strings.TrimSpace(commissionDateStr) != "" {
+		if ct, ok := ParseCommissionDate(commissionDateStr); ok {
+			if IsFutureDate(ct) {
+				commIgnoredReason = fmt.Sprintf("Commission date %s ignored: future date", ct.Format("2006-01-02"))
+			} else if hasBT && ct.Before(bt) {
+				commIgnoredReason = fmt.Sprintf("Commission date %s ignored: earlier than BIOS (%s)", ct.Format("2006-01-02"), bt.Format("Jan 2006"))
+			} else {
+				commTime = ct
+				hasValidComm = true
+			}
+		} else {
+			commIgnoredReason = "Commission date format invalid (expected YYYY-MM-DD)"
+		}
+	}
+
+	if hasValidComm {
+		ageYears = time.Since(commTime).Hours() / (24 * 365.25)
+		ageDetail = fmt.Sprintf("Commissioned: %s", commTime.Format("2006-01-02"))
+		if hasBT {
+			ageDetail += fmt.Sprintf(" • Motherboard BIOS: %s", bt.Format("Jan 2006"))
+		}
+	} else if !isVirt && hasBT {
+		ageYears = time.Since(bt).Hours() / (24 * 365.25)
+		ageDetail = fmt.Sprintf("Physical hardware BIOS: %s (~%.1f yrs)", bt.Format("Jan 2006"), ageYears)
+		if commIgnoredReason != "" {
+			ageDetail += fmt.Sprintf(" [%s]", commIgnoredReason)
+		}
+	}
+
+	// If virtual or physical BIOS date missing/invalid (and no commission date), fallback to OS deployment age
 	if ageYears < 0 && osInstallEpoch > 0 {
 		installTime := time.Unix(osInstallEpoch, 0)
 		if time.Since(installTime) > 0 {
@@ -649,6 +704,9 @@ func calculateLifecycleScore(osInfo, loadStr string, cpuCores int, ramUsed, ramT
 				ageDetail = fmt.Sprintf("Virtual instance deployment age: ~%.1f yrs", ageYears)
 			} else {
 				ageDetail = fmt.Sprintf("OS installation deployment age: ~%.1f yrs", ageYears)
+			}
+			if commIgnoredReason != "" {
+				ageDetail += fmt.Sprintf(" [%s]", commIgnoredReason)
 			}
 		}
 	}
@@ -1188,3 +1246,29 @@ func (ins *Inspector) DockerAction(hostID int64, containerName, action string) (
 
 	return stdout, nil
 }
+
+func (ins *Inspector) RecalculateHostLifecycle(hostID int64) error {
+	host, err := ins.db.GetHost(hostID)
+	if err != nil || host == nil {
+		return err
+	}
+	if host.LastInspected == nil && host.OSInfo == "" {
+		return nil
+	}
+	// ponytail: RecalculateHostLifecycle performs offline re-assessment from cached metrics.
+	// Substring scan for "Hardware I/O" status is an O(1) heuristic to preserve kernel ring-buffer error state
+	// without full JSON unmarshaling overhead. Ceiling: 1-factor check. Upgrade path: unmarshal LifecycleFactor array.
+	ioErrors := 0
+	if strings.Contains(host.LifecycleBreakdown, "Hardware I/O") && strings.Contains(host.LifecycleBreakdown, `"status":"fail"`) {
+		ioErrors = 1
+	}
+	score, notes, breakdown := calculateLifecycleScore(
+		host.OSInfo, host.CPULoad, host.CPUCores,
+		host.RAMUsedBytes, host.RAMTotalBytes,
+		host.DiskUsedBytes, host.DiskTotalBytes,
+		ioErrors, host.BIOSDate, host.HardwareModel, host.OSInstallEpoch,
+		host.CommissionDate,
+	)
+	return ins.db.UpdateHostLifecycle(host.ID, score, notes, breakdown)
+}
+

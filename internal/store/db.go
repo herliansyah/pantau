@@ -63,6 +63,9 @@ type Host struct {
 	SortOrder         int    `json:"sort_order"`
 	GroupName         string `json:"group_name"`
 	LastDurationMs    int64  `json:"last_duration_ms"`
+	CommissionDate    string `json:"commission_date"` // YYYY-MM-DD manual override for New Old Stock
+	BIOSDate          string `json:"bios_date"`       // Raw motherboard BIOS release date telemetry
+	OSInstallEpoch    int64  `json:"os_install_epoch"` // Unix epoch of OS deployment for VM age tracking
 }
 
 type TopConn struct {
@@ -212,7 +215,10 @@ func (d *DB) migrate() error {
 		listening_ports TEXT DEFAULT '',
 		notes TEXT DEFAULT '',
 		sort_order INTEGER DEFAULT 0,
-		group_name TEXT DEFAULT ''
+		group_name TEXT DEFAULT '',
+		commission_date TEXT DEFAULT '',
+		bios_date TEXT DEFAULT '',
+		os_install_epoch INTEGER DEFAULT 0
 	);
 
 	CREATE TABLE IF NOT EXISTS desired_rules (
@@ -307,6 +313,9 @@ func (d *DB) migrate() error {
 	_ = d.alterAddColumn("hosts", "swap_used_bytes", "INTEGER DEFAULT 0")
 	_ = d.alterAddColumn("hosts", "swap_total_bytes", "INTEGER DEFAULT 0")
 	_ = d.alterAddColumn("hosts", "last_duration_ms", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "commission_date", "TEXT DEFAULT ''")
+	_ = d.alterAddColumn("hosts", "bios_date", "TEXT DEFAULT ''")
+	_ = d.alterAddColumn("hosts", "os_install_epoch", "INTEGER DEFAULT 0")
 
 	return nil
 }
@@ -471,7 +480,7 @@ func (d *DB) ListHosts() ([]Host, error) {
 		COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, ''),
 		COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, ''),
 		COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0),
-		COALESCE(last_duration_ms, 0)
+		COALESCE(last_duration_ms, 0), COALESCE(commission_date, ''), COALESCE(bios_date, ''), COALESCE(os_install_epoch, 0)
 		FROM hosts ORDER BY sort_order ASC, id ASC`)
 	if err != nil {
 		return nil, err
@@ -489,7 +498,7 @@ func (d *DB) ListHosts() ([]Host, error) {
 			&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts,
 			&h.Notes, &h.SortOrder, &h.GroupName,
 			&h.CPUCores, &h.HardwareModel, &h.SwapUsedBytes, &h.SwapTotalBytes,
-			&h.LastDurationMs); err != nil {
+			&h.LastDurationMs, &h.CommissionDate, &h.BIOSDate, &h.OSInstallEpoch); err != nil {
 			return nil, err
 		}
 		h.InternetOnline = online == 1
@@ -511,7 +520,7 @@ func (d *DB) GetHost(id int64) (*Host, error) {
 		COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, ''),
 		COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, ''),
 		COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0),
-		COALESCE(last_duration_ms, 0)
+		COALESCE(last_duration_ms, 0), COALESCE(commission_date, ''), COALESCE(bios_date, ''), COALESCE(os_install_epoch, 0)
 		FROM hosts WHERE id = ?`, id).Scan(
 		&h.ID, &h.Name, &h.Host, &h.Port, &h.User, &h.CustomKey, &h.Status, &h.OSInfo, &h.Kernel, &h.Uptime, &h.CPULoad, &h.RAMUsedBytes, &h.RAMTotalBytes, &h.DiskUsedBytes, &h.DiskTotalBytes, &h.LifecycleScore, &h.LifecycleNotes, &h.LifecycleBreakdown, &inspected, &h.CreatedAt,
 		&h.NetRxBytes, &h.NetTxBytes, &h.NetRxSpeedBps, &h.NetTxSpeedBps,
@@ -519,7 +528,7 @@ func (d *DB) GetHost(id int64) (*Host, error) {
 		&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts,
 		&h.Notes, &h.SortOrder, &h.GroupName,
 		&h.CPUCores, &h.HardwareModel, &h.SwapUsedBytes, &h.SwapTotalBytes,
-		&h.LastDurationMs,
+		&h.LastDurationMs, &h.CommissionDate, &h.BIOSDate, &h.OSInstallEpoch,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -537,7 +546,7 @@ func (d *DB) GetHost(id int64) (*Host, error) {
 func (d *DB) CreateHost(h *Host) (int64, error) {
 	var maxOrder int
 	_ = d.QueryRow(`SELECT COALESCE(MAX(sort_order), 0) FROM hosts`).Scan(&maxOrder)
-	res, err := d.Exec(`INSERT INTO hosts (name, host, port, user, custom_key, status, notes, sort_order, group_name) VALUES (?, ?, ?, ?, ?, 'unknown', ?, ?, ?)`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, maxOrder+1, h.GroupName)
+	res, err := d.Exec(`INSERT INTO hosts (name, host, port, user, custom_key, status, notes, sort_order, group_name, commission_date, bios_date) VALUES (?, ?, ?, ?, ?, 'unknown', ?, ?, ?, ?, ?)`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, maxOrder+1, h.GroupName, h.CommissionDate, h.BIOSDate)
 	if err != nil {
 		return 0, err
 	}
@@ -545,11 +554,16 @@ func (d *DB) CreateHost(h *Host) (int64, error) {
 }
 
 func (d *DB) UpdateHost(h *Host) error {
-	_, err := d.Exec(`UPDATE hosts SET name=?, host=?, port=?, user=?, custom_key=?, notes=?, group_name=? WHERE id=?`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, h.GroupName, h.ID)
+	_, err := d.Exec(`UPDATE hosts SET name=?, host=?, port=?, user=?, custom_key=?, notes=?, group_name=?, commission_date=? WHERE id=?`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, h.GroupName, h.CommissionDate, h.ID)
 	return err
 }
 func (d *DB) UpdateHostNotes(id int64, notes string) error {
 	_, err := d.Exec(`UPDATE hosts SET notes=? WHERE id=?`, notes, id)
+	return err
+}
+
+func (d *DB) UpdateHostLifecycle(id int64, score int, notes string, breakdown string) error {
+	_, err := d.Exec(`UPDATE hosts SET lifecycle_score=?, lifecycle_notes=?, lifecycle_breakdown=? WHERE id=?`, score, notes, breakdown, id)
 	return err
 }
 
@@ -593,10 +607,10 @@ func (d *DB) UpdateHostInspection(h *Host) error {
 	if h.InternetOnline {
 		onlineInt = 1
 	}
-	_, err := d.Exec(`UPDATE hosts SET status=?, os_info=?, kernel=?, uptime=?, cpu_load=?, ram_used_bytes=?, ram_total_bytes=?, disk_used_bytes=?, disk_total_bytes=?, lifecycle_score=?, lifecycle_notes=?, lifecycle_breakdown=?, last_inspected=?, net_rx_bytes=?, net_tx_bytes=?, net_rx_speed_bps=?, net_tx_speed_bps=?, internet_online=?, internet_latency_ms=?, public_ip=?, active_conn_count=?, failed_logins_count=?, top_connections=?, listening_ports=?, cpu_cores=?, hardware_model=?, swap_used_bytes=?, swap_total_bytes=?, last_duration_ms=? WHERE id=?`,
+	_, err := d.Exec(`UPDATE hosts SET status=?, os_info=?, kernel=?, uptime=?, cpu_load=?, ram_used_bytes=?, ram_total_bytes=?, disk_used_bytes=?, disk_total_bytes=?, lifecycle_score=?, lifecycle_notes=?, lifecycle_breakdown=?, last_inspected=?, net_rx_bytes=?, net_tx_bytes=?, net_rx_speed_bps=?, net_tx_speed_bps=?, internet_online=?, internet_latency_ms=?, public_ip=?, active_conn_count=?, failed_logins_count=?, top_connections=?, listening_ports=?, cpu_cores=?, hardware_model=?, swap_used_bytes=?, swap_total_bytes=?, last_duration_ms=?, bios_date=?, os_install_epoch=? WHERE id=?`,
 		h.Status, h.OSInfo, h.Kernel, h.Uptime, h.CPULoad, h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, h.LifecycleScore, h.LifecycleNotes, h.LifecycleBreakdown, now,
 		h.NetRxBytes, h.NetTxBytes, h.NetRxSpeedBps, h.NetTxSpeedBps, onlineInt, h.InternetLatencyMs, h.PublicIP, h.ActiveConnCount, h.FailedLoginsCount, h.TopConnections, h.ListeningPorts,
-		h.CPUCores, h.HardwareModel, h.SwapUsedBytes, h.SwapTotalBytes, h.LastDurationMs,
+		h.CPUCores, h.HardwareModel, h.SwapUsedBytes, h.SwapTotalBytes, h.LastDurationMs, h.BIOSDate, h.OSInstallEpoch,
 		h.ID)
 	return err
 }
@@ -1017,13 +1031,15 @@ func (d *DB) ImportSnapshot(payload *SnapshotPayload) error {
 			ram_used_bytes, ram_total_bytes, disk_used_bytes, disk_total_bytes, lifecycle_score, lifecycle_notes, lifecycle_breakdown,
 			created_at, net_rx_bytes, net_tx_bytes, net_rx_speed_bps, net_tx_speed_bps,
 			internet_online, internet_latency_ms, public_ip, active_conn_count, failed_logins_count,
-			top_connections, listening_ports, notes, sort_order, group_name
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			top_connections, listening_ports, notes, sort_order, group_name,
+			commission_date, bios_date, os_install_epoch
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			h.ID, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Status, h.OSInfo, h.Kernel, h.Uptime, h.CPULoad,
 			h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, h.LifecycleScore, h.LifecycleNotes, h.LifecycleBreakdown,
 			h.CreatedAt, h.NetRxBytes, h.NetTxBytes, h.NetRxSpeedBps, h.NetTxSpeedBps,
 			onlineInt, h.InternetLatencyMs, h.PublicIP, h.ActiveConnCount, h.FailedLoginsCount,
 			h.TopConnections, h.ListeningPorts, h.Notes, h.SortOrder, h.GroupName,
+			h.CommissionDate, h.BIOSDate, h.OSInstallEpoch,
 		)
 		if err != nil {
 			return fmt.Errorf("insert host %d: %w", h.ID, err)

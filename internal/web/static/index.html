@@ -831,12 +831,46 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
         <textarea id="hostCustomKey" rows="2" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" data-i18n-placeholder="custom_key_ph"></textarea>
       </div>
       <div class="form-group">
+        <label data-i18n="commission_date_label">Hardware Commission Date (Optional for New Old Stock)</label>
+        <input type="date" id="hostCommissionDate" />
+        <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 2px;" data-i18n="commission_date_hint">Overrides BIOS age if hardware was commissioned recently despite older motherboard BIOS date.</small>
+      </div>
+      <div class="form-group">
         <label data-i18n="host_note">Host Note (Optional context / guide)</label>
         <textarea id="hostNote" rows="2" placeholder="e.g. Primary DB server, maintenance every Sunday" data-i18n-placeholder="host_note_ph"></textarea>
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
         <button class="btn" onclick="closeModal('hostModal')" data-i18n="cancel">Cancel</button>
         <button class="btn btn-primary" onclick="saveHost()" data-i18n="save_host">Save Host</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Commission Date Quick Modal -->
+<div id="commissionDateModal" class="modal">
+  <div class="modal-content modal-dialog">
+    <div class="modal-header">
+      <h3 id="commissionDateModalTitle" data-i18n="commission_date_title">Set Hardware Commission Date</h3>
+      <button class="btn btn-sm" onclick="closeModal('commissionDateModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="quickCommHostId" />
+      <input type="hidden" id="quickCommBiosDate" />
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;" data-i18n="commission_date_desc">
+        Set the date this server began operational service (New Old Stock / refurbished) to override older motherboard BIOS age.
+      </p>
+      <div id="quickCommBiosInfo" style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 10px; display: none;"></div>
+      <div class="form-group">
+        <label data-i18n="commission_date_label">Hardware Commission Date</label>
+        <input type="date" id="quickCommissionDate" />
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
+        <button class="btn btn-sm" style="color: var(--danger);" onclick="clearCommissionDate()" data-i18n="clear_commission_date">Clear (Reset to Auto BIOS)</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn" onclick="closeModal('commissionDateModal')" data-i18n="cancel">Cancel</button>
+          <button class="btn btn-primary" onclick="submitQuickCommissionDate()" data-i18n="save">Save</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1680,6 +1714,13 @@ const I18N = {
     "upgrade_warn": "⚠️ This server is recommended for hardware upgrade / replacement!",
     "refresh_recommendation": "📋 Recommendation: Eligible for Hardware Refresh",
     "refresh_justification": "Exceeds standard 5-year productive lifespan / MTBF risk zone or hardware degraded. Recommended for IT asset replacement proposal.",
+    "commission_date_label": "Hardware Commission Date (Optional for New Old Stock)",
+    "commission_date_hint": "Overrides BIOS age if hardware was commissioned recently despite older motherboard BIOS date.",
+    "commission_date_title": "Set Hardware Commission Date",
+    "commission_date_desc": "Set the date this server began operational service (New Old Stock / refurbished) to override older motherboard BIOS age.",
+    "edit_commission_date": "Edit Commission Date",
+    "set_commission_date": "Set Commission Date",
+    "clear_commission_date": "Clear (Reset to Auto BIOS)",
     "run_inspect": "⚡ Run Immediate Inspection",
     "net_egress": "\ud83c\udf10 Internet Egress",
     "connected": "\ud83d\udfe2 Connected",
@@ -2140,6 +2181,13 @@ const I18N = {
     "upgrade_warn": "⚠️ Server ini disarankan untuk upgrade / penggantian hardware!",
     "refresh_recommendation": "📋 Rekomendasi: Layak Pengajuan Peremajaan Hardware",
     "refresh_justification": "Melampaui masa pakai produktif 5 tahun / zona risiko MTBF atau sistem terdegradasi. Disarankan sebagai dasar proposal peremajaan aset IT.",
+    "commission_date_label": "Tanggal Komisioning Hardware (Opsional untuk Stok Lama)",
+    "commission_date_hint": "Mengesampingkan umur BIOS jika hardware baru mulai dioperasikan meski BIOS motherboard berumur lama.",
+    "commission_date_title": "Atur Tanggal Komisioning Hardware",
+    "commission_date_desc": "Tentukan tanggal server mulai resmi dioperasikan (stok lama/rekondisi) sebagai acuan utama evaluasi masa pakai produktif hardware.",
+    "edit_commission_date": "Ubah Tanggal Komisioning",
+    "set_commission_date": "Atur Tanggal Komisioning",
+    "clear_commission_date": "Hapus (Kembali ke Auto BIOS)",
     "run_inspect": "⚡ Jalankan Inspeksi Langsung",
     "net_egress": "\ud83c\udf10 Internet Egress",
     "connected": "\ud83d\udfe2 Terhubung",
@@ -3619,6 +3667,7 @@ function openAddHostModal() {
   document.getElementById('hostUser').value = 'root';
   document.getElementById('hostPassword').value = '';
   document.getElementById('hostCustomKey').value = '';
+  document.getElementById('hostCommissionDate').value = '';
   document.getElementById('hostNote').value = '';
   document.getElementById('hostGroup').value = '';
   updateGroupSuggestions();
@@ -3638,6 +3687,7 @@ function openEditHostModal(hostId) {
   document.getElementById('hostGroup').value = h.group_name || '';
   document.getElementById('hostPassword').value = '';
   document.getElementById('hostCustomKey').value = h.custom_key || '';
+  document.getElementById('hostCommissionDate').value = h.commission_date || '';
   document.getElementById('hostNote').value = h.notes || '';
   document.getElementById('passGroup').style.display = 'none';
   updateGroupSuggestions();
@@ -3679,6 +3729,7 @@ async function saveHost() {
     user: document.getElementById('hostUser').value,
     password: document.getElementById('hostPassword').value,
     custom_key: document.getElementById('hostCustomKey').value,
+    commission_date: (document.getElementById('hostCommissionDate')?.value || '').trim(),
     notes: document.getElementById('hostNote').value,
     group_name: (document.getElementById('hostGroup')?.value || '').trim(),
   };
@@ -3689,14 +3740,67 @@ async function saveHost() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   });
-  const data = await res.json();
   if (res.ok) {
     closeModal('hostModal');
     showToast(t('save_host_success', 'Host saved successfully'), 'success');
     loadHosts();
+    if (id && currentDetailHostId === parseInt(id)) {
+      openHostDetail(id);
+    }
   } else {
-    showToast(t('save_host_failed') + (data.error || 'Unknown error'), 'error');
+    const txt = await res.text();
+    let errMsg = txt;
+    try {
+      const errObj = JSON.parse(txt);
+      if (errObj.error) errMsg = errObj.error;
+    } catch(e) {}
+    showToast(t('save_host_failed', 'Failed to save host: ') + errMsg, 'error');
   }
+}
+
+function openCommissionDateModal(hostId, currentCommDate, biosDate) {
+  document.getElementById('quickCommHostId').value = hostId;
+  document.getElementById('quickCommBiosDate').value = biosDate || '';
+  document.getElementById('quickCommissionDate').value = currentCommDate || '';
+  const biosInfoEl = document.getElementById('quickCommBiosInfo');
+  if (biosDate) {
+    biosInfoEl.style.display = 'block';
+    biosInfoEl.innerHTML = `⚙️ <strong>Motherboard BIOS:</strong> ${escapeHtml(biosDate)}`;
+  } else {
+    biosInfoEl.style.display = 'none';
+  }
+  openModal('commissionDateModal');
+}
+
+async function submitQuickCommissionDate() {
+  const hostId = document.getElementById('quickCommHostId').value;
+  const dateVal = document.getElementById('quickCommissionDate').value.trim();
+  const res = await fetch(`/api/hosts/${hostId}/commission-date`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ commission_date: dateVal })
+  });
+  if (res.ok) {
+    closeModal('commissionDateModal');
+    showToast(t('save_host_success', 'Saved successfully'), 'success');
+    loadHosts();
+    if (currentDetailHostId === parseInt(hostId)) {
+      openHostDetail(hostId);
+    }
+  } else {
+    const txt = await res.text();
+    let errMsg = txt;
+    try {
+      const errObj = JSON.parse(txt);
+      if (errObj.error) errMsg = errObj.error;
+    } catch(e) {}
+    showToast(errMsg || 'Failed to update commission date', 'error');
+  }
+}
+
+async function clearCommissionDate() {
+  document.getElementById('quickCommissionDate').value = '';
+  await submitQuickCommissionDate();
 }
 
 function showToast(message, type = 'info', duration = 4000) {
@@ -3898,7 +4002,13 @@ function switchTab(tab, presetID) {
           </div>
         </div>
         <div class="card">
-          <h4>${t('lifecycle_assessment')}</h4>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <h4 style="margin: 0;">${t('lifecycle_assessment')}</h4>
+            <button class="btn btn-sm" onclick="openCommissionDateModal(${d.host.id}, '${escapeHtml(d.host.commission_date || '')}', '${escapeHtml(d.host.bios_date || '')}')" style="font-size: 0.75rem; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px;" title="${t('edit_commission_date', 'Edit Commission Date')}">
+              <span>📅</span>
+              <span>${d.host.commission_date ? escapeHtml(d.host.commission_date) : t('set_commission_date', 'Set Commission Date')}</span>
+            </button>
+          </div>
           <div class="stat-row"><span>${t('lifecycle_score')}</span> <span class="score-badge" style="color: ${scoreColor}; font-weight: 700; font-size: 0.95rem;">${d.host.lifecycle_score}/100</span></div>
           ${breakdownList && breakdownList.length > 0 ? `
             <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px;">
