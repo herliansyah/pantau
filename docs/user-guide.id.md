@@ -91,12 +91,23 @@ Pantau tidak hanya menampilkan metrik pasif; sistem ini secara aktif memverifika
 1. Buka **Workspace Modal** host dengan mengklik kartu server pada dashboard.
 2. Beralih ke tab **Desired State**.
 3. Klik tombol **1-Click Baseline**:
-   - Pantau mengeksekusi inspeksi kilat melalui SSH untuk mendeteksi container Docker yang sedang berjalan, partisi mount disk, entri cron job yang terpasang, dan port jaringan yang sedang listening.
+   - Pantau mengeksekusi inspeksi kilat melalui SSH untuk mendeteksi container Docker yang sedang berjalan, partisi disk root, service database/web aktif, dan entri cron job yang terpasang.
    - Sumber daya yang terdeteksi secara otomatis disimpan sebagai acuan baku (**Desired State**) mesin tersebut.
-4. Kustomisasi ambang batas aturan sesuai toleransi Anda:
-   - **Disk Usage**: Atur batas persentase maksimal (misal: peringatan jika kapasitas root filesystem `> 85%`).
-   - **Service & Container Check**: Tetapkan container Docker esensial (seperti `nginx`, `postgres`, `redis`) yang wajib berstatus `running`.
-   - **Memory & Swap Saturation**: Pasang ambang batas peringatan saturasi RAM.
+4. Kustomisasi atau tambah aturan manual sesuai kebutuhan operasional.
+
+### Tabel Referensi Aturan Desired State
+
+Pantau mendukung 7 jenis aturan Desired State yang dievaluasi secara otomatis pada setiap siklus inspeksi:
+
+| Jenis (`Kind`) | Target Identifier | Kondisi Diharapkan (`Expected`) | Contoh Target & Expected | Kriteria Drift & Root Cause Excerpt |
+| :--- | :--- | :--- | :--- | :--- |
+| **`container`** | Nama kontainer Docker | `running` | `nginx` &rarr; `running` | Kontainer `exited`, `dead`, crash. Menyajikan exit code, OOMKilled, dan 50 baris log kontainer. |
+| **`service`** | Nama daemon Linux | `active` | `mariadb` &rarr; `active` | Service `inactive` atau `failed`. Menyajikan 50 baris log dari `journalctl` atau syslog. |
+| **`port`** | Port TCP atau `ip:port` | `listening` (atau `closed`) | `80` &rarr; `listening` | Port tidak terbuka / proses mati. Memeriksa `ss`/`netstat`. |
+| **`disk`** | Mount point partisi | `<N%` (ambang batas) | `/` &rarr; `<85%` | Utilisasi partisi >= ambang batas atau storage IO timeout 5s (hung NFS). |
+| **`cron`** | Kata kunci / perintah cron | `configured` | `backup.sh` &rarr; `configured` | Baris perintah tidak ditemukan dalam `crontab -l` user SSH. |
+| **`backup`** | Path absolut berkas backup | `fresh_<N>h` (default: 24h) | `/backup/db.sql.gz` &rarr; `fresh_24h` | Berkas tidak ditemukan, berukuran 0 byte, atau usia berkas melampaui N jam. |
+| **`process`** | Pola atau nama proses | `running` (atau `stopped`) | `celery` &rarr; `running` | Proses tidak aktif pada sistem (memeriksa `pgrep`/`ps`). |
 
 ### Konfigurasi Backup Freshness & Protected Path
 

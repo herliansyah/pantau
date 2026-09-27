@@ -366,3 +366,89 @@ func TestRecalculateHostLifecycle(t *testing.T) {
 	}
 }
 
+func TestEvaluateRule_Port(t *testing.T) {
+	ins := &Inspector{}
+	host := &store.Host{ID: 1, Host: "10.0.0.1"}
+
+	// 1. Port listening
+	mockOpen := sshrunner.NewMockRunner()
+	mockOpen.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "LISTEN 0 128 0.0.0.0:80 0.0.0.0:*", "", 0, nil
+	}
+	rule := &store.DesiredRule{Kind: "port", Target: "80", Expected: "listening"}
+	curr, status, _, _ := ins.evaluateRule(host, mockOpen, rule)
+	if status != "ok" || curr != "listening" {
+		t.Fatalf("expected ok/listening, got %s/%s", status, curr)
+	}
+
+	// 2. Port closed (drift)
+	mockClosed := sshrunner.NewMockRunner()
+	mockClosed.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "", "", 1, nil
+	}
+	curr, status, _, rootCause := ins.evaluateRule(host, mockClosed, rule)
+	if status != "drift" || curr != "closed" {
+		t.Fatalf("expected drift/closed, got %s/%s", status, curr)
+	}
+	if !strings.Contains(rootCause, "not listening") {
+		t.Fatalf("unexpected root cause: %s", rootCause)
+	}
+}
+
+func TestEvaluateRule_Process(t *testing.T) {
+	ins := &Inspector{}
+	host := &store.Host{ID: 1, Host: "10.0.0.1"}
+
+	// 1. Process running
+	mockRunning := sshrunner.NewMockRunner()
+	mockRunning.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "1234 supervisord", "", 0, nil
+	}
+	rule := &store.DesiredRule{Kind: "process", Target: "supervisord", Expected: "running"}
+	curr, status, _, _ := ins.evaluateRule(host, mockRunning, rule)
+	if status != "ok" || curr != "running" {
+		t.Fatalf("expected ok/running, got %s/%s", status, curr)
+	}
+
+	// 2. Process stopped (drift)
+	mockStopped := sshrunner.NewMockRunner()
+	mockStopped.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "", "", 1, nil
+	}
+	curr, status, _, rootCause := ins.evaluateRule(host, mockStopped, rule)
+	if status != "drift" || curr != "stopped" {
+		t.Fatalf("expected drift/stopped, got %s/%s", status, curr)
+	}
+	if !strings.Contains(rootCause, "not running") {
+		t.Fatalf("unexpected root cause: %s", rootCause)
+	}
+}
+
+func TestEvaluateRule_Cron(t *testing.T) {
+	ins := &Inspector{}
+	host := &store.Host{ID: 1, Host: "10.0.0.1"}
+
+	rule := &store.DesiredRule{Kind: "cron", Target: "backup.sh", Expected: "configured"}
+
+	// 1. Cron found
+	mockFound := sshrunner.NewMockRunner()
+	mockFound.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "0 2 * * * /opt/scripts/backup.sh >/dev/null 2>&1", "", 0, nil
+	}
+	curr, status, _, _ := ins.evaluateRule(host, mockFound, rule)
+	if status != "ok" || curr != "configured" {
+		t.Fatalf("expected ok/configured, got %s/%s", status, curr)
+	}
+
+	// 2. Cron missing
+	mockMissing := sshrunner.NewMockRunner()
+	mockMissing.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "# empty crontab", "", 0, nil
+	}
+	curr, status, _, _ = ins.evaluateRule(host, mockMissing, rule)
+	if status != "drift" || curr != "missing" {
+		t.Fatalf("expected drift/missing, got %s/%s", status, curr)
+	}
+}
+
+
