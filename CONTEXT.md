@@ -12,6 +12,10 @@ _Avoid_: Node, instance, machine, windows target
 Kumpulan aturan dan ekspektasi yang didefinisikan untuk sebuah Host (misal: service harus aktif, disk di bawah ambang batas, container tertentu harus running).
 _Avoid_: Baseline, blueprint, config template
 
+**Desired Rule**:
+Satu butir aturan spesifikasi kondisi yang diharapkan pada Host, terdiri atas jenis aturan (*Kind*: `container`, `service`, `port`, `disk`, `cron`, `backup`, `process`), pengenal target (*Target*), nilai ambang atau status yang diharapkan (*Expected*), serta status keaktifan (*Enabled*).
+_Avoid_: Config check, monitor item, health probe
+
 **Actual State**:
 Kondisi riil sebuah Host yang didapatkan dari hasil pembacaan inspeksi berkala.
 _Avoid_: Current status, telemetry snapshot

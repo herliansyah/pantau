@@ -743,11 +743,13 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
       <input type="hidden" id="ruleHostId" />
       <div class="form-group">
         <label data-i18n="rule_kind">Rule Kind</label>
-        <select id="ruleKind" style="width: 100%; padding: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--card-border); border-radius: 6px;">
+        <select id="ruleKind" onchange="onRuleKindChange()" style="width: 100%; padding: 8px; background: var(--bg); color: var(--text); border: 1px solid var(--card-border); border-radius: 6px;">
           <option value="container">container</option>
           <option value="service">service</option>
           <option value="port">port</option>
           <option value="disk">disk</option>
+          <option value="cron">cron</option>
+          <option value="backup">backup</option>
           <option value="process">process</option>
         </select>
       </div>
@@ -4391,6 +4393,28 @@ async function generateBaseline(hostID) {
   }
 }
 
+const ruleKindHints = {
+  container: { targetPh: 'e.g. nginx, web-app', expected: 'running', expectedPh: 'e.g. running' },
+  service: { targetPh: 'e.g. nginx, mariadb, redis-server', expected: 'active', expectedPh: 'e.g. active' },
+  port: { targetPh: 'e.g. 80, 443, 3306', expected: 'listening', expectedPh: 'e.g. listening' },
+  disk: { targetPh: 'e.g. /, /var, /data', expected: '<85%', expectedPh: 'e.g. <80%, <90%' },
+  cron: { targetPh: 'e.g. backup.sh, certbot renew', expected: 'configured', expectedPh: 'e.g. configured' },
+  backup: { targetPh: 'e.g. /var/backups/daily.sql.gz', expected: 'fresh_24h', expectedPh: 'e.g. fresh_24h, fresh_12h' },
+  process: { targetPh: 'e.g. celery, supervisord', expected: 'running', expectedPh: 'e.g. running' }
+};
+
+function onRuleKindChange() {
+  const kind = document.getElementById('ruleKind')?.value || 'container';
+  const hint = ruleKindHints[kind] || ruleKindHints.container;
+  const targetEl = document.getElementById('ruleTarget');
+  const expectedEl = document.getElementById('ruleExpected');
+  if (targetEl) targetEl.placeholder = hint.targetPh;
+  if (expectedEl) {
+    expectedEl.placeholder = hint.expectedPh;
+    expectedEl.value = hint.expected;
+  }
+}
+
 function addRulePrompt(hostID) {
   openAddRuleModal(hostID);
 }
@@ -4399,7 +4423,7 @@ function openAddRuleModal(hostID) {
   document.getElementById('ruleHostId').value = hostID;
   document.getElementById('ruleKind').value = 'container';
   document.getElementById('ruleTarget').value = '';
-  document.getElementById('ruleExpected').value = 'running';
+  onRuleKindChange();
   openModal('ruleModal');
   setTimeout(() => document.getElementById('ruleTarget')?.focus(), 50);
 }

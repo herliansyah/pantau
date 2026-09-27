@@ -1116,6 +1116,64 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 			rootCause = fmt.Sprintf("Service %s is %s (expected active)\n--- Service diagnostics ---\n%s", rule.Target, activeState, strings.TrimSpace(diagOut))
 		}
 		return
+
+	case "port":
+		// ponytail: Portable listening port query across distros with ss/netstat fallback
+		target := strings.TrimSpace(rule.Target)
+		port := target
+		if idx := strings.LastIndex(target, ":"); idx != -1 {
+			port = target[idx+1:]
+		}
+		portCmd := fmt.Sprintf(`sh -c 'if command -v ss >/dev/null 2>&1; then ss -tlpn 2>/dev/null; elif command -v netstat >/dev/null 2>&1; then netstat -tlpn 2>/dev/null; else lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null; fi' | grep -E ":%s\b"`, port)
+		out, _, exitCode, _ := runner.Exec(portCmd)
+		isListening := exitCode == 0 && strings.TrimSpace(out) != ""
+
+		expectedListening := !strings.EqualFold(rule.Expected, "closed") && !strings.EqualFold(rule.Expected, "stopped")
+		if isListening {
+			current = "listening"
+			if expectedListening {
+				status = "ok"
+			} else {
+				status = "drift"
+				rootCause = fmt.Sprintf("Port %s is listening (expected %s)", target, rule.Expected)
+			}
+		} else {
+			current = "closed"
+			if !expectedListening {
+				status = "ok"
+			} else {
+				status = "drift"
+				rootCause = fmt.Sprintf("Port %s is not listening (expected %s)", target, rule.Expected)
+			}
+		}
+		return
+
+	case "process":
+		// ponytail: pgrep -f checks matching active process with ps fallback
+		procCmd := fmt.Sprintf(`sh -c 'if command -v pgrep >/dev/null 2>&1; then pgrep -fl "$1" 2>/dev/null; else ps -ef 2>/dev/null | grep -v grep | grep "$1"; fi' -- %q`, rule.Target)
+		out, _, exitCode, _ := runner.Exec(procCmd)
+		out = strings.TrimSpace(out)
+		isRunning := exitCode == 0 && out != ""
+
+		expectedRunning := !strings.EqualFold(rule.Expected, "stopped") && !strings.EqualFold(rule.Expected, "inactive")
+		if isRunning {
+			current = "running"
+			if expectedRunning {
+				status = "ok"
+			} else {
+				status = "drift"
+				rootCause = fmt.Sprintf("Process matching '%s' is running (expected %s)", rule.Target, rule.Expected)
+			}
+		} else {
+			current = "stopped"
+			if !expectedRunning {
+				status = "ok"
+			} else {
+				status = "drift"
+				rootCause = fmt.Sprintf("Process matching '%s' is not running (expected %s)", rule.Target, rule.Expected)
+			}
+		}
+		return
 	}
 
 	return "unknown", "ok", "", ""

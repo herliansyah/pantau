@@ -91,12 +91,23 @@ Pantau does not merely display metrics; it enforces continuous adherence to your
 1. Open the host's **Workspace Modal** by clicking on its card.
 2. Navigate to the **Desired State** tab.
 3. Click **1-Click Baseline**:
-   - Pantau triggers an immediate SSH command sequence to inspect running Docker containers, mounted disk partitions, configured cron jobs, and listening network ports.
+   - Pantau triggers an immediate SSH command sequence to inspect running Docker containers, root disk partition, active database/web services, and configured cron jobs.
    - These discovered resources are saved as the host's authoritative **Desired State**.
-4. Customize threshold rules:
-   - **Disk Usage**: Set maximum percentage limits (e.g., root filesystem alert at `> 85%`).
-   - **Service & Container Check**: Specify critical Docker containers (e.g., `nginx`, `redis`) or systemd services that must remain in `running` state.
-   - **Memory & Swap Saturation**: Specify RAM warning levels.
+4. Customize or add manual rules based on your operational needs.
+
+### Desired State Rules Reference Table
+
+Pantau supports 7 Desired State rule types evaluated on every inspection cycle:
+
+| Kind | Target Identifier | Expected State | Examples | Drift Criteria & Root Cause Excerpt |
+| :--- | :--- | :--- | :--- | :--- |
+| **`container`** | Docker container name | `running` | `nginx` &rarr; `running` | Container exited, dead, or crash loop. Captures exit code, OOMKilled flag, and last 50 container log lines. |
+| **`service`** | Linux daemon name | `active` | `mariadb` &rarr; `active` | Service inactive or failed. Captures last 50 log lines via `journalctl` or syslog. |
+| **`port`** | TCP port or `ip:port` | `listening` (or `closed`) | `80` &rarr; `listening` | Port closed or listening daemon halted. Verified via `ss`/`netstat`. |
+| **`disk`** | Partition mount point | `<N%` (usage ceiling) | `/` &rarr; `<85%` | Partition usage >= threshold or storage IO timed out after 5s (hung NFS protection). |
+| **`cron`** | Keyword or command substring | `configured` | `backup.sh` &rarr; `configured` | Specified cron command not found in user's `crontab -l`. |
+| **`backup`** | Absolute backup file path | `fresh_<N>h` (default: 24h) | `/backup/db.sql.gz` &rarr; `fresh_24h` | File is missing, 0 bytes empty, or modification time older than N hours. |
+| **`process`** | Process name or pattern | `running` (or `stopped`) | `celery` &rarr; `running` | Process not currently active on system (verified via `pgrep`/`ps`). |
 
 ### Configuring Backup Freshness & Protected Paths
 
