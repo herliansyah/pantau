@@ -464,6 +464,29 @@ func TestGlobalTerminalDockWebAssets(t *testing.T) {
 	if !strings.Contains(body, "btn-host-terminal") || !strings.Contains(body, "host-terminal-badge") {
 		t.Errorf("expected host cards to contain btn-host-terminal and host-terminal-badge")
 	}
+
+	// 9. Terminal Tab Host Filter checks in new tab dropdown
+	if !strings.Contains(body, "id=\"terminalHostSearchInput\"") {
+		t.Errorf("expected terminalHostSearchInput to be present in new tab dropdown")
+	}
+	if !strings.Contains(body, "id=\"terminalDropdownHostList\"") {
+		t.Errorf("expected terminalDropdownHostList to be present in new tab dropdown")
+	}
+	if !strings.Contains(body, "data-i18n-placeholder=\"search_terminal_host_ph\"") {
+		t.Errorf("expected search_terminal_host_ph placeholder attribute on search input")
+	}
+	if !strings.Contains(body, `"search_terminal_host_ph": "Search host or IP..."`) {
+		t.Errorf("expected search_terminal_host_ph in English dictionary")
+	}
+	if !strings.Contains(body, `"search_terminal_host_ph": "Cari host atau IP..."`) {
+		t.Errorf("expected search_terminal_host_ph in Indonesian dictionary")
+	}
+	if !strings.Contains(body, "filterTerminalDropdownHosts") || !strings.Contains(body, "onTerminalHostSearchKeyDown") {
+		t.Errorf("expected filterTerminalDropdownHosts and onTerminalHostSearchKeyDown functions to be defined")
+	}
+	if !strings.Contains(body, "name.includes(q) || host.includes(q)") {
+		t.Errorf("expected filter to match both host name and host IP/address")
+	}
 }
 
 func TestHandleDocs(t *testing.T) {

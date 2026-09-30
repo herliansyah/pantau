@@ -77,9 +77,9 @@ func (s *Server) prepareHTML(raw []byte) {
 	sum := sha256.Sum256(raw)
 	s.htmlETag = fmt.Sprintf(`"%x"`, sum[:8])
 
-	// ponytail: pre-compress HTML in-memory so endpoint / requires zero CPU compression work per request
+	// ponytail: pre-compress HTML in-memory with BestCompression so endpoint / requires zero CPU compression work per request and optimal wire size
 	var buf bytes.Buffer
-	gw := gzip.NewWriter(&buf)
+	gw, _ := gzip.NewWriterLevel(&buf, gzip.BestCompression)
 	_, _ = gw.Write(raw)
 	_ = gw.Close()
 	s.htmlContentGz = buf.Bytes()
