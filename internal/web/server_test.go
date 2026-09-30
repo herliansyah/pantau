@@ -1376,6 +1376,52 @@ func TestCommissionDate_RoutesAndRecalculate(t *testing.T) {
 	}
 }
 
+func TestWorkspaceShelfAndSmartResumeUI(t *testing.T) {
+	html := string(embeddedHTML)
+
+	requiredUIElements := []string{
+		`id="workspaceShelf"`,
+		`id="workspaceShelfChips"`,
+		`workspace-shelf`,
+		`workspace-chip`,
+		`btn-modal-minimize`,
+		`host-session-badge`,
+		`minimizeHostDetail()`,
+		`minimizeEditor()`,
+		`restoreWorkspaceSession`,
+		`renderWorkspaceShelf()`,
+		`closeWorkspaceSession`,
+		`updateHostSessionBadges()`,
+		`closeHostDetailModal()`,
+		`closeEditorModalWithConfirm()`,
+	}
+	for _, el := range requiredUIElements {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected embedded index.html to contain Workspace Shelf element %q", el)
+		}
+	}
+
+	requiredI18nKeys := []string{
+		`"workspace_shelf_title":`,
+		`"btn_minimize":`,
+		`"active_session_badge":`,
+		`"shelf_limit_reached":`,
+		`"discard_unsaved_changes":`,
+		`"close_session":`,
+	}
+	for _, k := range requiredI18nKeys {
+		if count := strings.Count(html, k); count < 2 {
+			t.Errorf("expected i18n key %q to exist in both EN and ID dictionaries, found %d", k, count)
+		}
+	}
+
+	// Verify Smart Resume logic exists in openHostDetail
+	if !strings.Contains(html, "existingSession") || !strings.Contains(html, "restoreWorkspaceSession(existingSession.id)") {
+		t.Errorf("expected openHostDetail to implement Smart Resume restoring existingSession")
+	}
+}
+
+
 
 
 

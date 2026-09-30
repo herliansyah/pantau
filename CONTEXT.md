@@ -261,3 +261,16 @@ _Avoid_: Auto clear, alert wipe, drift expiry
 Kebijakan penyimpanan riwayat inspeksi pada basis data internal yang mengalokasikan kuota retensi bergulir terpisah antara eksekusi normal dan eksekusi bermasalah (*drift/error/down*) guna menjamin ketersediaan jejak audit deviasi historis tanpa memicu pembengkakan ukuran file.
 _Avoid_: Multi-retention, split purge, error archiving
 
+**Workspace Shelf**:
+Bilah navigasi horizontal adaptif tepat di bawah header utama yang menampung sesi Workspace Modal dan Code Editor yang diminimalkan untuk pemulihan instan tanpa polusi visual mengambang.
+_Avoid_: Taskbar, minimized bar, bottom dock, modal tray
+
+**Workspace Session**:
+Entitas status kerja in-memory yang mencatat identitas host, tab aktif, direktori SFTP, atau buffer editor saat sebuah modal diminimalkan.
+_Avoid_: Background tab, suspended window, open process
+
+**Smart Resume**:
+Mekanisme pemulihan otomatis konteks kerja dan navigasi terakhir saat pengguna membuka kembali Host Detail dari kartu server pada dashboard.
+_Avoid_: State reload, session restore, auto reopen
+
+
