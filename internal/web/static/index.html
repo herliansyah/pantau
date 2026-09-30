@@ -89,6 +89,17 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 4
 .modal-dialog { width: 100%; max-width: 520px; max-height: 90vh; }
 .modal-dialog-md { width: 100%; max-width: 600px; max-height: 90vh; }
 .modal-dialog-lg { width: 100%; max-width: 740px; max-height: 90vh; }
+.modal.workspace-maximized-wrapper { padding: 0 !important; }
+.modal-content.workspace-maximized {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  border-radius: 0 !important;
+  border: none !important;
+}
 @media (max-width: 768px) {
   .modal { padding: 0; }
   .modal-workspace, .modal-dialog, .modal-dialog-md, .modal-dialog-lg { width: 100vw; height: 100vh; max-width: 100vw; min-width: 100vw; border-radius: 0; border: none; }
@@ -931,7 +942,7 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 <!-- Host Details Modal -->
 <div id="hostDetailModal" class="modal">
   <div class="modal-content modal-workspace">
-    <div class="modal-header">
+    <div class="modal-header" id="hostDetailModalHeader" ondblclick="toggleHostDetailMaximize(event)" style="cursor: pointer; user-select: none;">
       <div style="display: flex; align-items: center; gap: 8px;">
         <h3 id="detailHostName">Host</h3>
         <span id="detailHostBadge" class="badge">UNKNOWN</span>
@@ -939,7 +950,10 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
         </button>
       </div>
-      <button class="btn btn-sm" onclick="closeModal('hostDetailModal')">✕</button>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button id="btnHostDetailMax" class="btn btn-sm dock-action-btn" onclick="toggleHostDetailMaximize(event)" title="Maximize Workspace" data-i18n-title="maximize_workspace">⛶</button>
+        <button class="btn btn-sm" onclick="closeModal('hostDetailModal')">✕</button>
+      </div>
     </div>
     <div class="modal-tabs-bar">
       <div class="tabs" id="hostDetailTabs">
@@ -1666,6 +1680,9 @@ const I18N = {
     "terminal_dock_title": "Terminal Dock",
     "maximize_terminal": "Maximize",
     "minimize_terminal": "Restore",
+    "maximize_workspace": "Maximize Workspace",
+    "restore_workspace": "Restore Workspace",
+    "open_terminal_here": "Open Terminal Here",
     "close_all_terminals_confirm": "Close all terminal sessions? Active remote shell processes will be disconnected.",
     "terminal_tab_limit_notice": "Notice: 8+ active terminal sessions open. Consider closing unused tabs to save resources.",
     "new_terminal_tab": "New Terminal Tab",
@@ -2133,6 +2150,9 @@ const I18N = {
     "terminal_dock_title": "Terminal Dock",
     "maximize_terminal": "Layar Penuh",
     "minimize_terminal": "Pulihkan",
+    "maximize_workspace": "Layar Penuh Ruang Kerja",
+    "restore_workspace": "Pulihkan Ruang Kerja",
+    "open_terminal_here": "Buka Terminal di Sini",
     "close_all_terminals_confirm": "Tutup seluruh sesi terminal? Proses shell remote yang sedang aktif akan terputus.",
     "terminal_tab_limit_notice": "Perhatian: 8+ sesi terminal aktif terbuka. Pertimbangkan menutup tab yang tidak digunakan untuk menghemat sumber daya.",
     "new_terminal_tab": "Tab Terminal Baru",
@@ -3941,6 +3961,85 @@ async function inspectHost(id, e) {
   }
 }
 
+// Workspace Modal Maximize State
+let isHostDetailMaximized = false;
+try {
+  isHostDetailMaximized = localStorage.getItem('pantau_host_detail_maximized') === 'true';
+} catch(e) {}
+
+function applyHostDetailMaximizeState() {
+  const modal = document.getElementById('hostDetailModal');
+  const btn = document.getElementById('btnHostDetailMax');
+  if (!modal) return;
+  const content = modal.querySelector('.modal-content');
+  if (!content) return;
+  if (isHostDetailMaximized) {
+    modal.classList.add('workspace-maximized-wrapper');
+    content.classList.add('workspace-maximized');
+    if (btn) {
+      btn.innerHTML = '🗗';
+      btn.title = t('restore_workspace', 'Restore Workspace');
+    }
+  } else {
+    modal.classList.remove('workspace-maximized-wrapper');
+    content.classList.remove('workspace-maximized');
+    if (btn) {
+      btn.innerHTML = '⛶';
+      btn.title = t('maximize_workspace', 'Maximize Workspace');
+    }
+  }
+}
+
+function toggleHostDetailMaximize(e) {
+  if (e && e.type === 'dblclick' && e.target && (e.target.tagName === 'BUTTON' || e.target.closest('button'))) return;
+  isHostDetailMaximized = !isHostDetailMaximized;
+  try {
+    localStorage.setItem('pantau_host_detail_maximized', isHostDetailMaximized ? 'true' : 'false');
+  } catch(err) {}
+  applyHostDetailMaximizeState();
+}
+
+// Per-Host Tab & Files Path State (sessionStorage)
+function getHostActiveTab(hostId) {
+  try {
+    const saved = sessionStorage.getItem('pantau_host_tab_' + hostId);
+    if (saved && saved !== 'terminal') return saved;
+  } catch(e) {}
+  return 'overview';
+}
+
+function setHostActiveTab(hostId, tab) {
+  try {
+    if (hostId && tab && tab !== 'terminal') {
+      sessionStorage.setItem('pantau_host_tab_' + hostId, tab);
+    }
+  } catch(e) {}
+}
+
+function getHostFilesPath(hostId) {
+  try {
+    const saved = sessionStorage.getItem('pantau_host_files_path_' + hostId);
+    if (saved) return saved;
+  } catch(e) {}
+  return '/';
+}
+
+function setHostFilesPath(hostId, path) {
+  try {
+    if (hostId && path) {
+      sessionStorage.setItem('pantau_host_files_path_' + hostId, path);
+    }
+  } catch(e) {}
+}
+
+function openTerminalForPath(targetPath) {
+  if (!currentHost) return;
+  const hostName = currentHost.name || ('Host ' + currentHost.id);
+  const folderName = (targetPath === '/' || !targetPath) ? '/' : targetPath.split('/').filter(Boolean).pop() || targetPath;
+  const customTitle = `${hostName}: ${folderName}`;
+  openTerminalForHost(currentHost.id, null, true, customTitle, targetPath);
+}
+
 async function openHostDetail(id) {
   const res = await fetch('/api/hosts/' + id);
   if (!res.ok) return;
@@ -3952,8 +4051,9 @@ async function openHostDetail(id) {
   badge.className = 'badge badge-' + currentHost.status;
   badge.innerText = currentHost.status;
   openModal('hostDetailModal');
-  if (currentTab === 'terminal') currentTab = 'overview';
-  switchTab(currentTab || 'overview');
+  applyHostDetailMaximizeState();
+  const targetTab = getHostActiveTab(currentHost.id);
+  switchTab(targetTab);
 }
 
 async function openHostTerminal(hostID, presetID) {
@@ -3962,6 +4062,9 @@ async function openHostTerminal(hostID, presetID) {
 
 function switchTab(tab, presetID) {
   currentTab = tab;
+  if (currentHost && currentHost.id) {
+    setHostActiveTab(currentHost.id, tab);
+  }
   document.querySelectorAll('#hostDetailTabs .tab').forEach(t => {
     t.classList.toggle('active', t.getAttribute('data-tab') === tab);
   });
@@ -4258,7 +4361,8 @@ function switchTab(tab, presetID) {
   } else if (tab === 'runs') {
     renderInspectionRunsTab();
   } else if (tab === 'files') {
-    loadFiles('/');
+    const startPath = (currentHost && currentHost.id) ? getHostFilesPath(currentHost.id) : '/';
+    loadFiles(startPath);
   }
 }
 
@@ -4500,6 +4604,9 @@ let fileSortColumn = 'name'; // 'name' | 'size' | 'mod_time'
 let fileSortOrder = 'asc'; // 'asc' | 'desc'
 
 async function loadFiles(path) {
+  if (currentHost && currentHost.id && path) {
+    setHostFilesPath(currentHost.id, path);
+  }
   const content = document.getElementById('tabContent');
   content.innerHTML = '<p>' + t('loading_files') + '</p>';
   const res = await fetch('/api/hosts/' + currentHost.id + '/files/list?path=' + encodeURIComponent(path));
@@ -4527,6 +4634,9 @@ function renderFilesView() {
         ${isProtectedDir ? `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;">🔒 ${t('protected_path')}</span>` : ''}
       </div>
       <div style="display: flex; gap: 8px;">
+        <button class="btn btn-sm" onclick="openTerminalForPath('${escapeHtml(data.path)}')" title="${t('open_terminal_here', 'Open Terminal Here')}" style="display: inline-flex; align-items: center; gap: 4px;">
+          <span>💻</span> <span>${t('open_terminal_here', 'Open Terminal Here')}</span>
+        </button>
         <button class="btn btn-sm" onclick="loadFiles('${parent}')">${t('up_dir')}</button>
         <input type="file" id="fileUploadInput" style="display: none;" onchange="uploadFile('${data.path}')" />
         <button class="btn btn-primary btn-sm" ${isProtectedDir ? 'disabled title="' + t('cannot_upload_protected') + '"' : ''} onclick="document.getElementById('fileUploadInput').click()">${t('upload_file')}</button>
@@ -4637,6 +4747,7 @@ function renderFilesTableBody() {
   tbody.innerHTML = filtered.map(f => {
     const fullPath = currentFilesData.path === '/' ? '/' + f.name : currentFilesData.path + '/' + f.name;
     const isItemProtected = !!(f.is_protected || isProtectedDir);
+    const targetTermPath = f.is_dir ? fullPath : currentFilesData.path;
     return `
       <tr>
         <td>
@@ -4650,6 +4761,7 @@ function renderFilesTableBody() {
         <td>${f.mod_time}</td>
         <td style="white-space: nowrap;">
           <div class="action-grid">
+            <button class="btn btn-sm" title="${t('open_terminal_here', 'Open Terminal Here')}" onclick="openTerminalForPath('${escapeHtml(targetTermPath)}')">💻</button>
             ${!f.is_dir 
               ? `<button class="btn btn-primary btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openEditor('${escapeHtml(fullPath)}')">${t('edit')}</button>` 
               : '<span style="display:inline-block;"></span>'}
@@ -5060,6 +5172,9 @@ function initTabLeftTerminal(tab, presetID) {
   if (presetID) {
     wsUrl += '&preset_id=' + presetID;
   }
+  if (tab.initialDir) {
+    wsUrl += '&dir=' + encodeURIComponent(tab.initialDir);
+  }
   const ws = new WebSocket(wsUrl);
   tab.socketLeft = ws;
   ws.binaryType = 'arraybuffer';
@@ -5341,7 +5456,7 @@ function triggerTabPreset(tabId, presetId) {
   sendTabCommand(tabId, p.command);
 }
 
-function openTerminalForHost(hostID, presetID, forceNew = false, customTitle = null) {
+function openTerminalForHost(hostID, presetID, forceNew = false, customTitle = null, initialDir = null) {
   if (!forceNew) {
     const existing = terminalTabs.find(t => t.hostID === hostID);
     if (existing) {
@@ -5368,6 +5483,7 @@ function openTerminalForHost(hostID, presetID, forceNew = false, customTitle = n
     hostName: host.name || ('Host ' + hostID),
     title: customTitle || host.name || ('Host ' + hostID),
     presetID: presetID || null,
+    initialDir: initialDir || null,
     socketLeft: null,
     termLeft: null,
     fitLeft: null,
@@ -5599,7 +5715,8 @@ function saveTerminalTabsToStorage() {
       hostName: tab.hostName,
       title: tab.title,
       isSplit: tab.isSplit,
-      hostIDRight: tab.hostIDRight
+      hostIDRight: tab.hostIDRight,
+      initialDir: tab.initialDir
     }));
     localStorage.setItem('pantau_terminal_tabs_meta', JSON.stringify(data));
   } catch(e) {}
@@ -5622,6 +5739,7 @@ function restoreSavedTerminalTabs() {
           hostName: host.name || ('Host ' + m.hostID),
           title: m.title || host.name || ('Host ' + m.hostID),
           presetID: null,
+          initialDir: m.initialDir || null,
           socketLeft: null,
           termLeft: null,
           fitLeft: null,
