@@ -37,8 +37,10 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 4
 @keyframes pulseDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.85); } }
 @media (max-width: 768px) { .footer-center { display: none !important; } }
 .logo { font-size: 1.25rem; font-weight: 700; color: #60a5fa; display: flex; align-items: center; gap: 8px; }
-.btn { background: var(--card-border); color: var(--text); border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.15s; white-space: nowrap; }
-.btn:hover { opacity: 0.9; }
+.btn { background: var(--card-border); color: var(--text); border: none; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.15s; white-space: nowrap; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.btn:hover { opacity: 0.9; text-decoration: none; color: var(--text); }
+a.btn { text-decoration: none; color: var(--text); display: inline-flex; align-items: center; justify-content: center; }
+a.btn:hover { text-decoration: none; color: var(--text); }
 .btn-primary { background: var(--primary); }
 .btn-primary:hover { background: var(--primary-hover); }
 .btn-danger { background: var(--danger); }
@@ -131,9 +133,9 @@ th { color: var(--text-muted); font-weight: 600; }
 input, select, textarea { background: #0f172a; border: 1px solid var(--card-border); color: #fff; padding: 8px 12px; border-radius: 6px; width: 100%; font-size: 0.9rem; }
 select, select option { background-color: #1e293b !important; color: #f8fafc !important; }
 .folder-link { color: #38bdf8 !important; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
-.folder-link:hover { color: #7dd3fc !important; text-decoration: underline; }
-.action-grid { display: inline-grid; grid-template-columns: 65px 38px auto 38px; gap: 6px; align-items: center; }
-.form-group { display: flex; flex-direction: column; gap: 6px; }
+.action-grid { display: inline-grid; grid-template-columns: 38px 65px 38px auto 38px; gap: 6px; align-items: center; }
+.action-grid .btn { height: 28px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.action-grid .action-btn-download:hover { color: #38bdf8; }
 .alert-bar { background: rgba(239, 68, 68, 0.15); border-left: 4px solid var(--danger); padding: 12px 16px; margin-bottom: 16px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
 #alertBannerArea { position: relative; margin-bottom: 14px; }
 .alert-summary-bar { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-left: 4px solid var(--danger); border-radius: 6px; padding: 8px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -875,8 +877,9 @@ body.has-workspace-shelf .container {
     </div>
     <div class="modal-body">
       <p id="confirmModalMessage" style="font-size: 0.9rem; margin-bottom: 18px; line-height: 1.5; color: var(--text);"></p>
-      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <div style="display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap;">
         <button class="btn" onclick="resolveConfirm(false)" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-warning" id="confirmModalExtraBtn" style="display: none;"></button>
         <button class="btn btn-danger" id="confirmModalBtn" onclick="resolveConfirm(true)">Confirm</button>
       </div>
     </div>
@@ -1836,6 +1839,12 @@ const I18N = {
     "global_terminal_dock": "Global Terminal Dock",
     "global_terminal_dock_desc": "Terminal for this host is open in the Global Multi-Tab Terminal Dock. You can minimize, maximize, rename tabs, or open multiple sessions without losing connection.",
     "focus_terminal_dock": "Focus Terminal",
+    "multiline_paste_title": "Paste Multiline Commands",
+    "confirm_multiline_paste": "You are about to paste {lines} lines into the terminal:\n\n{preview}\n\nContinue paste?",
+    "paste_http_notice": "Use Ctrl+V or Ctrl+Shift+V to paste on HTTP connections",
+    "paste": "Paste",
+    "paste_single_line": "🔗 Flatten to Single Line",
+    "paste_as_is": "📋 Paste As Is",
     "host_group": "Host Group",
     "host_group_ph": "e.g. Primary Server, Testing, DB Cluster",
     "group_ungrouped": "Ungrouped",
@@ -1951,6 +1960,8 @@ const I18N = {
     "file_perms": "Perms",
     "file_modified": "Modified",
     "file_actions": "Actions",
+    "download_file": "Download File",
+    "download_folder": "Download Folder Archive",
     "edit": "\u270f\ufe0f Edit",
     "copy_to_host": "\ud83d\ude80 Copy to Host",
     "loading_files": "Loading files...",
@@ -2312,6 +2323,12 @@ const I18N = {
     "global_terminal_dock": "Global Terminal Dock",
     "global_terminal_dock_desc": "Terminal untuk host ini aktif di Global Multi-Tab Terminal Dock. Anda dapat minimize, maximize, ubah judul tab, atau buka banyak sesi tanpa memutus koneksi.",
     "focus_terminal_dock": "Fokuskan Terminal",
+    "multiline_paste_title": "Tempel Perintah Multi-Baris",
+    "confirm_multiline_paste": "Anda akan menempelkan {lines} baris ke terminal:\n\n{preview}\n\nLanjutkan menempelkan?",
+    "paste_http_notice": "Gunakan Ctrl+V atau Ctrl+Shift+V untuk menempelkan pada koneksi HTTP",
+    "paste": "Tempel",
+    "paste_single_line": "🔗 Jadikan 1 Baris",
+    "paste_as_is": "📋 Tempel Apa Adanya",
     "host_group": "Grup Host",
     "host_group_ph": "mis. Server Utama, Testing, DB Cluster",
     "group_ungrouped": "Tanpa Grup",
@@ -2427,6 +2444,8 @@ const I18N = {
     "file_perms": "Hak Akses",
     "file_modified": "Dimodifikasi",
     "file_actions": "Aksi",
+    "download_file": "Unduh Berkas",
+    "download_folder": "Unduh Arsip Folder",
     "edit": "\u270f\ufe0f Edit",
     "copy_to_host": "\ud83d\ude80 Copy ke Host",
     "loading_files": "Memuat berkas...",
@@ -2798,6 +2817,18 @@ function showConfirm(options) {
       btn.innerText = opts.confirmText || t('confirm', 'Confirm');
       btn.className = 'btn ' + (opts.danger !== false ? 'btn-danger' : 'btn-primary');
     }
+    const extraBtn = document.getElementById('confirmModalExtraBtn');
+    if (extraBtn) {
+      if (opts.extraBtnText) {
+        extraBtn.innerText = opts.extraBtnText;
+        extraBtn.className = 'btn ' + (opts.extraBtnClass || 'btn-warning');
+        extraBtn.style.display = 'inline-block';
+        extraBtn.onclick = () => resolveConfirm(opts.extraBtnValue !== undefined ? opts.extraBtnValue : 'extra');
+      } else {
+        extraBtn.style.display = 'none';
+        extraBtn.onclick = null;
+      }
+    }
     openModal('confirmModal');
   });
 }
@@ -2809,10 +2840,12 @@ function resolveConfirm(val) {
     el.style.zIndex = '';
   }
   openModalStack = openModalStack.filter(mId => mId !== 'confirmModal');
+  const extraBtn = document.getElementById('confirmModalExtraBtn');
+  if (extraBtn) extraBtn.style.display = 'none';
   if (confirmResolver) {
     const res = confirmResolver;
     confirmResolver = null;
-    res(Boolean(val));
+    res(val);
   }
 }
 
@@ -4952,8 +4985,8 @@ function renderFilesTableBody() {
               ? `<button class="btn btn-primary btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openEditor('${escapeHtml(fullPath)}')">${t('edit')}</button>` 
               : '<span style="display:inline-block;"></span>'}
             ${f.is_dir 
-              ? `<button class="btn btn-sm" title="Download Folder Archive" onclick="downloadFolder('${escapeHtml(fullPath)}')">⬇️</button>` 
-              : `<a class="btn btn-sm" title="Download File" href="/api/hosts/${currentHost.id}/files/download?path=${encodeURIComponent(fullPath)}">⬇️</a>`}
+              ? `<button class="btn btn-sm action-btn-download" title="${t('download_folder', 'Download Folder Archive')}" onclick="downloadFolder('${escapeHtml(fullPath)}')">⬇️</button>` 
+              : `<a class="btn btn-sm action-btn-download" title="${t('download_file', 'Download File')}" href="/api/hosts/${currentHost.id}/files/download?path=${encodeURIComponent(fullPath)}" download>⬇️</a>`}
             <button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(fullPath)}', ${f.is_dir})">${t('copy_to_host')}</button>
             <button class="btn btn-danger btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_delete_protected') + '"' : ''} onclick="deleteRemoteFile('${escapeHtml(fullPath)}', '${escapeHtml(currentFilesData.path)}')">🗑️</button>
           </div>
@@ -5560,6 +5593,187 @@ function applyTerminalFontSize() {
   });
 }
 
+async function copyTextToClipboard(text) {
+  if (!text) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch (err) {}
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.style.top = '-9999px';
+  ta.setAttribute('readonly', '');
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand('copy');
+  } catch (e) {}
+  document.body.removeChild(ta);
+}
+
+function flattenToSingleLine(text) {
+  if (!text) return '';
+  // Strip backslash line continuations: \ followed by optional spaces and newline
+  let cleaned = text.replace(/\\\s*[\r\n]+/g, ' ');
+  // Replace all remaining newlines with spaces
+  cleaned = cleaned.replace(/[\r\n]+/g, ' ');
+  // Collapse multiple spaces/tabs into a single space
+  cleaned = cleaned.replace(/[ \t]+/g, ' ');
+  // Strip leading and trailing whitespace/newlines so command doesn't auto-execute
+  return cleaned.trim();
+}
+
+let lastTerminalPasteText = '';
+let lastTerminalPasteTime = 0;
+
+async function handleTerminalPaste(term, ws, explicitText = null) {
+  let text = explicitText;
+  if (text === null) {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      try {
+        text = await navigator.clipboard.readText();
+      } catch (e) {
+        showToast(t('paste_http_notice', 'Use Ctrl+V or Ctrl+Shift+V to paste on HTTP connections'), 'warning');
+        return;
+      }
+    } else {
+      showToast(t('paste_http_notice', 'Use Ctrl+V or Ctrl+Shift+V to paste on HTTP connections'), 'warning');
+      return;
+    }
+  }
+  if (!text) return;
+
+  // De-duplicate if clipboard API and native paste event both fire for the same paste
+  const now = Date.now();
+  if (text === lastTerminalPasteText && (now - lastTerminalPasteTime) < 200) {
+    return;
+  }
+  lastTerminalPasteText = text;
+  lastTerminalPasteTime = now;
+
+  // Q6. B: Multiline paste confirmation protection & single-line flatten option
+  if (text.includes('\n') || text.includes('\r')) {
+    const rawLines = text.split(/\r\n|\r|\n/);
+    const lineCount = rawLines.length;
+    const preview = text.length > 300 ? text.substring(0, 300) + '...' : text;
+    const promptMsg = t('confirm_multiline_paste', 'You are about to paste {lines} lines into the terminal:\n\n{preview}\n\nContinue paste?')
+      .replace('{lines}', lineCount)
+      .replace('{preview}', preview);
+    const result = await showConfirm({
+      title: t('multiline_paste_title', 'Paste Multiline Commands'),
+      message: promptMsg,
+      extraBtnText: t('paste_single_line', '🔗 Flatten to Single Line'),
+      extraBtnValue: 'single',
+      extraBtnClass: 'btn-warning',
+      confirmText: t('paste_as_is', '📋 Paste As Is'),
+      danger: true
+    });
+    if (!result) {
+      try { term.focus(); } catch (e) {}
+      return;
+    }
+    if (result === 'single') {
+      text = flattenToSingleLine(text);
+    }
+  }
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(text);
+  }
+  try { term.focus(); } catch (e) {}
+}
+
+function setupTerminalClipboardBridge(term, ws, container) {
+  if (!term) return;
+
+  term.attachCustomKeyEventHandler((e) => {
+    // 1. Copy: Ctrl+C (context aware) or Ctrl+Shift+C (always)
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C' || e.code === 'KeyC')) {
+      if (e.shiftKey) {
+        if (e.type === 'keydown') {
+          const sel = term.getSelection();
+          if (sel) copyTextToClipboard(sel);
+        }
+        e.preventDefault();
+        return false;
+      }
+      if (term.hasSelection()) {
+        if (e.type === 'keydown') {
+          const sel = term.getSelection();
+          if (sel) copyTextToClipboard(sel);
+        }
+        e.preventDefault();
+        return false;
+      }
+      return true;
+    }
+
+    // 2. Paste: Ctrl+V or Ctrl+Shift+V
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V' || e.code === 'KeyV')) {
+      if (e.type === 'keydown') {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          navigator.clipboard.readText().then(text => {
+            if (text) handleTerminalPaste(term, ws, text);
+          }).catch(() => {
+            // Silently ignore if readText fails or is blocked on HTTP; native paste event will handle it!
+          });
+        }
+      }
+      // Return false to stop xterm.js from eating Ctrl+V as \x16 and calling preventDefault()!
+      // Do NOT call e.preventDefault() here so the browser triggers the native DOM paste event on textarea!
+      return false;
+    }
+
+    return true;
+  });
+
+  // 3. Copy-on-select: automatically copy selection to clipboard
+  let selectionDebounce = null;
+  term.onSelectionChange(() => {
+    if (selectionDebounce) clearTimeout(selectionDebounce);
+    selectionDebounce = setTimeout(() => {
+      if (term.hasSelection()) {
+        const sel = term.getSelection();
+        if (sel && sel.trim().length > 0) {
+          copyTextToClipboard(sel);
+        }
+      }
+    }, 150);
+  });
+
+  // 4. Native DOM paste (capture phase) & Right-click paste on container and textarea
+  const onPaste = (e) => {
+    const pasted = e.clipboardData ? e.clipboardData.getData('text') : '';
+    if (pasted) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleTerminalPaste(term, ws, pasted);
+    }
+  };
+
+  if (container) {
+    container.addEventListener('paste', onPaste, true);
+    container.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      handleTerminalPaste(term, ws);
+    });
+    container.addEventListener('click', () => {
+      try { term.focus(); } catch (e) {}
+    });
+  }
+  if (term.textarea) {
+    term.textarea.addEventListener('paste', onPaste, true);
+  }
+  if (term.element) {
+    term.element.addEventListener('paste', onPaste, true);
+  }
+}
+
 function initTabLeftTerminal(tab, presetID) {
   if (tab.socketLeft) {
     try { tab.socketLeft.close(); } catch(e) {}
@@ -5604,6 +5818,7 @@ function initTabLeftTerminal(tab, presetID) {
   const ws = new WebSocket(wsUrl);
   tab.socketLeft = ws;
   ws.binaryType = 'arraybuffer';
+  setupTerminalClipboardBridge(term, ws, container);
 
   ws.onopen = () => {
     tab.connectedLeft = true;
@@ -5692,6 +5907,7 @@ function initTabRightTerminal(tab, hostID, presetID) {
   const ws = new WebSocket(wsUrl);
   tab.socketRight = ws;
   ws.binaryType = 'arraybuffer';
+  setupTerminalClipboardBridge(term, ws, container);
 
   ws.onopen = () => {
     tab.connectedRight = true;

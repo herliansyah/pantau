@@ -284,3 +284,8 @@ _Avoid_: Folder shell, path terminal, file terminal, quick shell
 **Per-Host Tab State**:
 Mekanisme persistensi dan isolasi state tab aktif pada Workspace Modal secara independen untuk masing-masing Host berbasis penyimpanan sesi peramban (*sessionStorage*), memastikan navigasi tab pada satu host tidak mengubah tab default host lainnya.
 _Avoid_: Global active tab, modal tab memory, shared tab state
+
+**Terminal Clipboard Bridge**:
+Mekanisme penanganan pintasan papan ketik dan papan klip (clipboard) dwiarah pada Terminal Tab yang menyelaraskan konvensi PTY Unix (`SIGINT`, *readline*) dengan integrasi *clipboard* peramban, mencakup penyalinan kontekstual (*context-aware copy*), penempelan multi-baris aman (*multiline paste confirmation*) dengan opsi perataan perintah menjadi satu baris (*single-line flatten*), dan penyalinan otomatis berbasis seleksi kursor (*copy-on-select*).
+_Avoid_: Terminal copy paste, shell clipboard, browser paste hack
+
