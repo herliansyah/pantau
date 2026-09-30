@@ -504,10 +504,35 @@ body.has-workspace-shelf .container {
   border-radius: 6px;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
   z-index: 100000;
-  min-width: 260px;
+  min-width: 280px;
   max-width: 380px;
-  max-height: 260px;
+  max-height: 320px;
+  overflow: hidden;
+  padding: 0;
+}
+.terminal-dropdown-search {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--card-border);
+  background: #0f172a;
+}
+.terminal-dropdown-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #1e293b;
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: #f8fafc;
+  font-size: 0.78rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.terminal-dropdown-search-input:focus {
+  border-color: #38bdf8;
+}
+.terminal-dropdown-list {
   overflow-y: auto;
+  max-height: 250px;
   padding: 4px 0;
 }
 .terminal-dropdown-item {
@@ -520,7 +545,8 @@ body.has-workspace-shelf .container {
   gap: 8px;
   white-space: nowrap;
 }
-.terminal-dropdown-item:hover {
+.terminal-dropdown-item:hover,
+.terminal-dropdown-item.selected {
   background: #1e293b;
   color: #38bdf8;
 }
@@ -1161,7 +1187,12 @@ body.has-workspace-shelf .container {
         <button id="btnNewTerminalTab" class="btn btn-sm" onclick="toggleNewTabDropdown(event)" title="New Terminal Tab">
           ➕ <span style="font-size: 0.65rem;">▼</span>
         </button>
-        <div id="newTabDropdownMenu" class="terminal-dropdown-menu" style="display: none;"></div>
+        <div id="newTabDropdownMenu" class="terminal-dropdown-menu" style="display: none;">
+          <div class="terminal-dropdown-search">
+            <input type="text" id="terminalHostSearchInput" class="terminal-dropdown-search-input" placeholder="Search host or IP..." data-i18n-placeholder="search_terminal_host_ph" oninput="filterTerminalDropdownHosts()" onkeydown="onTerminalHostSearchKeyDown(event)" autocomplete="off" />
+          </div>
+          <div id="terminalDropdownHostList" class="terminal-dropdown-list"></div>
+        </div>
       </div>
       <div class="terminal-dock-window-actions">
         <button class="btn btn-sm dock-action-btn" onclick="minimizeTerminalDock()" title="Minimize Terminal Dock">🗕</button>
@@ -2081,6 +2112,8 @@ const I18N = {
     "global_note_ph": "Enter system-wide operational notes, shift handovers, or emergency procedures...",
     "global_note_empty": "No global notes recorded. Click 'Edit' to add shared system notes.",
     "search_hosts_ph": "Search hosts by name, IP, OS, notes...",
+    "search_terminal_host_ph": "Search host or IP...",
+    "no_matching_hosts_short": "No matching hosts",
     "confirm": "Confirm",
     "delete": "Delete",
     "continue": "Continue",
@@ -2565,6 +2598,8 @@ const I18N = {
     "global_note_ph": "Tulis catatan operasional sistem, serah terima tugas, atau SOP darurat...",
     "global_note_empty": "Belum ada catatan global. Klik 'Edit' untuk menambahkan catatan bersama.",
     "search_hosts_ph": "Cari host berdasarkan nama, IP, OS, catatan...",
+    "search_terminal_host_ph": "Cari host atau IP...",
+    "no_matching_hosts_short": "Tidak ada host yang cocok",
     "filter_all_groups": "Semua Group",
     "filter_ungrouped": "Tanpa Group",
     "filter_all": "Semua Status",
@@ -6321,6 +6356,58 @@ function toggleTerminalDockMaximize() {
   refitActiveTab();
 }
 
+/* ponytail: Terminal Tab Host Filter - instant client-side substring matching on name & host address without external dependencies */
+function renderTerminalDropdownHosts(hosts, isSearch) {
+  const list = document.getElementById('terminalDropdownHostList');
+  if (!list) return;
+  if (!hosts || hosts.length === 0) {
+    const emptyMsg = isSearch 
+      ? t('no_matching_hosts_short', 'No matching hosts') 
+      : t('no_hosts', 'No hosts available');
+    list.innerHTML = `<div class="terminal-dropdown-item" style="color: var(--text-muted); justify-content: center; cursor: default;">${escapeHtml(emptyMsg)}</div>`;
+    return;
+  }
+  list.innerHTML = hosts.map((h, idx) => `
+    <div class="terminal-dropdown-item${isSearch && idx === 0 ? ' selected' : ''}" data-host-id="${h.id}" onclick="onSelectNewTabHost(${h.id})">
+      <span>💻</span>
+      <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">${escapeHtml(h.name)}</span>
+      <span style="color: var(--text-muted); font-size: 0.72rem; margin-left: auto; padding-left: 12px; font-family: monospace; white-space: nowrap;">${escapeHtml(h.host)}</span>
+    </div>
+  `).join('');
+}
+
+function filterTerminalDropdownHosts() {
+  const input = document.getElementById('terminalHostSearchInput');
+  const q = (input ? input.value : '').toLowerCase().trim();
+  const hosts = allRawHosts || [];
+  if (!q) {
+    renderTerminalDropdownHosts(hosts, false);
+    return;
+  }
+  const filtered = hosts.filter(h => {
+    const name = (h.name || '').toLowerCase();
+    const host = (h.host || '').toLowerCase();
+    return name.includes(q) || host.includes(q);
+  });
+  renderTerminalDropdownHosts(filtered, true);
+}
+
+function onTerminalHostSearchKeyDown(e) {
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    const menu = document.getElementById('newTabDropdownMenu');
+    if (menu) menu.style.display = 'none';
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    e.stopPropagation();
+    const firstItem = document.querySelector('#terminalDropdownHostList .terminal-dropdown-item[data-host-id]');
+    if (firstItem) {
+      const hostId = parseInt(firstItem.getAttribute('data-host-id'), 10);
+      if (!isNaN(hostId)) onSelectNewTabHost(hostId);
+    }
+  }
+}
+
 function toggleNewTabDropdown(e) {
   if (e) e.stopPropagation();
   const menu = document.getElementById('newTabDropdownMenu');
@@ -6329,19 +6416,11 @@ function toggleNewTabDropdown(e) {
     menu.style.display = 'none';
     return;
   }
-  const hosts = allRawHosts || [];
-  if (hosts.length === 0) {
-    menu.innerHTML = `<div class="terminal-dropdown-item" style="color: var(--text-muted);">${t('no_hosts', 'No hosts available')}</div>`;
-  } else {
-    menu.innerHTML = hosts.map(h => `
-      <div class="terminal-dropdown-item" onclick="onSelectNewTabHost(${h.id})">
-        <span>💻</span>
-        <span style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">${escapeHtml(h.name)}</span>
-        <span style="color: var(--text-muted); font-size: 0.72rem; margin-left: auto; padding-left: 12px; font-family: monospace; white-space: nowrap;">${escapeHtml(h.host)}</span>
-      </div>
-    `).join('');
-  }
+  const input = document.getElementById('terminalHostSearchInput');
+  if (input) input.value = '';
+  renderTerminalDropdownHosts(allRawHosts || [], false);
   menu.style.display = 'block';
+  if (input) setTimeout(() => input.focus(), 20);
 }
 
 function onSelectNewTabHost(hostID) {

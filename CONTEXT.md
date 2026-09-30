@@ -289,3 +289,8 @@ _Avoid_: Global active tab, modal tab memory, shared tab state
 Mekanisme penanganan pintasan papan ketik dan papan klip (clipboard) dwiarah pada Terminal Tab yang menyelaraskan konvensi PTY Unix (`SIGINT`, *readline*) dengan integrasi *clipboard* peramban, mencakup penyalinan kontekstual (*context-aware copy*), penempelan multi-baris aman (*multiline paste confirmation*) dengan opsi perataan perintah menjadi satu baris (*single-line flatten*), dan penyalinan otomatis berbasis seleksi kursor (*copy-on-select*).
 _Avoid_: Terminal copy paste, shell clipboard, browser paste hack
 
+**Terminal Tab Host Filter**:
+Penyaringan reaktif instan pada daftar pilihan Host di menu dropdown pembuatan Terminal Tab baru berdasarkan kata kunci Host Name atau Host Address (IP/FQDN).
+_Avoid_: Terminal host search, host picker filter, terminal autocomplete
+
+
