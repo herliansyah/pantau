@@ -1605,6 +1605,7 @@ func (s *Server) handleWSTerminal(w http.ResponseWriter, r *http.Request) {
 
 	presetIDStr := r.URL.Query().Get("preset_id")
 	cmdParam := r.URL.Query().Get("cmd")
+	dirParam := r.URL.Query().Get("dir")
 	var initialCmd string
 	var useTmux bool
 
@@ -1667,11 +1668,22 @@ func (s *Server) handleWSTerminal(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	if strings.TrimSpace(initialCmd) != "" {
+	// ponytail: handle initial working directory (Terminal From Path) and preset command execution
+	if strings.TrimSpace(dirParam) != "" || strings.TrimSpace(initialCmd) != "" {
 		go func() {
 			time.Sleep(150 * time.Millisecond)
-			execPayload := formatPresetExecution(initialCmd, useTmux)
-			_, _ = inWriter.Write([]byte(execPayload + "\n"))
+			if strings.TrimSpace(dirParam) != "" {
+				escapedDir := strings.ReplaceAll(dirParam, `'`, `'\''`)
+				_, _ = inWriter.Write([]byte(fmt.Sprintf("cd '%s'\n", escapedDir)))
+				if strings.TrimSpace(initialCmd) != "" {
+					time.Sleep(100 * time.Millisecond)
+					execPayload := formatPresetExecution(initialCmd, useTmux)
+					_, _ = inWriter.Write([]byte(execPayload + "\n"))
+				}
+			} else {
+				execPayload := formatPresetExecution(initialCmd, useTmux)
+				_, _ = inWriter.Write([]byte(execPayload + "\n"))
+			}
 		}()
 	}
 

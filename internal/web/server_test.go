@@ -1421,6 +1421,89 @@ func TestWorkspaceShelfAndSmartResumeUI(t *testing.T) {
 	}
 }
 
+func TestWorkspaceModalMaximizeAndTerminalFromPath(t *testing.T) {
+	html := string(embeddedHTML)
+
+	// 1. Check Workspace Modal Maximize UI elements & CSS
+	maximizeElements := []string{
+		"workspace-maximized",
+		"workspace-maximized-wrapper",
+		"btnHostDetailMax",
+		"toggleHostDetailMaximize",
+		"applyHostDetailMaximizeState",
+	}
+	for _, el := range maximizeElements {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected embedded index.html to contain %q", el)
+		}
+	}
+
+	// 2. Check Per-Host Tab & Path State functions
+	tabStateElements := []string{
+		"getHostActiveTab",
+		"setHostActiveTab",
+		"getHostFilesPath",
+		"setHostFilesPath",
+		"pantau_host_tab_",
+		"pantau_host_files_path_",
+	}
+	for _, el := range tabStateElements {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected embedded index.html to contain %q", el)
+		}
+	}
+
+	// 3. Check Terminal From Path actions & launchers
+	terminalPathElements := []string{
+		"openTerminalForPath",
+		"targetTermPath",
+		"initialDir",
+	}
+	for _, el := range terminalPathElements {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected embedded index.html to contain %q", el)
+		}
+	}
+
+	// 4. Check i18n keys exist in both EN and ID dictionaries
+	newI18nKeys := []string{
+		`"maximize_workspace":`,
+		`"restore_workspace":`,
+		`"open_terminal_here":`,
+	}
+	for _, k := range newI18nKeys {
+		cnt := strings.Count(html, k)
+		if cnt < 2 {
+			t.Errorf("expected i18n key %q to exist in both EN and ID dictionaries, found %d", k, cnt)
+		}
+	}
+
+	// 5. Test handleWSTerminal invalid host_id and invalid host error
+	tmpDB := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(tmpDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	srv := NewServer(db, nil, nil)
+
+	// Invalid host_id query
+	reqBad := httptest.NewRequest("GET", "/ws/terminal?host_id=invalid", nil)
+	wBad := httptest.NewRecorder()
+	srv.mux.ServeHTTP(wBad, reqBad)
+	if wBad.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for invalid host_id, got %d", wBad.Code)
+	}
+
+	// Valid host_id with dir param but non-existent host
+	reqNonExistent := httptest.NewRequest("GET", "/ws/terminal?host_id=999999&dir=/var/log", nil)
+	wNonExistent := httptest.NewRecorder()
+srv.mux.ServeHTTP(wNonExistent, reqNonExistent)
+// WebSockets return 400 Bad Request if not a websocket upgrade request
+if wNonExistent.Code != http.StatusBadRequest {
+	t.Errorf("expected 400 Bad Request on non-websocket request to /ws/terminal, got %d", wNonExistent.Code)
+}
+}
 
 
 
