@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"strings"
 	"time"
@@ -50,11 +51,11 @@ func (d *Dispatcher) sendTelegram(token, chatID, hostName, summary, rootCause st
 
 	var msg strings.Builder
 	msg.WriteString("🚨 <b>PANTAU DRIFT ALERT</b>\n\n")
-	msg.WriteString(fmt.Sprintf("<b>Host:</b> %s\n", htmlEscape(hostName)))
-	msg.WriteString(fmt.Sprintf("<b>Issue:</b> %s\n\n", htmlEscape(summary)))
+	msg.WriteString(fmt.Sprintf("<b>Host:</b> %s\n", html.EscapeString(hostName)))
+	msg.WriteString(fmt.Sprintf("<b>Issue:</b> %s\n\n", html.EscapeString(summary)))
 	if excerpt != "" {
 		msg.WriteString("<b>Root Cause Excerpt:</b>\n")
-		msg.WriteString(fmt.Sprintf("<pre>%s</pre>", htmlEscape(excerpt)))
+		msg.WriteString(fmt.Sprintf("<pre>%s</pre>", html.EscapeString(excerpt)))
 	}
 
 	endpoint := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
@@ -133,11 +134,4 @@ func (d *Dispatcher) TestNotification() error {
 		return fmt.Errorf("%s", strings.Join(errs, "; "))
 	}
 	return nil
-}
-
-func htmlEscape(s string) string {
-	s = strings.ReplaceAll(s, "&", "&amp;")
-	s = strings.ReplaceAll(s, "<", "&lt;")
-	s = strings.ReplaceAll(s, ">", "&gt;")
-	return s
 }

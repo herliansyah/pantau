@@ -14,24 +14,21 @@ import (
 	"sync"
 	"time"
 
+	"pantau/internal/notify"
 	"pantau/internal/sshrunner"
 	"pantau/internal/store"
 )
 
 var ErrAlreadyInspecting = errors.New("inspection already in progress for this host")
 
-type Notifier interface {
-	SendAlert(host *store.Host, rule *store.DesiredRule, summary, rootCause string)
-}
-
 type Inspector struct {
 	db       *store.DB
 	factory  sshrunner.RunnerFactory
-	notifier Notifier
+	notifier *notify.Dispatcher
 	inFlight sync.Map
 }
 
-func New(db *store.DB, factory sshrunner.RunnerFactory, notifier Notifier) *Inspector {
+func New(db *store.DB, factory sshrunner.RunnerFactory, notifier *notify.Dispatcher) *Inspector {
 	if factory == nil {
 		factory = sshrunner.DefaultFactory()
 	}
