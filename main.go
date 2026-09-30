@@ -17,8 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mattn/go-isatty"
-
 	"pantau/internal/inspector"
 	"pantau/internal/instance"
 	"pantau/internal/notify"
@@ -63,7 +61,8 @@ func resolveVersion() string {
 }
 
 func printBanner(version string) {
-	isTTY := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	fi, err := os.Stdout.Stat()
+	isTTY := err == nil && (fi.Mode()&os.ModeCharDevice) != 0
 	if os.Getenv("NO_COLOR") != "" {
 		isTTY = false
 	}

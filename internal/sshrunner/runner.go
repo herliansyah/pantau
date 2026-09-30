@@ -5,7 +5,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"net"
 	"strings"
 	"sync"
 	"time"
@@ -410,14 +409,4 @@ func DefaultFactory() RunnerFactory {
 	return func(host string, port int, user, key string) (Runner, error) {
 		return Connect(host, port, user, key, 8*time.Second)
 	}
-}
-
-// SafeLocalListener helper for testing
-func GetFreePort() (int, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
 }

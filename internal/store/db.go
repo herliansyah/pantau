@@ -472,67 +472,30 @@ func (d *DB) DeleteSetting(key string) error {
 }
 
 
-// Host operations
-func (d *DB) ListHosts() ([]Host, error) {
-	rows, err := d.Query(`SELECT id, name, host, port, user, COALESCE(custom_key,''), status, os_info, kernel, uptime, cpu_load, ram_used_bytes, ram_total_bytes, disk_used_bytes, disk_total_bytes, lifecycle_score, lifecycle_notes, COALESCE(lifecycle_breakdown, '[]'), last_inspected, created_at,
-		COALESCE(net_rx_bytes, 0), COALESCE(net_tx_bytes, 0), COALESCE(net_rx_speed_bps, 0), COALESCE(net_tx_speed_bps, 0),
-		COALESCE(internet_online, 0), COALESCE(internet_latency_ms, 0), COALESCE(public_ip, ''), COALESCE(active_conn_count, 0),
-		COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, ''),
-		COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, ''),
-		COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0),
-		COALESCE(last_duration_ms, 0), COALESCE(commission_date, ''), COALESCE(bios_date, ''), COALESCE(os_install_epoch, 0)
-		FROM hosts ORDER BY sort_order ASC, id ASC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var list []Host
-	for rows.Next() {
-		var h Host
-		var inspected sql.NullTime
-		var online int
-		if err := rows.Scan(&h.ID, &h.Name, &h.Host, &h.Port, &h.User, &h.CustomKey, &h.Status, &h.OSInfo, &h.Kernel, &h.Uptime, &h.CPULoad, &h.RAMUsedBytes, &h.RAMTotalBytes, &h.DiskUsedBytes, &h.DiskTotalBytes, &h.LifecycleScore, &h.LifecycleNotes, &h.LifecycleBreakdown, &inspected, &h.CreatedAt,
-			&h.NetRxBytes, &h.NetTxBytes, &h.NetRxSpeedBps, &h.NetTxSpeedBps,
-			&online, &h.InternetLatencyMs, &h.PublicIP, &h.ActiveConnCount,
-			&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts,
-			&h.Notes, &h.SortOrder, &h.GroupName,
-			&h.CPUCores, &h.HardwareModel, &h.SwapUsedBytes, &h.SwapTotalBytes,
-			&h.LastDurationMs, &h.CommissionDate, &h.BIOSDate, &h.OSInstallEpoch); err != nil {
-			return nil, err
-		}
-		h.InternetOnline = online == 1
-		if inspected.Valid {
-			h.LastInspected = &inspected.Time
-		}
-		list = append(list, h)
-	}
-	return list, nil
+type rowScanner interface {
+	Scan(dest ...any) error
 }
 
-func (d *DB) GetHost(id int64) (*Host, error) {
+const hostSelectCols = `SELECT id, name, host, port, user, COALESCE(custom_key,''), status, os_info, kernel, uptime, cpu_load, ram_used_bytes, ram_total_bytes, disk_used_bytes, disk_total_bytes, lifecycle_score, lifecycle_notes, COALESCE(lifecycle_breakdown, '[]'), last_inspected, created_at,
+	COALESCE(net_rx_bytes, 0), COALESCE(net_tx_bytes, 0), COALESCE(net_rx_speed_bps, 0), COALESCE(net_tx_speed_bps, 0),
+	COALESCE(internet_online, 0), COALESCE(internet_latency_ms, 0), COALESCE(public_ip, ''), COALESCE(active_conn_count, 0),
+	COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, ''),
+	COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, ''),
+	COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0),
+	COALESCE(last_duration_ms, 0), COALESCE(commission_date, ''), COALESCE(bios_date, ''), COALESCE(os_install_epoch, 0)
+	FROM hosts `
+
+func scanHost(s rowScanner) (*Host, error) {
 	var h Host
 	var inspected sql.NullTime
 	var online int
-	err := d.QueryRow(`SELECT id, name, host, port, user, COALESCE(custom_key,''), status, os_info, kernel, uptime, cpu_load, ram_used_bytes, ram_total_bytes, disk_used_bytes, disk_total_bytes, lifecycle_score, lifecycle_notes, COALESCE(lifecycle_breakdown, '[]'), last_inspected, created_at,
-		COALESCE(net_rx_bytes, 0), COALESCE(net_tx_bytes, 0), COALESCE(net_rx_speed_bps, 0), COALESCE(net_tx_speed_bps, 0),
-		COALESCE(internet_online, 0), COALESCE(internet_latency_ms, 0), COALESCE(public_ip, ''), COALESCE(active_conn_count, 0),
-		COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, ''),
-		COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, ''),
-		COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0),
-		COALESCE(last_duration_ms, 0), COALESCE(commission_date, ''), COALESCE(bios_date, ''), COALESCE(os_install_epoch, 0)
-		FROM hosts WHERE id = ?`, id).Scan(
-		&h.ID, &h.Name, &h.Host, &h.Port, &h.User, &h.CustomKey, &h.Status, &h.OSInfo, &h.Kernel, &h.Uptime, &h.CPULoad, &h.RAMUsedBytes, &h.RAMTotalBytes, &h.DiskUsedBytes, &h.DiskTotalBytes, &h.LifecycleScore, &h.LifecycleNotes, &h.LifecycleBreakdown, &inspected, &h.CreatedAt,
+	err := s.Scan(&h.ID, &h.Name, &h.Host, &h.Port, &h.User, &h.CustomKey, &h.Status, &h.OSInfo, &h.Kernel, &h.Uptime, &h.CPULoad, &h.RAMUsedBytes, &h.RAMTotalBytes, &h.DiskUsedBytes, &h.DiskTotalBytes, &h.LifecycleScore, &h.LifecycleNotes, &h.LifecycleBreakdown, &inspected, &h.CreatedAt,
 		&h.NetRxBytes, &h.NetTxBytes, &h.NetRxSpeedBps, &h.NetTxSpeedBps,
 		&online, &h.InternetLatencyMs, &h.PublicIP, &h.ActiveConnCount,
 		&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts,
 		&h.Notes, &h.SortOrder, &h.GroupName,
 		&h.CPUCores, &h.HardwareModel, &h.SwapUsedBytes, &h.SwapTotalBytes,
-		&h.LastDurationMs, &h.CommissionDate, &h.BIOSDate, &h.OSInstallEpoch,
-	)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
+		&h.LastDurationMs, &h.CommissionDate, &h.BIOSDate, &h.OSInstallEpoch)
 	if err != nil {
 		return nil, err
 	}
@@ -541,6 +504,36 @@ func (d *DB) GetHost(id int64) (*Host, error) {
 		h.LastInspected = &inspected.Time
 	}
 	return &h, nil
+}
+
+// Host operations
+func (d *DB) ListHosts() ([]Host, error) {
+	rows, err := d.Query(hostSelectCols + `ORDER BY sort_order ASC, id ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []Host
+	for rows.Next() {
+		h, err := scanHost(rows)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, *h)
+	}
+	return list, nil
+}
+
+func (d *DB) GetHost(id int64) (*Host, error) {
+	h, err := scanHost(d.QueryRow(hostSelectCols+`WHERE id = ?`, id))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return h, nil
 }
 
 func (d *DB) CreateHost(h *Host) (int64, error) {
@@ -798,75 +791,11 @@ func (d *DB) AcknowledgeHostAlerts(hostID int64) error {
 	return err
 }
 
-// Terminal Preset operations
-func (d *DB) ListTerminalPresets(hostID *int64) ([]TerminalPreset, error) {
-	var query string
-	var args []interface{}
-	if hostID == nil {
-		query = `SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets WHERE host_id IS NULL ORDER BY sort_order ASC, id ASC`
-	} else {
-		query = `SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets WHERE host_id IS NULL OR host_id = ? ORDER BY sort_order ASC, id ASC`
-		args = append(args, *hostID)
-	}
-
-	rows, err := d.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var presets []TerminalPreset
-	for rows.Next() {
-		var p TerminalPreset
-		var rawHostID sql.NullInt64
-		var useTmux int
-		if err := rows.Scan(&p.ID, &rawHostID, &p.Name, &p.Command, &p.SortOrder, &useTmux, &p.CreatedAt); err != nil {
-			return nil, err
-		}
-		if rawHostID.Valid {
-			hid := rawHostID.Int64
-			p.HostID = &hid
-		}
-		p.UseTmux = useTmux == 1
-		presets = append(presets, p)
-	}
-	return presets, nil
-}
-
-func (d *DB) ListAllTerminalPresets() ([]TerminalPreset, error) {
-	rows, err := d.Query(`SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets ORDER BY sort_order ASC, id ASC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var presets []TerminalPreset
-	for rows.Next() {
-		var p TerminalPreset
-		var rawHostID sql.NullInt64
-		var useTmux int
-		if err := rows.Scan(&p.ID, &rawHostID, &p.Name, &p.Command, &p.SortOrder, &useTmux, &p.CreatedAt); err != nil {
-			return nil, err
-		}
-		if rawHostID.Valid {
-			hid := rawHostID.Int64
-			p.HostID = &hid
-		}
-		p.UseTmux = useTmux == 1
-		presets = append(presets, p)
-	}
-	return presets, nil
-}
-
-func (d *DB) GetTerminalPreset(id int64) (*TerminalPreset, error) {
-	row := d.QueryRow(`SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets WHERE id = ?`, id)
+func scanPreset(s rowScanner) (*TerminalPreset, error) {
 	var p TerminalPreset
 	var rawHostID sql.NullInt64
 	var useTmux int
-	if err := row.Scan(&p.ID, &rawHostID, &p.Name, &p.Command, &p.SortOrder, &useTmux, &p.CreatedAt); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
+	if err := s.Scan(&p.ID, &rawHostID, &p.Name, &p.Command, &p.SortOrder, &useTmux, &p.CreatedAt); err != nil {
 		return nil, err
 	}
 	if rawHostID.Valid {
@@ -875,6 +804,47 @@ func (d *DB) GetTerminalPreset(id int64) (*TerminalPreset, error) {
 	}
 	p.UseTmux = useTmux == 1
 	return &p, nil
+}
+
+func (d *DB) queryPresets(query string, args ...any) ([]TerminalPreset, error) {
+	rows, err := d.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var presets []TerminalPreset
+	for rows.Next() {
+		p, err := scanPreset(rows)
+		if err != nil {
+			return nil, err
+		}
+		presets = append(presets, *p)
+	}
+	return presets, nil
+}
+
+// Terminal Preset operations
+func (d *DB) ListTerminalPresets(hostID *int64) ([]TerminalPreset, error) {
+	if hostID == nil {
+		return d.queryPresets(`SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets WHERE host_id IS NULL ORDER BY sort_order ASC, id ASC`)
+	}
+	return d.queryPresets(`SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets WHERE host_id IS NULL OR host_id = ? ORDER BY sort_order ASC, id ASC`, *hostID)
+}
+
+func (d *DB) ListAllTerminalPresets() ([]TerminalPreset, error) {
+	return d.queryPresets(`SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets ORDER BY sort_order ASC, id ASC`)
+}
+
+func (d *DB) GetTerminalPreset(id int64) (*TerminalPreset, error) {
+	p, err := scanPreset(d.QueryRow(`SELECT id, host_id, name, command, sort_order, use_tmux, created_at FROM terminal_presets WHERE id = ?`, id))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func (d *DB) CreateTerminalPreset(p *TerminalPreset) (int64, error) {
