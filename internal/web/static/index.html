@@ -198,6 +198,135 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
   border-radius: 0 !important;
 }
 
+/* Sub-Header Workspace Shelf (ADR-0026) */
+.workspace-shelf {
+  position: fixed;
+  top: 56px;
+  left: 0;
+  right: 0;
+  height: 38px;
+  z-index: 39;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--card-border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+body.has-workspace-shelf .container {
+  padding-top: 118px;
+}
+@media (max-width: 768px) {
+  .workspace-shelf {
+    top: 52px;
+    height: 38px;
+    padding: 0 12px;
+  }
+  body.has-workspace-shelf .container {
+    padding-top: 108px;
+  }
+}
+.workspace-shelf-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+.workspace-shelf-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  user-select: none;
+}
+.workspace-shelf-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  overflow-x: auto;
+  padding: 2px 0;
+}
+.workspace-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.78rem;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  max-width: 260px;
+  flex-shrink: 0;
+}
+.workspace-chip:hover {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+}
+.workspace-chip-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+}
+.workspace-chip-dirty {
+  color: #f59e0b;
+  font-weight: bold;
+  font-size: 1rem;
+  line-height: 0.5;
+  margin-left: -2px;
+}
+.workspace-chip-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  line-height: 1;
+}
+.workspace-chip-close:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+.btn-modal-minimize {
+  background: transparent;
+  border: 1px solid var(--card-border);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  transition: all 0.15s ease;
+}
+.btn-modal-minimize:hover {
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(56, 189, 248, 0.1);
+}
+
 /* Global Multi-Tab Terminal Dock */
 .terminal-dock-modal {
   align-items: center;
@@ -637,6 +766,17 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
     </div>
   </header>
 
+  <!-- Sub-Header Workspace Shelf (ADR-0026) -->
+  <div id="workspaceShelf" class="workspace-shelf" style="display: none;">
+    <div class="workspace-shelf-inner">
+      <div class="workspace-shelf-label">
+        <span>🗂️</span>
+        <span data-i18n="workspace_shelf_title">Workspaces:</span>
+      </div>
+      <div class="workspace-shelf-chips" id="workspaceShelfChips"></div>
+    </div>
+  </div>
+
   <div class="container">
     <div id="alertBannerArea"></div>
     <!-- Dashboard Toolbar (Search, Filter, Sort, View Mode) -->
@@ -950,9 +1090,12 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
         </button>
       </div>
-      <div style="display: flex; align-items: center; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <button class="btn btn-sm btn-modal-minimize" onclick="minimizeHostDetail()" title="Minimize to Workspace Shelf" data-i18n-title="btn_minimize">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
         <button id="btnHostDetailMax" class="btn btn-sm dock-action-btn" onclick="toggleHostDetailMaximize(event)" title="Maximize Workspace" data-i18n-title="maximize_workspace">⛶</button>
-        <button class="btn btn-sm" onclick="closeModal('hostDetailModal')">✕</button>
+        <button class="btn btn-sm" onclick="closeHostDetailModal()">✕</button>
       </div>
     </div>
     <div class="modal-tabs-bar">
@@ -1368,9 +1511,12 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
   <div class="modal-content modal-workspace">
     <div class="modal-header">
       <h3 id="editorFilePath">Edit File</h3>
-      <div style="display: flex; gap: 8px;">
+      <div style="display: flex; gap: 8px; align-items: center;">
         <button class="btn btn-success btn-sm" onclick="saveEditorFile()">💾 Save</button>
-        <button class="btn btn-sm" onclick="closeModal('editorModal')">✕</button>
+        <button class="btn btn-sm btn-modal-minimize" onclick="minimizeEditor()" title="Minimize to Workspace Shelf" data-i18n-title="btn_minimize">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="btn btn-sm" onclick="closeEditorModalWithConfirm()">✕</button>
       </div>
     </div>
     <div class="modal-body" style="padding: 0; display: flex; flex-direction: column;">
@@ -1981,7 +2127,13 @@ const I18N = {
     "edit": "✏️ Edit",
     "save": "Save",
     "global_notes_btn": "📝 Notes",
-    "close": "Close"
+    "close": "Close",
+    "workspace_shelf_title": "Workspaces",
+    "btn_minimize": "Minimize to Workspace Shelf",
+    "active_session_badge": "Active Session",
+    "shelf_limit_reached": "Maximum 5 sessions in Workspace Shelf. Close an existing session first.",
+    "discard_unsaved_changes": "You have unsaved changes in this file. Are you sure you want to discard them?",
+    "close_session": "Close session"
   },
   id: {
     "brand_subtitle": "Manajemen Server Agentless",
@@ -2452,6 +2604,12 @@ const I18N = {
     "file_uploaded": "File berhasil diunggah",
     "file_deleted": "File berhasil dihapus",
     "file_saved": "File berhasil disimpan",
+    "workspace_shelf_title": "Sesi Kerja",
+    "btn_minimize": "Minimalkan ke Workspace Shelf",
+    "active_session_badge": "Sesi Aktif",
+    "shelf_limit_reached": "Maksimal 5 sesi di Workspace Shelf. Tutup salah satu sesi terlebih dahulu.",
+    "discard_unsaved_changes": "Terdapat perubahan yang belum disimpan pada berkas ini. Yakin ingin membuang perubahan?",
+    "close_session": "Tutup sesi"
   }
 };
 
@@ -2524,6 +2682,17 @@ let currentTab = 'overview';
 let terminalSocket = null;
 let activeTerm = null;
 let codeEditor = null;
+
+// Workspace Shelf & Sessions State (ADR-0026)
+// ponytail: array of max 5 items; O(n) lookups are instantaneous
+let workspaceSessions = [];
+let currentEditorState = {
+  hostId: null,
+  hostName: '',
+  hostObj: null,
+  path: '',
+  savedContent: ''
+};
 
 async function checkAuth() {
   const res = await fetch('/api/me');
@@ -3314,9 +3483,13 @@ function renderGridView(grid, isManualSort) {
         </div>
         `;
         const hostTabsCount = terminalTabs.filter(t => t.hostID === h.id).length;
+        const hasActiveSession = workspaceSessions.some(s => s.hostId === h.id);
         card.innerHTML += `
         <div style="display: flex; gap: 6px; margin-top: 6px; align-items: center;">
-          <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
+          <button class="btn btn-primary btn-sm btn-host-view" data-host-id="${h.id}" onclick="openHostDetail(${h.id})" style="display: inline-flex; align-items: center; gap: 4px;">
+            ${t('btn_view')}
+            <span class="badge host-session-badge" style="${hasActiveSession ? '' : 'display: none;'} font-size: 0.68rem; padding: 1px 4px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);" title="${t('active_session_badge')}">📂</span>
+          </button>
           <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}" style="display: inline-flex; align-items: center; gap: 4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'} margin-left: 2px; font-size: 0.72rem; padding: 1px 5px;">${hostTabsCount}</span></button>
           <div class="dropdown" style="margin-left: auto;">
             <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, ${h.id})" title="${t('more_actions', 'More Actions')}">⋮</button>
@@ -3445,6 +3618,7 @@ function renderListView(listContainer, isManualSort) {
 
       const recency = formatRelativeTime(h.last_inspected);
       const hostTabsCount = terminalTabs.filter(t => t.hostID === h.id).length;
+      const hasActiveSession = workspaceSessions.some(s => s.hostId === h.id);
 
       tr.innerHTML = `
         ${isManualSort ? `<td style="text-align: center;"><span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span></td>` : ''}
@@ -3483,7 +3657,10 @@ function renderListView(listContainer, isManualSort) {
         <td>${noteHtml}</td>
         <td style="text-align: right;">
           <div style="display: inline-flex; gap: 4px; align-items: center;">
-            <button class="btn btn-primary btn-sm" onclick="openHostDetail(${h.id})">${t('btn_view')}</button>
+            <button class="btn btn-primary btn-sm btn-host-view" data-host-id="${h.id}" onclick="openHostDetail(${h.id})" style="display: inline-flex; align-items: center; gap: 4px;">
+              ${t('btn_view')}
+              <span class="badge host-session-badge" style="${hasActiveSession ? '' : 'display: none;'} font-size: 0.68rem; padding: 1px 4px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);" title="${t('active_session_badge')}">📂</span>
+            </button>
             <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}" style="display: inline-flex; align-items: center; gap: 4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'} margin-left: 2px; font-size: 0.72rem; padding: 1px 5px;">${hostTabsCount}</span></button>
             <div class="dropdown">
               <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, 'list-${h.id}')" title="${t('more_actions', 'More Actions')}">⋮</button>
@@ -4041,6 +4218,12 @@ function openTerminalForPath(targetPath) {
 }
 
 async function openHostDetail(id) {
+  // Smart Resume: restore existing minimized session if present (ADR-0026)
+  const existingSession = workspaceSessions.find(s => s.type === 'host' && s.hostId === id);
+  if (existingSession) {
+    restoreWorkspaceSession(existingSession.id);
+    return;
+  }
   const res = await fetch('/api/hosts/' + id);
   if (!res.ok) return;
   const data = await res.json();
@@ -4361,7 +4544,7 @@ function switchTab(tab, presetID) {
   } else if (tab === 'runs') {
     renderInspectionRunsTab();
   } else if (tab === 'files') {
-    const startPath = (currentHost && currentHost.id) ? getHostFilesPath(currentHost.id) : '/';
+    const startPath = (currentHost && (currentHost._lastPath || (currentHost.id ? getHostFilesPath(currentHost.id) : null))) || '/';
     loadFiles(startPath);
   }
 }
@@ -4616,6 +4799,9 @@ async function loadFiles(path) {
   }
   const data = await res.json();
   currentFilesData = data;
+  if (currentHost) {
+    currentHost._lastPath = data.path;
+  }
   fileFilterQuery = '';
   renderFilesView();
 }
@@ -4877,9 +5063,22 @@ async function deleteRemoteFile(path, parentDir) {
 }
 
 async function openEditor(path) {
+  const sessId = 'editor-' + currentHost.id + '-' + path;
+  const existingSession = workspaceSessions.find(s => s.id === sessId);
+  if (existingSession) {
+    restoreWorkspaceSession(sessId);
+    return;
+  }
   const res = await fetch('/api/hosts/' + currentHost.id + '/files/read?path=' + encodeURIComponent(path));
   if (!res.ok) { showToast(t('failed_read_file'), 'error'); return; }
   const data = await res.json();
+  currentEditorState = {
+    hostId: currentHost.id,
+    hostName: currentHost.name,
+    hostObj: Object.assign({}, currentHost),
+    path: path,
+    savedContent: data.content
+  };
   document.getElementById('editorFilePath').innerText = path;
   openModal('editorModal');
 
@@ -4897,19 +5096,246 @@ async function openEditor(path) {
 async function saveEditorFile() {
   const path = document.getElementById('editorFilePath').innerText;
   const content = codeEditor.getValue();
-  const res = await fetch('/api/hosts/' + currentHost.id + '/files/write', {
+  const hostId = (currentEditorState && currentEditorState.hostId) ? currentEditorState.hostId : (currentHost ? currentHost.id : null);
+  if (!hostId) return;
+  const res = await fetch('/api/hosts/' + hostId + '/files/write', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ path, content })
   });
   if (res.ok) {
     showToast(t('file_saved', 'File saved successfully'), 'success');
+    if (currentEditorState) {
+      currentEditorState.savedContent = content;
+    }
+    const sessId = 'editor-' + hostId + '-' + path;
+    workspaceSessions = workspaceSessions.filter(s => s.id !== sessId);
+    renderWorkspaceShelf();
     closeModal('editorModal');
   } else if (res.status === 403) {
     showToast(t('cannot_modify_protected'), 'error');
   } else {
     showToast(t('failed_prefix', 'Failed: ') + 'Failed to save file', 'error');
   }
+}
+
+// Workspace Shelf & Sessions Functions (ADR-0026)
+function minimizeHostDetail() {
+  if (!currentHost) return;
+  if (workspaceSessions.length >= 5 && !workspaceSessions.find(s => s.type === 'host' && s.hostId === currentHost.id)) {
+    showToast(t('shelf_limit_reached'), 'warning');
+    return;
+  }
+  const lastPath = (currentFilesData && currentFilesData.path) || currentHost._lastPath || '/';
+  const existingIdx = workspaceSessions.findIndex(s => s.type === 'host' && s.hostId === currentHost.id);
+  const session = {
+    id: 'host-' + currentHost.id,
+    type: 'host',
+    hostId: currentHost.id,
+    hostName: currentHost.name,
+    hostObj: Object.assign({}, currentHost),
+    detailData: window.detailData,
+    tab: currentTab || 'overview',
+    path: lastPath
+  };
+  if (existingIdx >= 0) {
+    workspaceSessions[existingIdx] = session;
+  } else {
+    workspaceSessions.push(session);
+  }
+  const el = document.getElementById('hostDetailModal');
+  if (el) {
+    el.classList.remove('open');
+    el.style.zIndex = '';
+  }
+  openModalStack = openModalStack.filter(mId => mId !== 'hostDetailModal');
+  renderWorkspaceShelf();
+}
+
+function closeHostDetailModal() {
+  if (currentHost) {
+    workspaceSessions = workspaceSessions.filter(s => !(s.type === 'host' && s.hostId === currentHost.id));
+    renderWorkspaceShelf();
+  }
+  closeModal('hostDetailModal');
+}
+
+function minimizeEditor() {
+  if (!currentEditorState || !currentEditorState.path) {
+    const el = document.getElementById('editorModal');
+    if (el) {
+      el.classList.remove('open');
+      el.style.zIndex = '';
+    }
+    openModalStack = openModalStack.filter(mId => mId !== 'editorModal');
+    return;
+  }
+  const sessId = 'editor-' + currentEditorState.hostId + '-' + currentEditorState.path;
+  if (workspaceSessions.length >= 5 && !workspaceSessions.find(s => s.id === sessId)) {
+    showToast(t('shelf_limit_reached'), 'warning');
+    return;
+  }
+  const content = codeEditor ? codeEditor.getValue() : '';
+  const isDirty = content !== currentEditorState.savedContent;
+  const existingIdx = workspaceSessions.findIndex(s => s.id === sessId);
+  const session = {
+    id: sessId,
+    type: 'editor',
+    hostId: currentEditorState.hostId,
+    hostName: currentEditorState.hostName,
+    hostObj: currentEditorState.hostObj || currentHost,
+    path: currentEditorState.path,
+    content: content,
+    savedContent: currentEditorState.savedContent,
+    isDirty: isDirty
+  };
+  if (existingIdx >= 0) {
+    workspaceSessions[existingIdx] = session;
+  } else {
+    workspaceSessions.push(session);
+  }
+  const el = document.getElementById('editorModal');
+  if (el) {
+    el.classList.remove('open');
+    el.style.zIndex = '';
+  }
+  openModalStack = openModalStack.filter(mId => mId !== 'editorModal');
+  renderWorkspaceShelf();
+}
+
+async function closeEditorModalWithConfirm() {
+  if (codeEditor && currentEditorState && currentEditorState.path) {
+    const isDirty = codeEditor.getValue() !== currentEditorState.savedContent;
+    if (isDirty) {
+      const ok = await showConfirm({
+        title: t('confirm', 'Confirm'),
+        message: t('discard_unsaved_changes'),
+        confirmText: t('delete', 'Discard'),
+        danger: true
+      });
+      if (!ok) return;
+    }
+    const sessId = 'editor-' + currentEditorState.hostId + '-' + currentEditorState.path;
+    workspaceSessions = workspaceSessions.filter(s => s.id !== sessId);
+    renderWorkspaceShelf();
+  }
+  closeModal('editorModal');
+}
+
+async function closeWorkspaceSession(sessionId, event) {
+  if (event) event.stopPropagation();
+  const session = workspaceSessions.find(s => s.id === sessionId);
+  if (!session) return;
+  if (session.type === 'editor' && session.isDirty) {
+    const ok = await showConfirm({
+      title: t('confirm', 'Confirm'),
+      message: t('discard_unsaved_changes'),
+      confirmText: t('delete', 'Discard'),
+      danger: true
+    });
+    if (!ok) return;
+  }
+  workspaceSessions = workspaceSessions.filter(s => s.id !== sessionId);
+  renderWorkspaceShelf();
+}
+
+async function restoreWorkspaceSession(sessionId) {
+  const session = workspaceSessions.find(s => s.id === sessionId);
+  if (!session) return;
+
+  // Auto-minimize any currently open Workspace Modal safely
+  if (openModalStack.includes('editorModal')) {
+    minimizeEditor();
+  }
+  if (openModalStack.includes('hostDetailModal')) {
+    minimizeHostDetail();
+  }
+
+  // Remove the session from minimized shelf since it will now be active in viewport
+  workspaceSessions = workspaceSessions.filter(s => s.id !== sessionId);
+  renderWorkspaceShelf();
+
+  if (session.type === 'host') {
+    currentHost = session.hostObj;
+    window.detailData = session.detailData;
+    document.getElementById('detailHostName').innerText = currentHost.name + ' (' + currentHost.host + ')';
+    const badge = document.getElementById('detailHostBadge');
+    badge.className = 'badge badge-' + currentHost.status;
+    badge.innerText = currentHost.status;
+    openModal('hostDetailModal');
+    currentTab = session.tab || 'overview';
+    switchTab(currentTab);
+    if (session.tab === 'files' && session.path) {
+      loadFiles(session.path);
+    }
+  } else if (session.type === 'editor') {
+    currentHost = session.hostObj;
+    currentEditorState = {
+      hostId: session.hostId,
+      hostName: session.hostName,
+      hostObj: session.hostObj,
+      path: session.path,
+      savedContent: session.savedContent
+    };
+    document.getElementById('editorFilePath').innerText = session.path;
+    openModal('editorModal');
+    if (!codeEditor) {
+      codeEditor = CodeMirror.fromTextArea(document.getElementById('codeEditorArea'), {
+        lineNumbers: true,
+        theme: 'nord',
+        mode: 'php'
+      });
+    }
+    codeEditor.setValue(session.content);
+    setTimeout(() => codeEditor.refresh(), 100);
+  }
+}
+
+function updateHostSessionBadges() {
+  document.querySelectorAll('.btn-host-view').forEach(btn => {
+    const hostId = parseInt(btn.getAttribute('data-host-id'), 10);
+    const badge = btn.querySelector('.host-session-badge');
+    if (badge) {
+      const hasActive = workspaceSessions.some(s => s.hostId === hostId);
+      badge.style.display = hasActive ? 'inline-block' : 'none';
+    }
+  });
+}
+
+function renderWorkspaceShelf() {
+  const shelf = document.getElementById('workspaceShelf');
+  const chipsContainer = document.getElementById('workspaceShelfChips');
+  updateHostSessionBadges();
+  if (!shelf || !chipsContainer) return;
+
+  if (workspaceSessions.length === 0) {
+    shelf.style.display = 'none';
+    document.body.classList.remove('has-workspace-shelf');
+    return;
+  }
+
+  shelf.style.display = 'flex';
+  document.body.classList.add('has-workspace-shelf');
+
+  chipsContainer.innerHTML = workspaceSessions.map((s, idx) => {
+    let title = '';
+    let icon = s.type === 'editor' ? '📝' : '🖥️';
+    if (s.type === 'host') {
+      title = s.hostName + (s.tab === 'files' && s.path ? ': ' + s.path : ' (' + s.tab + ')');
+    } else {
+      const fileName = s.path.split('/').pop() || s.path;
+      title = s.hostName + ': ' + fileName;
+    }
+    const tooltip = (s.type === 'editor' ? 'File: ' + s.path : 'Host: ' + s.hostName + ' (' + (s.tab === 'files' ? s.path : s.tab) + ')') + ' [Alt+' + (idx + 1) + ']';
+    return `
+      <div class="workspace-chip" onclick="restoreWorkspaceSession('${s.id}')" title="${escapeHtml(tooltip)}">
+        <span style="font-size: 0.85rem;">${icon}</span>
+        <span class="workspace-chip-title">${escapeHtml(title)}</span>
+        ${s.isDirty ? '<span class="workspace-chip-dirty" title="Unsaved changes">•</span>' : ''}
+        <button type="button" class="workspace-chip-close" onclick="closeWorkspaceSession('${s.id}', event)" title="${t('close_session', 'Close session')}">✕</button>
+      </div>
+    `;
+  }).join('');
 }
 
 // Global Multi-Tab Terminal Dock State & Lifecycle
@@ -6894,6 +7320,19 @@ function closeModal(id) {
     resolveConfirm(false);
     return;
   }
+  if (id === 'hostDetailModal') {
+    if (currentHost) {
+      workspaceSessions = workspaceSessions.filter(s => !(s.type === 'host' && s.hostId === currentHost.id));
+      renderWorkspaceShelf();
+    }
+  }
+  if (id === 'editorModal') {
+    if (currentEditorState && currentEditorState.path) {
+      const sessId = 'editor-' + currentEditorState.hostId + '-' + currentEditorState.path;
+      workspaceSessions = workspaceSessions.filter(s => s.id !== sessId);
+      renderWorkspaceShelf();
+    }
+  }
   const el = document.getElementById(id);
   if (el) {
     el.classList.remove('open');
@@ -6914,6 +7353,10 @@ window.addEventListener('click', (e) => {
   if (e.target && e.target.classList && e.target.classList.contains('modal') && e.target.classList.contains('open')) {
     if (e.target.id === 'confirmModal') {
       resolveConfirm(false);
+    } else if (e.target.id === 'editorModal') {
+      minimizeEditor();
+    } else if (e.target.id === 'hostDetailModal') {
+      minimizeHostDetail();
     } else {
       closeModal(e.target.id);
     }
@@ -6952,6 +7395,18 @@ window.addEventListener('keydown', (e) => {
     }
   }
 
+  // Workspace Shelf Alt+1..5 Shortcuts (ADR-0026)
+  if (!isDockOpen && e.altKey && !e.ctrlKey && !e.shiftKey) {
+    if (e.key >= '1' && e.key <= '5') {
+      const sIdx = parseInt(e.key, 10) - 1;
+      if (sIdx >= 0 && sIdx < workspaceSessions.length) {
+        e.preventDefault();
+        restoreWorkspaceSession(workspaceSessions[sIdx].id);
+        return;
+      }
+    }
+  }
+
   if (e.key === 'Escape') {
     // ponytail: never intercept Escape if Terminal Dock is open and no other modal is stacked above it (ADR-0011)
     if (isDockOpen && (openModalStack.length <= 1 && (openModalStack[0] === 'terminalDockModal' || openModalStack.length === 0))) return;
@@ -6959,6 +7414,10 @@ window.addEventListener('keydown', (e) => {
       const topModalId = openModalStack[openModalStack.length - 1];
       if (topModalId === 'confirmModal') {
         resolveConfirm(false);
+      } else if (topModalId === 'editorModal') {
+        minimizeEditor();
+      } else if (topModalId === 'hostDetailModal') {
+        minimizeHostDetail();
       } else {
         closeModal(topModalId);
       }

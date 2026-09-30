@@ -261,6 +261,18 @@ _Avoid_: Auto clear, alert wipe, drift expiry
 Kebijakan penyimpanan riwayat inspeksi pada basis data internal yang mengalokasikan kuota retensi bergulir terpisah antara eksekusi normal dan eksekusi bermasalah (*drift/error/down*) guna menjamin ketersediaan jejak audit deviasi historis tanpa memicu pembengkakan ukuran file.
 _Avoid_: Multi-retention, split purge, error archiving
 
+**Workspace Shelf**:
+Bilah navigasi horizontal adaptif tepat di bawah header utama yang menampung sesi Workspace Modal dan Code Editor yang diminimalkan untuk pemulihan instan tanpa polusi visual mengambang.
+_Avoid_: Taskbar, minimized bar, bottom dock, modal tray
+
+**Workspace Session**:
+Entitas status kerja in-memory yang mencatat identitas host, tab aktif, direktori SFTP, atau buffer editor saat sebuah modal diminimalkan.
+_Avoid_: Background tab, suspended window, open process
+
+**Smart Resume**:
+Mekanisme pemulihan otomatis konteks kerja dan navigasi terakhir saat pengguna membuka kembali Host Detail dari kartu server pada dashboard.
+_Avoid_: State reload, session restore, auto reopen
+
 **Workspace Modal Maximize**:
 Mode pembesaran kontainer Workspace Modal (Host Detail) hingga memenuhi seluruh area pandang peramban (*CSS full-viewport* 100vw × 100vh) untuk ruang kerja inspeksi dan manajemen berkas yang maksimal tanpa merusak penanganan tombol keyboard interaktif atau memicu izin fullscreen native peramban.
 _Avoid_: Native fullscreen, modal expand, browser fullscreen, popout dialog
@@ -272,4 +284,3 @@ _Avoid_: Folder shell, path terminal, file terminal, quick shell
 **Per-Host Tab State**:
 Mekanisme persistensi dan isolasi state tab aktif pada Workspace Modal secara independen untuk masing-masing Host berbasis penyimpanan sesi peramban (*sessionStorage*), memastikan navigasi tab pada satu host tidak mengubah tab default host lainnya.
 _Avoid_: Global active tab, modal tab memory, shared tab state
-
