@@ -252,29 +252,19 @@ func CompareVersions(v1, v2 string) int {
 		return -1
 	}
 
-	p1 := strings.Split(v1Clean, ".")
-	p2 := strings.Split(v2Clean, ".")
-
-	maxLen := len(p1)
-	if len(p2) > maxLen {
-		maxLen = len(p2)
-	}
-
-	for i := 0; i < maxLen; i++ {
+	p1, p2 := strings.Split(v1Clean, "."), strings.Split(v2Clean, ".")
+	for i := 0; i < len(p1) || i < len(p2); i++ {
 		var n1, n2 int
 		if i < len(p1) {
-			// strip pre-release suffixes if any
-			s := strings.Split(p1[i], "-")[0]
-			n1, _ = strconv.Atoi(s)
+			n1, _ = strconv.Atoi(strings.Split(p1[i], "-")[0])
 		}
 		if i < len(p2) {
-			s := strings.Split(p2[i], "-")[0]
-			n2, _ = strconv.Atoi(s)
+			n2, _ = strconv.Atoi(strings.Split(p2[i], "-")[0])
 		}
-		if n1 > n2 {
-			return 1
-		}
-		if n1 < n2 {
+		if n1 != n2 {
+			if n1 > n2 {
+				return 1
+			}
 			return -1
 		}
 	}

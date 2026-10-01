@@ -207,6 +207,32 @@ To download an entire remote folder structure to your local workstation:
 - Select the folder in the SFTP manager and click **Download as Archive**.
 - Pantau streams the compressed archive on-the-fly (`zip` if installed on remote host, or `tar.gz`) directly to your browser's HTTP download stream without creating temporary files on the Pantau server disk.
 
+### Safe File & Folder Duplication (Disk Space Safety Check)
+
+Pantau allows immediate in-place duplication of files or folders on the remote server without downloading or re-uploading bytes:
+
+1. Click the **📋 Duplicate** action button on any file or folder row.
+2. The modal pre-fills a timestamped target name:
+   - For files with extensions: `<filename>_<YYYYMMDDHHmmss>.<ext>` (e.g., `nginx_20261002043000.conf`), keeping file extensions and syntax highlighters intact.
+   - For directories or extensionless files: `<dirname>_<YYYYMMDDHHmmss>`.
+3. **Disk Space Safety Check**: Pantau automatically checks the available free space on the destination partition via `df -PB1`. If available space is less than the item size plus a 100 MB safety buffer, the duplication action is blocked with an error banner to protect the host from disk exhaustion.
+4. **Collision Prevention**: If a file or folder with the target name already exists, Pantau strictly refuses to overwrite it to prevent accidental data loss.
+5. **Native Execution**: Cloning runs on the remote host via `cp -a`, preserving original Unix file modes, permissions, and timestamps. Items $\ge$ 500 MB display a warning badge indicating the background copy may take a few seconds.
+
+### Interactive Breadcrumb Navigation & Polish
+
+The SFTP File Manager includes enhanced navigation and visual ergonomics:
+- **Interactive Breadcrumb Bar**: Click any folder segment in the breadcrumb path (e.g., `📁 /` &rarr; `var` &rarr; `www` &rarr; `html`) to jump directly to any parent directory without pressing "Up" repeatedly.
+- **Contextual File Icons**: File rows display type-aware icons based on extension (🐚 scripts, ⚙️ configs/json/yaml, 📝 logs/text, 🗜️ archives, 🖼️ media, 💻 source code).
+- **Sticky Table Header**: Column headers and sort controls remain visible while scrolling through long directories.
+
+### Code Editor Maximize & VS Code Dark+ Theme
+
+When editing scripts, configurations, or environment files in the integrated CodeMirror editor:
+- **Workspace Modal Maximize**: Click the `⛶` maximize button or double-click the modal header to expand the editor into a full-viewport canvas (100vw &times; 100vh) for distraction-free code review.
+- **VS Code Dark+ Palette**: Features an embedded modern dark theme (`#1e1e1e` background, high-contrast syntax highlighting for keywords, functions, variables, and strings) with monospace font styling (`JetBrains Mono`, `Fira Code`, `Consolas`).
+- **Dynamic Syntax Detection**: Automatically sets syntax highlighting mode for PHP, JavaScript, Shell, YAML, CSS, HTML, XML, and C-like languages based on file extension.
+
 ---
 
 ## 6. Phase 5: Hardening, Snapshots & Disaster Recovery

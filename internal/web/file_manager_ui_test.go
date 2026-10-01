@@ -10,12 +10,13 @@ func TestFileManagerActionButtonsGrid(t *testing.T) {
 	html := string(embeddedHTML)
 
 	// Check action-grid CSS rule
-	// The action row in file manager has 5 elements:
+	// The action row in file manager has 6 elements:
 	// 1. Terminal button (icon)
 	// 2. Edit button (text or placeholder)
-	// 3. Download button (icon)
-	// 4. Copy to host button (text)
-	// 5. Delete button (icon)
+	// 3. Duplicate button (icon)
+	// 4. Download button (icon)
+	// 5. Copy to host button (text)
+	// 6. Delete button (icon)
 	gridRegex := regexp.MustCompile(`\.action-grid\s*\{([^}]+)\}`)
 	match := gridRegex.FindStringSubmatch(html)
 	if len(match) < 2 {
@@ -23,7 +24,7 @@ func TestFileManagerActionButtonsGrid(t *testing.T) {
 	}
 	cssBody := match[1]
 
-	// Must define 5 columns in grid-template-columns so the 5 action buttons don't wrap to row 2
+	// Must define 6 columns in grid-template-columns so the 6 action buttons don't wrap to row 2
 	colRegex := regexp.MustCompile(`grid-template-columns:\s*([^;]+);`)
 	colMatch := colRegex.FindStringSubmatch(cssBody)
 	if len(colMatch) < 2 {
@@ -31,8 +32,8 @@ func TestFileManagerActionButtonsGrid(t *testing.T) {
 	}
 
 	cols := strings.Fields(strings.TrimSpace(colMatch[1]))
-	if len(cols) != 5 {
-		t.Errorf("expected .action-grid to have exactly 5 columns for the 5 action buttons (terminal, edit, download, copy, delete), but found %d columns: %v", len(cols), cols)
+	if len(cols) != 6 {
+		t.Errorf("expected .action-grid to have exactly 6 columns for the 6 action buttons (terminal, edit, duplicate, download, copy, delete), but found %d columns: %v", len(cols), cols)
 	}
 
 	// First column is Terminal icon (should be ~34-38px, not 65px)
@@ -45,19 +46,100 @@ func TestFileManagerActionButtonsGrid(t *testing.T) {
 		t.Errorf("column 2 is edit button, expected ~65px, got %s", cols[1])
 	}
 
-	// Third column is Download icon button (should be ~34-38px, not auto)
+	// Third column is Duplicate icon button (should be ~34-38px)
 	if len(cols) >= 3 && cols[2] != "38px" && cols[2] != "34px" && cols[2] != "36px" {
-		t.Errorf("column 3 is download icon, expected ~34-38px, got %s", cols[2])
+		t.Errorf("column 3 is duplicate icon, expected ~34-38px, got %s", cols[2])
 	}
 
-	// Fourth column is Copy to Host (text button, should be auto or minmax or ~120px)
-	if len(cols) >= 4 && cols[3] != "auto" && cols[3] != "max-content" && !strings.Contains(cols[3], "px") {
-		t.Errorf("column 4 is copy to host button, expected auto or max-content, got %s", cols[3])
+	// Fourth column is Download icon button (should be ~34-38px, not auto)
+	if len(cols) >= 4 && cols[3] != "38px" && cols[3] != "34px" && cols[3] != "36px" {
+		t.Errorf("column 4 is download icon, expected ~34-38px, got %s", cols[3])
 	}
 
-	// Fifth column is Delete button (icon ~34-38px)
-	if len(cols) >= 5 && cols[4] != "38px" && cols[4] != "34px" && cols[4] != "36px" {
-		t.Errorf("column 5 is delete icon, expected ~34-38px, got %s", cols[4])
+	// Fifth column is Copy to Host (text button, should be auto or minmax or ~120px)
+	if len(cols) >= 5 && cols[4] != "auto" && cols[4] != "max-content" && !strings.Contains(cols[4], "px") {
+		t.Errorf("column 5 is copy to host button, expected auto or max-content, got %s", cols[4])
+	}
+
+	// Sixth column is Delete button (icon ~34-38px)
+	if len(cols) >= 6 && cols[5] != "38px" && cols[5] != "34px" && cols[5] != "36px" {
+		t.Errorf("column 6 is delete icon, expected ~34-38px, got %s", cols[5])
+	}
+}
+
+func TestFileManagerDuplicateAndEditorMaximizeUI(t *testing.T) {
+	html := string(embeddedHTML)
+
+	// Check Duplicate Modal and functions
+	duplicateElements := []string{
+		"duplicateModal",
+		"duplicateSourcePath",
+		"duplicateItemSize",
+		"duplicateDiskAvail",
+		"duplicateWarningBadge",
+		"duplicateErrorBadge",
+		"duplicateNameInput",
+		"btnConfirmDuplicate",
+		"openDuplicateModal",
+		"executeDuplicate",
+		"generateDuplicateName",
+	}
+	for _, el := range duplicateElements {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected index.html to contain duplicate element %q", el)
+		}
+	}
+
+	// Check Breadcrumbs & UI polish elements
+	breadcrumbElements := []string{
+		"file-breadcrumb-bar",
+		"file-breadcrumb-item",
+		"file-breadcrumb-separator",
+		"renderBreadcrumbs",
+		"getFileIcon",
+		"files-table-container",
+	}
+	for _, el := range breadcrumbElements {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected index.html to contain breadcrumb/polish element %q", el)
+		}
+	}
+
+	// Check Editor Modal Maximize and VS Code Dark theme
+	editorElements := []string{
+		"btnEditorMax",
+		"toggleEditorMaximize",
+		"applyEditorMaximizeState",
+		"cm-s-vscode-dark",
+		"vscode-dark",
+		"getEditorModeForPath",
+	}
+	for _, el := range editorElements {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected index.html to contain editor element %q", el)
+		}
+	}
+
+	// Check Duplicate i18n keys exist in both EN and ID dictionaries
+	dupI18nKeys := []string{
+		`"duplicate":`,
+		`"duplicate_modal_title":`,
+		`"duplicate_source_label":`,
+		`"duplicate_name_label":`,
+		`"duplicate_size_label":`,
+		`"duplicate_avail_label":`,
+		`"duplicate_btn":`,
+		`"duplicating":`,
+		`"duplicate_success":`,
+		`"duplicate_conflict":`,
+		`"duplicate_large_warn":`,
+		`"duplicate_disk_insufficient":`,
+	}
+	for _, key := range dupI18nKeys {
+		cnt := strings.Count(html, key)
+		if cnt < 2 {
+			t.Errorf("expected i18n key %q to exist in at least 2 dictionaries, found %d", key, cnt)
+		}
 	}
 }
 

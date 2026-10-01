@@ -120,8 +120,8 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **Disaster Recovery Wizard**: Pulihkan seluruh inventaris monitoring dari nol hanya menggunakan token GitHub + path repositori atau file `.enc` cadangan.
 
 ### 7. 💻 Interactive Web Terminal & SFTP File Manager
-- **Web Terminal**: Akses shell interaktif di browser berbasis `xterm.js` melalui koneksi WebSocket SSH PTY dengan dukungan warna ANSI dan penyesuaian ukuran terminal.
-- **SFTP Explorer & Code Editor**: Eksplorasi direktori remote, unggah/unduh file, ubah izin (*chmod*), serta sunting script dan file konfigurasi langsung menggunakan editor CodeMirror (tema Nord).
+- **Web Terminal**: Akses shell interaktif di browser berbasis `xterm.js` melalui koneksi WebSocket SSH PTY dengan dukungan warna ANSI, penyesuaian ukuran terminal, dan integrasi clipboard aman.
+- **SFTP Explorer & Code Editor**: Eksplorasi direktori remote dengan breadcrumb interaktif, filter dan sorting berkas, duplikasi file/folder aman dengan pengecekan kapasitas disk otomatis, serta penyuntingan berkas dalam mode full-viewport bertema modern VS Code Dark+.
 
 ### 8. 🌐 Antarmuka Dwibahasa (English & Bahasa Indonesia)
 - Tombol pemilih bahasa instan (`🌐 EN` / `🌐 ID`) langsung di bilah navigasi atas (header).

@@ -120,8 +120,8 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - **Disaster Recovery Wizard**: Rebuild an entire monitoring cluster from scratch using a GitHub token + repository path or a raw `.enc` file.
 
 ### 7. 💻 Interactive Web Terminal & SFTP File Manager
-- **Web Terminal**: In-browser interactive shell powered by `xterm.js` over WebSocket SSH PTY sessions with full ANSI color and terminal resize support.
-- **SFTP Explorer & Code Editor**: Navigate remote directories, upload/download files, edit scripts and `.env` files with embedded CodeMirror (Nord syntax highlighting).
+- **Web Terminal**: In-browser interactive shell powered by `xterm.js` over WebSocket SSH PTY sessions with full ANSI color, terminal resize support, and safe clipboard bridge.
+- **SFTP Explorer & Code Editor**: Navigate remote directories with clickable breadcrumbs, sort by columns, filter by categories, duplicate files/folders with automatic disk space safety verification, and edit scripts with full-viewport CodeMirror maximize in a modern VS Code Dark+ theme.
 
 ### 8. 🌐 Dual Language Interface (English & Bahasa Indonesia)
 - Instant client-side localization switcher (`🌐 EN` / `🌐 ID`) in the header.
