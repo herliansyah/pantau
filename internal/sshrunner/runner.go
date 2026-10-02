@@ -355,13 +355,7 @@ func (m *MockRunner) PipeCommand(cmd string, in io.Reader, out io.Writer) error 
 		return err
 	}
 	if in != nil {
-		buf := make([]byte, 2048)
-		for {
-			_, err := in.Read(buf)
-			if err != nil {
-				break
-			}
-		}
+		_, _ = io.Copy(io.Discard, in)
 		return nil
 	}
 	if out != nil {
@@ -382,17 +376,8 @@ func (m *MockRunner) SFTP() (*sftp.Client, error) {
 
 func (m *MockRunner) Terminal(in io.Reader, out io.Writer, cols, rows int, resizeChan <-chan [2]int) error {
 	_, _ = fmt.Fprintln(out, "Mock SSH Terminal Connected")
-	buf := make([]byte, 1024)
-	for {
-		n, err := in.Read(buf)
-		if err != nil {
-			return nil
-		}
-		if n > 0 {
-			// echo back
-			_, _ = out.Write(buf[:n])
-		}
-	}
+	_, _ = io.Copy(out, in)
+	return nil
 }
 
 func (m *MockRunner) Close() error {

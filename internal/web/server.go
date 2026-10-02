@@ -1185,6 +1185,10 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		http.Error(w, "host not found", http.StatusNotFound)
 		return
 	}
+	if s.inspector == nil {
+		http.Error(w, "inspector not available", http.StatusInternalServerError)
+		return
+	}
 	runner, err := s.inspector.GetRunnerForHost(host)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1348,7 +1352,74 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		}
 		out, _, _, _ := runner.Exec(fmt.Sprintf(`du -sb %q 2>/dev/null | cut -f1`, targetPath))
 		size, _ := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
-		writeJSON(w, http.StatusOK, map[string]int64{"size": size})
+		outDf, _, _, _ := runner.Exec(fmt.Sprintf(`df -PB1 %q 2>/dev/null | tail -n 1 | awk '{print $4}'`, path.Dir(targetPath)))
+		avail, _ := strconv.ParseInt(strings.TrimSpace(outDf), 10, 64)
+		writeJSON(w, http.StatusOK, map[string]int64{
+			"size":      size,
+			"available": avail,
+		})
+
+	case "duplicate":
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			Path    string `json:"path"`
+			NewName string `json:"new_name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		req.Path = strings.TrimSpace(req.Path)
+		req.NewName = strings.TrimSpace(req.NewName)
+		if req.Path == "" || req.NewName == "" {
+			http.Error(w, "path and new_name required", http.StatusBadRequest)
+			return
+		}
+		if strings.Contains(req.NewName, "/") || strings.Contains(req.NewName, "\\") || req.NewName == "." || req.NewName == ".." {
+			http.Error(w, "invalid new_name", http.StatusBadRequest)
+			return
+		}
+		parentDir := path.Dir(req.Path)
+		destPath := path.Join(parentDir, req.NewName)
+
+		if isProtectedPath(req.Path, sftpClient) || isProtectedPath(destPath, sftpClient) {
+			http.Error(w, "protected path: cannot duplicate in system location", http.StatusForbidden)
+			return
+		}
+
+		// Collision check: verify target file/folder does not exist
+		if _, err := sftpClient.Stat(destPath); err == nil {
+			http.Error(w, "file or folder already exists", http.StatusConflict)
+			return
+		}
+
+		// Disk Space Safety Check:
+		// Measure source size and available space on target partition (+ 100MB safety buffer)
+		outSize, _, _, _ := runner.Exec(fmt.Sprintf(`du -sb %q 2>/dev/null | cut -f1`, req.Path))
+		sourceSize, _ := strconv.ParseInt(strings.TrimSpace(outSize), 10, 64)
+		outDf, _, _, _ := runner.Exec(fmt.Sprintf(`df -PB1 %q 2>/dev/null | tail -n 1 | awk '{print $4}'`, parentDir))
+		availBytes, _ := strconv.ParseInt(strings.TrimSpace(outDf), 10, 64)
+
+		const safetyBuffer = 100 * 1024 * 1024 // 100 MB buffer
+		if availBytes > 0 && sourceSize > 0 && availBytes < (sourceSize+safetyBuffer) {
+			http.Error(w, fmt.Sprintf("insufficient disk space: required %d bytes (+ 100MB buffer), available %d bytes", sourceSize, availBytes), http.StatusInsufficientStorage)
+			return
+		}
+
+		// ponytail: Use native remote cp -a to perform instant atomic copy with preserved permissions
+		cmd := fmt.Sprintf("cp -a -- %q %q", req.Path, destPath)
+		_, stderr, exitCode, err := runner.Exec(cmd)
+		if err != nil || exitCode != 0 {
+			http.Error(w, fmt.Sprintf("duplication failed: %s", strings.TrimSpace(stderr)), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"status": "duplicated",
+			"path":   destPath,
+		})
 
 	case "download":
 		targetPath := r.URL.Query().Get("path")

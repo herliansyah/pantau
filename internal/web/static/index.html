@@ -133,9 +133,119 @@ th { color: var(--text-muted); font-weight: 600; }
 input, select, textarea { background: #0f172a; border: 1px solid var(--card-border); color: #fff; padding: 8px 12px; border-radius: 6px; width: 100%; font-size: 0.9rem; }
 select, select option { background-color: #1e293b !important; color: #f8fafc !important; }
 .folder-link { color: #38bdf8 !important; text-decoration: none; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
-.action-grid { display: inline-grid; grid-template-columns: 38px 65px 38px auto 38px; gap: 6px; align-items: center; }
+.action-grid { display: inline-grid; grid-template-columns: 38px 65px 38px 38px auto 38px; gap: 6px; align-items: center; }
 .action-grid .btn { height: 28px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
 .action-grid .action-btn-download:hover { color: #38bdf8; }
+.action-grid .action-btn-duplicate:hover { color: #a78bfa; }
+
+/* Interactive Breadcrumb */
+.file-breadcrumb-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  background: #090d16;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  font-family: monospace;
+  font-size: 0.85rem;
+  min-height: 36px;
+}
+.file-breadcrumb-item {
+  color: #38bdf8;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+.file-breadcrumb-item:hover {
+  background: rgba(56, 189, 248, 0.15);
+  color: #7dd3fc;
+}
+.file-breadcrumb-item.active {
+  color: #f1f5f9;
+  font-weight: 600;
+  cursor: default;
+}
+.file-breadcrumb-item.active:hover {
+  background: transparent;
+}
+.file-breadcrumb-separator {
+  color: var(--text-muted);
+  opacity: 0.5;
+  user-select: none;
+}
+
+/* File Table Polish */
+.files-table-container {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+}
+.files-table-container table {
+  margin: 0;
+  border-collapse: collapse;
+}
+.files-table-container thead th {
+  position: sticky;
+  top: 0;
+  background: #1e293b;
+  z-index: 5;
+  box-shadow: 0 1px 0 var(--card-border);
+}
+.files-table-container tbody tr {
+  transition: background 0.15s ease;
+}
+.files-table-container tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* VS Code Dark+ theme for CodeMirror */
+.cm-s-vscode-dark.CodeMirror {
+  background: #1e1e1e !important;
+  color: #d4d4d4 !important;
+  font-family: 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, 'Courier New', monospace;
+  font-size: 13.5px;
+  line-height: 1.55;
+  height: 100% !important;
+}
+.cm-s-vscode-dark .CodeMirror-gutters {
+  background: #1e1e1e !important;
+  border-right: 1px solid #2d2d30 !important;
+  color: #858585 !important;
+  padding-right: 4px;
+}
+.cm-s-vscode-dark .CodeMirror-linenumber {
+  color: #858585 !important;
+}
+.cm-s-vscode-dark .CodeMirror-cursor {
+  border-left: 2px solid #569cd6 !important;
+}
+.cm-s-vscode-dark .CodeMirror-selected,
+.cm-s-vscode-dark.CodeMirror-focused .CodeMirror-selected {
+  background: #264f78 !important;
+}
+.cm-s-vscode-dark .CodeMirror-activeline-background {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+.cm-s-vscode-dark span.cm-keyword { color: #569cd6 !important; font-weight: 600; }
+.cm-s-vscode-dark span.cm-def { color: #dcdcaa !important; }
+.cm-s-vscode-dark span.cm-variable { color: #9cdcfe !important; }
+.cm-s-vscode-dark span.cm-variable-2 { color: #4ec9b0 !important; }
+.cm-s-vscode-dark span.cm-variable-3 { color: #9cdcfe !important; }
+.cm-s-vscode-dark span.cm-property { color: #9cdcfe !important; }
+.cm-s-vscode-dark span.cm-operator { color: #d4d4d4 !important; }
+.cm-s-vscode-dark span.cm-comment { color: #6a9955 !important; font-style: italic; }
+.cm-s-vscode-dark span.cm-string { color: #ce9178 !important; }
+.cm-s-vscode-dark span.cm-string-2 { color: #ce9178 !important; }
+.cm-s-vscode-dark span.cm-number { color: #b5cea8 !important; }
+.cm-s-vscode-dark span.cm-atom { color: #569cd6 !important; }
+.cm-s-vscode-dark span.cm-tag { color: #569cd6 !important; }
+.cm-s-vscode-dark span.cm-attribute { color: #9cdcfe !important; }
+.cm-s-vscode-dark span.cm-qualifier { color: #d7ba7d !important; }
 .alert-bar { background: rgba(239, 68, 68, 0.15); border-left: 4px solid var(--danger); padding: 12px 16px; margin-bottom: 16px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }
 #alertBannerArea { position: relative; margin-bottom: 14px; }
 .alert-summary-bar { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-left: 4px solid var(--danger); border-radius: 6px; padding: 8px 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -1543,18 +1653,59 @@ body.has-workspace-shelf .container {
 <!-- Code Editor Modal -->
 <div id="editorModal" class="modal">
   <div class="modal-content modal-workspace">
-    <div class="modal-header">
-      <h3 id="editorFilePath">Edit File</h3>
+    <div class="modal-header" id="editorModalHeader" ondblclick="toggleEditorMaximize(event)" style="cursor: pointer; user-select: none;">
+      <h3 id="editorFilePath" style="font-family: monospace; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60vw;">Edit File</h3>
       <div style="display: flex; gap: 8px; align-items: center;">
         <button class="btn btn-success btn-sm" onclick="saveEditorFile()">💾 Save</button>
         <button class="btn btn-sm btn-modal-minimize" onclick="minimizeEditor()" title="Minimize to Workspace Shelf" data-i18n-title="btn_minimize">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
+        <button id="btnEditorMax" class="btn btn-sm dock-action-btn" onclick="toggleEditorMaximize(event)" title="Maximize Workspace" data-i18n-title="maximize_workspace">⛶</button>
         <button class="btn btn-sm" onclick="closeEditorModalWithConfirm()">✕</button>
       </div>
     </div>
-    <div class="modal-body" style="padding: 0; display: flex; flex-direction: column;">
+    <div class="modal-body" style="padding: 0; display: flex; flex-direction: column; flex: 1; min-height: 0;">
       <textarea id="codeEditorArea"></textarea>
+    </div>
+  </div>
+</div>
+
+<!-- Duplicate File/Folder Modal -->
+<div id="duplicateModal" class="modal">
+  <div class="modal-content modal-dialog">
+    <div class="modal-header">
+      <h3 data-i18n="duplicate_modal_title">📋 Duplicate File / Folder</h3>
+      <button class="btn btn-sm" onclick="closeModal('duplicateModal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding: 16px 20px; display: flex; flex-direction: column; gap: 14px;">
+      <div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px;" data-i18n="duplicate_source_label">Source Item:</div>
+        <div id="duplicateSourcePath" style="font-family: monospace; font-size: 0.85rem; font-weight: 600; word-break: break-all; background: #0f172a; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--card-border);"></div>
+      </div>
+      <div style="display: flex; gap: 12px; font-size: 0.82rem;">
+        <div style="flex: 1; background: #0f172a; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--card-border);">
+          <span style="color: var(--text-muted);" data-i18n="duplicate_size_label">Size:</span>
+          <span id="duplicateItemSize" style="font-weight: 600; margin-left: 6px;">--</span>
+        </div>
+        <div style="flex: 1; background: #0f172a; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--card-border);">
+          <span style="color: var(--text-muted);" data-i18n="duplicate_avail_label">Available Disk:</span>
+          <span id="duplicateDiskAvail" style="font-weight: 600; margin-left: 6px;">--</span>
+        </div>
+      </div>
+      <div id="duplicateWarningBadge" style="display: none; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; padding: 8px 12px; border-radius: 6px; font-size: 0.82rem; align-items: center; gap: 8px;">
+        <span>⚠️</span> <span id="duplicateWarningText"></span>
+      </div>
+      <div id="duplicateErrorBadge" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; padding: 8px 12px; border-radius: 6px; font-size: 0.82rem; align-items: center; gap: 8px;">
+        <span>⛔</span> <span id="duplicateErrorText"></span>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label data-i18n="duplicate_name_label" style="font-size: 0.85rem; font-weight: 500;">New Target Name:</label>
+        <input type="text" id="duplicateNameInput" onkeydown="if(event.key==='Enter') executeDuplicate();" />
+      </div>
+    </div>
+    <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid var(--card-border); display: flex; justify-content: flex-end; gap: 8px;">
+      <button class="btn btn-sm" onclick="closeModal('duplicateModal')" data-i18n="cancel">Cancel</button>
+      <button id="btnConfirmDuplicate" class="btn btn-primary btn-sm" onclick="executeDuplicate()" data-i18n="duplicate_btn">📋 Duplicate</button>
     </div>
   </div>
 </div>
@@ -2177,7 +2328,19 @@ const I18N = {
     "active_session_badge": "Active Session",
     "shelf_limit_reached": "Maximum 5 sessions in Workspace Shelf. Close an existing session first.",
     "discard_unsaved_changes": "You have unsaved changes in this file. Are you sure you want to discard them?",
-    "close_session": "Close session"
+    "close_session": "Close session",
+    "duplicate": "Duplicate",
+    "duplicate_modal_title": "Duplicate File / Folder",
+    "duplicate_source_label": "Source Item:",
+    "duplicate_name_label": "New Target Name:",
+    "duplicate_size_label": "Size:",
+    "duplicate_avail_label": "Available Disk:",
+    "duplicate_btn": "Duplicate",
+    "duplicating": "Duplicating...",
+    "duplicate_success": "Item duplicated successfully",
+    "duplicate_conflict": "Target file or folder already exists",
+    "duplicate_large_warn": "Large item (≥ 500 MB). Duplication might take several seconds.",
+    "duplicate_disk_insufficient": "Insufficient disk space on host (required size + 100 MB buffer exceeds available disk)"
   },
   id: {
     "brand_subtitle": "Manajemen Server Agentless",
@@ -2663,7 +2826,19 @@ const I18N = {
     "active_session_badge": "Sesi Aktif",
     "shelf_limit_reached": "Maksimal 5 sesi di Workspace Shelf. Tutup salah satu sesi terlebih dahulu.",
     "discard_unsaved_changes": "Terdapat perubahan yang belum disimpan pada berkas ini. Yakin ingin membuang perubahan?",
-    "close_session": "Tutup sesi"
+    "close_session": "Tutup sesi",
+    "duplicate": "Duplikat",
+    "duplicate_modal_title": "Duplikat Berkas / Folder",
+    "duplicate_source_label": "Item Asal:",
+    "duplicate_name_label": "Nama Target Baru:",
+    "duplicate_size_label": "Ukuran:",
+    "duplicate_avail_label": "Ruang Disk Tersedia:",
+    "duplicate_btn": "Duplikat",
+    "duplicating": "Menduplikasi...",
+    "duplicate_success": "Berkas/folder berhasil diduplikasi",
+    "duplicate_conflict": "Berkas atau folder dengan nama tersebut sudah ada",
+    "duplicate_large_warn": "Item berukuran besar (≥ 500 MB). Proses duplikasi mungkin memakan waktu beberapa detik.",
+    "duplicate_disk_insufficient": "Kapasitas ruang disk tidak mencukupi (ukuran item + buffer 100 MB melebihi sisa disk)"
   }
 };
 
@@ -4874,6 +5049,47 @@ async function loadFiles(path) {
   renderFilesView();
 }
 
+function renderBreadcrumbs(currentPath) {
+  if (!currentPath || currentPath === '/') {
+    return `<span class="file-breadcrumb-item active">📁 /</span>`;
+  }
+  const parts = currentPath.split('/').filter(Boolean);
+  let html = `<span class="file-breadcrumb-item" onclick="loadFiles('/')" title="Root">📁 /</span>`;
+  let accum = '';
+  for (let i = 0; i < parts.length; i++) {
+    accum += '/' + parts[i];
+    const isLast = (i === parts.length - 1);
+    html += `<span class="file-breadcrumb-separator">/</span>`;
+    if (isLast) {
+      html += `<span class="file-breadcrumb-item active">${escapeHtml(parts[i])}</span>`;
+    } else {
+      const clickPath = accum;
+      html += `<span class="file-breadcrumb-item" onclick="loadFiles('${escapeHtml(clickPath)}')">${escapeHtml(parts[i])}</span>`;
+    }
+  }
+  return html;
+}
+
+function getFileIcon(fileName) {
+  const ext = fileName.split('.').pop().toLowerCase();
+  switch (ext) {
+    case 'sh': case 'bash': case 'zsh':
+      return '🐚';
+    case 'json': case 'yml': case 'yaml': case 'conf': case 'ini': case 'env': case 'toml': case 'cfg':
+      return '⚙️';
+    case 'log': case 'txt': case 'md': case 'rtf':
+      return '📝';
+    case 'zip': case 'tar': case 'gz': case 'tgz': case 'bz2': case 'xz': case '7z': case 'enc':
+      return '🗜️';
+    case 'jpg': case 'jpeg': case 'png': case 'gif': case 'svg': case 'ico': case 'webp':
+      return '🖼️';
+    case 'js': case 'ts': case 'jsx': case 'tsx': case 'php': case 'py': case 'go': case 'rs': case 'c': case 'cpp': case 'h': case 'html': case 'css':
+      return '💻';
+    default:
+      return '📄';
+  }
+}
+
 function renderFilesView() {
   const content = document.getElementById('tabContent');
   if (!content || !currentFilesData) return;
@@ -4882,16 +5098,19 @@ function renderFilesView() {
   const parent = data.path === '/' ? '/' : data.path.substring(0, data.path.lastIndexOf('/')) || '/';
 
   content.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-      <div style="font-weight: 600; font-family: monospace; display: flex; align-items: center; gap: 8px;">
-        <span>${t('path_label')} ${escapeHtml(data.path)}</span>
-        ${isProtectedDir ? `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.75rem; padding: 2px 6px; border-radius: 4px;">🔒 ${t('protected_path')}</span>` : ''}
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 260px;">
+        <div class="file-breadcrumb-bar" style="flex: 1;">
+          ${renderBreadcrumbs(data.path)}
+        </div>
+        ${isProtectedDir ? `<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; white-space: nowrap;">🔒 ${t('protected_path')}</span>` : ''}
       </div>
-      <div style="display: flex; gap: 8px;">
+      <div style="display: flex; gap: 8px; align-items: center;">
         <button class="btn btn-sm" onclick="openTerminalForPath('${escapeHtml(data.path)}')" title="${t('open_terminal_here', 'Open Terminal Here')}" style="display: inline-flex; align-items: center; gap: 4px;">
           <span>💻</span> <span>${t('open_terminal_here', 'Open Terminal Here')}</span>
         </button>
         <button class="btn btn-sm" onclick="loadFiles('${parent}')">${t('up_dir')}</button>
+        <button class="btn btn-sm" onclick="loadFiles('${escapeHtml(data.path)}')" title="${t('refresh')}">🔄</button>
         <input type="file" id="fileUploadInput" style="display: none;" onchange="uploadFile('${data.path}')" />
         <button class="btn btn-primary btn-sm" ${isProtectedDir ? 'disabled title="' + t('cannot_upload_protected') + '"' : ''} onclick="document.getElementById('fileUploadInput').click()">${t('upload_file')}</button>
       </div>
@@ -4911,18 +5130,20 @@ function renderFilesView() {
         <span id="fileCountLabel" style="font-size: 0.78rem; color: var(--text-muted); white-space: nowrap;"></span>
       </div>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th><span class="sortable-th" onclick="toggleFileSort('name')">${t('file_name')} <span id="sortArrow_name" class="sort-arrow"></span></span></th>
-          <th><span class="sortable-th" onclick="toggleFileSort('size')">${t('file_size')} <span id="sortArrow_size" class="sort-arrow"></span></span></th>
-          <th>${t('file_perms')}</th>
-          <th><span class="sortable-th" onclick="toggleFileSort('mod_time')">${t('file_modified')} <span id="sortArrow_mod_time" class="sort-arrow"></span></span></th>
-          <th>${t('file_actions')}</th>
-        </tr>
-      </thead>
-      <tbody id="filesTableBody"></tbody>
-    </table>
+    <div class="files-table-container">
+      <table>
+        <thead>
+          <tr>
+            <th><span class="sortable-th" onclick="toggleFileSort('name')">${t('file_name')} <span id="sortArrow_name" class="sort-arrow"></span></span></th>
+            <th><span class="sortable-th" onclick="toggleFileSort('size')">${t('file_size')} <span id="sortArrow_size" class="sort-arrow"></span></span></th>
+            <th>${t('file_perms')}</th>
+            <th><span class="sortable-th" onclick="toggleFileSort('mod_time')">${t('file_modified')} <span id="sortArrow_mod_time" class="sort-arrow"></span></span></th>
+            <th>${t('file_actions')}</th>
+          </tr>
+        </thead>
+        <tbody id="filesTableBody"></tbody>
+      </table>
+    </div>
   `;
 
   renderFilesTableBody();
@@ -5002,12 +5223,13 @@ function renderFilesTableBody() {
     const fullPath = currentFilesData.path === '/' ? '/' + f.name : currentFilesData.path + '/' + f.name;
     const isItemProtected = !!(f.is_protected || isProtectedDir);
     const targetTermPath = f.is_dir ? fullPath : currentFilesData.path;
+    const icon = f.is_dir ? '📁' : getFileIcon(f.name);
     return `
       <tr>
         <td>
           ${f.is_dir 
             ? '<a class="folder-link" href="javascript:void(0)" onclick="loadFiles(\'' + fullPath + '\')"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>' + escapeHtml(f.name) + '</b></a>' 
-            : '📄 ' + escapeHtml(f.name)}
+            : '<span style="font-size: 1.05em; margin-right: 4px;">' + icon + '</span> ' + escapeHtml(f.name)}
           ${isItemProtected ? '<span title="' + t('protected_path') + '" style="margin-left: 6px; font-size: 0.85em;">🔒</span>' : ''}
         </td>
         <td>${f.is_dir ? '-' : formatBytes(f.size)}</td>
@@ -5019,6 +5241,7 @@ function renderFilesTableBody() {
             ${!f.is_dir 
               ? `<button class="btn btn-primary btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openEditor('${escapeHtml(fullPath)}')">${t('edit')}</button>` 
               : '<span style="display:inline-block;"></span>'}
+            <button class="btn btn-sm action-btn-duplicate" title="${t('duplicate')}" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openDuplicateModal('${escapeHtml(fullPath)}', ${f.is_dir}, '${escapeHtml(f.name)}')">📋</button>
             ${f.is_dir 
               ? `<button class="btn btn-sm action-btn-download" title="${t('download_folder', 'Download Folder Archive')}" onclick="downloadFolder('${escapeHtml(fullPath)}')">⬇️</button>` 
               : `<a class="btn btn-sm action-btn-download" title="${t('download_file', 'Download File')}" href="/api/hosts/${currentHost.id}/files/download?path=${encodeURIComponent(fullPath)}" download>⬇️</a>`}
@@ -5130,6 +5353,192 @@ async function deleteRemoteFile(path, parentDir) {
   loadFiles(parentDir);
 }
 
+let currentDuplicatePath = null;
+let currentDuplicateIsDir = false;
+
+function generateDuplicateName(origName, isDir) {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const ts = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  if (isDir) {
+    return `${origName}_${ts}`;
+  }
+  const lastDot = origName.lastIndexOf('.');
+  if (lastDot > 0) {
+    const base = origName.substring(0, lastDot);
+    const ext = origName.substring(lastDot);
+    return `${base}_${ts}${ext}`;
+  }
+  return `${origName}_${ts}`;
+}
+
+async function openDuplicateModal(fullPath, isDir, origName) {
+  currentDuplicatePath = fullPath;
+  currentDuplicateIsDir = isDir;
+  document.getElementById('duplicateSourcePath').textContent = fullPath;
+  const defName = generateDuplicateName(origName, isDir);
+  const nameInp = document.getElementById('duplicateNameInput');
+  if (nameInp) nameInp.value = defName;
+  
+  const sizeEl = document.getElementById('duplicateItemSize');
+  const availEl = document.getElementById('duplicateDiskAvail');
+  const warnBadge = document.getElementById('duplicateWarningBadge');
+  const errBadge = document.getElementById('duplicateErrorBadge');
+  const confirmBtn = document.getElementById('btnConfirmDuplicate');
+  
+  if (sizeEl) sizeEl.textContent = '...';
+  if (availEl) availEl.textContent = '...';
+  if (warnBadge) warnBadge.style.display = 'none';
+  if (errBadge) errBadge.style.display = 'none';
+  if (confirmBtn) {
+    confirmBtn.disabled = false;
+    confirmBtn.innerText = t('duplicate_btn');
+  }
+
+  openModal('duplicateModal');
+  setTimeout(() => { if (nameInp) nameInp.focus(); }, 100);
+
+  try {
+    const res = await fetch('/api/hosts/' + currentHost.id + '/files/size?path=' + encodeURIComponent(fullPath));
+    if (res.ok) {
+      const data = await res.json();
+      const itemSize = data.size || 0;
+      const availDisk = data.available || 0;
+      if (sizeEl) sizeEl.textContent = formatBytes(itemSize);
+      if (availEl) availEl.textContent = availDisk > 0 ? formatBytes(availDisk) : '-';
+
+      const safetyBuffer = 100 * 1024 * 1024; // 100 MB
+      if (availDisk > 0 && (itemSize + safetyBuffer) > availDisk) {
+        if (errBadge) {
+          document.getElementById('duplicateErrorText').textContent = t('duplicate_disk_insufficient');
+          errBadge.style.display = 'flex';
+        }
+        if (confirmBtn) confirmBtn.disabled = true;
+      } else if (itemSize >= 500 * 1024 * 1024) {
+        if (warnBadge) {
+          document.getElementById('duplicateWarningText').textContent = t('duplicate_large_warn');
+          warnBadge.style.display = 'flex';
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load item size/disk info:', e);
+  }
+}
+
+async function executeDuplicate() {
+  const confirmBtn = document.getElementById('btnConfirmDuplicate');
+  const nameInp = document.getElementById('duplicateNameInput');
+  const newName = nameInp ? nameInp.value.trim() : '';
+  if (!newName) {
+    showToast(t('all_fields_required'), 'error');
+    return;
+  }
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.innerText = '⏳ ' + t('duplicating');
+  }
+  try {
+    const res = await fetch('/api/hosts/' + currentHost.id + '/files/duplicate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: currentDuplicatePath, new_name: newName })
+    });
+    if (res.status === 409) {
+      showToast(t('duplicate_conflict'), 'error');
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.innerText = t('duplicate_btn');
+      }
+      return;
+    }
+    if (res.status === 403) {
+      showToast(t('cannot_modify_protected'), 'error');
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.innerText = t('duplicate_btn');
+      }
+      return;
+    }
+    if (res.status === 507 || res.status === 400) {
+      const errTxt = await res.text();
+      showToast(errTxt || t('duplicate_disk_insufficient'), 'error');
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.innerText = t('duplicate_btn');
+      }
+      return;
+    }
+    if (!res.ok) {
+      const errTxt = await res.text();
+      showToast(t('failed_prefix') + (errTxt || 'Duplication failed'), 'error');
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.innerText = t('duplicate_btn');
+      }
+      return;
+    }
+    showToast(t('duplicate_success'), 'success');
+    closeModal('duplicateModal');
+    if (currentFilesData && currentFilesData.path) {
+      loadFiles(currentFilesData.path);
+    }
+  } catch (e) {
+    showToast(t('failed_prefix') + e.message, 'error');
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.innerText = t('duplicate_btn');
+    }
+  }
+}
+
+let isEditorMaximized = false;
+function toggleEditorMaximize(event) {
+  if (event) event.stopPropagation();
+  isEditorMaximized = !isEditorMaximized;
+  applyEditorMaximizeState();
+}
+
+function applyEditorMaximizeState() {
+  const modal = document.getElementById('editorModal');
+  const content = modal ? modal.querySelector('.modal-content') : null;
+  const btn = document.getElementById('btnEditorMax');
+  if (!modal || !content) return;
+  if (isEditorMaximized) {
+    modal.classList.add('workspace-maximized-wrapper');
+    content.classList.add('workspace-maximized');
+    if (btn) {
+      btn.innerText = '🗗';
+      btn.title = t('restore_workspace', 'Restore Workspace');
+    }
+  } else {
+    modal.classList.remove('workspace-maximized-wrapper');
+    content.classList.remove('workspace-maximized');
+    if (btn) {
+      btn.innerText = '⛶';
+      btn.title = t('maximize_workspace', 'Maximize Workspace');
+    }
+  }
+  if (codeEditor) {
+    setTimeout(() => codeEditor.refresh(), 50);
+  }
+}
+
+function getEditorModeForPath(filePath) {
+  const ext = (filePath || '').split('.').pop().toLowerCase();
+  const map = {
+    'js': 'javascript', 'ts': 'javascript', 'json': 'javascript',
+    'sh': 'shell', 'bash': 'shell', 'zsh': 'shell', 'env': 'shell',
+    'php': 'php',
+    'yml': 'yaml', 'yaml': 'yaml',
+    'css': 'css', 'scss': 'css',
+    'html': 'htmlmixed', 'htm': 'htmlmixed',
+    'xml': 'xml', 'svg': 'xml',
+    'c': 'clike', 'cpp': 'clike', 'h': 'clike', 'java': 'clike'
+  };
+  return map[ext] || 'shell';
+}
+
 async function openEditor(path) {
   const sessId = 'editor-' + currentHost.id + '-' + path;
   const existingSession = workspaceSessions.find(s => s.id === sessId);
@@ -5150,12 +5559,16 @@ async function openEditor(path) {
   document.getElementById('editorFilePath').innerText = path;
   openModal('editorModal');
 
+  const mode = getEditorModeForPath(path);
   if (!codeEditor) {
     codeEditor = CodeMirror.fromTextArea(document.getElementById('codeEditorArea'), {
       lineNumbers: true,
-      theme: 'nord',
-      mode: 'php'
+      theme: 'vscode-dark',
+      mode: mode
     });
+  } else {
+    codeEditor.setOption('theme', 'vscode-dark');
+    codeEditor.setOption('mode', mode);
   }
   codeEditor.setValue(data.content);
   setTimeout(() => codeEditor.refresh(), 100);
@@ -5347,12 +5760,16 @@ async function restoreWorkspaceSession(sessionId) {
     };
     document.getElementById('editorFilePath').innerText = session.path;
     openModal('editorModal');
+    const mode = getEditorModeForPath(session.path);
     if (!codeEditor) {
       codeEditor = CodeMirror.fromTextArea(document.getElementById('codeEditorArea'), {
         lineNumbers: true,
-        theme: 'nord',
-        mode: 'php'
+        theme: 'vscode-dark',
+        mode: mode
       });
+    } else {
+      codeEditor.setOption('theme', 'vscode-dark');
+      codeEditor.setOption('mode', mode);
     }
     codeEditor.setValue(session.content);
     setTimeout(() => codeEditor.refresh(), 100);
@@ -7622,6 +8039,10 @@ function closeModal(id) {
     }
   }
   if (id === 'editorModal') {
+    if (isEditorMaximized) {
+      isEditorMaximized = false;
+      applyEditorMaximizeState();
+    }
     if (currentEditorState && currentEditorState.path) {
       const sessId = 'editor-' + currentEditorState.hostId + '-' + currentEditorState.path;
       workspaceSessions = workspaceSessions.filter(s => s.id !== sessId);

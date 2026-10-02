@@ -207,6 +207,32 @@ Untuk mengunduh satu struktur folder dari server target ke komputer kerja Anda:
 - Pilih folder pada manajer berkas SFTP, lalu klik **Download as Archive**.
 - Pantau akan memampatkan folder secara instan (*on-the-fly* menggunakan `zip` jika terpasang di target, atau `tar.gz`) dan mengalirkannya langsung ke antarmuka unduhan browser Anda tanpa menyisakan sampah arsip di server Pantau.
 
+### Duplikasi Berkas & Folder Aman (Disk Space Safety Check)
+
+Pantau menyediakan fitur penggandaan (*cloning*) lokal untuk berkas atau folder langsung di server remote tanpa proses unduh dan unggah ulang:
+
+1. Klik tombol aksi **📋 Duplikat** pada baris file atau folder yang ingin digandakan.
+2. Modal akan menampilkan rekomendasi nama ber-timestamp otomatis:
+   - Untuk berkas berektensi: `<nama_file>_<YYYYMMDDHHmmss>.<ekstensi>` (misal: `nginx_20261002043000.conf`), menjaga asosiasi tipe berkas dan *syntax highlighting* tetap aktif.
+   - Untuk direktori atau berkas tanpa ekstensi: `<nama_folder>_<YYYYMMDDHHmmss>`.
+3. **Disk Space Safety Check**: Pantau secara otomatis memeriksa ketersediaan ruang penyimpanan riil pada partisi target via `df -PB1`. Jika sisa ruang disk kurang dari ukuran item ditambah batas aman (*safety buffer*) 100 MB, proses duplikasi dicegah dengan pesan peringatan merah untuk melindungi server dari risiko kepenuhan disk (*disk exhaustion*).
+4. **Pencegahan Tabrakan Nama (Collision Prevention)**: Jika berkas atau folder dengan nama target sudah ada, sistem menolak eksekusi secara ketat untuk mencegah penimpaan data secara tidak sengaja.
+5. **Eksekusi Native Remote**: Duplikasi dijalankan langsung di host remote via `cp -a`, menjaga hak izin (*permissions*), kepemilikan, dan timestamp asli. Item berukuran $\ge$ 500 MB menampilkan lencana peringatan bahwa proses mungkin membutuhkan waktu beberapa detik.
+
+### Navigasi Breadcrumb Interaktif & Estetika Antarmuka
+
+SFTP File Manager dilengkapi navigasi dan ergonomi visual yang telah disempurnakan:
+- **Interactive Breadcrumb Bar**: Klik segmen folder mana saja pada bilah jalur direktori (contoh: `📁 /` &rarr; `var` &rarr; `www` &rarr; `html`) untuk melompat langsung ke direktori induk tanpa perlu menekan tombol navigasi atas berulang kali.
+- **Ikon Berkas Kontekstual**: Baris berkas menampilkan ikon spesifik berdasarkan ekstensi (🐚 script shell, ⚙️ konfigurasi/json/yaml, 📝 dokumen log/teks, 🗜️ arsip, 🖼️ media gambar, 💻 kode pemrograman).
+- **Sticky Table Header**: Header kolom dan tombol sorting tetap terpancang di posisi atas (*sticky*) saat menggulir daftar direktori yang panjang.
+
+### Editor Modal Maximize & Tema VS Code Dark+
+
+Saat menyunting skrip, konfigurasi, atau berkas `.env` pada editor CodeMirror terintegrasi:
+- **Workspace Modal Maximize**: Klik tombol maximize `⛶` atau klik dua kali (*double-click*) pada header modal untuk memperbesar area editor hingga memenuhi seluruh area layar peramban (100vw &times; 100vh) untuk kenyamanan penelaahan kode yang luas.
+- **Palet Tema VS Code Dark+**: Dilengkapi tema gelap modern tersemat (latar belakang `#1e1e1e`, pewarnaan sintaks kontras tinggi untuk *keywords*, *functions*, *variables*, dan *strings*) dengan tipografi monospace modern (`JetBrains Mono`, `Fira Code`, `Consolas`).
+- **Deteksi Sintaks Dinamis**: Menyesuaikan mode *syntax highlighting* secara otomatis untuk berkas PHP, JavaScript, Shell, YAML, CSS, HTML, XML, dan C-like berdasarkan ekstensi berkas.
+
 ---
 
 ## 6. Fase 5: Pengerasan Keamanan, Snapshot & Pemulihan Bencana

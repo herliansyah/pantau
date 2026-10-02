@@ -293,4 +293,21 @@ _Avoid_: Terminal copy paste, shell clipboard, browser paste hack
 Penyaringan reaktif instan pada daftar pilihan Host di menu dropdown pembuatan Terminal Tab baru berdasarkan kata kunci Host Name atau Host Address (IP/FQDN).
 _Avoid_: Terminal host search, host picker filter, terminal autocomplete
 
+**File Duplication**:
+Proses penggandaan berkas atau direktori secara lokal pada Host yang sama melalui antarmuka SFTP File Manager dengan penamaan default berbasis timestamp, validasi kecukupan ruang penyimpanan (*Disk Space Safety Check*), dialog konfirmasi penamaan, dan penolakan tabrakan nama untuk mencegah kehilangan data.
+_Avoid_: Remote clone, file copy local, dup item
+
+**Disk Space Safety Check**:
+Pemeriksaan kapasitas penyimpanan riil pada partisi target Host sebelum eksekusi duplikasi untuk memastikan ketersediaan ruang disk mencukupi ukuran berkas atau direktori ditambah batas aman (*safety buffer* 100 MB).
+_Avoid_: Disk quota check, storage probe, free space validator
+
+**Interactive Breadcrumb**:
+Komponen navigasi jalur direktori pada SFTP File Manager yang memecah path aktif menjadi segmen-segmen hierarki yang dapat diklik langsung untuk berpindah ke direktori induk tanpa perlu menekan tombol navigasi atas berulang kali.
+_Avoid_: Path clicker, folder tree strip, breadcrumb trail
+
+**Editor Modal Maximize**:
+Mode pembesaran kontainer Editor Modal hingga memenuhi seluruh area pandang peramban (*CSS full-viewport* 100vw × 100vh) dengan penyelarasan ulang ukuran editor teks (CodeMirror refresh) untuk kenyamanan penelaahan dan penyuntingan kode secara luas.
+_Avoid_: Editor fullscreen, native editor expand, full window editor
+
+
 

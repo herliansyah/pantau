@@ -663,9 +663,9 @@ func TestIndexGzipAndETagRevalidation(t *testing.T) {
 	if wGz.Header().Get("ETag") != etag {
 		t.Errorf("expected matching ETag %s, got %s", etag, wGz.Header().Get("ETag"))
 	}
-	// Verify compression ratio: ~56KB vs ~261KB
-	if wGz.Body.Len() > 80000 {
-		t.Errorf("expected gzipped body < 80KB, got %d bytes", wGz.Body.Len())
+	// Verify compression ratio: ~83KB vs ~390KB
+	if wGz.Body.Len() > 95000 {
+		t.Errorf("expected gzipped body < 95KB, got %d bytes", wGz.Body.Len())
 	}
 
 	// Decompress and compare with raw
@@ -1527,6 +1527,67 @@ if wNonExistent.Code != http.StatusBadRequest {
 	t.Errorf("expected 400 Bad Request on non-websocket request to /ws/terminal, got %d", wNonExistent.Code)
 }
 }
+
+func TestFileDuplicationRoutingAndValidation(t *testing.T) {
+	tmpDB := filepath.Join(t.TempDir(), "test.db")
+	db, err := store.Open(tmpDB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	srv := NewServer(db, nil, nil)
+	token := "valid_test_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{
+			Name:  "pantau_session",
+			Value: token,
+		})
+	}
+
+	// 1. Unauthenticated request to /api/hosts/1/files/duplicate should return 401
+	reqUnauth := httptest.NewRequest(http.MethodPost, "/api/hosts/1/files/duplicate", strings.NewReader(`{"path":"/var/www/test.txt","new_name":"test_20261001.txt"}`))
+	reqUnauth.Header.Set("Content-Type", "application/json")
+	wUnauth := httptest.NewRecorder()
+	srv.ServeHTTP(wUnauth, reqUnauth)
+	if wUnauth.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized, got %d", wUnauth.Code)
+	}
+
+	// 2. Non-existent host returns 404
+	reqNonExistent := httptest.NewRequest(http.MethodPost, "/api/hosts/9999/files/duplicate", strings.NewReader(`{"path":"/var/www/test.txt","new_name":"test_20261001.txt"}`))
+	reqNonExistent.Header.Set("Content-Type", "application/json")
+	authReq(reqNonExistent)
+	wNonExistent := httptest.NewRecorder()
+	srv.ServeHTTP(wNonExistent, reqNonExistent)
+	if wNonExistent.Code != http.StatusNotFound {
+		t.Errorf("expected 404 Not Found for non-existent host, got %d", wNonExistent.Code)
+	}
+
+	// 3. GET on /api/hosts/{id}/files/duplicate (wrong method)
+	hID, err := db.CreateHost(&store.Host{
+		Name: "Test Host",
+		Host: "127.0.0.1",
+		User: "root",
+		Port: 22,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Since mock SSH runner is nil in srv, ConnectSSH will fail when attempting connection
+	// But method not allowed (GET) should fail with method check or connection error
+	reqGet := httptest.NewRequest(http.MethodGet, "/api/hosts/"+strconv.FormatInt(hID, 10)+"/files/duplicate", nil)
+	authReq(reqGet)
+	wGet := httptest.NewRecorder()
+	srv.ServeHTTP(wGet, reqGet)
+	if wGet.Code != http.StatusMethodNotAllowed && wGet.Code != http.StatusInternalServerError {
+		t.Errorf("expected 405 or 500 for GET on duplicate endpoint, got %d", wGet.Code)
+	}
+}
+
 
 
 
