@@ -23,6 +23,9 @@
   <img src="https://img.shields.io/badge/Database-Embedded%20SQLite%20(WAL)-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" />
   <img src="https://img.shields.io/badge/i18n-English%20%7C%20Indonesia-10b981?style=for-the-badge" alt="Dual Language" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License MIT" />
+  <a href="https://saweria.co/herliansyah26" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Sponsor-Saweria-faae2b?style=for-the-badge&logo=kofi&logoColor=black" alt="Sponsor Saweria" />
+  </a>
 </p>
 
 <p align="center">
@@ -281,6 +284,20 @@ systemctl enable --now pantau
 1. **Penafian Jaminan (*"AS IS"*)**: Pantau adalah perangkat lunak *open-source* yang didistribusikan di bawah lisensi MIT secara "SEBAGAIMANA ADANYA" (*AS IS*), tanpa jaminan apa pun, baik tersurat maupun tersirat, termasuk namun tidak terbatas pada jaminan kelayakan jual, kesesuaian untuk tujuan tertentu, ketiadaan pelanggaran hak, atau keandalan integrasi sistem.
 2. **Batasan Tanggung Jawab Pengembang**: Pengembang, pembuat, dan kontributor **lepas tangan dan tidak memikul tanggung jawab hukum atau finansial apa pun** atas segala bentuk kerusakan sistem, kegagalan operasi, kehilangan data, waktu henti server (*downtime*), pelanggaran keamanan, akses tidak sah, kerusakan konfigurasi, kepanikan kernel (*kernel panic*), atau kerugian finansial yang timbul secara langsung maupun tidak langsung dari instalasi, eksekusi, atau kesalahan pengoperasian perangkat lunak ini.
 3. **Tanggung Jawab Penuh Pengguna**: Anda selaku operator/administrator sistem memikul tanggung jawab tunggal dan penuh atas segala tindakan atau instruksi yang dijalankan melalui Pantau—termasuk namun tidak terbatas pada eksekusi perintah shell remote, modifikasi atau penghapusan file via SFTP, pengaliran transfer antar-host, perubahan jadwal cron, manipulasi status container Docker, dan *Key Provisioning* SSH.
+
+---
+
+## 💖 Dukungan & Sponsorship
+
+Pantau adalah proyek 100% gratis dan *open-source* di bawah lisensi MIT. Jika Pantau mempermudah administrasi server Anda, menghemat waktu diagnosis deviasi, atau membantu menjaga kesehatan infrastruktur, Anda dapat mendukung kelanjutan riset dan pemeliharaan proyek ini:
+
+<p align="left">
+  <a href="https://saweria.co/herliansyah26" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Dukung%20via-Saweria-faae2b?style=for-the-badge&logo=kofi&logoColor=black" alt="Dukung via Saweria" />
+  </a>
+</p>
+
+Dukungan finansial sukarela Anda membantu biaya sewa server pengujian laboratorium dan memastikan ekosistem Pantau terus berkembang secara independen!
 
 ---
 

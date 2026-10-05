@@ -31,6 +31,7 @@ footer { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; z-index: 4
 .footer-badge:hover { color: #38bdf8; border-color: rgba(56, 189, 248, 0.4); background: rgba(56, 189, 248, 0.12); }
 .footer-pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 9999px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); color: #f1f5f9; text-decoration: none; font-size: 0.72rem; transition: all 0.15s ease; }
 .footer-pill:hover { background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.4); color: #38bdf8; text-decoration: none; }
+.footer-pill-sponsor:hover { background: rgba(250, 174, 43, 0.15); border-color: rgba(250, 174, 43, 0.5); color: #faae2b; text-decoration: none; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 .status-dot.online { background: #34d399; box-shadow: 0 0 6px rgba(52, 211, 153, 0.6); animation: pulseDot 2.4s infinite ease-in-out; }
 .status-dot.offline { background: #f87171; box-shadow: 0 0 6px rgba(248, 113, 113, 0.6); }
@@ -971,6 +972,10 @@ body.has-workspace-shelf .container {
       <span data-i18n="footer_license">MIT License</span>
       <span style="color: var(--card-border);">•</span>
       <span data-i18n="footer_created_by">Created by Herliansyah</span>
+      <a href="https://saweria.co/herliansyah26" target="_blank" rel="noopener noreferrer" class="footer-pill footer-pill-sponsor" title="Support via Saweria" data-i18n-title="footer_sponsor_title">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+        <span data-i18n="footer_sponsor">Sponsor</span>
+      </a>
       <a href="https://github.com/herliansyah/pantau" target="_blank" rel="noopener noreferrer" class="footer-pill" title="GitHub Repository">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
         <span>GitHub</span>
@@ -1582,6 +1587,23 @@ body.has-workspace-shelf .container {
             <button id="btnRestartNow" class="btn btn-success btn-sm" onclick="restartPantau()" data-i18n="restart_now">⚡ Restart Pantau Now</button>
           </div>
         </div>
+
+        <!-- Support & Sponsorship Card -->
+        <div class="card" style="padding: 16px; border-left: 4px solid #faae2b; background: rgba(250, 174, 43, 0.04);">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <div>
+              <h4 style="margin: 0 0 4px 0; color: #faae2b; display: flex; align-items: center; gap: 8px;">
+                <span>☕</span>
+                <span data-i18n="settings_sponsor_title">Support Pantau Development</span>
+              </h4>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0; max-width: 520px;" data-i18n="settings_sponsor_desc">Pantau is 100% free and open-source under the MIT license. If Pantau helps keep your infrastructure healthy and drift-free, consider supporting its continuous development.</p>
+            </div>
+            <a href="https://saweria.co/herliansyah26" target="_blank" rel="noopener noreferrer" class="btn btn-sm" style="background: rgba(250, 174, 43, 0.15); border: 1px solid rgba(250, 174, 43, 0.4); color: #faae2b; font-weight: 600; text-decoration: none; padding: 6px 14px; display: inline-flex; align-items: center; gap: 6px;">
+              <span data-i18n="btn_sponsor">Sponsor via Saweria</span>
+              <span>↗</span>
+            </a>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1897,6 +1919,11 @@ const I18N = {
     "logout_confirm": "Are you sure you want to log out?",
     "footer_license": "MIT License",
     "footer_created_by": "Created by Herliansyah",
+    "footer_sponsor": "Sponsor",
+    "footer_sponsor_title": "Support Pantau via Saweria",
+    "settings_sponsor_title": "Support Pantau Development",
+    "settings_sponsor_desc": "Pantau is 100% free and open-source under the MIT license. If Pantau helps keep your infrastructure healthy and drift-free, consider supporting its continuous development.",
+    "btn_sponsor": "Sponsor via Saweria",
     "footer_engine_active": "Engine Active",
     "footer_engine_disconnected": "Disconnected",
     "footer_hosts": "Hosts",
@@ -2395,6 +2422,11 @@ const I18N = {
     "logout_confirm": "Apakah Anda yakin ingin keluar?",
     "footer_license": "Lisensi MIT",
     "footer_created_by": "Dibuat oleh Herliansyah",
+    "footer_sponsor": "Sponsor",
+    "footer_sponsor_title": "Dukung Pantau via Saweria",
+    "settings_sponsor_title": "Dukung Pengembangan Pantau",
+    "settings_sponsor_desc": "Pantau adalah 100% perangkat lunak bebas dan open-source berlisensi MIT. Jika Pantau membantu menjaga kesehatan dan keandalan infrastruktur Anda, pertimbangkan untuk mendukung kelanjutan pengembangannya.",
+    "btn_sponsor": "Sponsor via Saweria",
     "footer_engine_active": "Engine Aktif",
     "footer_engine_disconnected": "Terputus",
     "footer_hosts": "Host",

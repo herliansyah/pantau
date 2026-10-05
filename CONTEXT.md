@@ -309,5 +309,6 @@ _Avoid_: Path clicker, folder tree strip, breadcrumb trail
 Mode pembesaran kontainer Editor Modal hingga memenuhi seluruh area pandang peramban (*CSS full-viewport* 100vw × 100vh) dengan penyelarasan ulang ukuran editor teks (CodeMirror refresh) untuk kenyamanan penelaahan dan penyuntingan kode secara luas.
 _Avoid_: Editor fullscreen, native editor expand, full window editor
 
-
-
+**Project Sponsorship**:
+Kanal kontribusi finansial sukarela komunitas (melalui platform Saweria) untuk mendukung keberlanjutan pemeliharaan infrastruktur dan siklus pengembangan ekosistem Pantau.
+_Avoid_: Donation, charity, tips, traktir
