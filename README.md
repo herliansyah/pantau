@@ -23,6 +23,9 @@
   <img src="https://img.shields.io/badge/Database-Embedded%20SQLite%20(WAL)-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" />
   <img src="https://img.shields.io/badge/i18n-English%20%7C%20Indonesia-10b981?style=for-the-badge" alt="Dual Language" />
   <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License MIT" />
+  <a href="https://saweria.co/herliansyah26" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Sponsor-Saweria-faae2b?style=for-the-badge&logo=kofi&logoColor=black" alt="Sponsor Saweria" />
+  </a>
 </p>
 
 <p align="center">
@@ -281,6 +284,20 @@ systemctl enable --now pantau
 1. **"AS IS" Warranty Disclaimer**: Pantau is open-source software provided under the MIT License on an "AS IS" and "AS AVAILABLE" basis, without warranties of any kind, whether express, implied, statutory, or otherwise, including but not limited to warranties of merchantability, fitness for a particular purpose, non-infringement, or system integration.
 2. **Assumption of Risk & Limitation of Liability**: The author, maintainers, and contributors accept **no liability or responsibility** for any damages, operational failures, data loss, server downtime, security breaches, unauthorized access, kernel panics, configuration corruption, or financial losses arising directly or indirectly from the installation, execution, or misuse of this software.
 3. **User Responsibility**: You as the system operator retain full and exclusive responsibility for all actions performed through Pantau, including but not limited to remote shell commands, file modifications or deletions via SFTP, cross-host file streaming, cron modifications, container state transitions, and SSH key provisioning.
+
+---
+
+## 💖 Support & Sponsorship
+
+Pantau is a 100% free and open-source project licensed under MIT. If Pantau saves you time, simplifies your server administration, or helps safeguard your infrastructure, consider supporting its maintenance and continuous development:
+
+<p align="left">
+  <a href="https://saweria.co/herliansyah26" target="_blank" rel="noopener noreferrer">
+    <img src="https://img.shields.io/badge/Support%20via-Saweria-faae2b?style=for-the-badge&logo=kofi&logoColor=black" alt="Support via Saweria" />
+  </a>
+</p>
+
+Your sponsorship helps cover test servers, infrastructure lab environments, and keeps the project thriving!
 
 ---
 

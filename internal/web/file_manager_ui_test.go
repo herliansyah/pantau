@@ -162,3 +162,34 @@ func TestFileManagerDownloadButton(t *testing.T) {
 		t.Errorf("download file button title should use i18n t(...) instead of hardcoded English")
 	}
 }
+
+func TestSponsorshipUI(t *testing.T) {
+	html := string(embeddedHTML)
+
+	// Check Saweria link presence in footer and settings modal
+	saweriaURL := "https://saweria.co/herliansyah26"
+	if !strings.Contains(html, saweriaURL) {
+		t.Errorf("expected Saweria link %q to be present in index.html", saweriaURL)
+	}
+
+	// Verify footer sponsor pill
+	if !strings.Contains(html, "footer-pill-sponsor") {
+		t.Errorf("expected footer-pill-sponsor class to be defined and present in index.html")
+	}
+
+	// Verify i18n keys exist in both EN and ID dictionaries
+	sponsorKeys := []string{
+		`"footer_sponsor":`,
+		`"footer_sponsor_title":`,
+		`"settings_sponsor_title":`,
+		`"settings_sponsor_desc":`,
+		`"btn_sponsor":`,
+	}
+	for _, key := range sponsorKeys {
+		cnt := strings.Count(html, key)
+		if cnt < 2 {
+			t.Errorf("expected i18n key %q to exist in at least 2 dictionaries, found %d", key, cnt)
+		}
+	}
+}
+
