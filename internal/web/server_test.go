@@ -888,6 +888,14 @@ func TestPresetModalAndModalStacking(t *testing.T) {
 			t.Errorf("expected HTML body to contain modal stacking snippet %q", snippet)
 		}
 	}
+
+	// 4. Regression test: presetManagerModal layout and table column styling
+	if !strings.Contains(body, `<div id="presetManagerModal" class="modal">`+"\n"+`  <div class="modal-content modal-dialog-lg">`) {
+		t.Errorf("expected presetManagerModal to use modal-dialog-lg")
+	}
+	if !strings.Contains(body, `<th style="padding: 6px; width: 100%; min-width: 260px;">Command</th>`) {
+		t.Errorf("expected command column to have width 100%% and min-width")
+	}
 }
 
 func TestInspectHost_CooldownAndInFlight(t *testing.T) {

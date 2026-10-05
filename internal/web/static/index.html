@@ -1519,7 +1519,7 @@ body.has-workspace-shelf .container {
           <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Configure global and host-specific command shortcuts for web terminal.</p>
           <button class="btn btn-primary btn-sm" onclick="openCreatePresetModal()">➕ New Preset</button>
         </div>
-        <div id="settingsPresetsList">Loading presets...</div>
+        <div id="settingsPresetsList" style="overflow-x: auto;">Loading presets...</div>
       </div>
 
       <!-- Updates Tab -->
@@ -1811,7 +1811,7 @@ body.has-workspace-shelf .container {
 
 <!-- Preset Manager Modal (Action Dialog) -->
 <div id="presetManagerModal" class="modal">
-  <div class="modal-content modal-dialog-md">
+  <div class="modal-content modal-dialog-lg">
     <div class="modal-header">
       <div style="display: flex; align-items: center; gap: 8px;">
         <span>💻</span>
@@ -1823,7 +1823,7 @@ body.has-workspace-shelf .container {
       </div>
     </div>
     <div class="modal-body" style="padding: 16px;">
-      <div id="presetManagerListContainer" style="max-height: 60vh; overflow-y: auto;">
+      <div id="presetManagerListContainer" style="max-height: 60vh; overflow-y: auto; overflow-x: auto;">
         <!-- Table populated dynamically -->
       </div>
     </div>
@@ -7057,11 +7057,11 @@ async function loadPresetManagerList() {
       <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
         <thead>
           <tr style="border-bottom: 1px solid var(--card-border); color: var(--text-muted); text-align: left;">
-            <th style="padding: 6px;">Scope</th>
-            <th style="padding: 6px;">Name</th>
-            <th style="padding: 6px;">Command</th>
-            <th style="padding: 6px;">Tmux</th>
-            <th style="padding: 6px; text-align: right;">Action</th>
+            <th style="padding: 6px; white-space: nowrap;">Scope</th>
+            <th style="padding: 6px; white-space: nowrap;">Name</th>
+            <th style="padding: 6px; width: 100%; min-width: 260px;">Command</th>
+            <th style="padding: 6px; white-space: nowrap; text-align: center;">Tmux</th>
+            <th style="padding: 6px; white-space: nowrap; text-align: right;">Action</th>
           </tr>
         </thead>
         <tbody>
@@ -7070,11 +7070,11 @@ async function loadPresetManagerList() {
             const scopeLabel = p.host_id ? (hostObj ? escapeHtml(hostObj.name) : 'Host #' + p.host_id) : '<span style="color: #38bdf8;">🌐 Global</span>';
             return `
               <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <td style="padding: 8px 6px;">${scopeLabel}</td>
-                <td style="padding: 8px 6px; font-weight: 600;">${escapeHtml(p.name)}</td>
-                <td style="padding: 8px 6px; font-family: monospace; color: #cbd5e1; font-size: 0.8rem;"><code>${escapeHtml(p.command)}</code></td>
-                <td style="padding: 8px 6px;">${p.use_tmux ? '✅' : '—'}</td>
-                <td style="padding: 8px 6px; text-align: right;">
+                <td style="padding: 8px 6px; white-space: nowrap;">${scopeLabel}</td>
+                <td style="padding: 8px 6px; font-weight: 600; white-space: nowrap;">${escapeHtml(p.name)}</td>
+                <td style="padding: 8px 6px; font-family: monospace; color: #cbd5e1; font-size: 0.8rem; word-break: break-all; white-space: pre-wrap;"><code style="word-break: break-all; white-space: pre-wrap;">${escapeHtml(p.command)}</code></td>
+                <td style="padding: 8px 6px; white-space: nowrap; text-align: center;">${p.use_tmux ? '✅' : '—'}</td>
+                <td style="padding: 8px 6px; text-align: right; white-space: nowrap;">
                   <button class="btn btn-sm" onclick="editPresetFromManager(${p.id})" style="padding: 2px 6px; font-size: 0.75rem;">✏️</button>
                   <button class="btn btn-danger btn-sm" onclick="deletePreset(${p.id})" style="padding: 2px 6px; font-size: 0.75rem;">🗑️</button>
                 </td>
@@ -7136,11 +7136,11 @@ async function loadSettingsPresets() {
       <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
         <thead>
           <tr style="border-bottom: 1px solid var(--card-border); color: var(--text-muted); text-align: left;">
-            <th style="padding: 6px;">Scope</th>
-            <th style="padding: 6px;">Name</th>
-            <th style="padding: 6px;">Command</th>
-            <th style="padding: 6px;">Tmux</th>
-            <th style="padding: 6px; text-align: right;">Action</th>
+            <th style="padding: 6px; white-space: nowrap;">Scope</th>
+            <th style="padding: 6px; white-space: nowrap;">Name</th>
+            <th style="padding: 6px; width: 100%; min-width: 260px;">Command</th>
+            <th style="padding: 6px; white-space: nowrap; text-align: center;">Tmux</th>
+            <th style="padding: 6px; white-space: nowrap; text-align: right;">Action</th>
           </tr>
         </thead>
         <tbody>
@@ -7149,11 +7149,11 @@ async function loadSettingsPresets() {
             const scopeLabel = p.host_id ? (hostObj ? escapeHtml(hostObj.name) : 'Host #' + p.host_id) : '<span style="color: #38bdf8;">🌐 Global</span>';
             return `
               <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                <td style="padding: 8px 6px;">${scopeLabel}</td>
-                <td style="padding: 8px 6px; font-weight: 600;">${escapeHtml(p.name)}</td>
-                <td style="padding: 8px 6px; font-family: monospace; color: #cbd5e1; font-size: 0.8rem;"><code>${escapeHtml(p.command)}</code></td>
-                <td style="padding: 8px 6px;">${p.use_tmux ? '✅' : '—'}</td>
-                <td style="padding: 8px 6px; text-align: right;">
+                <td style="padding: 8px 6px; white-space: nowrap;">${scopeLabel}</td>
+                <td style="padding: 8px 6px; font-weight: 600; white-space: nowrap;">${escapeHtml(p.name)}</td>
+                <td style="padding: 8px 6px; font-family: monospace; color: #cbd5e1; font-size: 0.8rem; word-break: break-all; white-space: pre-wrap;"><code style="word-break: break-all; white-space: pre-wrap;">${escapeHtml(p.command)}</code></td>
+                <td style="padding: 8px 6px; white-space: nowrap; text-align: center;">${p.use_tmux ? '✅' : '—'}</td>
+                <td style="padding: 8px 6px; text-align: right; white-space: nowrap;">
                   <button class="btn btn-sm" onclick="editPresetFromManager(${p.id})" style="padding: 2px 6px; font-size: 0.75rem;">✏️</button>
                   <button class="btn btn-danger btn-sm" onclick="deletePreset(${p.id})" style="padding: 2px 6px; font-size: 0.75rem;">🗑️</button>
                 </td>
