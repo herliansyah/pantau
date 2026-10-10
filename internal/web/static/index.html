@@ -1965,6 +1965,12 @@ const I18N = {
     "online": "Online",
     "offline": "Offline",
     "traffic_live": "Traffic Live:",
+    "traffic_net": "Net",
+    "traffic_disk": "Disk I/O",
+    "live_disk_io": "\ud83d\udcbe Live Disk I/O Rate",
+    "disk_io_optimal": "Optimal",
+    "disk_io_active": "Active",
+    "disk_io_busy": "High I/O Load",
     "btn_view": "\ud83d\udd0d View",
     "btn_inspect": "⚡ Inspect",
     "btn_inspect_title": "Run Inspection (Refresh)",
@@ -2468,6 +2474,12 @@ const I18N = {
     "online": "Online",
     "offline": "Offline",
     "traffic_live": "Traffic Live:",
+    "traffic_net": "Net",
+    "traffic_disk": "Disk I/O",
+    "live_disk_io": "\ud83d\udcbe Laju Disk I/O Live",
+    "disk_io_optimal": "Optimal",
+    "disk_io_active": "Aktif",
+    "disk_io_busy": "Beban I/O Tinggi",
     "btn_view": "\ud83d\udd0d Lihat",
     "btn_inspect": "⚡ Inspeksi",
     "btn_inspect_title": "Jalankan Inspeksi (Refresh)",
@@ -3688,6 +3700,18 @@ function renderGridView(grid, isManualSort) {
         </div>
       `;
 
+      // Disk I/O load status (Optimal < 10MB/s, Active 10-80MB/s, Busy >= 80MB/s)
+      const totalDiskBps = (h.disk_read_speed_bps || 0) + (h.disk_write_speed_bps || 0);
+      let diskStatusText = t('disk_io_optimal');
+      let diskStatusColor = '#34d399';
+      if (totalDiskBps >= 80 * 1024 * 1024) {
+        diskStatusText = t('disk_io_busy');
+        diskStatusColor = '#f87171';
+      } else if (totalDiskBps >= 10 * 1024 * 1024) {
+        diskStatusText = t('disk_io_active');
+        diskStatusColor = '#fbbf24';
+      }
+
       const recency = formatRelativeTime(h.last_inspected);
 
       card.innerHTML = `
@@ -3749,11 +3773,20 @@ function renderGridView(grid, isManualSort) {
           <span>${t('internet')}</span>
           <span class="status-pill">${h.internet_online ? '<span style="color: #34d399;">●</span> ' + t('online') + ' (' + h.internet_latency_ms + 'ms)' : '<span style="color: #f87171;">●</span> ' + t('offline')}</span>
         </div>
-        <div class="stat-row" style="flex-direction: column; gap: 6px;">
-          <span>${t('traffic_live')}</span>
-          <div class="traffic-grid">
-            <div>⬇️ ${formatBytes(h.net_rx_speed_bps)}/s</div>
-            <div>⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
+        <div class="stat-row" style="flex-direction: column; gap: 4px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted);">
+            <span>${t('traffic_net')}</span>
+            <span>${t('traffic_disk')} <span style="font-size: 0.7rem; font-weight: 600; color: ${diskStatusColor};">● ${diskStatusText}</span></span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.78rem; font-family: monospace;">
+            <div style="background: rgba(56, 189, 248, 0.08); padding: 3px 6px; border-radius: 4px;" title="Network: ⬇️ In / ⬆️ Out">
+              <div>⬇️ ${formatBytes(h.net_rx_speed_bps)}/s</div>
+              <div>⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
+            </div>
+            <div style="background: rgba(168, 85, 247, 0.08); padding: 3px 6px; border-radius: 4px;" title="Disk I/O: 📖 Read / ✍️ Write">
+              <div>📖 ${formatBytes(h.disk_read_speed_bps)}/s</div>
+              <div>✍️ ${formatBytes(h.disk_write_speed_bps)}/s</div>
+            </div>
           </div>
         </div>
         `;
@@ -3925,9 +3958,9 @@ function renderListView(listContainer, isManualSort) {
           <div style="font-size: 0.8rem; margin-bottom: 2px;">${diskPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.disk_total_bytes || 0)})</span></div>
           <div class="progress" style="height: 4px;"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
         </td>
-        <td style="font-size: 0.8rem; font-family: monospace;">
-          <div>⬇️ ${formatBytes(h.net_rx_speed_bps)}/s</div>
-          <div>⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
+        <td style="font-size: 0.78rem; font-family: monospace;">
+          <div title="Network Traffic: ⬇️ In / ⬆️ Out" style="color: #38bdf8;">⬇️ ${formatBytes(h.net_rx_speed_bps)}/s ⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
+          <div title="Disk I/O: 📖 Read / ✍️ Write" style="color: #c084fc; margin-top: 2px;">📖 ${formatBytes(h.disk_read_speed_bps)}/s ✍️ ${formatBytes(h.disk_write_speed_bps)}/s</div>
         </td>
         <td>${noteHtml}</td>
         <td style="text-align: right;">
@@ -4629,6 +4662,22 @@ function switchTab(tab, presetID) {
     const totalRx = formatBytes(h.net_rx_bytes || 0);
     const totalTx = formatBytes(h.net_tx_bytes || 0);
 
+    const diskReadSpeed = formatBytes(h.disk_read_speed_bps || 0) + '/s';
+    const diskWriteSpeed = formatBytes(h.disk_write_speed_bps || 0) + '/s';
+    const totalDiskRead = formatBytes(h.disk_read_bytes || 0);
+    const totalDiskWrite = formatBytes(h.disk_write_bytes || 0);
+
+    const modalDiskBps = (h.disk_read_speed_bps || 0) + (h.disk_write_speed_bps || 0);
+    let modalDiskStatusText = t('disk_io_optimal');
+    let modalDiskStatusColor = '#34d399';
+    if (modalDiskBps >= 80 * 1024 * 1024) {
+      modalDiskStatusText = t('disk_io_busy');
+      modalDiskStatusColor = '#f87171';
+    } else if (modalDiskBps >= 10 * 1024 * 1024) {
+      modalDiskStatusText = t('disk_io_active');
+      modalDiskStatusColor = '#fbbf24';
+    }
+
     content.innerHTML = `
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px;">
         <div class="card" style="padding: 14px;">
@@ -4644,6 +4693,16 @@ function switchTab(tab, presetID) {
             ⬇️ ${rxSpeed} | ⬆️ ${txSpeed}
           </div>
           <div style="font-size: 0.8rem; color: var(--text-muted);">${t('total')} ${t('in')} ${totalRx} | ${t('out')} ${totalTx}</div>
+        </div>
+        <div class="card" style="padding: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">${t('live_disk_io')}</span>
+            <span style="font-size: 0.72rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; background: rgba(255,255,255,0.06); color: ${modalDiskStatusColor};">● ${modalDiskStatusText}</span>
+          </div>
+          <div style="font-size: 1.1rem; font-weight: 700; margin: 4px 0; color: #c084fc;">
+            📖 ${diskReadSpeed} | ✍️ ${diskWriteSpeed}
+          </div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">${t('total')} 📖 ${totalDiskRead} | ✍️ ${totalDiskWrite}</div>
         </div>
         <div class="card" style="padding: 14px;">
           <div style="font-size: 0.8rem; color: var(--text-muted);">${t('active_sockets')}</div>

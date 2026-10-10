@@ -949,6 +949,11 @@ func TestTicket12_NetworkAndSecurityObservability(t *testing.T) {
 			"192.168.1.100:80 203.0.113.1:54321\n192.168.1.100:80 203.0.113.1:54322\n192.168.1.100:443 198.51.100.5:41234", // 9: established sockets
 			"LISTEN 0.0.0.0:80 users:((\"nginx\",pid=100,fd=3))\nLISTEN 127.0.0.1:3306 users:((\"mysqld\",pid=101,fd=4))\nLISTEN 0.0.0.0:6379 users:((\"redis-server\",pid=102,fd=5))", // 10: listening ports
 			"14\n", // 11: failed logins
+			"4\n",  // 12: nproc
+			"2023-01-01\n", // 13: bios_date
+			"Dell Inc.\n",  // 14: hardware_model
+			"1672531199\n", // 15: os_install_epoch
+			"524288000 1048576000\n", // 16: diskstats (read write bytes)
 		}
 		return strings.Join(sections, "\n---\n"), "", 0, nil
 	}
@@ -963,9 +968,12 @@ func TestTicket12_NetworkAndSecurityObservability(t *testing.T) {
 		t.Fatalf("get host failed: %v", err)
 	}
 
-	// 1. Verify Bandwidth
+	// 1. Verify Bandwidth & Disk I/O
 	if h.NetRxBytes != 10485760 || h.NetTxBytes != 20971520 {
 		t.Fatalf("unexpected net bytes: rx=%d, tx=%d", h.NetRxBytes, h.NetTxBytes)
+	}
+	if h.DiskReadBytes != 524288000 || h.DiskWriteBytes != 1048576000 {
+		t.Fatalf("unexpected disk bytes: read=%d, write=%d", h.DiskReadBytes, h.DiskWriteBytes)
 	}
 
 	// 2. Verify Internet Egress & Latency

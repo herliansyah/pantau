@@ -451,4 +451,44 @@ func TestEvaluateRule_Cron(t *testing.T) {
 	}
 }
 
+func TestParseDiskIOMetrics(t *testing.T) {
+	// 1. Initial run: sets baseline bytes, speed 0
+	h := &store.Host{}
+	parseDiskIOMetrics(h, "10485760 20971520")
+	if h.DiskReadBytes != 10485760 || h.DiskWriteBytes != 20971520 {
+		t.Fatalf("expected initial bytes 10485760/20971520, got %d/%d", h.DiskReadBytes, h.DiskWriteBytes)
+	}
+	if h.DiskReadSpeedBps != 0 || h.DiskWriteSpeedBps != 0 {
+		t.Fatalf("expected initial speed 0, got %d/%d", h.DiskReadSpeedBps, h.DiskWriteSpeedBps)
+	}
+
+	// 2. Subsequent run after 5 seconds
+	last := time.Now().Add(-5 * time.Second)
+	h.LastInspected = &last
+	// Delta read: 5,242,880 bytes in 5s = ~1,048,576 Bps
+	// Delta write: 10,485,760 bytes in 5s = ~2,097,152 Bps
+	parseDiskIOMetrics(h, "15728640 31457280")
+	if h.DiskReadBytes != 15728640 || h.DiskWriteBytes != 31457280 {
+		t.Fatalf("expected updated bytes, got %d/%d", h.DiskReadBytes, h.DiskWriteBytes)
+	}
+	if h.DiskReadSpeedBps < 1000000 || h.DiskReadSpeedBps > 1100000 {
+		t.Fatalf("expected read speed around 1MB/s, got %d", h.DiskReadSpeedBps)
+	}
+	if h.DiskWriteSpeedBps < 2000000 || h.DiskWriteSpeedBps > 2200000 {
+		t.Fatalf("expected write speed around 2MB/s, got %d", h.DiskWriteSpeedBps)
+	}
+
+	// 3. Host reboot / counter reset: counter drops
+	last2 := time.Now().Add(-5 * time.Second)
+	h.LastInspected = &last2
+	parseDiskIOMetrics(h, "1048576 2097152")
+	if h.DiskReadBytes != 1048576 || h.DiskWriteBytes != 2097152 {
+		t.Fatalf("expected reboot baseline bytes, got %d/%d", h.DiskReadBytes, h.DiskWriteBytes)
+	}
+	if h.DiskReadSpeedBps != 0 || h.DiskWriteSpeedBps != 0 {
+		t.Fatalf("expected speed reset to 0 upon reboot, got %d/%d", h.DiskReadSpeedBps, h.DiskWriteSpeedBps)
+	}
+}
+
+
 

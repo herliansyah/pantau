@@ -138,6 +138,7 @@ Pantau collects actual state telemetry and validates desired state rules through
 ### Resource Metrics & Hardware Telemetry
 
 Telemetry collection continuously extracts granular system capacity:
+- **Real-Time Disk I/O Rates (Speedometer)**: Evaluates dynamic disk read and write speeds (B/s) and cumulative byte counters from `/proc/diskstats`. Evaluates qualitative throughput load status pills (Optimal `< 10 MB/s`, Active `10–80 MB/s`, High I/O Load `≥ 80 MB/s`) on Host Cards and Host Detail modals.
 - **Absolute Capacity Indicators**: RAM and Disk progress bars render inline `used / total` metrics (e.g. `4.2 GB / 15.8 GB`) without layout displacement.
 - **Swap Telemetry**: A permanent Swap indicator row on each host card shows active memory paging, or displays a dimmed `Disabled` badge when swap is unconfigured on the machine.
 - **Normalized CPU Load**: Load averages are evaluated against the target's physical and logical CPU cores (`nproc`), rendering color-coded threshold alerts when process run-queues exceed core capacity.

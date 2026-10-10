@@ -218,7 +218,7 @@ func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration
 // SystemMetricsBatchCmd is the single-shot batch command to gather system, network, and security metrics.
 // ponytail: Universal polyglot batching keeps agentless overhead near zero on modern & legacy Linux.
 // ponytail: Uses df -lPk with timeout fallback to guard against hung NFS / network storage.
-const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; (timeout -k 2s 5s df -lPk / 2>/dev/null || df -lPk / 2>/dev/null); echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 -m 4 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 -m 4 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l; echo "---"; (nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1); echo "---"; (cat /sys/class/dmi/id/bios_date 2>/dev/null || echo ""); echo "---"; (cat /sys/class/dmi/id/sys_vendor 2>/dev/null || cat /sys/class/dmi/id/product_name 2>/dev/null || echo ""); echo "---"; (stat -c %Y /etc/machine-id 2>/dev/null || stat -c %Y /etc/ssh/ssh_host_rsa_key 2>/dev/null || stat -c %Y /var/log 2>/dev/null || echo 0)`
+const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; (timeout -k 2s 5s df -lPk / 2>/dev/null || df -lPk / 2>/dev/null); echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 -m 4 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 -m 4 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l; echo "---"; (nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1); echo "---"; (cat /sys/class/dmi/id/bios_date 2>/dev/null || echo ""); echo "---"; (cat /sys/class/dmi/id/sys_vendor 2>/dev/null || cat /sys/class/dmi/id/product_name 2>/dev/null || echo ""); echo "---"; (stat -c %Y /etc/machine-id 2>/dev/null || stat -c %Y /etc/ssh/ssh_host_rsa_key 2>/dev/null || stat -c %Y /var/log 2>/dev/null || echo 0); echo "---"; cat /proc/diskstats 2>/dev/null | awk '{if ($3 ~ /^([hsv]d[a-z]|nvme[0-9]+n[0-9]+|xvd[a-z]|mmcblk[0-9]+)$/) {r+=$6; w+=$10}} END {print (r?r:0)*512, (w?w:0)*512}'`
 
 func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner) error {
 	stdout, _, _, err := runner.Exec(SystemMetricsBatchCmd)
@@ -300,6 +300,12 @@ func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner
 		failedSec = sections[11]
 	}
 	parseNetworkMetrics(h, netDevSec, pingSec, pubIPSec, estSec, listenSec, failedSec)
+
+	var diskStatsSec string
+	if len(sections) >= 17 {
+		diskStatsSec = sections[16]
+	}
+	parseDiskIOMetrics(h, diskStatsSec)
 
 	return nil
 }
@@ -433,6 +439,38 @@ func parseNetworkMetrics(h *store.Host, netDevSec, pingSec, pubIPSec, estSec, li
 
 	// 6. Failed Logins Count
 	h.FailedLoginsCount, _ = strconv.Atoi(strings.TrimSpace(failedSec))
+}
+
+func parseDiskIOMetrics(h *store.Host, diskStatsSec string) {
+	fields := strings.Fields(strings.TrimSpace(diskStatsSec))
+	if len(fields) >= 2 {
+		readBytes, _ := strconv.ParseInt(fields[0], 10, 64)
+		writeBytes, _ := strconv.ParseInt(fields[1], 10, 64)
+
+		if h.LastInspected != nil && h.DiskReadBytes > 0 {
+			elapsed := time.Since(*h.LastInspected).Seconds()
+			if elapsed > 0 {
+				deltaRead := readBytes - h.DiskReadBytes
+				deltaWrite := writeBytes - h.DiskWriteBytes
+
+				if deltaRead >= 0 {
+					h.DiskReadSpeedBps = int64(float64(deltaRead) / elapsed)
+				} else {
+					// Host rebooted / counter rolled over
+					h.DiskReadSpeedBps = 0
+				}
+
+				if deltaWrite >= 0 {
+					h.DiskWriteSpeedBps = int64(float64(deltaWrite) / elapsed)
+				} else {
+					// Host rebooted / counter rolled over
+					h.DiskWriteSpeedBps = 0
+				}
+			}
+		}
+		h.DiskReadBytes = readBytes
+		h.DiskWriteBytes = writeBytes
+	}
 }
 
 func parseOSInfo(osRelease string) string {
