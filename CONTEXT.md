@@ -56,6 +56,14 @@ _Avoid_: Purchase date, install date, server birthday, warranty start
 Status kevalidan backup berdasarkan keberadaan file di path tujuan, timestamp perubahan terbaru (recency), dan ukuran file yang wajar (> 0 byte).
 _Avoid_: Backup validation, dump check
 
+**Disk I/O Rate**:
+Kecepatan transfer data baca dan tulis pada disk fisik/virtual utama Host (dihitung dalam bytes per detik) yang diekstrak secara berkala dari `/proc/diskstats`.
+_Avoid_: Disk speed, disk activity, raw io count
+
+**Disk I/O Load Status**:
+Klasifikasi kualitatif terhadap tingkat beban laju throughput I/O disk (Optimal < 10 MB/s, Aktif 10–80 MB/s, Beban I/O Tinggi ≥ 80 MB/s) untuk mendeteksi bottleneck penyimpanan secara cepat.
+_Avoid_: Disk health, io score, disk pressure
+
 **Notification Channel**:
 Saluran pengiriman peringatan saat terdeteksi Drift (seperti Telegram bot, webhook, atau in-app dashboard).
 _Avoid_: Alert sink, message publisher

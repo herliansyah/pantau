@@ -145,3 +145,54 @@ func TestAlertAcknowledgmentOperations(t *testing.T) {
 		t.Fatalf("expected 0 active alerts after ack all, got %d", len(active))
 	}
 }
+
+func TestHostDiskIOStorage(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-disk-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&Host{
+		Name: "Storage Server",
+		Host: "192.168.1.50",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	host, err := db.GetHost(hostID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	host.DiskReadBytes = 104857600
+	host.DiskWriteBytes = 209715200
+	host.DiskReadSpeedBps = 1048576
+	host.DiskWriteSpeedBps = 2097152
+
+	if err := db.UpdateHostInspection(host); err != nil {
+		t.Fatalf("failed to update host inspection: %v", err)
+	}
+
+	retrieved, err := db.GetHost(hostID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if retrieved.DiskReadBytes != 104857600 || retrieved.DiskWriteBytes != 209715200 {
+		t.Fatalf("unexpected disk bytes: read=%d, write=%d", retrieved.DiskReadBytes, retrieved.DiskWriteBytes)
+	}
+	if retrieved.DiskReadSpeedBps != 1048576 || retrieved.DiskWriteSpeedBps != 2097152 {
+		t.Fatalf("unexpected disk speeds: read=%d, write=%d", retrieved.DiskReadSpeedBps, retrieved.DiskWriteSpeedBps)
+	}
+}
+

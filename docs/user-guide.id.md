@@ -138,6 +138,7 @@ Pantau mengumpulkan telemetri actual state dan memvalidasi desired state melalui
 ### Resource Metrics & Telemetri Perangkat Keras
 
 Pengambilan telemetri mengekstrak metrik kapasitas komputasi riil secara berkelanjutan:
+- **Laju Disk I/O Real-Time (Speedometer)**: Mengevaluasi kecepatan baca dan tulis disk secara dinamis (B/s) dan akumulasi volume byte dari `/proc/diskstats`. Menghadirkan pill status beban throughput kualitatif (Optimal `< 10 MB/s`, Aktif `10–80 MB/s`, Beban I/O Tinggi `≥ 80 MB/s`) pada Kartu Host dan Modal Detail Host.
 - **Kapasitas Absolut Inline**: Bar progress RAM dan Disk menyajikan angka riil `terpakai / total` (misal `4.2 GB / 15.8 GB`) langsung secara inline tanpa penalti layout vertikal.
 - **Telemetri Swap**: Baris Swap permanen pada setiap kartu host menyajikan pemakaian memori virtual aktif, atau menampilkan penanda redup `Disabled` jika swap belum dikonfigurasi di server.
 - **Beban CPU Ternormalisasi**: Beban antrian sistem (*load average*) dievaluasi terhadap jumlah core CPU fisik dan logis (`nproc`), menampilkan aksen warna peringatan ketika antrian melampaui kapasitas core.

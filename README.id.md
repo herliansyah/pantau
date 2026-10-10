@@ -111,7 +111,8 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **Fast Stream Mode**: Memaksimalkan kecepatan transfer via pipa kompresi `tar`.
 - **Verified Mode**: Menghitung dan mencocokkan checksum SHA256 ujung-ke-ujung (*end-to-end*) pada server sumber dan target sebelum menyatakan transfer selesai.
 
-### 5. 🛡️ Observabilitas Jaringan & Keamanan
+### 5. 🛡️ Observabilitas Jaringan, Disk I/O & Keamanan
+- **Laju Disk I/O Real-Time (Speedometer)**: Mengekstrak kecepatan baca/tulis disk secara seketika (B/s) dan volume akumulatif langsung via `/proc/diskstats` tanpa paket `iostat`, dilengkapi penanganan rollover reboot aman dan badge status beban kualitatif (Optimal `< 10 MB/s`, Aktif `10–80 MB/s`, Beban I/O Tinggi `≥ 80 MB/s`).
 - **Internet Egress & Latensi**: Menguji konektivitas keluar dan latensi ping ke DNS global (`1.1.1.1`).
 - **Live Active Sockets**: Merekap daftar IP publik eksternal yang sedang terhubung dan total koneksi aktif.
 - **Brute-Force & Failed Login Tracking**: Memantau percobaan login gagal dan indikasi serangan brute-force via `/var/log/auth.log` atau `journalctl _SYSTEMD_UNIT=ssh.service`.

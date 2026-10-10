@@ -111,7 +111,8 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - **Fast Stream Mode**: Maximizes throughput via `tar` streaming pipes.
 - **Verified Mode**: Computes and verifies SHA256 checksums end-to-end on both source and destination hosts before reporting completion.
 
-### 5. 🛡️ Network & Security Observability
+### 5. 🛡️ Network & Disk I/O Observability
+- **Real-Time Disk I/O Rates (Speedometer)**: Extracts real-time disk read/write throughput rates (B/s) and cumulative volume directly via `/proc/diskstats` without `iostat` dependencies, featuring reboot rollover protection and qualitative load status badges (Optimal `< 10 MB/s`, Active `10–80 MB/s`, High I/O Load `≥ 80 MB/s`).
 - **Internet Egress & Latency**: Tests outbound connectivity and ping latency to global DNS resolvers (`1.1.1.1`).
 - **Live Active Sockets**: Aggregates top connected remote IP addresses and established connections.
 - **Brute-Force & Failed Login Counter**: Detects SSH brute-force attacks via `/var/log/auth.log` or `journalctl _SYSTEMD_UNIT=ssh.service`.
