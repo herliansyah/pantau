@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.19.0] - 2026-10-11
 ### Added
 - Real-Time Disk I/O Observability & Speedometer: periodic extraction of host-level disk read/write throughput rates (bytes/s) via agentless POSIX `/proc/diskstats` whitelist filtering (`sd*`, `vd*`, `nvme*n*`, `xvd*`, `mmcblk*`) multiplied by 512-byte sector size.
 - Reboot Protection & Counter Rollover Guard: automatically detects host reboot/rollover counter drops (`delta < 0`), resetting rate to 0 bps to prevent erroneous negative spikes and establishing the new reading as baseline.
