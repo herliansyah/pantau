@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-10-12
+### Fixed
+- Port Auto-Scan IPv4 Loopback Probe: actively probe `127.0.0.1` via `net.DialTimeout` and verify IPv4 loopback binding (`tcp4`) before binding wildcard listeners, preventing dual-stack IPv6 phantom bindings on Windows Winsock when an existing IPv4 service occupies the port.
+
 ## [0.19.0] - 2026-10-11
 ### Added
 - Real-Time Disk I/O Observability & Speedometer: periodic extraction of host-level disk read/write throughput rates (bytes/s) via agentless POSIX `/proc/diskstats` whitelist filtering (`sd*`, `vd*`, `nvme*n*`, `xvd*`, `mmcblk*`) multiplied by 512-byte sector size.
