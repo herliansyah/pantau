@@ -1425,6 +1425,34 @@ func TestResolveConfigFallbacks(t *testing.T) {
 	}
 }
 
+func TestPortAutoScanFallback(t *testing.T) {
+	// 1. Simulating an active service (e.g. SQLFox on Windows) listening on IPv4 loopback
+	baseListener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to bind base listener: %v", err)
+	}
+	defer baseListener.Close()
+
+	basePort := baseListener.Addr().(*net.TCPAddr).Port
+
+	// In non-explicit mode, listenPort should detect basePort is busy and scan to another port
+	l, boundPort, err := listenPort(basePort, false)
+	if err != nil {
+		t.Fatalf("expected listenPort to auto-scan and succeed, got error: %v", err)
+	}
+	defer l.Close()
+
+	if boundPort == basePort {
+		t.Fatalf("expected boundPort to scan past busy port %d, got %d", basePort, boundPort)
+	}
+
+	// 2. In explicit mode, listenPort should fail-fast when basePort is busy
+	_, _, err = listenPort(basePort, true)
+	if err == nil {
+		t.Fatalf("expected explicit listenPort to fail on busy port %d, but succeeded", basePort)
+	}
+}
+
 func TestEmbeddedDocumentationEndpoint(t *testing.T) {
 	env := setupTestEnv(t)
 
