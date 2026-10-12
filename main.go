@@ -113,6 +113,50 @@ func resolveConfig(flagPort int, flagDB string) (port int, dbPath string, portEx
 	return port, dbPath, portExplicit
 }
 
+// tryListen checks if port p is free on both IPv4 loopback and wildcard interfaces.
+// ponytail: on Windows Winsock, net.Listen("tcp", ":p") binds dual-stack IPv6 without error even if an IPv4 service (e.g. SQLFox) occupies 127.0.0.1:p.
+// Probing 127.0.0.1 via Dial and verifying IPv4 binding ensures busy ports are correctly detected across OSes.
+func tryListen(p int) net.Listener {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", p), 50*time.Millisecond)
+	if err == nil {
+		_ = conn.Close()
+		return nil
+	}
+
+	l4, err := net.Listen("tcp4", fmt.Sprintf("127.0.0.1:%d", p))
+	if err != nil {
+		return nil
+	}
+	_ = l4.Close()
+
+	l, err := net.Listen("tcp", fmt.Sprintf(":%d", p))
+	if err != nil {
+		return nil
+	}
+	return l
+}
+
+func listenPort(port int, portExplicit bool) (net.Listener, int, error) {
+	if portExplicit {
+		l := tryListen(port)
+		if l == nil {
+			return nil, port, fmt.Errorf("port %d is already in use", port)
+		}
+		return l, port, nil
+	}
+
+	for p := port; p <= port+19; p++ {
+		if l := tryListen(p); l != nil {
+			if p != port {
+				log.Printf("⚠️ Port %d was in use, auto-scanned and bound to port %d", port, p)
+			}
+			return l, p, nil
+		}
+	}
+	return nil, port, fmt.Errorf("ports %d-%d are all in use", port, port+19)
+}
+
+
 func main() {
 	updater.CleanOldArtifacts()
 
@@ -247,28 +291,9 @@ func main() {
 	server.SetSnapshotManager(snapshotMgr)
 	server.SetUpdaterManager(updaterMgr)
 	server.SetDocsFS(embeddedDocs)
-	var listener net.Listener
-	if !portExplicit {
-		for p := port; p <= port+19; p++ {
-			l, err := net.Listen("tcp", fmt.Sprintf(":%d", p))
-			if err == nil {
-				listener = l
-				if p != port {
-					log.Printf("⚠️ Port %d was in use, auto-scanned and bound to port %d", port, p)
-				}
-				port = p
-				break
-			}
-		}
-		if listener == nil {
-			log.Fatalf("Failed to bind port: ports %d-%d are all in use", port, port+19)
-		}
-	} else {
-		l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-		if err != nil {
-			log.Fatalf("Failed to bind port %d: %v", port, err)
-		}
-		listener = l
+	listener, port, err := listenPort(port, portExplicit)
+	if err != nil {
+		log.Fatalf("Failed to bind port: %v", err)
 	}
 
 	if guard != nil {
