@@ -21,6 +21,7 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
    - [Inspection Lifecycle, Mass Inspection (Inspect All) & Recency](#inspection-lifecycle-mass-inspection-inspect-all--recency)
    - [Detecting Drift & Root Cause Excerpts](#detecting-drift--root-cause-excerpts)
    - [Interactive Diagnostics via Terminal Dock & Terminal Presets](#interactive-diagnostics-via-terminal-dock--terminal-presets)
+   - [In-App Activity Console & Live Telemetry Stream](#in-app-activity-console--live-telemetry-stream)
    - [Evaluating Server Longevity with Lifecycle Assessment](#evaluating-server-longevity-with-lifecycle-assessment)
 5. [Phase 4: File Operations & Cross-Host Data Transfer](#5-phase-4-file-operations--cross-host-data-transfer)
    - [Cross-Host Transfer (Zero-Disk Memory Pipes)](#cross-host-transfer-zero-disk-memory-pipes)
@@ -165,6 +166,27 @@ When a drift or alert requires hands-on investigation:
 - **Split-Pane View (`Alt+\`)**: Split the terminal view to compare logs or configurations across two hosts side by side in real time.
 - **Terminal Preset**: Execute pre-configured one-click diagnostic commands (e.g., `htop`, `journalctl -f`, `docker stats`) bound globally or dynamically scoped to the active terminal tab's host context.
 - **Modal Stacking & Escape Key**: Child action dialogs (preset forms, rule modals, notes) dynamically stack above parent modals and maximized terminal docks. Pressing `Escape` hierarchically dismisses the top-most active dialog before passing keyboard input to lower layers.
+
+### In-App Activity Console & Live Telemetry Stream
+
+To provide transparent operational feedback, Pantau includes a real-time diagnostic console that exposes what the daemon and its subsystems are doing at any given moment:
+
+- **Monitored Subsystems**: Emits structured telemetry across 7 core modules:
+  - `inspect`: Host inspection cycles, roundtrip latencies, healthy status, down states, and detected drift summaries.
+  - `ssh`: Key provisioning attempts, runner initializations, and connection errors.
+  - `transfer`: SFTP file uploads and background cross-host transfer progress.
+  - `terminal`: Opening, resizing, and closing of interactive PTY shell sessions.
+  - `snapshot`: Automated encrypted database backups and GitHub synchronizations.
+  - `system`: Daemon startup, port auto-scanning, instance locking, and graceful shutdown.
+  - `auth`: Administrator login attempts, credential validations, and 2FA verifications.
+- **Toggling the Activity Console**: Click the `⚡ Activity` button on the footer status bar, or press the global keyboard shortcut **`Ctrl + \``** (backtick) from anywhere in the application.
+- **Status Indicators & Unread Badges**: The footer button features a pulsing green dot when connected to the live stream. If the console is closed when warnings or errors occur, an unread error badge (`99+`) highlights new issues until the drawer is opened.
+- **Smart Auto-Scroll & Freeze Control**: New logs stream continuously to the bottom of the table. Scrolling up automatically pauses auto-scrolling so you can inspect historical records without view jumping (*Smart Auto-Scroll*). You can also click **Pause / Resume** to explicitly freeze the feed.
+- **Severity Level & Instant Search Filters**: Filter visible entries by severity (`ALL`, `ERROR`, `WARN`, `INFO`), or use the search box to filter across log messages, hostnames, and module names in real time.
+- **Click-to-Inspect Metadata**: Clicking any table row expands its structured attribute metadata (`duration_ms`, `port`, `drift_rules`, error details) in a formatted JSON card.
+- **Exporting Logs**: Click **Export** to instantly download the captured events as `.log` (plain text) or `.json` for debugging, external auditing, or incident reports.
+- **Security & Redaction Filter**: Sensitive values—including SSH passwords, private keys, authentication tokens, session cookies, and 2FA secrets—are deterministically sanitized into `[REDACTED]` before leaving the server.
+- **Zero-Waste Performance Throttling**: When the Activity Console is closed, DOM rendering operations are 100% bypassed to eliminate unnecessary CPU usage and browser layout recalculations.
 
 ### Evaluating Server Longevity with Lifecycle Assessment
 

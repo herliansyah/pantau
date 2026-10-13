@@ -25,9 +25,10 @@ import (
 	"github.com/pkg/sftp"
 
 	"pantau/internal/inspector"
+	"pantau/internal/logger"
 	"pantau/internal/notify"
-	"pantau/internal/sshrunner"
 	"pantau/internal/snapshot"
+	"pantau/internal/sshrunner"
 	"pantau/internal/store"
 	"pantau/internal/transfer"
 	"pantau/internal/updater"
@@ -198,6 +199,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/update/check", s.authMiddleware(s.handleUpdateCheck))
 	s.mux.HandleFunc("/api/update/apply", s.authMiddleware(s.handleUpdateApply))
 	s.mux.HandleFunc("/api/update/restart", s.authMiddleware(s.handleUpdateRestart))
+
+	// Live Event Stream (Activity Console)
+	s.mux.HandleFunc("/api/logs/stream", s.authMiddleware(s.handleLogsStream))
 }
 
 func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -253,6 +257,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)); err != nil {
+		logger.Warn("auth", "", "Admin login attempt failed (invalid password)")
 		http.Error(w, `{"error":"invalid_password"}`, http.StatusUnauthorized)
 		return
 	}
@@ -265,6 +270,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			expiry:   time.Now().Add(5 * time.Minute),
 			attempts: 0,
 		})
+		logger.Info("auth", "", "Admin login credentials valid, awaiting 2FA challenge")
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"status":     "require_2fa",
 			"temp_token": tempToken,
@@ -273,6 +279,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.issueSession(w)
+	logger.Info("auth", "", "Admin session established successfully")
 	writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
 }
 
@@ -322,6 +329,7 @@ func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
 		_ = s.db.SetSetting("last_totp_step", strconv.FormatInt(matchedStep, 10))
 		s.temp2FAChallenges.Delete(req.TempToken)
 		s.issueSession(w)
+		logger.Info("auth", "", "Admin 2FA token verified successfully")
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
 		return
 	}
@@ -338,6 +346,7 @@ func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
 		_ = s.db.SetSetting("totp_recovery_codes", string(remBytes))
 		s.temp2FAChallenges.Delete(req.TempToken)
 		s.issueSession(w)
+		logger.Warn("auth", "", "Admin 2FA recovery code used")
 		writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok", "recovery_used": true})
 		return
 	}
@@ -346,6 +355,7 @@ func (s *Server) handleLogin2FA(w http.ResponseWriter, r *http.Request) {
 	if remainingAttempts <= 0 {
 		s.temp2FAChallenges.Delete(req.TempToken)
 	}
+	logger.Warn("auth", "", "Admin 2FA verification failed (invalid code)")
 	writeJSON(w, http.StatusUnauthorized, map[string]interface{}{
 		"error":              "invalid_code",
 		"remaining_attempts": remainingAttempts,
@@ -648,11 +658,13 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if err := s.provisioner(h.Host, h.Port, h.User, req.Password, pubKey); err != nil {
+				logger.Error("ssh", h.Name, fmt.Sprintf("SSH key provisioning failed: %v", err))
 				writeJSON(w, http.StatusBadRequest, map[string]interface{}{
 					"error": fmt.Sprintf("Injeksi SSH Key gagal: %v", err),
 				})
 				return
 			}
+			logger.Info("ssh", h.Name, "SSH public key provisioned successfully")
 		}
 
 		id, err := s.db.CreateHost(&h)
@@ -959,9 +971,11 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.provisioner(host.Host, host.Port, host.User, req.Password, pubKey); err != nil {
+			logger.Error("ssh", host.Name, fmt.Sprintf("SSH key provisioning failed: %v", err))
 			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": fmt.Sprintf("injeksi gagal: %v", err)})
 			return
 		}
+		logger.Info("ssh", host.Name, "SSH public key provisioned successfully")
 
 		// Test connection immediately with key to confirm
 		runner, err := s.inspector.GetRunnerForHost(host)
@@ -1339,9 +1353,11 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 
 		_, err = io.Copy(dest, file)
 		if err != nil {
+			logger.Error("transfer", host.Name, fmt.Sprintf("File upload failed (%s): %v", destPath, err))
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		logger.Info("transfer", host.Name, fmt.Sprintf("File uploaded: %s", destPath))
 		writeJSON(w, http.StatusOK, map[string]string{"status": "uploaded", "path": destPath})
 
 	case "size":
@@ -1693,10 +1709,14 @@ func (s *Server) handleWSTerminal(w http.ResponseWriter, r *http.Request) {
 
 	runner, err := s.inspector.GetRunnerForHost(host)
 	if err != nil {
+		logger.Error("terminal", host.Name, fmt.Sprintf("Interactive terminal SSH connect failed: %v", err))
 		_ = ws.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("\r\nSSH connect failed: %v\r\n", err)))
 		return
 	}
 	defer runner.Close()
+
+	logger.Info("terminal", host.Name, fmt.Sprintf("Terminal session opened (Host %s)", host.Name))
+	defer logger.Info("terminal", host.Name, fmt.Sprintf("Terminal session closed (Host %s)", host.Name))
 
 	inReader, inWriter := io.Pipe()
 	outReader, outWriter := io.Pipe()

@@ -21,6 +21,7 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
    - [Siklus Inspeksi, Inspeksi Massal & Kesegaran Data](#siklus-inspeksi-inspeksi-massal-inspect-all--kesegaran-data)
    - [Mendeteksi Drift & Root Cause Excerpt](#mendeteksi-drift--root-cause-excerpt)
    - [Investigasi Interaktif via Terminal Dock & Terminal Preset](#investigasi-interaktif-via-terminal-dock--terminal-preset)
+   - [In-App Activity Console & Live Telemetry Stream](#in-app-activity-console--live-telemetry-stream)
    - [Evaluasi Kelayakan Server dengan Lifecycle Assessment](#evaluasi-kelayakan-server-dengan-lifecycle-assessment)
 5. [Fase 4: Operasi Berkas & Aliran Data Lintas-Host](#5-fase-4-operasi-berkas--aliran-data-lintas-host)
    - [Cross-Host Transfer (Pipa Memori Tanpa Disk Lokal)](#cross-host-transfer-pipa-memori-tanpa-disk-lokal)
@@ -165,6 +166,27 @@ Saat insiden memerlukan penanganan terminal langsung:
 - **Split-Pane View (`Alt+\`)**: Belah area kerja terminal menjadi dua jendela berdampingan untuk mengamati log dari dua host berbeda secara sinkron.
 - **Terminal Preset**: Jalankan perintah investigasi rutin yang telah disimpan (misal: `htop`, `journalctl -f`, `docker stats`) baik berlingkup global maupun terikat secara dinamis pada host aktif di tab terminal.
 - **Modal Stacking & Tombol Escape**: Dialog aksi turunan (form preset, aturan desired state, catatan) menumpuk di atas modal induk secara dinamis dengan layer z-index bertingkat. Penekanan tombol `Escape` menutup dialog paling atas secara berurutan tanpa merusak sesi terminal di bawahnya.
+
+### In-App Activity Console & Live Telemetry Stream
+
+Untuk memberikan visibilitas operasional yang transparan, Pantau dilengkapi dengan konsol diagnostik real-time yang menampilkan aktivitas yang sedang dijalankan daemon dan subsistem setiap saat:
+
+- **Subsistem yang Dimonitor**: Menyiarkan telemetri terstruktur dari 7 modul inti:
+  - `inspect`: Siklus inspeksi host, latensi roundtrip, status sehat, host down, dan ringkasan deviasi drift.
+  - `ssh`: Upaya injeksi kunci SSH (*key provisioning*), inisialisasi runner, dan kegagalan koneksi.
+  - `transfer`: Unggah berkas SFTP dan progres pemindahan berkas lintas-host di latar belakang.
+  - `terminal`: Pembukaan, perubahan ukuran, dan penutupan sesi shell PTY interaktif.
+  - `snapshot`: Pencadangan basis data terenkripsi otomatis dan sinkronisasi ke repositori GitHub.
+  - `system`: Inisialisasi daemon, pemindaian port otomatis, instance file lock, dan graceful shutdown.
+  - `auth`: Upaya login administrator, validasi kredensial, dan verifikasi token 2FA.
+- **Membuka/Menutup Activity Console**: Klik tombol `⚡ Activity` di bilah footer, atau tekan pintasan keyboard global **`Ctrl + \``** (backtick) dari mana saja di dashboard.
+- **Indikator Status & Badge Unread**: Tombol footer menampilkan dot hijau yang berdenyut (*pulsing*) saat terhubung ke live stream. Jika laci tertutup saat terjadi peringatan atau error, badge merah unread counter (`99+`) akan menandai masalah baru hingga laci dibuka.
+- **Smart Auto-Scroll & Freeze Feed**: Log baru mengalir secara dinamis ke baris terbawah tabel. Menggulir ke atas akan otomatis menangguhkan auto-scroll agar Anda dapat memeriksa baris historis tanpa terganggu lonjakan tampilan (*Smart Auto-Scroll*). Anda juga dapat menekan tombol **Pause / Resume** untuk membekukan stream secara eksplisit.
+- **Filter Severity Level & Pencarian Instan**: Saring baris yang tampil berdasarkan tingkat keparahan (`ALL`, `ERROR`, `WARN`, `INFO`), atau gunakan kotak pencarian untuk menyaring teks pesan, nama host, dan modul secara instan.
+- **Detail Metadata JSON Interaktif**: Mengklik baris mana pun pada tabel akan membuka kartu detail metadata atribut terstruktur (`duration_ms`, `port`, `drift_rules`, rincian error) dalam format JSON yang rapi.
+- **Ekspor Riwayat Log**: Klik **Export** untuk langsung mengunduh rekaman peristiwa yang ada di buffer ke format berkas teks mentah `.log` atau format `.json` untuk kebutuhan audit, debugging, atau pelaporan insiden.
+- **Keamanan & Redaction Filter**: Data kredensial sensitif—termasuk password SSH, private key, token autentikasi, cookie sesi, dan rahasia 2FA—secara deterministik disensor menjadi `[REDACTED]` sebelum dikirimkan ke stream browser.
+- **Throttling Performa Ringan**: Saat Activity Console tertutup, operasi perenderan DOM diabaikan 100% untuk menjaga penggunaan CPU dan memori browser tetap minimal.
 
 ### Evaluasi Kelayakan Server dengan Lifecycle Assessment
 

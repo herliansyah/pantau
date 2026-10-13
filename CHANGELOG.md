@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- In-App Activity Console & Live Event Stream: real-time in-app visibility of all daemon and subsystem runtime activities (`inspect`, `ssh`, `transfer`, `terminal`, `snapshot`, `system`, and `auth`) delivered via zero-dependency Go stdlib `log/slog` and Server-Sent Events (`GET /api/logs/stream`).
+- Telemetry Ring Buffer: in-memory fixed-capacity ring buffer (100 records) and non-blocking broadcaster providing instant context upon client connection.
+- Redaction Filter: deterministic boundary filter automatically sanitizing SSH passwords, private keys, authentication tokens, passphrases, and 2FA secrets into `[REDACTED]`.
+- Interactive Activity Console Drawer: collapsible bottom drawer docked above footer with 5-column running table (`Time`, `Level`, `Module`, `Host`, `Message & Details`), Smart Auto-Scroll, pause/resume freeze toggle, severity level filtering (`ALL`, `ERROR`, `WARN`, `INFO`), instant search, and client-side `.log` / `.json` export.
+- Footer Status Trigger & Shortcut: footer button `⚡ Activity` with live pulse indicator, unread error badge counter, and global keyboard shortcut `Ctrl + \`` (backtick).
+- Rendering Throttling: 100% skipped DOM rendering when drawer is closed and coalesced updates via `requestAnimationFrame` when open to eliminate CPU waste and layout thrashing.
+- Architectural Decision Record: [ADR-0030](docs/adr/0030-in-app-activity-console-and-live-event-stream.md).
 
 ## [0.19.1] - 2026-10-12
 ### Fixed

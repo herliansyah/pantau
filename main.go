@@ -17,8 +17,10 @@ import (
 	"syscall"
 	"time"
 
+	"log/slog"
 	"pantau/internal/inspector"
 	"pantau/internal/instance"
+	"pantau/internal/logger"
 	"pantau/internal/notify"
 	"pantau/internal/snapshot"
 	"pantau/internal/sshrunner"
@@ -253,8 +255,10 @@ func main() {
 		defer guard.Close()
 	}
 
+	logger.SetupGlobalLogger(nil, slog.LevelInfo)
 	log.Printf("Starting Pantau %s...", ver)
 	log.Printf("Database path: %s", dbPath)
+	logger.Info("system", "", fmt.Sprintf("Starting Pantau %s", ver), "db_path", dbPath)
 
 	db, err := store.Open(dbPath)
 	if err != nil {
@@ -313,6 +317,7 @@ func main() {
 
 	go func() {
 		log.Printf("🛡️ Pantau running on http://0.0.0.0:%d (Default password: admin)", port)
+		logger.Info("system", "", fmt.Sprintf("🛡️ Pantau running on http://0.0.0.0:%d", port), "port", port)
 		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server error: %v", err)
 		}
@@ -328,11 +333,13 @@ func main() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down Pantau...")
+	logger.Info("system", "", "Shutting down Pantau...")
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	_ = httpServer.Shutdown(shutdownCtx)
 	log.Println("Pantau stopped cleanly.")
+	logger.Info("system", "", "Pantau stopped cleanly.")
 }
 
 func openBrowser(url string) {
