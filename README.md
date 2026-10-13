@@ -172,6 +172,14 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - **Zero-Dependency In-App Reader**: Read operational guides offline without internet or external CDN dependencies via the **Documentation Modal** (`75vw × 80vh`), featuring an integrated micro-parser, theme-aware syntax styling, and smooth-scrolling dynamic Table of Contents.
 - **Dual Entry Point**: Accessible before login on initial setup and disaster recovery screens, as well as post-authentication via header `(?)`, footer version badge, and Settings links.
 
+### 17. ⚡ In-App Activity Console & Live Event Stream
+- **Real-Time Operational Observability**: Stream live runtime daemon and subsystem operations (`inspect`, `ssh`, `transfer`, `terminal`, `snapshot`, `system`, and `auth`) directly to the browser via zero-dependency Server-Sent Events (`GET /api/logs/stream`).
+- **Telemetry Ring Buffer**: In-memory fixed-capacity ring buffer (100 records) and non-blocking broadcaster wrapping Go standard library `log/slog` for instant cold-start operational context.
+- **Redaction Filter**: Deterministic boundary filter automatically sanitizing SSH passwords, private keys, authentication tokens, passphrases, and 2FA secrets into `[REDACTED]`.
+- **Collapsible Activity Console Drawer**: Bottom diagnostic drawer docked above the footer with a 5-column running table (`Time`, `Level`, `Module`, `Host`, `Message & Details`), expandable attribute cards, Smart Auto-Scroll, pause/resume freeze toggle, severity level filtering (`ALL`, `ERROR`, `WARN`, `INFO`), instant search, and client-side `.log` / `.json` file export.
+- **Footer Trigger & Global Shortcut**: Triggered via footer button `⚡ Activity` with live pulse indicator, unread error counter badge, or global shortcut `Ctrl + \`` (backtick).
+- **Zero-Waste Performance Throttling**: Skips 100% of DOM manipulation when the drawer is closed and coalesces incoming events with `requestAnimationFrame` when open to eliminate CPU waste and layout thrashing.
+
 ---
 
 ## 🚀 Quick Start

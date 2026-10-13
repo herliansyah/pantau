@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"pantau/internal/logger"
 	"pantau/internal/notify"
 	"pantau/internal/sshrunner"
 	"pantau/internal/store"
@@ -111,6 +112,7 @@ func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration
 			Summary:    "SSH connection failed",
 			Details:    err.Error(),
 		})
+		logger.Error("inspect", host.Name, "SSH connection failed: "+err.Error(), "duration_ms", duration)
 		return err
 	}
 	defer runner.Close()
@@ -151,6 +153,7 @@ func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration
 			Summary:    summary,
 			Details:    details,
 		})
+		logger.Warn("inspect", host.Name, summary, "duration_ms", duration, "details", details)
 		return err
 	}
 
@@ -183,6 +186,7 @@ func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration
 			Summary:    summary,
 			Details:    details,
 		})
+		logger.Warn("inspect", host.Name, summary, "duration_ms", duration, "details", details)
 		return err
 	}
 
@@ -197,10 +201,12 @@ func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration
 		runStatus = "drift"
 		summary = fmt.Sprintf("Drift detected in %d rule(s)", len(driftSummaries))
 		details = strings.Join(driftSummaries, "\n")
+		logger.Warn("inspect", host.Name, summary, "duration_ms", duration, "drift_rules", len(driftSummaries))
 	} else {
 		host.Status = "healthy"
 		// ponytail: Auto-resolve/acknowledge active alerts when host recovers to fully healthy/desired state.
 		_ = ins.db.AcknowledgeHostAlerts(host.ID)
+		logger.Info("inspect", host.Name, summary, "duration_ms", duration)
 	}
 
 	_ = ins.db.RecordInspectionRun(&store.InspectionRun{

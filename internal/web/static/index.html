@@ -748,6 +748,225 @@ body.has-workspace-shelf .container {
   #docsSidebar { display: none !important; }
   #docsContentPane { padding: 16px !important; }
 }
+
+/* Activity Console Drawer */
+.activity-console-drawer {
+  position: fixed;
+  bottom: 36px;
+  left: 0;
+  right: 0;
+  height: 260px;
+  max-height: 50vh;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  background: #090d16;
+  border-top: 1px solid var(--card-border);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.6);
+  transition: height 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.activity-console-drawer.maximized {
+  height: 50vh;
+}
+.activity-toolbar {
+  height: 38px;
+  background: rgba(15, 23, 42, 0.95);
+  border-bottom: 1px solid var(--card-border);
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  user-select: none;
+}
+.activity-toolbar-left, .activity-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.activity-title {
+  font-weight: 600;
+  color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.activity-live-pill {
+  font-family: monospace;
+  font-size: 0.68rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+.activity-live-pill.paused {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+.activity-live-pill.reconnecting {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+.activity-filter-group {
+  display: flex;
+  align-items: center;
+  background: #0b0f19;
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  padding: 1px;
+}
+.activity-filter-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: monospace;
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.activity-filter-btn:hover {
+  color: #f1f5f9;
+}
+.activity-filter-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  font-weight: 600;
+}
+.activity-search-input {
+  background: #0b0f19;
+  border: 1px solid var(--card-border);
+  color: #f1f5f9;
+  font-family: monospace;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  width: 200px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.activity-search-input:focus {
+  border-color: #38bdf8;
+}
+.activity-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--card-border);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-family: monospace;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+.activity-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f1f5f9;
+}
+.activity-dropdown {
+  position: relative;
+  display: inline-block;
+}
+.activity-dropdown-menu {
+  position: absolute;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 4px;
+  background: #1e293b;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+  min-width: 130px;
+  z-index: 60;
+  padding: 4px;
+}
+.activity-dropdown-item {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  color: #f1f5f9;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  text-align: left;
+  cursor: pointer;
+  font-family: monospace;
+}
+.activity-dropdown-item:hover {
+  background: #0284c7;
+  color: #fff;
+}
+.activity-table-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.72rem;
+  background: rgba(9, 13, 22, 0.95);
+  user-select: text;
+}
+.activity-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.activity-table thead {
+  position: sticky;
+  top: 0;
+  background: #0e1626;
+  border-bottom: 1px solid var(--card-border);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  z-index: 5;
+  user-select: none;
+}
+.activity-table th {
+  padding: 5px 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.activity-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: top;
+}
+.activity-table tbody tr.activity-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+}
+.activity-detail-box {
+  padding: 6px 10px;
+  background: #060910;
+  border: 1px solid var(--card-border);
+  border-radius: 4px;
+  font-size: 0.68rem;
+  white-space: pre-wrap;
+  color: #94a3b8;
+}
+.activity-empty-state {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.footer-activity-badge {
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: bold;
+  padding: 1px 5px;
+  border-radius: 9999px;
+  line-height: 1;
+}
 </style>
 </head>
 <body>
@@ -956,6 +1175,62 @@ body.has-workspace-shelf .container {
     <div id="hostList" class="host-list-view" style="display: none;"></div>
   </div>
 
+  <!-- Activity Console Drawer -->
+  <div id="activityConsoleDrawer" class="activity-console-drawer" style="display: none;">
+    <!-- Drawer Toolbar -->
+    <div class="activity-toolbar">
+      <div class="activity-toolbar-left">
+        <span class="activity-title">⚡ Activity Console</span>
+        <span id="activityLiveStatus" class="activity-live-pill live">● LIVE</span>
+        <div class="activity-filter-group">
+          <button onclick="setActivityLevelFilter('ALL')" id="activityFilterAll" class="activity-filter-btn active">ALL</button>
+          <button onclick="setActivityLevelFilter('ERROR')" id="activityFilterError" class="activity-filter-btn">ERROR</button>
+          <button onclick="setActivityLevelFilter('WARN')" id="activityFilterWarn" class="activity-filter-btn">WARN</button>
+          <button onclick="setActivityLevelFilter('INFO')" id="activityFilterInfo" class="activity-filter-btn">INFO</button>
+        </div>
+        <input type="text" id="activitySearchInput" oninput="onActivitySearchInput(this.value)" placeholder="Filter logs (message, host, module)..." class="activity-search-input">
+      </div>
+      <div class="activity-toolbar-right">
+        <button id="activityPauseBtn" onclick="toggleActivityPause()" class="activity-btn" title="Pause or resume live incoming feed">
+          <span id="activityPauseIcon">⏸</span> <span id="activityPauseLabel">Pause</span>
+        </button>
+        <button onclick="clearActivityLogs()" class="activity-btn" title="Clear current logs from table">
+          <span>🗑️ Clear</span>
+        </button>
+        <div class="activity-dropdown">
+          <button onclick="toggleActivityExportMenu()" class="activity-btn" title="Export logs as file">
+            <span>💾 Export ▼</span>
+          </button>
+          <div id="activityExportMenu" class="activity-dropdown-menu" style="display: none;">
+            <button onclick="exportActivityLogs('log')" class="activity-dropdown-item">As .log (text)</button>
+            <button onclick="exportActivityLogs('json')" class="activity-dropdown-item">As .json</button>
+          </div>
+        </div>
+        <button onclick="toggleActivityMaximize()" id="activityMaximizeBtn" class="activity-btn" title="Maximize / Restore Drawer">⛶</button>
+        <button onclick="toggleActivityConsole(false)" class="activity-btn" title="Close Activity Console (Ctrl+`)">✕</button>
+      </div>
+    </div>
+    <!-- Drawer Table Container -->
+    <div id="activityTableContainer" onscroll="handleActivityScroll()" class="activity-table-container">
+      <table class="activity-table">
+        <thead>
+          <tr>
+            <th style="width: 110px;">Time</th>
+            <th style="width: 75px;">Level</th>
+            <th style="width: 90px;">Module</th>
+            <th style="width: 130px;">Host</th>
+            <th>Message / Activity</th>
+            <th style="width: 120px; text-align: right;">Details</th>
+          </tr>
+        </thead>
+        <tbody id="activityTableBody"></tbody>
+      </table>
+      <div id="activityEmptyState" class="activity-empty-state" style="display: none;">
+        No activity logs recorded yet.
+      </div>
+    </div>
+  </div>
+
   <footer>
     <div class="footer-zone">
       <span class="status-dot online" id="footerEngineDot"></span>
@@ -968,6 +1243,12 @@ body.has-workspace-shelf .container {
       <span id="footerMetricsText">0 Hosts • 0 Healthy • 0 Drift</span>
     </div>
     <div class="footer-zone">
+      <button id="footerActivityBtn" onclick="toggleActivityConsole()" class="footer-pill" title="Toggle Activity Console (Ctrl+`)" style="cursor: pointer;">
+        <span id="footerActivityDot" class="status-dot online"></span>
+        <span style="font-weight: 600;">⚡ Activity</span>
+        <span id="footerActivityErrBadge" class="footer-activity-badge" style="display: none;">0</span>
+      </button>
+      <span style="color: var(--card-border);">•</span>
       <span data-i18n="footer_license">MIT License</span>
       <span style="color: var(--card-border);">•</span>
       <span data-i18n="footer_created_by">Created by Herliansyah</span>
@@ -2953,6 +3234,7 @@ async function checkAuth() {
     checkFreshStatus();
     checkInspectAllStatus();
     setTimeout(() => checkForUpdates(false), 2000);
+    connectActivityEventSource();
   } else {
     document.getElementById('loginView').style.display = 'flex';
     document.getElementById('appView').style.display = 'none';
@@ -8552,9 +8834,390 @@ function scrollToDocAnchor(id) {
   }
 }
 
+// ==========================================
+// In-App Activity Console & Live Event Stream (ADR 0030)
+// ==========================================
+let activityLogs = [];
+let activityConsoleOpen = false;
+let activityPaused = false;
+let activityAutoScroll = true;
+let activityLevelFilter = 'ALL';
+let activitySearchQuery = '';
+let activityUnreadErrors = 0;
+let activityEventSource = null;
+let activityRenderScheduled = false;
+
+function connectActivityEventSource() {
+  if (activityEventSource) return;
+  try {
+    activityEventSource = new EventSource('/api/logs/stream');
+    const dot = document.getElementById('footerActivityDot');
+    const statusEl = document.getElementById('activityLiveStatus');
+
+    activityEventSource.onopen = () => {
+      if (dot) {
+        dot.className = 'status-dot online';
+        dot.title = 'Live Event Stream connected';
+      }
+      if (statusEl && !activityPaused) {
+        statusEl.textContent = '● LIVE';
+        statusEl.className = 'activity-live-pill live';
+      }
+    };
+
+    activityEventSource.onmessage = (e) => {
+      if (!e.data) return;
+      try {
+        const evt = JSON.parse(e.data);
+        handleIncomingActivityEvent(evt);
+      } catch (err) {
+        console.error('Failed to parse SSE log record:', err);
+      }
+    };
+
+    activityEventSource.onerror = () => {
+      if (dot) {
+        dot.className = 'status-dot offline';
+        dot.title = 'Reconnecting log stream...';
+      }
+      if (statusEl && !activityPaused) {
+        statusEl.textContent = '● RECONNECTING';
+        statusEl.className = 'activity-live-pill reconnecting';
+      }
+    };
+  } catch (err) {
+    console.error('EventSource initialization error:', err);
+  }
+}
+
+function handleIncomingActivityEvent(evt) {
+  if (!evt) return;
+  // FIFO ring buffer: keep max 500 items in browser memory
+  if (activityLogs.length >= 500) {
+    activityLogs.shift();
+  }
+  activityLogs.push(evt);
+
+  // Track unread errors/warnings if drawer is closed
+  const lvl = (evt.level || '').toUpperCase();
+  if (!activityConsoleOpen && (lvl === 'ERROR' || lvl === 'WARN' || lvl === 'WARNING')) {
+    activityUnreadErrors++;
+    updateActivityErrorBadge();
+  }
+
+  // Do not waste CPU/memory rendering DOM when drawer is closed or paused
+  if (activityPaused || !activityConsoleOpen) {
+    return;
+  }
+
+  scheduleActivityRender();
+}
+
+function scheduleActivityRender() {
+  if (activityRenderScheduled || !activityConsoleOpen || activityPaused) return;
+  activityRenderScheduled = true;
+  requestAnimationFrame(() => {
+    activityRenderScheduled = false;
+    renderActivityLogs();
+  });
+}
+
+function updateActivityErrorBadge() {
+  const badge = document.getElementById('footerActivityErrBadge');
+  if (!badge) return;
+  if (activityUnreadErrors > 0) {
+    badge.textContent = activityUnreadErrors > 99 ? '99+' : activityUnreadErrors;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function toggleActivityConsole(forceState) {
+  const drawer = document.getElementById('activityConsoleDrawer');
+  if (!drawer) return;
+  activityConsoleOpen = typeof forceState === 'boolean' ? forceState : (drawer.style.display === 'none');
+
+  if (activityConsoleOpen) {
+    drawer.style.display = 'flex';
+    activityUnreadErrors = 0;
+    updateActivityErrorBadge();
+    renderActivityLogs();
+    if (activityAutoScroll) {
+      scrollActivityToBottom();
+    }
+  } else {
+    drawer.style.display = 'none';
+  }
+}
+
+function toggleActivityMaximize() {
+  const drawer = document.getElementById('activityConsoleDrawer');
+  const btn = document.getElementById('activityMaximizeBtn');
+  if (!drawer) return;
+  const isMax = drawer.classList.toggle('maximized');
+  if (btn) btn.textContent = isMax ? '❐' : '⛶';
+}
+
+function toggleActivityPause() {
+  activityPaused = !activityPaused;
+  const btnIcon = document.getElementById('activityPauseIcon');
+  const btnLabel = document.getElementById('activityPauseLabel');
+  const statusEl = document.getElementById('activityLiveStatus');
+
+  if (activityPaused) {
+    if (btnIcon) btnIcon.textContent = '▶';
+    if (btnLabel) btnLabel.textContent = 'Resume';
+    if (statusEl) {
+      statusEl.textContent = '⏸ PAUSED';
+      statusEl.className = 'activity-live-pill paused';
+    }
+  } else {
+    if (btnIcon) btnIcon.textContent = '⏸';
+    if (btnLabel) btnLabel.textContent = 'Pause';
+    if (statusEl) {
+      statusEl.textContent = '● LIVE';
+      statusEl.className = 'activity-live-pill live';
+    }
+    renderActivityLogs();
+    if (activityAutoScroll) {
+      scrollActivityToBottom();
+    }
+  }
+}
+
+function setActivityLevelFilter(level) {
+  activityLevelFilter = level;
+  const levels = ['ALL', 'ERROR', 'WARN', 'INFO'];
+  levels.forEach(lvl => {
+    const btn = document.getElementById(`activityFilter${lvl.charAt(0) + lvl.slice(1).toLowerCase()}`);
+    if (!btn) return;
+    if (lvl === level) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  renderActivityLogs();
+}
+
+function onActivitySearchInput(val) {
+  activitySearchQuery = (val || '').toLowerCase().trim();
+  renderActivityLogs();
+}
+
+function clearActivityLogs() {
+  activityLogs = [];
+  activityUnreadErrors = 0;
+  updateActivityErrorBadge();
+  renderActivityLogs();
+}
+
+function handleActivityScroll() {
+  const container = document.getElementById('activityTableContainer');
+  if (!container) return;
+  // Smart Auto-Scroll: if user scrolled away from bottom, pause auto-scroll
+  const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 30;
+  activityAutoScroll = isAtBottom;
+}
+
+function scrollActivityToBottom() {
+  const container = document.getElementById('activityTableContainer');
+  if (container) {
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+function renderActivityLogs() {
+  const tbody = document.getElementById('activityTableBody');
+  const emptyState = document.getElementById('activityEmptyState');
+  if (!tbody) return;
+
+  const filtered = activityLogs.filter(item => {
+    if (activityLevelFilter !== 'ALL') {
+      const itemLvl = (item.level || '').toUpperCase();
+      if (itemLvl !== activityLevelFilter) {
+        if (!(activityLevelFilter === 'WARN' && itemLvl === 'WARNING')) {
+          return false;
+        }
+      }
+    }
+    if (activitySearchQuery) {
+      const msg = (item.message || '').toLowerCase();
+      const mod = (item.module || '').toLowerCase();
+      const host = (item.host || '').toLowerCase();
+      const attrsStr = item.attrs ? JSON.stringify(item.attrs).toLowerCase() : '';
+      if (!msg.includes(activitySearchQuery) && !mod.includes(activitySearchQuery) && !host.includes(activitySearchQuery) && !attrsStr.includes(activitySearchQuery)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    if (emptyState) emptyState.style.display = 'block';
+    return;
+  }
+
+  if (emptyState) emptyState.style.display = 'none';
+
+  const rows = filtered.map(item => {
+    const timeStr = formatActivityTime(item.timestamp);
+    const lvlBadge = getActivityLevelBadge(item.level);
+    const modBadge = getActivityModuleBadge(item.module);
+    const hostStr = item.host ? escapeHtml(item.host) : '<span style="color:var(--text-muted);">-</span>';
+    const metaStr = getActivityMetaString(item);
+    const hasDetails = item.attrs && Object.keys(item.attrs).length > 0;
+    const rowId = `act-row-${item.id}`;
+
+    let detailRow = '';
+    if (hasDetails) {
+      detailRow = `
+        <tr id="${rowId}-detail" style="display: none; background: rgba(15, 23, 42, 0.6);">
+          <td colspan="6" style="padding: 6px 12px;">
+            <div class="activity-detail-box">${escapeHtml(JSON.stringify(item.attrs, null, 2))}</div>
+          </td>
+        </tr>
+      `;
+    }
+
+    return `
+      <tr class="activity-row" onclick="toggleActivityRowDetail('${rowId}-detail')">
+        <td style="color: var(--text-muted); white-space: nowrap;">${escapeHtml(timeStr)}</td>
+        <td style="white-space: nowrap;">${lvlBadge}</td>
+        <td style="white-space: nowrap;">${modBadge}</td>
+        <td style="white-space: nowrap; font-weight: 500; color: #cbd5e1;">${hostStr}</td>
+        <td style="word-break: break-all; color: #f1f5f9;">${escapeHtml(item.message || '')}</td>
+        <td style="text-align: right; color: var(--text-muted); white-space: nowrap;">${metaStr} ${hasDetails ? '<span style="font-size: 0.65rem; color: #64748b;">▶</span>' : ''}</td>
+      </tr>
+      ${detailRow}
+    `;
+  }).join('');
+
+  tbody.innerHTML = rows;
+
+  if (activityAutoScroll) {
+    scrollActivityToBottom();
+  }
+}
+
+function toggleActivityRowDetail(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.style.display = el.style.display === 'none' ? 'table-row' : 'none';
+  }
+}
+
+function formatActivityTime(ts) {
+  if (!ts) return '--:--:--.---';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return ts;
+  const pad = (n, s=2) => String(n).padStart(s, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+}
+
+function getActivityLevelBadge(lvl) {
+  const u = (lvl || '').toUpperCase();
+  switch (u) {
+    case 'ERROR':
+      return '<span style="display:inline-block; padding:1px 5px; border-radius:3px; font-weight:bold; font-size:0.65rem; background:rgba(239, 68, 68, 0.2); color:#f87171; border:1px solid rgba(239, 68, 68, 0.4);">ERROR</span>';
+    case 'WARN':
+    case 'WARNING':
+      return '<span style="display:inline-block; padding:1px 5px; border-radius:3px; font-weight:bold; font-size:0.65rem; background:rgba(245, 158, 11, 0.2); color:#fbbf24; border:1px solid rgba(245, 158, 11, 0.4);">WARN</span>';
+    case 'DEBUG':
+      return '<span style="display:inline-block; padding:1px 5px; border-radius:3px; font-weight:bold; font-size:0.65rem; background:rgba(168, 85, 247, 0.2); color:#c084fc; border:1px solid rgba(168, 85, 247, 0.3);">DEBUG</span>';
+    default:
+      return '<span style="display:inline-block; padding:1px 5px; border-radius:3px; font-weight:bold; font-size:0.65rem; background:rgba(16, 185, 129, 0.15); color:#34d399; border:1px solid rgba(16, 185, 129, 0.3);">INFO</span>';
+  }
+}
+
+function getActivityModuleBadge(mod) {
+  const m = (mod || 'system').toLowerCase();
+  let bg = 'rgba(255, 255, 255, 0.05)', color = 'var(--text-muted)', border = 'var(--card-border)';
+  if (m === 'inspect') { bg = 'rgba(56, 189, 248, 0.12)'; color = '#38bdf8'; border = 'rgba(56, 189, 248, 0.3)'; }
+  else if (m === 'ssh') { bg = 'rgba(167, 139, 250, 0.12)'; color = '#a78bfa'; border = 'rgba(167, 139, 250, 0.3)'; }
+  else if (m === 'transfer') { bg = 'rgba(52, 211, 153, 0.12)'; color = '#34d399'; border = 'rgba(52, 211, 153, 0.3)'; }
+  else if (m === 'terminal') { bg = 'rgba(251, 146, 60, 0.12)'; color = '#fb923c'; border = 'rgba(251, 146, 60, 0.3)'; }
+  else if (m === 'snapshot') { bg = 'rgba(244, 114, 182, 0.12)'; color = '#f472b6'; border = 'rgba(244, 114, 182, 0.3)'; }
+  else if (m === 'auth') { bg = 'rgba(250, 204, 21, 0.12)'; color = '#facc15'; border = 'rgba(250, 204, 21, 0.3)'; }
+
+  return `<span style="display:inline-block; padding:1px 5px; border-radius:3px; font-size:0.65rem; background:${bg}; color:${color}; border:1px solid ${border}; font-weight:500;">${escapeHtml(m)}</span>`;
+}
+
+function getActivityMetaString(item) {
+  if (!item.attrs) return '';
+  const parts = [];
+  if (item.attrs.duration_ms !== undefined) {
+    parts.push(`${item.attrs.duration_ms}ms`);
+  }
+  if (item.attrs.drift_rules !== undefined) {
+    parts.push(`${item.attrs.drift_rules} drift`);
+  }
+  if (item.attrs.port !== undefined) {
+    parts.push(`port ${item.attrs.port}`);
+  }
+  return parts.join(' • ');
+}
+
+function toggleActivityExportMenu() {
+  const menu = document.getElementById('activityExportMenu');
+  if (menu) {
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+function exportActivityLogs(format) {
+  const menu = document.getElementById('activityExportMenu');
+  if (menu) menu.style.display = 'none';
+
+  if (activityLogs.length === 0) {
+    showToast('No logs to export', 'warning');
+    return;
+  }
+
+  let content = '';
+  let filename = `pantau-activity-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`;
+
+  if (format === 'json') {
+    content = JSON.stringify(activityLogs, null, 2);
+    filename += '.json';
+  } else {
+    content = activityLogs.map(item => {
+      const ts = formatActivityTime(item.timestamp);
+      const lvl = (item.level || 'INFO').toUpperCase().padEnd(5, ' ');
+      const mod = (item.module || 'system').padEnd(8, ' ');
+      const host = (item.host || '-').padEnd(14, ' ');
+      const attrsStr = item.attrs ? ' ' + JSON.stringify(item.attrs) : '';
+      return `[${ts}] [${lvl}] [${mod}] [${host}] ${item.message || ''}${attrsStr}`;
+    }).join('\n');
+    filename += '.log';
+  }
+
+  const blob = new Blob([content], { type: format === 'json' ? 'application/json' : 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Global Keyboard Shortcut: Ctrl + ` (backtick)
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && (e.key === '`' || e.code === 'Backquote')) {
+    e.preventDefault();
+    toggleActivityConsole();
+  }
+});
+
+// Close export menu on outside click
 document.addEventListener('click', (e) => {
-  if (e.target && e.target.classList.contains('footer-badge') && e.target.id !== 'footerUpdateBadge') {
-    openDocumentationModal('changelog');
+  const menu = document.getElementById('activityExportMenu');
+  if (menu && menu.style.display !== 'none' && !e.target.closest('#activityExportMenu') && !e.target.closest('button[onclick*="toggleActivityExportMenu"]')) {
+    menu.style.display = 'none';
   }
 });
 

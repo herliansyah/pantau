@@ -316,3 +316,25 @@ _Avoid_: Path clicker, folder tree strip, breadcrumb trail
 **Editor Modal Maximize**:
 Mode pembesaran kontainer Editor Modal hingga memenuhi seluruh area pandang peramban (*CSS full-viewport* 100vw × 100vh) dengan penyelarasan ulang ukuran editor teks (CodeMirror refresh) untuk kenyamanan penelaahan dan penyuntingan kode secara luas.
 _Avoid_: Editor fullscreen, native editor expand, full window editor
+
+**Live Event Stream**:
+Langganan streaming Server-Sent Events (`/api/logs/stream`) yang mendistribusikan telemetri runtime terstruktur secara real-time dari Diagnostic Logger ke sesi web pengguna menggunakan standar Go `http.Flusher` dan browser native `EventSource`.
+_Avoid_: Log socket, polling feed, stdout pipe, log websocket
+
+**Activity Console**:
+Drawer diagnostik collapsible di bagian bawah antarmuka pengguna Pantau yang menyajikan running table aktivitas runtime aplikasi secara interaktif, pausable, filterable, dan exportable.
+_Avoid_: Log window, debug popup, terminal tab, output box
+
+**Telemetry Ring Buffer**:
+Penyimpanan buffer sirkular in-memory berkapasitas tetap (100 entri) yang menyimpan rekaman telemetri terbaru untuk memberikan konteks operasional instan saat sesi web terhubung.
+_Avoid_: Memory dump, unconstrained queue, persistent log table
+
+**Smart Auto-Scroll**:
+Perilaku pelacakan viewport pada Activity Console yang secara otomatis menangguhkan auto-scroll saat pengguna menggulir ke atas untuk meninjau log historis dan melanjutkannya kembali saat digulir ke entri terbaru.
+_Avoid_: Forced scroll, jump lock
+
+**Redaction Filter**:
+Filter batas deterministik yang mencegat pesan dan atribut log telemetri untuk menyensor password SSH, private key, token autentikasi, recovery code, dan passphrase menjadi `[REDACTED]` sebelum dipancarkan ke Live Event Stream.
+_Avoid_: Secret hiding, raw dump, password censor
+
+

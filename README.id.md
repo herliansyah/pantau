@@ -172,6 +172,14 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **In-App Reader Zero-Dependency**: Baca dokumentasi teknis secara offline tanpa internet atau dependensi CDN eksternal melalui **Documentation Modal** (`75vw × 80vh`), dilengkapi micro-parser Markdown bawaan, styling tema Nord, dan daftar isi dinamis (*Table of Contents*) dengan *smooth-scrolling*.
 - **Akses Fleksibel Pra dan Pasca-Login**: Tersedia sebelum login pada layar Initial Setup dan Disaster Recovery, serta setelah login melalui tombol bantuan `(?)` di header navigasi, klik badge nomor versi di footer, dan tautan di modal Settings.
 
+### 17. ⚡ In-App Activity Console & Live Event Stream
+- **Observabilitas Operasional Real-Time**: Aliran streaming peristiwa daemon dan aktivitas subsistem (`inspect`, `ssh`, `transfer`, `terminal`, `snapshot`, `system`, dan `auth`) secara langsung ke browser via Server-Sent Events (*zero-dependency* `GET /api/logs/stream`).
+- **Telemetry Ring Buffer**: Buffer memori melingkar berkapasitas tetap (100 entri) dan broadcaster non-blocking membungkus pustaka standar Go `log/slog` untuk konteks instan saat browser terhubung (*cold start*).
+- **Redaction Filter**: Filter batas deterministik yang secara otomatis menyensor kata sandi SSH, private key, token autentikasi, passphrase, dan rahasia 2FA menjadi `[REDACTED]`.
+- **Laci Diagnostik Activity Console**: Drawer collapsible di atas footer dengan tabel running 5-kolom (`Time`, `Level`, `Module`, `Host`, `Message & Details`), kartu detail atribut, *Smart Auto-Scroll*, tombol jeda/lanjutkan (*Pause/Resume*), penyaringan level (`ALL`, `ERROR`, `WARN`, `INFO`), pencarian instan, dan ekspor berkas `.log` / `.json` di sisi klien.
+- **Pemicu Footer & Pintasan Global**: Dibuka melalui tombol footer `⚡ Activity` dengan indikator pulse hijau, badge counter unread error merah, atau pintasan keyboard global `Ctrl + \`` (backtick).
+- **Throttling Performa Anti-Lag**: Melewatkan 100% manipulasi DOM saat laci tertutup dan menggabungkan pembaruan dengan `requestAnimationFrame` saat laci terbuka untuk mengeliminasi pemborosan CPU dan layout thrashing.
+
 ---
 
 ## 🚀 Panduan Memulai Cepat (Quick Start)
