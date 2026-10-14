@@ -229,7 +229,8 @@ func main() {
 		portExplicit = true
 	}
 
-	guard, runningMeta, err := instance.Acquire(dbPath, port)
+	// ponytail: AcquireWithTimeout allows graceful handover when Pantau restarts itself.
+	guard, runningMeta, err := instance.AcquireWithTimeout(dbPath, port, 3*time.Second)
 	if err == instance.ErrAlreadyRunning {
 		activePort := port
 		activePID := 0
@@ -313,6 +314,10 @@ func main() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer shutdownCancel()
 		_ = httpServer.Shutdown(shutdownCtx)
+		if guard != nil {
+			_ = guard.Close()
+		}
+		_ = db.Close()
 	})
 
 	go func() {
