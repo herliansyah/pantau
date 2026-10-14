@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -197,6 +198,9 @@ func main() {
 		if res.Available {
 			fmt.Printf("✨ New version available: %s\n", res.LatestVersion)
 			fmt.Printf("🔗 Release URL: %s\n", res.ReleaseURL)
+			if strings.TrimSpace(res.ReleaseNotes) != "" {
+				fmt.Printf("\n📋 Release Notes:\n%s\n\n", strings.TrimSpace(res.ReleaseNotes))
+			}
 			fmt.Println("👉 Run 'pantau -update' to install the new version.")
 		} else {
 			fmt.Printf("✅ Pantau is up to date (%s).\n", ver)
