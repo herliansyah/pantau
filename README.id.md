@@ -160,11 +160,11 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **Peralihan Tampilan Fleksibel & Modal Stack**: Buka tutup dok atau maksimalkan ke layar penuh (*full-viewport*) dalam satu klik tanpa merusak sesi SSH; pengelolaan tumpukan modal dan penutupan berjenjang tombol `Escape` menjaga navigasi terminal tetap lancar.
 
 ### 15. 🔄 Update Checker & Self-Update Semi-Otomatis (Zero-Ops)
-- **Deteksi Rilis Asinkron (Update Checker)**: Memeriksa ketersediaan versi rilis baru secara periodik (setiap 12 jam dengan cache 6 jam) dan menyajikan notifikasi pembaruan di antarmuka web.
+- **Deteksi Rilis Asinkron & Catatan Rilis CLI**: Memeriksa ketersediaan versi rilis baru secara periodik (setiap 12 jam dengan cache 6 jam) dan menyajikan notifikasi pembaruan di antarmuka web. Menjalankan `pantau -check-update` di terminal akan memeriksa rilis terbaru upstream, menampilkan URL rilis, serta mencetak catatan rilis (*release notes*) langsung ke terminal.
 - **Verifikasi Integritas SHA-256**: Mengunduh manifest `checksums.txt` resmi dan memvalidasi keaslian berkas arsip rilis sebelum diekstrak.
 - **Pre-flight Smoke Test & Rollback**: Menguji eksekusi biner baru secara mandiri sebelum penggantian biner aktif; membatalkan seketika jika terjadi ketidakcocokan arsitektur.
 - **Atomic Rename Swap Lintas Platform**: Penggantian in-place biner yang aman di Linux dan Windows (menggunakan teknik rename `.exe.old` untuk mengatasi file-lock OS).
-- **Graceful Process Handover**: Restart aman dengan mempertahankan argumen CLI dan koneksi basis data, disertai rekoneksi otomatis pada antarmuka web pengguna.
+- **Graceful Process Handover**: Restart aman dengan mempertahankan argumen CLI dan koneksi basis data, memanfaatkan `instance.AcquireWithTimeout` (jeda toleransi hingga 3 detik) agar proses anak yang baru menunggu pelepasan lock database dari proses induk secara mulus tanpa benturan, disertai rekoneksi otomatis pada antarmuka web pengguna.
 - **Kesiapan Airgapped & Deteksi Docker**: Beroperasi fail-silent di jaringan tanpa akses internet publik (opsi `-disable-update-check`), serta secara cerdas mendeteksi lingkungan container Docker untuk menyajikan panduan `docker compose pull`.
 
 ### 16. 📖 Dokumentasi In-App Airgapped & Embedded Changelog
@@ -269,7 +269,7 @@ systemctl enable --now pantau
 | `-db` | `PANTAU_DB` (atau `DB_PATH`) | `pantau.db` | Lokasi file basis data SQLite |
 | `-open` | - | `true` (Windows) / `false` | Buka peramban web bawaan secara otomatis saat startup |
 | `-disable-2fa` | - | `false` | Flag bypass darurat untuk menonaktifkan 2FA langsung dari terminal host |
-| `-check-update` | - | `false` | Periksa ketersediaan versi rilis terbaru lalu keluar |
+| `-check-update` | - | `false` | Periksa ketersediaan versi rilis terbaru, tampilkan catatan rilis, lalu keluar |
 | `-update` | - | `false` | Perbarui biner Pantau ke versi rilis terbaru lalu keluar |
 | `-disable-update-check` | `PANTAU_DISABLE_UPDATE_CHECK` | `false` | Nonaktifkan pengecekan pembaruan otomatis (cocok untuk airgapped) |
 | `-v`, `-version` | - | - | Cetak versi Pantau lalu keluar |

@@ -13,7 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive Activity Console Drawer: collapsible bottom drawer docked above footer with 5-column running table (`Time`, `Level`, `Module`, `Host`, `Message & Details`), Smart Auto-Scroll, pause/resume freeze toggle, severity level filtering (`ALL`, `ERROR`, `WARN`, `INFO`), instant search, and client-side `.log` / `.json` export.
 - Footer Status Trigger & Shortcut: footer button `⚡ Activity` with live pulse indicator, unread error badge counter, and global keyboard shortcut `Ctrl + \`` (backtick).
 - Rendering Throttling: 100% skipped DOM rendering when drawer is closed and coalesced updates via `requestAnimationFrame` when open to eliminate CPU waste and layout thrashing.
+- CLI Update Checker Release Notes Display: `pantau -check-update` displays formatted release notes extracted from upstream release payload in terminal output.
+- Automated Release Notes Extraction: GitHub Actions release workflow (`release.yml`) automatically extracts tag-specific release notes directly from `CHANGELOG.md` for GitHub Releases distribution.
 - Architectural Decision Record: [ADR-0030](docs/adr/0030-in-app-activity-console-and-live-event-stream.md).
+### Fixed
+- Instance Guard Graceful Handover: added `AcquireWithTimeout` (up to 3 seconds retry window) and explicit lock cleanup/database closure on server shutdown to allow graceful lock handover during restart without premature child exit.
+### Removed
+- Project Sponsorship Elements: removed Saweria funding badge, sponsor button in footer, and Settings sponsorship card to maintain a clean, distraction-free interface.
+
 
 ## [0.19.1] - 2026-10-12
 ### Fixed

@@ -310,6 +310,7 @@ Pantau menyediakan siklus pemeliharaan semi-otomatis yang aman untuk menjaga ket
 - **Pengecekan Periodik Latar Belakang**: Secara otomatis memeriksa rilis terbaru di upstream GitHub Releases setiap 12 jam sekali, dengan hasil disimpan dalam cache selama 6 jam untuk mencegah pembatasan kuota rate limit GitHub API.
 - **Indikator Status UI**: Jika versi baru terdeteksi, badge status dan catatan rilis (*release notes*) akan ditampilkan secara elegan pada footer dashboard dan modal Settings.
 - **Pengecekan Manual**: Administrator dapat memicu pengecekan seketika dengan menekan tombol **Periksa Pembaruan** di menu Pengaturan.
+- **Pengecekan via CLI**: Menjalankan `pantau -check-update` di terminal akan meminta metadata rilis upstream, menampilkan nomor versi terbaru, URL rilis, serta mencetak catatan rilis (*release notes*) terformat langsung ke output terminal.
 
 ### Proses One-Click Self-Update & Verifikasi Integritas SHA-256
 Untuk instalasi binary mandiri (Linux dan Windows):
@@ -319,7 +320,7 @@ Untuk instalasi binary mandiri (Linux dan Windows):
 4. **Penggantian Biner Aman (Atomic Swap)**:
    - Pada Linux: file aktif ditimpa secara atomik menggunakan `os.Rename`.
    - Pada Windows: file aktif yang sedang terkunci di-rename menjadi `pantau.exe.old`, lalu biner baru dipindahkan ke `pantau.exe`. File `.old` akan dibersihkan pada startup berikutnya.
-5. **Graceful Restart**: Klik tombol **Restart Pantau Sekarang**. Server akan menyelesaikan proses yang sedang berjalan, menutup database dengan aman, men-spawn proses baru dengan argumen konfigurasi yang identik, dan antarmuka web akan otomatis memuat ulang saat server aktif kembali.
+5. **Graceful Restart & Lock Handover**: Klik tombol **Restart Pantau Sekarang**. Server akan menyelesaikan proses yang sedang berjalan, melepaskan instance guard, dan menutup koneksi database SQLite secara aman (*graceful shutdown*). Biner baru di-spawn dengan argumen konfigurasi yang identik dan memanfaatkan `instance.AcquireWithTimeout` (jeda toleransi hingga 3 detik) untuk menunggu pelepasan file lock oleh proses lama secara mulus, lalu antarmuka web akan otomatis memuat ulang saat server aktif kembali.
 
 ### Diferensiasi Lingkungan Docker vs Standalone Binary
 - Image Docker resmi di GitHub Container Registry (`ghcr.io/herliansyah/pantau:latest`) mendukung multi-arsitektur secara native untuk platform `linux/amd64` dan `linux/arm64`.

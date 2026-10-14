@@ -246,7 +246,7 @@ Jeda waktu minimum (15 detik) yang diwajibkan antar eksekusi Inspeksi manual pad
 _Avoid_: Rate limit window, inspect debounce, retry wait
 
 **Instance Guard**:
-Mekanisme proteksi proses tunggal berbasis file lock kernel OS yang terikat pada file database untuk mendeteksi instance Pantau yang sedang berjalan, mencegah eksekusi ganda pada database yang sama, dan memberikan notifikasi lokasi port serta PID aktif kepada pengguna.
+Mekanisme proteksi proses tunggal berbasis file lock kernel OS yang terikat pada file database untuk mendeteksi instance Pantau yang sedang berjalan, mencegah eksekusi ganda pada database yang sama, memberikan toleransi serah-terima lock (*graceful lock handover*) saat restart/self-update, dan memberikan notifikasi lokasi port serta PID aktif kepada pengguna.
 _Avoid_: App lock, multi-instance blocker, process mutex
 
 **Directory Filter**:

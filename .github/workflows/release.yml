@@ -44,15 +44,30 @@ jobs:
           # Generate SHA-256 checksums
           (cd dist && sha256sum pantau-* > checksums.txt)
 
+      - name: Extract Release Notes from CHANGELOG
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          TAG="${{ github.ref_name }}"
+          CLEAN_VER="${TAG#v}"
+          awk -v ver="$CLEAN_VER" '
+            $0 ~ "^## \\[(v)?" ver "\\]" { flag=1; next }
+            flag && /^## \[/ { exit }
+            flag { print }
+          ' CHANGELOG.md > dist/release_notes.md
+
+          if [ ! -s dist/release_notes.md ]; then
+            echo "Release $TAG" > dist/release_notes.md
+          fi
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
+          body_path: dist/release_notes.md
           files: |
             dist/pantau-*.tar.gz
             dist/pantau-*.zip
             dist/checksums.txt
-          generate_release_notes: true
 
   docker:
     name: Build and Push Docker Image

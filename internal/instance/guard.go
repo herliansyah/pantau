@@ -65,36 +65,49 @@ func (g *Guard) Close() error {
 // If another instance already holds the lock, it reads the active metadata and returns ErrAlreadyRunning.
 // ponytail: stdlib and native kernel locking (flock/LockFileEx) automatically clean up on process exit/crash.
 func Acquire(dbPath string, defaultPort int) (*Guard, *Metadata, error) {
+	return AcquireWithTimeout(dbPath, defaultPort, 0)
+}
+
+// AcquireWithTimeout attempts to acquire the lock, retrying up to timeout if held by another process.
+// This allows graceful handover when a previous process is shutting down during restart.
+func AcquireWithTimeout(dbPath string, defaultPort int, timeout time.Duration) (*Guard, *Metadata, error) {
 	absDB, err := filepath.Abs(dbPath)
 	if err != nil {
 		absDB = dbPath
 	}
 	lockPath := absDB + ".lock"
 
-	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return nil, nil, fmt.Errorf("open lockfile: %w", err)
-	}
-
-	if err := lockFile(f); err != nil {
-		// Locked by another instance. Read existing metadata.
-		var meta Metadata
-		buf, readErr := io.ReadAll(f)
-		_ = f.Close()
-
-		if readErr == nil && len(buf) > 0 {
-			_ = json.Unmarshal(buf, &meta)
+	deadline := time.Now().Add(timeout)
+	for {
+		f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
+		if err != nil {
+			return nil, nil, fmt.Errorf("open lockfile: %w", err)
 		}
-		if meta.Port == 0 {
-			meta.Port = defaultPort
-		}
-		return nil, &meta, ErrAlreadyRunning
-	}
 
-	g := &Guard{
-		file:     f,
-		lockPath: lockPath,
+		if err := lockFile(f); err != nil {
+			var meta Metadata
+			buf, readErr := io.ReadAll(f)
+			_ = f.Close()
+
+			if time.Now().Before(deadline) {
+				time.Sleep(50 * time.Millisecond)
+				continue
+			}
+
+			if readErr == nil && len(buf) > 0 {
+				_ = json.Unmarshal(buf, &meta)
+			}
+			if meta.Port == 0 {
+				meta.Port = defaultPort
+			}
+			return nil, &meta, ErrAlreadyRunning
+		}
+
+		g := &Guard{
+			file:     f,
+			lockPath: lockPath,
+		}
+		_ = g.UpdatePort(defaultPort)
+		return g, nil, nil
 	}
-	_ = g.UpdatePort(defaultPort)
-	return g, nil, nil
 }

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestInstanceGuard(t *testing.T) {
@@ -68,4 +69,30 @@ func TestInstanceGuard(t *testing.T) {
 		t.Fatalf("expected acquire to succeed after first guard closed, got %v", err)
 	}
 	_ = g3.Close()
+}
+
+func TestAcquireWithTimeoutHandover(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "handover.db")
+
+	g1, _, err := Acquire(dbPath, 8080)
+	if err != nil {
+		t.Fatalf("expected acquire success, got %v", err)
+	}
+
+	// Release after 100ms in background, mimicking graceful shutdown
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		_ = g1.Close()
+	}()
+
+	// Acquire with timeout should wait and succeed
+	g2, _, err := AcquireWithTimeout(dbPath, 8080, 500*time.Millisecond)
+	if err != nil {
+		t.Fatalf("expected AcquireWithTimeout to succeed during handover, got %v", err)
+	}
+	if g2 == nil {
+		t.Fatalf("expected non-nil guard")
+	}
+	_ = g2.Close()
 }

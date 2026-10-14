@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -197,6 +198,9 @@ func main() {
 		if res.Available {
 			fmt.Printf("✨ New version available: %s\n", res.LatestVersion)
 			fmt.Printf("🔗 Release URL: %s\n", res.ReleaseURL)
+			if strings.TrimSpace(res.ReleaseNotes) != "" {
+				fmt.Printf("\n📋 Release Notes:\n%s\n\n", strings.TrimSpace(res.ReleaseNotes))
+			}
 			fmt.Println("👉 Run 'pantau -update' to install the new version.")
 		} else {
 			fmt.Printf("✅ Pantau is up to date (%s).\n", ver)
@@ -229,7 +233,8 @@ func main() {
 		portExplicit = true
 	}
 
-	guard, runningMeta, err := instance.Acquire(dbPath, port)
+	// ponytail: AcquireWithTimeout allows graceful handover when Pantau restarts itself.
+	guard, runningMeta, err := instance.AcquireWithTimeout(dbPath, port, 3*time.Second)
 	if err == instance.ErrAlreadyRunning {
 		activePort := port
 		activePID := 0
@@ -313,6 +318,10 @@ func main() {
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer shutdownCancel()
 		_ = httpServer.Shutdown(shutdownCtx)
+		if guard != nil {
+			_ = guard.Close()
+		}
+		_ = db.Close()
 	})
 
 	go func() {
