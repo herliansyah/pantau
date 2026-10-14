@@ -310,6 +310,7 @@ Pantau provides a robust, zero-data-loss update lifecycle ensuring administrator
 - **Background Release Detection**: Scans upstream GitHub Releases every 12 hours (with a 6-hour local cache) to avoid hitting GitHub API IP rate limits.
 - **Visual Status Badges**: If a newer release is published, update badges and release notes appear non-obtrusively in the dashboard footer and Settings modal.
 - **On-Demand Checking**: Administrators can trigger immediate checks via the **Check for Updates** button in Settings.
+- **CLI Release Discovery**: Running `pantau -check-update` directly in the terminal queries the upstream release endpoint, displays the latest version and release URL, and outputs formatted release notes to help operators review changes prior to upgrading.
 
 ### One-Click Self-Update & SHA-256 Verification
 For standalone binary installations on Linux and Windows:
@@ -319,7 +320,7 @@ For standalone binary installations on Linux and Windows:
 4. **Cross-Platform Atomic Swap**:
    - On Linux: Atomic swap via `os.Rename`.
    - On Windows: Renames running locked binary (`pantau.exe` -> `pantau.exe.old`) and installs the new binary. The `.old` artifact is purged on subsequent launches.
-5. **Graceful Restart**: Clicking **Restart Pantau Now** triggers an orderly shutdown (finishing pending requests and closing the SQLite WAL safely), spawns the new binary with identical CLI parameters, and the web interface automatically re-establishes connection.
+5. **Graceful Restart & Lock Handover**: Clicking **Restart Pantau Now** triggers an orderly shutdown (finishing pending requests, releasing the instance guard, and closing the SQLite WAL safely) and spawns the new binary with identical CLI parameters. The child process utilizes `instance.AcquireWithTimeout` (up to 3 seconds retry) to wait for the terminating parent process to release the database lock without conflict, and the web interface automatically re-establishes connection.
 
 ### Docker Container vs Standalone Environments
 - Official Docker images published to GitHub Container Registry (`ghcr.io/herliansyah/pantau:latest`) are multi-architecture builds providing native support for both `linux/amd64` and `linux/arm64`.
