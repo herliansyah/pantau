@@ -23,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI Logging Flags: added `-log-level` (`PANTAU_LOG_LEVEL`) supporting `debug`, `info`, `warn`, `error`, `off` and `-q`/`-quiet` shorthand for error-only output.
 - Startup & Shutdown Log Deduplication: removed redundant standard library `log.Printf` statements that duplicated `logger.Info` events at startup, shutdown, and scheduled backup.
 
+### Fixed
+- Swap Telemetry Overhead: conditioned per-process swap probe strictly on actual swap utilization (`SwapTotal - SwapFree > 0`), eliminating `/proc/*/status` scanning on zero-swap hosts.
+- Multi-Distro Package Inventory: expanded package parser to support 3-column outputs for Alpine Linux (`apk`) and Arch Linux (`pacman`) with human-readable unit conversion.
+- Systemd Service Status Parsing: handled bullet and symbol prefixes (`●`, `*`) in `systemctl list-units` to guarantee accurate dormant package identification for failed or inactive units.
+
 ### Security
 - WebSocket Authentication & CSWSH Protection: wrapped `/ws/terminal` and `/ws/docker/logs` with `authMiddleware` and enforced same-origin matching (`strings.EqualFold(u.Host, r.Host)`) in `websocket.Upgrader.CheckOrigin`, preventing Cross-Site WebSocket Hijacking while preserving full plain HTTP accessibility.
 - Cryptographic Token Generation (`crypto/rand`): replaced timestamp-based token derivation with 32-byte hex cryptographic random tokens in `issueSession` and 16-byte hex tokens for 2FA challenges. Retained `Secure: false` to allow seamless operation over plain HTTP and private LAN IPs.
