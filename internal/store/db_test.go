@@ -196,3 +196,80 @@ func TestHostDiskIOStorage(t *testing.T) {
 	}
 }
 
+func TestHostPackagesAndProcessTelemetry(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-store-pkgs-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&Host{Name: "srv1", Host: "10.0.0.1", Port: 22, User: "root"})
+	if err != nil {
+		t.Fatalf("create host: %v", err)
+	}
+
+	pkgs := []*HostPackage{
+		{
+			HostID:        hostID,
+			Name:          "nginx",
+			Version:       "1.18.0",
+			SizeBytes:     1024000,
+			InstallEpoch:  1600000000,
+			IsManual:      true,
+			ServiceName:   "nginx.service",
+			ServiceStatus: "active",
+		},
+		{
+			HostID:        hostID,
+			Name:          "curl",
+			Version:       "7.68.0",
+			SizeBytes:     204800,
+			InstallEpoch:  1590000000,
+			IsManual:      false,
+			ServiceName:   "",
+			ServiceStatus: "",
+		},
+	}
+
+	if err := db.ReplaceHostPackages(hostID, pkgs); err != nil {
+		t.Fatalf("replace host packages: %v", err)
+	}
+
+	got, err := db.GetHostPackages(hostID)
+	if err != nil {
+		t.Fatalf("get host packages: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 packages, got %d", len(got))
+	}
+	if got[0].Name != "nginx" || !got[0].IsManual || got[0].ServiceStatus != "active" {
+		t.Errorf("unexpected package 0: %+v", got[0])
+	}
+
+	// Test process telemetry fields on Host
+	h, err := db.GetHost(hostID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.TopCPUProcesses = `[{"pid":123,"user":"root","cpu":25.5,"mem":1.2,"rss_bytes":50000000,"command":"nginx"}]`
+	h.TopRAMProcesses = `[{"pid":123,"user":"root","cpu":1.0,"mem":10.5,"rss_bytes":500000000,"command":"nginx"}]`
+	h.TopSwapProcesses = `[{"pid":123,"user":"root","swap_bytes":20000000,"command":"nginx"}]`
+	if err := db.UpdateHostInspection(h); err != nil {
+		t.Fatalf("update host inspection: %v", err)
+	}
+
+	h2, err := db.GetHost(hostID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h2.TopCPUProcesses != h.TopCPUProcesses || h2.TopRAMProcesses != h.TopRAMProcesses || h2.TopSwapProcesses != h.TopSwapProcesses {
+		t.Errorf("process telemetry mismatch on host: %+v", h2)
+	}
+}
+
