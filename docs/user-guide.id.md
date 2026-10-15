@@ -19,6 +19,8 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
    - [Konfigurasi Backup Freshness & Protected Path](#konfigurasi-backup-freshness--protected-path)
 4. [Fase 3: Observabilitas, Analisis Drift & Respons Insiden](#4-fase-3-observabilitas-analisis-drift--respons-insiden)
    - [Siklus Inspeksi, Inspeksi Massal & Kesegaran Data](#siklus-inspeksi-inspeksi-massal-inspect-all--kesegaran-data)
+   - [Resource Metrics, Process Telemetry & Observabilitas Perangkat Keras](#resource-metrics-process-telemetry--observabilitas-perangkat-keras)
+   - [Inventarisasi Paket & Audit Higienitas Software](#inventarisasi-paket--audit-higienitas-software)
    - [Mendeteksi Drift & Root Cause Excerpt](#mendeteksi-drift--root-cause-excerpt)
    - [Investigasi Interaktif via Terminal Dock & Terminal Preset](#investigasi-interaktif-via-terminal-dock--terminal-preset)
    - [In-App Activity Console & Live Telemetry Stream](#in-app-activity-console--live-telemetry-stream)
@@ -136,7 +138,7 @@ Pantau mengumpulkan telemetri actual state dan memvalidasi desired state melalui
 - **Auto-Refresh Dashboard**: Tampilan browser secara otomatis menyinkronkan status kartu host setiap 30 detik tanpa memerlukan reload halaman manual.
 - **Konfigurasi Interval Inspeksi & Saklar Nonaktif**: Administrator dapat mengubah frekuensi inspeksi background (default 300 detik / 5 menit, minimal 30 detik, atau setel ke `0` untuk menonaktifkan inspeksi latar belakang agar murni berjalan manual/on-demand) melalui modal **Settings** > tab **General**. Saat dinonaktifkan, badge indikator (`⏸️ Background Inspection Paused`) muncul pada toolbar dashboard dan footer engine.
 
-### Resource Metrics & Telemetri Perangkat Keras
+### Resource Metrics, Process Telemetry & Observabilitas Perangkat Keras
 
 Pengambilan telemetri mengekstrak metrik kapasitas komputasi riil secara berkelanjutan:
 - **Laju Disk I/O Real-Time (Speedometer)**: Mengevaluasi kecepatan baca dan tulis disk secara dinamis (B/s) dan akumulasi volume byte dari `/proc/diskstats`. Menghadirkan pill status beban throughput kualitatif (Optimal `< 10 MB/s`, Aktif `10–80 MB/s`, Beban I/O Tinggi `≥ 80 MB/s`) pada Kartu Host dan Modal Detail Host.
@@ -144,6 +146,26 @@ Pengambilan telemetri mengekstrak metrik kapasitas komputasi riil secara berkela
 - **Telemetri Swap**: Baris Swap permanen pada setiap kartu host menyajikan pemakaian memori virtual aktif, atau menampilkan penanda redup `Disabled` jika swap belum dikonfigurasi di server.
 - **Beban CPU Ternormalisasi**: Beban antrian sistem (*load average*) dievaluasi terhadap jumlah core CPU fisik dan logis (`nproc`), menampilkan aksen warna peringatan ketika antrian melampaui kapasitas core.
 - **Kartu Sys Info**: Modal Detail Host menyajikan tipe model hardware, lapisan virtualisasi, kuantitas core CPU, dan topologi partisi penyimpanan.
+- **Top Resource Consumers (Process Telemetry)**: Di setiap siklus inspeksi rutin, Pantau mengekstrak 5 proses teratas pemakan sumber daya dalam tiga dimensi:
+  - **Top CPU**: Melacak PID, user, `%cpu`, dan lama eksekusi CPU via `ps -eo pid,user,%cpu,cputime,comm --sort=-%cpu`.
+  - **Top RAM (Physical RSS)**: Melacak PID, user, `%mem`, jejak memori RSS, dan nama proses via `ps -eo pid,user,%mem,rss,comm --sort=-rss`.
+  - **Top Swap (Virtual Memory)**: Diekstrak secara kondisional hanya saat `SwapUsedBytes > 0` dengan mem-parsing baris `VmSwap:` di `/proc/[0-9]*/status`, mendeteksi pemborosan swap tanpa overhead daemon jarak jauh.
+  - **Pintasan Terminal Satu-Klik**: Kartu Top Resource Consumers di tab Overview menyediakan tombol **Open Terminal** untuk langsung membuka sesi shell interaktif ke host terkait guna investigasi cepat.
+
+### Inventarisasi Paket & Audit Higienitas Software
+
+Pantau menyediakan visibilitas inventaris paket perangkat lunak secara agentless lintas berbagai distribusi Linux:
+- **Dukungan Polyglot Multi-Distro**: Deteksi bawaan untuk Debian/Ubuntu (`dpkg-query`), RHEL/CentOS/AlmaLinux/Rocky (`rpm`), Alpine (`apk`), dan Arch Linux (`pacman`).
+- **Kategorisasi Higienitas Perangkat Lunak**:
+  - **Manual Install (`⭐ Manual Install`)**: Paket yang dipasang secara eksplisit oleh administrator melalui manajer paket (misal `apt-mark showmanual`, `dnf history`, `/etc/apk/world`, `pacman -Qqe`), membedakan utilitas operasional dari paket bawaan distro.
+  - **Base System**: Paket bawaan instalasi awal sistem operasi (distro bootstrap) dan pustaka dependensi inti.
+  - **Dormant Packages (`💤 Dormant Packages`)**: Unit aplikasi/paket manual install yang unit layanan `systemd`-nya berada dalam status inactive, disabled, atau failed selama periode observasi, mempermudah identifikasi potensi celah keamanan atau daemon usang.
+- **Tab Packages di Workspace Modal**:
+  - Menampilkan nama paket, versi, arsitektur, repositori sumber, dan tanggal instalasi.
+  - Fitur pencarian instan via bilah filter real-time.
+  - Filter kategori cepat: **Manual Install**, **Dormant Packages**, dan **All Packages**.
+  - **Rescan Packages**: Tombol pemindaian ulang on-demand dengan dialog konfirmasi, dilindungi timer cooldown anti-flood 30 detik (`HTTP 429 Too Many Requests`) dan kunci konkurensi latar belakang (`HTTP 409 Conflict`).
+  - **Prinsip Non-Destruktif**: Pantau tidak menyediakan tombol uninstall destruktif di web UI untuk mencegah risiko rusaknya dependensi berantai (*cascading broken dependencies*). Administrator diarahkan memanfaatkan Terminal Dock bawaan atau merumuskan aturan Desired State.
 
 ### Mendeteksi Drift & Root Cause Excerpt
 
