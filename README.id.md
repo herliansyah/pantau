@@ -180,6 +180,16 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **Pemicu Footer & Pintasan Global**: Dibuka melalui tombol footer `⚡ Activity` dengan indikator pulse hijau, badge counter unread error merah, atau pintasan keyboard global `Ctrl + \`` (backtick).
 - **Throttling Performa Anti-Lag**: Melewatkan 100% manipulasi DOM saat laci tertutup dan menggabungkan pembaruan dengan `requestAnimationFrame` saat laci terbuka untuk mengeliminasi pemborosan CPU dan layout thrashing.
 
+### 18. ⚡ Top Resource Consumers & Process Telemetry
+- **Observabilitas Proses Agentless**: Mengekstrak 5 proses teratas pemakan sumber daya sistem dalam 3 dimensi utama—Top CPU (`%cpu`), Top RAM Fisik (`rss`), dan Top Swap (memori virtual)—secara berkala di setiap siklus inspeksi tanpa instalasi daemon tambahan di server target.
+- **Pemindai Swap Ringan Kondisional**: Ekstraksi VmSwap cepat via `/proc/[0-9]*/status` yang dipicu secara kondisional hanya saat terdeteksi penggunaan swap aktif (`SwapUsedBytes > 0`), mengeliminasi beban pemindaian pada server yang mematikan swap.
+- **Widget Telemetri Tab Overview**: Kartu visual 3-kolom responsif di tab Overview Host Detail yang menampilkan rincian PID, user, konsumsi memori, dan command, dilengkapi tombol pintas satu-klik untuk langsung membuka sesi Terminal Dock interaktif.
+
+### 19. 📦 Polyglot Package Inventory & Higienitas Software
+- **Inventarisasi Paket Multi-Distro Agentless**: Memetakan seluruh paket perangkat lunak terpasang di berbagai distribusi Linux—Debian/Ubuntu (`dpkg-query`), RHEL/CentOS/AlmaLinux/Rocky (`rpm`), Alpine (`apk`), dan Arch (`pacman`) menggunakan CLI bawaan sistem.
+- **Klasifikasi Higienitas & Deteksi Dormant Package**: Mengelompokkan paket secara otomatis menjadi **Manual Install** (dipasang eksplisit oleh administrator) vs **Base System** (bawaan instalasi distro/dependensi inti), serta mendeteksi **Dormant Package** (perangkat lunak berstatus daemon/service yang unit systemd-nya non-aktif, disabled, atau failed).
+- **Tab Packages & Guardrail Pemindaian**: Tab penjelajah paket khusus di Workspace Modal dengan pencarian instan, filter kategori (`⭐ Manual Install`, `💤 Dormant Packages`, `📋 All Packages`), tombol pemindaian ulang on-demand yang dilindungi cooldown anti-flood 30 detik (`HTTP 429`) dan kunci konkurensi latar belakang (`HTTP 409`).
+
 ---
 
 ## 🚀 Panduan Memulai Cepat (Quick Start)

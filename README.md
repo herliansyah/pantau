@@ -180,6 +180,16 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - **Footer Trigger & Global Shortcut**: Triggered via footer button `⚡ Activity` with live pulse indicator, unread error counter badge, or global shortcut `Ctrl + \`` (backtick).
 - **Zero-Waste Performance Throttling**: Skips 100% of DOM manipulation when the drawer is closed and coalesces incoming events with `requestAnimationFrame` when open to eliminate CPU waste and layout thrashing.
 
+### 18. ⚡ Top Resource Consumers & Process Telemetry
+- **Agentless Process Observability**: Continuously extracts top 5 resource-consuming processes across three dimensions—Top CPU (`%cpu`), Top Physical Memory (`rss`), and Top Virtual Memory (Swap)—during every standard inspection cycle without running background remote daemons.
+- **Conditional Swap Scanner**: Low-overhead `/proc/[0-9]*/status` VmSwap extraction executed conditionally only when swap memory usage is detected (`SwapUsedBytes > 0`), avoiding CPU churn on systems with swap unconfigured.
+- **Overview Telemetry Widget**: Responsive 3-column process card inside the Host Detail Overview tab showing PID, user, memory footprint, and command details, paired with a direct one-click launcher to open the interactive Terminal Dock.
+
+### 19. 📦 Polyglot Package Inventory & Software Hygiene
+- **Agentless Multi-Distro Inventory**: Discovers installed system software across Debian/Ubuntu (`dpkg-query`), RHEL/CentOS/AlmaLinux/Rocky (`rpm`), Alpine (`apk`), and Arch (`pacman`) via native zero-dependency CLI inspection.
+- **Software Hygiene & Dormant Detection**: Automatically categorizes packages into **Manual Install** (explicitly requested by operators) vs **Base System** (OS distro baseline/dependencies), and flags **Dormant Packages** whose associated systemd service units remain inactive, disabled, or failed.
+- **Dedicated Packages Tab & Guardrails**: Integrated package exploration tab in the Workspace Modal with instant text search, category filters (`⭐ Manual Install`, `💤 Dormant Packages`, `📋 All Packages`), on-demand rescan button with a 30-second anti-flood cooldown timer (`HTTP 429`), and background concurrency locking (`HTTP 409`).
+
 ---
 
 ## 🚀 Quick Start

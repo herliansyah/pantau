@@ -19,6 +19,8 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
    - [Configuring Backup Freshness & Protected Paths](#configuring-backup-freshness--protected-paths)
 4. [Phase 3: Observability, Drift Triage & Incident Response](#4-phase-3-observability-drift-triage--incident-response)
    - [Inspection Lifecycle, Mass Inspection (Inspect All) & Recency](#inspection-lifecycle-mass-inspection-inspect-all--recency)
+   - [Resource Metrics, Process Telemetry & Hardware Observability](#resource-metrics-process-telemetry--hardware-observability)
+   - [Package Inventory & Software Hygiene Audit](#package-inventory--software-hygiene-audit)
    - [Detecting Drift & Root Cause Excerpts](#detecting-drift--root-cause-excerpts)
    - [Interactive Diagnostics via Terminal Dock & Terminal Presets](#interactive-diagnostics-via-terminal-dock--terminal-presets)
    - [In-App Activity Console & Live Telemetry Stream](#in-app-activity-console--live-telemetry-stream)
@@ -136,7 +138,7 @@ Pantau collects actual state telemetry and validates desired state rules through
 - **Dashboard Auto-Refresh**: The browser UI automatically synchronizes host metrics and status every 30 seconds without requiring manual page reload.
 - **Configurable Inspection Interval & Disable Switch**: Administrators can adjust background SSH inspection frequency (default: 300 seconds / 5 minutes, minimum 30 seconds, or set to `0` to disable background inspection completely for on-demand manual inspection only) via **Settings** > **General** tab. When disabled, an indicator badge (`⏸️ Background Inspection Paused`) appears on the dashboard toolbar and engine footer.
 
-### Resource Metrics & Hardware Telemetry
+### Resource Metrics, Process Telemetry & Hardware Observability
 
 Telemetry collection continuously extracts granular system capacity:
 - **Real-Time Disk I/O Rates (Speedometer)**: Evaluates dynamic disk read and write speeds (B/s) and cumulative byte counters from `/proc/diskstats`. Evaluates qualitative throughput load status pills (Optimal `< 10 MB/s`, Active `10–80 MB/s`, High I/O Load `≥ 80 MB/s`) on Host Cards and Host Detail modals.
@@ -144,6 +146,26 @@ Telemetry collection continuously extracts granular system capacity:
 - **Swap Telemetry**: A permanent Swap indicator row on each host card shows active memory paging, or displays a dimmed `Disabled` badge when swap is unconfigured on the machine.
 - **Normalized CPU Load**: Load averages are evaluated against the target's physical and logical CPU cores (`nproc`), rendering color-coded threshold alerts when process run-queues exceed core capacity.
 - **Sys Info Card**: The Host Detail modal presents hardware model, CPU core count, virtualization layer, and storage device topology.
+- **Top Resource Consumers (Process Telemetry)**: Every routine inspection cycle extracts the top 5 resource-consuming processes across three dimensions:
+  - **Top CPU**: Tracks PID, user, `%cpu`, and CPU execution time via `ps -eo pid,user,%cpu,cputime,comm --sort=-%cpu`.
+  - **Top RAM (Physical RSS)**: Tracks PID, user, `%mem`, RSS memory footprint, and process name via `ps -eo pid,user,%mem,rss,comm --sort=-rss`.
+  - **Top Swap (Virtual Memory)**: Conditionally extracted only when `SwapUsedBytes > 0` by parsing `VmSwap:` in `/proc/[0-9]*/status`, identifying virtual memory hogs without remote daemon overhead.
+  - **One-Click Terminal Launcher**: The Top Resource Consumers card in the Overview tab provides an **Open Terminal** action button to immediately jump into an interactive troubleshooting session on the host.
+
+### Package Inventory & Software Hygiene Audit
+
+Pantau provides agentless software inventory visibility across multiple Linux distributions:
+- **Polyglot Distro Support**: Native detection across Debian/Ubuntu (`dpkg-query`), RHEL/CentOS/AlmaLinux/Rocky (`rpm`), Alpine (`apk`), and Arch Linux (`pacman`).
+- **Software Hygiene Categorization**:
+  - **Manual Install (`⭐ Manual Install`)**: Packages installed explicitly by system administrators via package managers (e.g., `apt-mark showmanual`, `dnf history`, `/etc/apk/world`, `pacman -Qqe`), separating operational tools from base distributions.
+  - **Base System**: Foundational OS bootstrap packages and core runtime libraries.
+  - **Dormant Packages (`💤 Dormant Packages`)**: Manually installed software units whose corresponding `systemd` services are inactive, disabled, or failed during the observation period, pinpointing potential security attack surfaces or obsolete daemons.
+- **Packages Workspace Tab**:
+  - View package name, version, architecture, source repository, and installation timestamp.
+  - Search packages instantly via the real-time filter bar.
+  - Category filters for **Manual Install**, **Dormant Packages**, and **All Packages**.
+  - **Rescan Packages**: On-demand manual package re-inspection with confirmation dialog, protected by a 30-second anti-flood cooldown timer (`HTTP 429 Too Many Requests`) and background concurrency lock (`HTTP 409 Conflict`).
+  - **Non-Destructive Philosophy**: Pantau avoids destructive web-based package uninstalls that could trigger cascading dependency failures. Operators are encouraged to use the built-in Terminal Dock or establish Desired State rules for compliance.
 
 ### Detecting Drift & Root Cause Excerpts
 
