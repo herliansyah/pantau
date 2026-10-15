@@ -899,6 +899,43 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 
 	action := parts[1]
 	switch action {
+	case "packages":
+		if len(parts) >= 3 && parts[2] == "scan" {
+			if r.Method != http.MethodPost {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			if s.inspector == nil {
+				http.Error(w, "inspector not available", http.StatusInternalServerError)
+				return
+			}
+			if err := s.inspector.ScanPackages(hostID); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+				return
+			}
+			pkgs, _ := s.db.GetHostPackages(hostID)
+			if pkgs == nil {
+				pkgs = []*store.HostPackage{}
+			}
+			writeJSON(w, http.StatusOK, pkgs)
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		pkgs, err := s.db.GetHostPackages(hostID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if pkgs == nil {
+			pkgs = []*store.HostPackage{}
+		}
+		writeJSON(w, http.StatusOK, pkgs)
+		return
+
 	case "commission-date":
 		if r.Method != http.MethodPut && r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
