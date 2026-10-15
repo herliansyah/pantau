@@ -523,5 +523,83 @@ func TestParseTopSwap(t *testing.T) {
 	}
 }
 
+func TestParseDpkgPackages(t *testing.T) {
+	dpkgOutput := "nginx\t1.18.0-0ubuntu1\t1024\tinstalled\ncurl\t7.68.0-1ubuntu2\t512\tinstalled\n"
+	manualMap := map[string]bool{"nginx": true}
+	servicesMap := map[string]string{"nginx": "active", "apache2": "inactive"}
+
+	pkgs := parseDpkgOutput(dpkgOutput, manualMap, servicesMap, 42)
+	if len(pkgs) != 2 {
+		t.Fatalf("expected 2 packages, got %d", len(pkgs))
+	}
+	if pkgs[0].Name != "nginx" || !pkgs[0].IsManual || pkgs[0].ServiceStatus != "active" || pkgs[0].SizeBytes != 1024*1024 {
+		t.Errorf("unexpected package 0: %+v", pkgs[0])
+	}
+	if pkgs[1].Name != "curl" || pkgs[1].IsManual || pkgs[1].SizeBytes != 512*1024 {
+		t.Errorf("unexpected package 1: %+v", pkgs[1])
+	}
+}
+
+func TestParseRpmPackages(t *testing.T) {
+	rpmOutput := "httpd\t2.4.37-43.module_el8\t5000000\t1620000000\nbash\t4.4.20-1.el8\t1500000\t1600000000\n"
+	manualMap := map[string]bool{"httpd": true}
+	servicesMap := map[string]string{"httpd": "inactive (dead)"}
+
+	pkgs := parseRpmOutput(rpmOutput, manualMap, servicesMap, 42)
+	if len(pkgs) != 2 {
+		t.Fatalf("expected 2 packages, got %d", len(pkgs))
+	}
+	if pkgs[0].Name != "httpd" || !pkgs[0].IsManual || pkgs[0].InstallEpoch != 1620000000 || pkgs[0].ServiceStatus != "inactive (dead)" {
+		t.Errorf("unexpected package 0: %+v", pkgs[0])
+	}
+}
+
+func TestScanPackagesIntegration(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-scan-pkg-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{Name: "Server Debian", Host: "10.0.0.5", Port: 22, User: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		if strings.Contains(cmd, "dpkg-query") {
+			out := "TYPE:DPKG\n===PKGS===\nnginx\t1.18.0\t1024\tinstalled\n===MANUAL===\nnginx\n===SERVICES===\nnginx.service active running\n"
+			return out, "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	ins := New(db, func(host string, port int, user, key string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	if err := ins.ScanPackages(hostID); err != nil {
+		t.Fatalf("scan packages failed: %v", err)
+	}
+
+	pkgs, err := db.GetHostPackages(hostID)
+	if err != nil {
+		t.Fatalf("get host packages failed: %v", err)
+	}
+	if len(pkgs) != 1 {
+		t.Fatalf("expected 1 package, got %d", len(pkgs))
+	}
+	if pkgs[0].Name != "nginx" || !pkgs[0].IsManual || pkgs[0].ServiceStatus != "active running" {
+		t.Errorf("unexpected package: %+v", pkgs[0])
+	}
+}
+
 
 

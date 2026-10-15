@@ -1461,3 +1461,202 @@ func (ins *Inspector) RecalculateHostLifecycle(hostID int64) error {
 	return ins.db.UpdateHostLifecycle(host.ID, score, notes, breakdown)
 }
 
+// PackageScanBatchCmd is the multi-distro polyglot command to discover packages, manual flags, and service states.
+// ponytail: Detects package managers dynamically across Debian, RHEL, Alpine, and Arch without remote dependencies.
+const PackageScanBatchCmd = `if command -v dpkg-query >/dev/null 2>&1; then
+    echo "TYPE:DPKG"
+    echo "===PKGS==="
+    dpkg-query -W -f='${Package}\t${Version}\t${Installed-Size}\t${db:Status-Status}\n' 2>/dev/null
+    echo "===MANUAL==="
+    apt-mark showmanual 2>/dev/null
+elif command -v rpm >/dev/null 2>&1; then
+    echo "TYPE:RPM"
+    echo "===PKGS==="
+    rpm -qa --qf '%{NAME}\t%{VERSION}-%{RELEASE}\t%{SIZE}\t%{INSTALLTIME}\n' 2>/dev/null
+    echo "===MANUAL==="
+    (dnf history userinstalled 2>/dev/null || yumdb search reason user 2>/dev/null | awk '/^[0-9a-f]+-/ {print $1}')
+elif [ -f /lib/apk/db/installed ]; then
+    echo "TYPE:APK"
+    echo "===PKGS==="
+    awk -F: '/^P:/ {p=$2} /^V:/ {v=$2} /^I:/ {s=$2; print p "\t" v "\t" s} /^[ \t]*$/ {p=""; v=""; s=""}' /lib/apk/db/installed 2>/dev/null
+    echo "===MANUAL==="
+    cat /etc/apk/world 2>/dev/null
+elif command -v pacman >/dev/null 2>&1; then
+    echo "TYPE:PACMAN"
+    echo "===PKGS==="
+    pacman -Qi 2>/dev/null | awk '/^Name/ {n=$3} /^Version/ {v=$3} /^Installed Size/ {s=$4 " " $5; print n "\t" v "\t" s}'
+    echo "===MANUAL==="
+    pacman -Qqe 2>/dev/null
+fi
+echo "===SERVICES==="
+(systemctl list-units --type=service --all --no-legend --no-pager 2>/dev/null || service --status-all 2>/dev/null || true) | awk '{print $1, $3, $4}'
+`
+
+func parseServicesMap(out string) map[string]string {
+	m := make(map[string]string)
+	lines := strings.Split(out, "\n")
+	for _, l := range lines {
+		fields := strings.Fields(l)
+		if len(fields) >= 2 {
+			unit := fields[0]
+			status := strings.Join(fields[1:], " ")
+			m[unit] = status
+			if strings.HasSuffix(unit, ".service") {
+				m[strings.TrimSuffix(unit, ".service")] = status
+			}
+		}
+	}
+	return m
+}
+
+func parseManualMap(out string) map[string]bool {
+	m := make(map[string]bool)
+	lines := strings.Split(out, "\n")
+	for _, l := range lines {
+		pkg := strings.TrimSpace(l)
+		if pkg != "" {
+			m[pkg] = true
+		}
+	}
+	return m
+}
+
+func parseDpkgOutput(out string, manualMap map[string]bool, servicesMap map[string]string, hostID int64) []*store.HostPackage {
+	var list []*store.HostPackage
+	lines := strings.Split(out, "\n")
+	now := time.Now()
+	for _, l := range lines {
+		parts := strings.Split(strings.TrimSpace(l), "\t")
+		if len(parts) < 4 {
+			continue
+		}
+		name := strings.TrimSpace(parts[0])
+		version := strings.TrimSpace(parts[1])
+		sizeKB, _ := strconv.ParseInt(strings.TrimSpace(parts[2]), 10, 64)
+		status := strings.TrimSpace(parts[3])
+		if status != "installed" {
+			continue
+		}
+		isManual := manualMap[name]
+		svcStatus := ""
+		svcName := ""
+		if s, ok := servicesMap[name]; ok {
+			svcName = name + ".service"
+			svcStatus = s
+		}
+		list = append(list, &store.HostPackage{
+			HostID:        hostID,
+			Name:          name,
+			Version:       version,
+			SizeBytes:     sizeKB * 1024,
+			IsManual:      isManual,
+			ServiceName:   svcName,
+			ServiceStatus: svcStatus,
+			LastScannedAt: now,
+		})
+	}
+	return list
+}
+
+func parseRpmOutput(out string, manualMap map[string]bool, servicesMap map[string]string, hostID int64) []*store.HostPackage {
+	var list []*store.HostPackage
+	lines := strings.Split(out, "\n")
+	now := time.Now()
+	for _, l := range lines {
+		parts := strings.Split(strings.TrimSpace(l), "\t")
+		if len(parts) < 4 {
+			continue
+		}
+		name := strings.TrimSpace(parts[0])
+		version := strings.TrimSpace(parts[1])
+		sizeBytes, _ := strconv.ParseInt(strings.TrimSpace(parts[2]), 10, 64)
+		installEpoch, _ := strconv.ParseInt(strings.TrimSpace(parts[3]), 10, 64)
+		isManual := manualMap[name]
+		svcStatus := ""
+		svcName := ""
+		if s, ok := servicesMap[name]; ok {
+			svcName = name + ".service"
+			svcStatus = s
+		}
+		list = append(list, &store.HostPackage{
+			HostID:        hostID,
+			Name:          name,
+			Version:       version,
+			SizeBytes:     sizeBytes,
+			InstallEpoch:  installEpoch,
+			IsManual:      isManual,
+			ServiceName:   svcName,
+			ServiceStatus: svcStatus,
+			LastScannedAt: now,
+		})
+	}
+	return list
+}
+
+// ScanPackages executes the agentless package inventory scanner on the host and stores the result.
+func (ins *Inspector) ScanPackages(hostID int64) error {
+	host, err := ins.db.GetHost(hostID)
+	if err != nil {
+		return err
+	}
+	if host == nil {
+		return fmt.Errorf("host %d not found", hostID)
+	}
+
+	runner, err := ins.GetRunnerForHost(host)
+	if err != nil {
+		return err
+	}
+	defer runner.Close()
+
+	stdout, _, _, err := runner.Exec(PackageScanBatchCmd)
+	if err != nil {
+		return fmt.Errorf("exec package scan: %w", err)
+	}
+
+	pkgType := ""
+	trimmedStdout := strings.TrimSpace(stdout)
+	if strings.HasPrefix(trimmedStdout, "TYPE:") {
+		lines := strings.SplitN(trimmedStdout, "\n", 2)
+		pkgType = strings.TrimSpace(strings.TrimPrefix(lines[0], "TYPE:"))
+		if len(lines) > 1 {
+			trimmedStdout = lines[1]
+		}
+	}
+
+	var pkgsSec, manualSec, servicesSec string
+	if idx := strings.Index(trimmedStdout, "===PKGS==="); idx != -1 {
+		rest := trimmedStdout[idx+len("===PKGS==="):]
+		if mIdx := strings.Index(rest, "===MANUAL==="); mIdx != -1 {
+			pkgsSec = strings.TrimSpace(rest[:mIdx])
+			rest = rest[mIdx+len("===MANUAL==="):]
+		}
+		if sIdx := strings.Index(rest, "===SERVICES==="); sIdx != -1 {
+			manualSec = strings.TrimSpace(rest[:sIdx])
+			servicesSec = strings.TrimSpace(rest[sIdx+len("===SERVICES==="):])
+		} else {
+			manualSec = strings.TrimSpace(rest)
+		}
+	}
+
+	manualMap := parseManualMap(manualSec)
+	servicesMap := parseServicesMap(servicesSec)
+
+	var pkgs []*store.HostPackage
+	switch pkgType {
+	case "DPKG":
+		pkgs = parseDpkgOutput(pkgsSec, manualMap, servicesMap, hostID)
+	case "RPM":
+		pkgs = parseRpmOutput(pkgsSec, manualMap, servicesMap, hostID)
+	default:
+		if strings.Contains(pkgsSec, "\tinstalled") {
+			pkgs = parseDpkgOutput(pkgsSec, manualMap, servicesMap, hostID)
+		} else {
+			pkgs = parseRpmOutput(pkgsSec, manualMap, servicesMap, hostID)
+		}
+	}
+
+	return ins.db.ReplaceHostPackages(hostID, pkgs)
+}
+
+
