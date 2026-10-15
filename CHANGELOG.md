@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- Process Telemetry: real-time agentless extraction of top 5 resource-consuming processes (Top CPU, Top RAM/RSS, and Top Swap) on every inspection cycle without remote daemon overhead.
+- Top Resource Consumers Widget: instant multi-column process observability card in the Host Detail Overview tab with direct one-click Terminal Dock launcher.
+- Agentless Package Inventory: polyglot multi-distro software inventory discovery across Debian/Ubuntu (`dpkg`), RHEL/CentOS/AlmaLinux/Rocky (`rpm`), Alpine (`apk`), and Arch (`pacman`).
+- Software Hygiene & Dormant Package Detection: automatic classification of Manual Install vs Base System packages and heuristic detection of dormant packages with inactive/failed/disabled systemd services.
+- Packages Tab in Workspace Modal: dedicated searchable package management tab with instant filtering (`Manual Install`, `Dormant Packages`, `All Packages`), disk size sorting, and on-demand rescan trigger.
+- Architectural Decision Record: [ADR-0032](docs/adr/0032-process-telemetry-and-package-inventory.md).
 - TOFU (Trust On First Use) Host Key Verification: implemented `TOFUHostKeyCallback` in SSH runner, automatically accepting host keys upon initial connection while strictly verifying fingerprints on subsequent connections to prevent active Machine-in-the-Middle (MITM) attacks.
 - OpenSSH 4.x & CentOS 5 Host Key Support: added `ssh-dss` (`ssh.KeyAlgoDSA`) to supported host key algorithms in `configureLegacyCompatibleSSH` alongside `ssh-rsa` and legacy ciphers/kex (`3des-cbc`, `diffie-hellman-group1-sha1`).
 - Universal POSIX Single-Quoting (`shellQuote`): standard Bourne shell escaping (`'...'`) across all remote command interpolations (file manager, cross-host transfer, container inspection, service diagnostics, and backup freshness), eliminating command injection vulnerabilities across all Linux kernel and Bash versions.
