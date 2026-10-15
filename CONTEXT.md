@@ -345,4 +345,30 @@ _Avoid_: Insecure ignore host key, manual known hosts, strict pinning
 Mekanisme pembungkusan argumen perintah jarak jauh menggunakan tanda kutip tunggal POSIX (`'...'`) universal yang menetralkan ekspansi variabel shell (`$`, backtick, operator piping) di seluruh versi Linux dari kernel lawas (CentOS 5) hingga modern.
 _Avoid_: Double quote interpolation, shell sanitization, cmd escape
 
+**Resource Hog**:
+Proses aktif pada Host yang mengonsumsi kapasitas komputasi (CPU), memori fisik (RAM/RSS), atau memori virtual (Swap) dalam porsi signifikan atau melampaui batas ambang evaluasi.
+_Avoid_: Heavy process, ram eater, bottleneck app, resource killer
+
+**Package Inventory**:
+Daftar inventaris paket perangkat lunak terpasang pada Host hasil inspeksi manajer paket sistem (APT, DNF/RPM, Pacman, Snap) yang mendokumentasikan nama paket, versi, estimasi ukuran disk, tanggal instalasi, dan klasifikasi pemasangan.
+_Avoid_: App list, installed software, system programs, app manager
+
+**Manual Install**:
+Klasifikasi paket perangkat lunak pada Package Inventory yang dipasang secara eksplisit oleh administrator melalui perintah manajer paket, bukan dependensi otomatis atau bootstrap awal distro.
+_Avoid_: User app, custom package, non-system package
+
+**Base System**:
+Klasifikasi paket perangkat lunak pada Package Inventory yang merupakan bagian dari instalasi awal sistem operasi (distro bootstrap) atau pustaka/dependensi inti yang dibutuhkan sistem.
+_Avoid_: Default app, system bundle, OS packages
+
+**Process Telemetry**:
+Rangkuman data proses-proses aktif pemakan kapasitas komputasi teratas (Top CPU, Top RAM/RSS, dan Top Swap) yang diekstrak secara berkala pada setiap siklus inspeksi untuk mendeteksi lonjakan beban atau kebocoran memori secara instan.
+_Avoid_: Process list, ps dump, task manager, top monitor
+
+**Dormant Package**:
+Paket perangkat lunak atau unit layanan pada Host yang terpasang namun teridentifikasi tidak memiliki aktivitas eksekusi proses atau layanan aktif dalam kurun waktu observasi inspeksi.
+_Avoid_: Unused app, dead software, zombie program, orphan app
+
+
+
 
