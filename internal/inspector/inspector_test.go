@@ -712,5 +712,60 @@ func TestScanPackagesConcurrencyGuard(t *testing.T) {
 	close(execFinish)
 }
 
+func TestAlpineAndArchPackageScanParsing(t *testing.T) {
+	// 1. Alpine APK format (3 fields: Name, Version, Size in bytes)
+	apkOutput := "busybox\t1.36.1-r19\t966656\nnginx\t1.24.0-r7\t1234567\n"
+	manualMap := map[string]bool{"nginx": true}
+	servicesMap := map[string]string{"nginx": "active running", "busybox": ""}
 
+	pkgs := parseRpmOutput(apkOutput, manualMap, servicesMap, 42)
+	if len(pkgs) != 2 {
+		t.Fatalf("expected 2 APK packages parsed, got %d", len(pkgs))
+	}
+	if pkgs[0].Name != "busybox" || pkgs[0].SizeBytes != 966656 || pkgs[0].IsManual {
+		t.Errorf("unexpected busybox APK package: %+v", pkgs[0])
+	}
+	if pkgs[1].Name != "nginx" || pkgs[1].SizeBytes != 1234567 || !pkgs[1].IsManual || pkgs[1].ServiceStatus != "active running" {
+		t.Errorf("unexpected nginx APK package: %+v", pkgs[1])
+	}
 
+	// 2. Arch Pacman format (3 fields: Name, Version, Human readable size)
+	pacmanOutput := "curl\t8.2.1-1\t1.50 MiB\nripgrep\t13.0.0-1\t5.20 MiB\n"
+	manualMapArch := map[string]bool{"ripgrep": true}
+	pkgsArch := parseRpmOutput(pacmanOutput, manualMapArch, servicesMap, 43)
+	if len(pkgsArch) != 2 {
+		t.Fatalf("expected 2 Arch packages parsed, got %d", len(pkgsArch))
+	}
+	if pkgsArch[0].Name != "curl" || pkgsArch[0].SizeBytes != int64(1.50*1024*1024) {
+		t.Errorf("unexpected curl Arch package: %+v", pkgsArch[0])
+	}
+	if pkgsArch[1].Name != "ripgrep" || !pkgsArch[1].IsManual {
+		t.Errorf("unexpected ripgrep Arch package: %+v", pkgsArch[1])
+	}
+}
+
+func TestSystemctlBulletHandlingInServicesMap(t *testing.T) {
+	raw := "alloy.service active running\napache2.service failed failed\n● mysql.service loaded failed failed\n"
+	servicesMap := parseServicesMap(raw)
+
+	if servicesMap["alloy"] != "active running" {
+		t.Errorf("alloy service status mismatch: %q", servicesMap["alloy"])
+	}
+	if servicesMap["apache2"] != "failed failed" {
+		t.Errorf("apache2 service status mismatch: %q", servicesMap["apache2"])
+	}
+	if servicesMap["mysql"] != "loaded failed failed" {
+		t.Errorf("mysql service status mismatch: %q", servicesMap["mysql"])
+	}
+}
+
+func TestProcessNameWithSpacesInSwap(t *testing.T) {
+	out := "12345 1000 5120 Web Content\n67890 0 10240 mysqld\n"
+	swapList := parseTopSwap(out)
+	if len(swapList) != 2 {
+		t.Fatalf("expected 2 swap processes, got %d", len(swapList))
+	}
+	if swapList[0].PID != 12345 || swapList[0].Command != "Web Content" || swapList[0].SwapBytes != 5120*1024 {
+		t.Errorf("unexpected swap item 0: %+v", swapList[0])
+	}
+}

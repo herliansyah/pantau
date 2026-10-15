@@ -232,7 +232,7 @@ func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration
 // SystemMetricsBatchCmd is the single-shot batch command to gather system, network, and security metrics.
 // ponytail: Universal polyglot batching keeps agentless overhead near zero on modern & legacy Linux.
 // ponytail: Uses df -lPk with timeout fallback to guard against hung NFS / network storage.
-const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; (timeout -k 2s 5s df -lPk / 2>/dev/null || df -lPk / 2>/dev/null); echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 -m 4 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 -m 4 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l; echo "---"; (nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1); echo "---"; (cat /sys/class/dmi/id/bios_date 2>/dev/null || echo ""); echo "---"; (cat /sys/class/dmi/id/sys_vendor 2>/dev/null || cat /sys/class/dmi/id/product_name 2>/dev/null || echo ""); echo "---"; (stat -c %Y /etc/machine-id 2>/dev/null || stat -c %Y /etc/ssh/ssh_host_rsa_key 2>/dev/null || stat -c %Y /var/log 2>/dev/null || echo 0); echo "---"; cat /proc/diskstats 2>/dev/null | awk '{if ($3 ~ /^([hsv]d[a-z]|nvme[0-9]+n[0-9]+|xvd[a-z]|mmcblk[0-9]+)$/) {r+=$6; w+=$10}} END {print (r?r:0)*512, (w?w:0)*512}'; echo "---"; (ps -eo pid,user,%cpu,%mem,rss,comm --sort=-%cpu 2>/dev/null || ps -eo pid,user,%cpu,%mem,rss,args 2>/dev/null) | head -n 6; echo "---"; (ps -eo pid,user,%cpu,%mem,rss,comm --sort=-rss 2>/dev/null || ps -eo pid,user,%cpu,%mem,rss,args 2>/dev/null) | head -n 6; echo "---"; ([ $(awk '/SwapTotal/ {print $2}' /proc/meminfo 2>/dev/null || echo 0) -gt 0 ] && grep -s -H -E '^(VmSwap|Name|Uid):' /proc/[0-9]*/status 2>/dev/null | awk -F'[: \t]+' '{if ($2=="VmSwap" && $3>0) {split($1,a,"/"); print a[3], (uid[a[3]]?uid[a[3]]:"0"), $3, name[a[3]]} else if ($2=="Name") {split($1,a,"/"); name[a[3]]=$3} else if ($2=="Uid") {split($1,a,"/"); uid[a[3]]=$3}}' | sort -k3 -rn | head -n 5) || true`
+const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; (timeout -k 2s 5s df -lPk / 2>/dev/null || df -lPk / 2>/dev/null); echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 -m 4 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 -m 4 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l; echo "---"; (nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1); echo "---"; (cat /sys/class/dmi/id/bios_date 2>/dev/null || echo ""); echo "---"; (cat /sys/class/dmi/id/sys_vendor 2>/dev/null || cat /sys/class/dmi/id/product_name 2>/dev/null || echo ""); echo "---"; (stat -c %Y /etc/machine-id 2>/dev/null || stat -c %Y /etc/ssh/ssh_host_rsa_key 2>/dev/null || stat -c %Y /var/log 2>/dev/null || echo 0); echo "---"; cat /proc/diskstats 2>/dev/null | awk '{if ($3 ~ /^([hsv]d[a-z]|nvme[0-9]+n[0-9]+|xvd[a-z]|mmcblk[0-9]+)$/) {r+=$6; w+=$10}} END {print (r?r:0)*512, (w?w:0)*512}'; echo "---"; (ps -eo pid,user,%cpu,%mem,rss,comm --sort=-%cpu 2>/dev/null || ps -eo pid,user,%cpu,%mem,rss,args 2>/dev/null) | head -n 6; echo "---"; (ps -eo pid,user,%cpu,%mem,rss,comm --sort=-rss 2>/dev/null || ps -eo pid,user,%cpu,%mem,rss,args 2>/dev/null) | head -n 6; echo "---"; ([ $(awk '/SwapTotal/ {t=$2} /SwapFree/ {f=$2} END {print (t?t:0)-(f?f:0)}' /proc/meminfo 2>/dev/null || echo 0) -gt 0 ] && grep -s -H -E '^(VmSwap|Name|Uid):' /proc/[0-9]*/status 2>/dev/null | awk -F'[: \t]+' '{if ($2=="VmSwap" && $3>0) {split($1,a,"/"); print a[3], (uid[a[3]]?uid[a[3]]:"0"), $3, name[a[3]]} else if ($2=="Name") {split($1,a,"/"); n=$0; sub(/^.+:Name:[ \t]+/, "", n); name[a[3]]=n} else if ($2=="Uid") {split($1,a,"/"); uid[a[3]]=$3}}' | sort -k3 -rn | head -n 5) || true`
 
 func splitMetricsSections(stdout string) []string {
 	lines := strings.Split(stdout, "\n")
@@ -1304,7 +1304,7 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 
 	case "process":
 		// ponytail: pgrep -f checks matching active process with ps fallback
-		procCmd := fmt.Sprintf(`sh -c 'if command -v pgrep >/dev/null 2>&1; then pgrep -fl "$1" 2>/dev/null; else ps -ef 2>/dev/null | grep -v grep | grep "$1"; fi' -- %q`, rule.Target)
+		procCmd := fmt.Sprintf(`sh -c 'if command -v pgrep >/dev/null 2>&1; then pgrep -fl "$1" 2>/dev/null; else ps -ef 2>/dev/null | grep -v grep | grep "$1"; fi' -- %s`, shellQuote(rule.Target))
 		out, _, exitCode, _ := runner.Exec(procCmd)
 		out = strings.TrimSpace(out)
 		isRunning := exitCode == 0 && out != ""
@@ -1497,7 +1497,7 @@ elif command -v rpm >/dev/null 2>&1; then
     echo "===PKGS==="
     rpm -qa --qf '%{NAME}\t%{VERSION}-%{RELEASE}\t%{SIZE}\t%{INSTALLTIME}\n' 2>/dev/null
     echo "===MANUAL==="
-    (dnf history userinstalled 2>/dev/null || yumdb search reason user 2>/dev/null | awk '!/reason =/ && !/Loaded plugins/ && NF {sub(/\/reason:?$/, ""); print $1}' || awk '/Installed:/ {print $NF}' /var/log/yum.log* 2>/dev/null)
+    (dnf history userinstalled 2>/dev/null || (command -v yumdb >/dev/null 2>&1 && yumdb search reason user 2>/dev/null | awk '!/reason =/ && !/Loaded plugins/ && NF {sub(/\/reason:?$/, ""); print $1}') || awk '/Installed:/ {print $NF}' /var/log/yum.log* 2>/dev/null)
 elif [ -f /lib/apk/db/installed ]; then
     echo "TYPE:APK"
     echo "===PKGS==="
@@ -1513,7 +1513,7 @@ elif command -v pacman >/dev/null 2>&1; then
 fi
 echo "===SERVICES==="
 if command -v systemctl >/dev/null 2>&1; then
-    systemctl list-units --type=service --all --no-legend --no-pager 2>/dev/null | awk '{print $1, $3, $4}'
+    (systemctl list-units --type=service --all --no-legend --no-pager --plain 2>/dev/null || systemctl list-units --type=service --all --no-legend --no-pager 2>/dev/null) | awk '{ if ($1 ~ /^[^a-zA-Z0-9_]/) { print $2, $4, $5 } else { print $1, $3, $4 } }'
 elif command -v chkconfig >/dev/null 2>&1; then
     chkconfig --list 2>/dev/null | awk '{print $1, ($5 ~ /3:on/ ? "active running" : "inactive")}'
 fi
@@ -1526,7 +1526,12 @@ func parseServicesMap(out string) map[string]string {
 		fields := strings.Fields(l)
 		if len(fields) >= 2 {
 			unit := fields[0]
-			status := strings.Join(fields[1:], " ")
+			statusIdx := 1
+			if (unit == "●" || unit == "*" || strings.HasPrefix(unit, "●")) && len(fields) >= 3 {
+				unit = fields[1]
+				statusIdx = 2
+			}
+			status := strings.Join(fields[statusIdx:], " ")
 			m[unit] = status
 			if strings.HasSuffix(unit, ".service") {
 				m[strings.TrimSuffix(unit, ".service")] = status
@@ -1634,19 +1639,48 @@ func parseDpkgOutput(out string, manualMap map[string]bool, servicesMap map[stri
 	return list
 }
 
+func parsePackageSize(raw string) int64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	if val, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		return val
+	}
+	fields := strings.Fields(raw)
+	if len(fields) >= 2 {
+		num, _ := strconv.ParseFloat(fields[0], 64)
+		unit := strings.ToUpper(fields[1])
+		switch {
+		case strings.HasPrefix(unit, "G"):
+			return int64(num * 1024 * 1024 * 1024)
+		case strings.HasPrefix(unit, "M"):
+			return int64(num * 1024 * 1024)
+		case strings.HasPrefix(unit, "K"):
+			return int64(num * 1024)
+		case strings.HasPrefix(unit, "B"):
+			return int64(num)
+		}
+	}
+	return 0
+}
+
 func parseRpmOutput(out string, manualMap map[string]bool, servicesMap map[string]string, hostID int64) []*store.HostPackage {
 	var list []*store.HostPackage
 	lines := strings.Split(out, "\n")
 	now := time.Now()
 	for _, l := range lines {
 		parts := strings.Split(strings.TrimSpace(l), "\t")
-		if len(parts) < 4 {
+		if len(parts) < 3 {
 			continue
 		}
 		name := strings.TrimSpace(parts[0])
 		version := strings.TrimSpace(parts[1])
-		sizeBytes, _ := strconv.ParseInt(strings.TrimSpace(parts[2]), 10, 64)
-		installEpoch, _ := strconv.ParseInt(strings.TrimSpace(parts[3]), 10, 64)
+		sizeBytes := parsePackageSize(parts[2])
+		var installEpoch int64
+		if len(parts) >= 4 {
+			installEpoch, _ = strconv.ParseInt(strings.TrimSpace(parts[3]), 10, 64)
+		}
 		isManual := manualMap[name] || manualMap[name+"-"+version] || manualMap[normalizeRpmPackageName(name)]
 		svcStatus := ""
 		svcName := ""
@@ -1753,7 +1787,7 @@ func (ins *Inspector) ScanPackagesWithTimeout(hostID int64, timeout time.Duratio
 	switch pkgType {
 	case "DPKG":
 		pkgs = parseDpkgOutput(pkgsSec, manualMap, servicesMap, hostID)
-	case "RPM":
+	case "RPM", "APK", "PACMAN":
 		pkgs = parseRpmOutput(pkgsSec, manualMap, servicesMap, hostID)
 	default:
 		if strings.Contains(pkgsSec, "\tinstalled") {
