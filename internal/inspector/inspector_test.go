@@ -601,5 +601,116 @@ func TestScanPackagesIntegration(t *testing.T) {
 	}
 }
 
+func TestNormalizeRpmPackageName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"nginx-1.18.0-1.el6.ngx.x86_64", "nginx"},
+		{"openssh-server-5.3p1-124.el6_10.x86_64", "openssh-server"},
+		{"c1a2b3-httpd-2.4.6-97.el7.centos.x86_64", "httpd"},
+		{"bash", "bash"},
+		{"libgcc-4.4.7-23.el6.i686", "libgcc"},
+		{"/var/lib/yum/yumdb/n/123-nginx-1.18.0-1.el6.x86_64/reason", "nginx"},
+		{"reason = user", ""},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		got := normalizeRpmPackageName(tt.input)
+		if got != tt.expected {
+			t.Errorf("normalizeRpmPackageName(%q) = %q; want %q", tt.input, got, tt.expected)
+		}
+	}
+}
+
+func TestCentOS6PackageScanParsing(t *testing.T) {
+	rpmOutput := "nginx\t1.18.0-1.el6.ngx\t1000000\t1600000000\nhttpd\t2.2.15-69.el6.centos\t2000000\t1600000000\ncoreutils\t8.4-47.el6\t5000000\t1500000000\n"
+	manualSec := "Loaded plugins: fastestmirror\nnginx-1.18.0-1.el6.ngx.x86_64\n   reason = user\nhttpd-2.2.15-69.el6.centos.x86_64\n   reason = user\n"
+	servicesSec := "httpd active running\nnginx inactive\n"
+
+	manualMap := parseManualMap(manualSec)
+	servicesMap := parseServicesMap(servicesSec)
+
+	pkgs := parseRpmOutput(rpmOutput, manualMap, servicesMap, 99)
+	if len(pkgs) != 3 {
+		t.Fatalf("expected 3 packages, got %d", len(pkgs))
+	}
+
+	pkgMap := make(map[string]*store.HostPackage)
+	for _, p := range pkgs {
+		pkgMap[p.Name] = p
+	}
+
+	if p, ok := pkgMap["nginx"]; !ok || !p.IsManual || p.ServiceStatus != "inactive" {
+		t.Errorf("nginx package mismatch: %+v", p)
+	}
+	if p, ok := pkgMap["httpd"]; !ok || !p.IsManual || p.ServiceStatus != "active running" {
+		t.Errorf("httpd package mismatch: %+v", p)
+	}
+	if p, ok := pkgMap["coreutils"]; !ok || p.IsManual {
+		t.Errorf("coreutils should be base package (not manual): %+v", p)
+	}
+}
+
+func TestSplitMetricsSectionsWithDashesInProcess(t *testing.T) {
+	stdout := "5.15.0\n---\nUbuntu 22.04\n---\nup 1 day\n---\nMem: 1000\n---\n/dev/sda1 100 50\n---\n0\n---\n100 100\n---\ntime=10\n---\n1.2.3.4\n---\nconns\n---\nports\n---\n0\n---\n2\n---\n01/01/2020\n---\nKVM\n---\n1600000000\n---\n0 0\n---\n123 root 1.0 1.0 1024 python app.py ---flag-value=1\n---\n123 root 1.0 1.0 1024 python app.py\n---\n"
+	sections := splitMetricsSections(stdout)
+	if len(sections) < 18 {
+		t.Fatalf("expected at least 18 sections, got %d", len(sections))
+	}
+	// Verify that --- within python command didn't create spurious extra sections
+	if !strings.Contains(sections[17], "---flag-value=1") {
+		t.Errorf("expected command line with dashes preserved, got %q", sections[17])
+	}
+}
+
+func TestScanPackagesConcurrencyGuard(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-pkg-concurrency-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{Name: "Server Lock", Host: "10.0.0.9", Port: 22, User: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	execStarted := make(chan struct{})
+	execFinish := make(chan struct{})
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		close(execStarted)
+		<-execFinish
+		return "TYPE:DPKG\n===PKGS===\ncurl\t7.68.0\t512\tinstalled\n===MANUAL===\ncurl\n", "", 0, nil
+	}
+
+	ins := New(db, func(host string, port int, user, key string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	go func() {
+		_ = ins.ScanPackages(hostID)
+	}()
+
+	<-execStarted
+
+	// Second concurrent call should fail with ErrPackageScanInProgress
+	err = ins.ScanPackages(hostID)
+	if !errors.Is(err, ErrPackageScanInProgress) {
+		t.Errorf("expected ErrPackageScanInProgress, got %v", err)
+	}
+
+	close(execFinish)
+}
+
 
 

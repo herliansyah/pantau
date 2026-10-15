@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -678,7 +679,12 @@ func (d *DB) UpdateHostInspection(h *Host) error {
 
 // Host Package operations
 // ponytail: Atomic host-scoped replace eliminates orphan/uninstalled packages cleanly in one transaction.
+// ponytail: Guard against accidental database wipe if scan returned empty or timed out.
 func (d *DB) ReplaceHostPackages(hostID int64, pkgs []*HostPackage) error {
+	if len(pkgs) == 0 {
+		return fmt.Errorf("refusing to replace with empty packages list; keeping existing scan results")
+	}
+
 	tx, err := d.Begin()
 	if err != nil {
 		return err
@@ -730,6 +736,19 @@ func (d *DB) GetHostPackages(hostID int64) ([]*HostPackage, error) {
 		pkgs = append(pkgs, &p)
 	}
 	return pkgs, nil
+}
+
+// GetHostPackagesLastScanned returns the most recent last_scanned_at timestamp for a host's packages.
+func (d *DB) GetHostPackagesLastScanned(hostID int64) (time.Time, error) {
+	var ts time.Time
+	err := d.QueryRow(`SELECT last_scanned_at FROM host_packages WHERE host_id = ? ORDER BY last_scanned_at DESC LIMIT 1`, hostID).Scan(&ts)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return time.Time{}, nil
+		}
+		return time.Time{}, err
+	}
+	return ts, nil
 }
 
 // Inspection Run operations

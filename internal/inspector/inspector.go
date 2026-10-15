@@ -24,13 +24,17 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
-var ErrAlreadyInspecting = errors.New("inspection already in progress for this host")
+var (
+	ErrAlreadyInspecting     = errors.New("inspection already in progress for this host")
+	ErrPackageScanInProgress = errors.New("package scan already in progress for this host")
+)
 
 type Inspector struct {
-	db       *store.DB
-	factory  sshrunner.RunnerFactory
-	notifier *notify.Dispatcher
-	inFlight sync.Map
+	db              *store.DB
+	factory         sshrunner.RunnerFactory
+	notifier        *notify.Dispatcher
+	inFlight        sync.Map
+	packageInFlight sync.Map
 }
 
 func New(db *store.DB, factory sshrunner.RunnerFactory, notifier *notify.Dispatcher) *Inspector {
@@ -230,13 +234,32 @@ func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration
 // ponytail: Uses df -lPk with timeout fallback to guard against hung NFS / network storage.
 const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; (timeout -k 2s 5s df -lPk / 2>/dev/null || df -lPk / 2>/dev/null); echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 -m 4 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 -m 4 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l; echo "---"; (nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1); echo "---"; (cat /sys/class/dmi/id/bios_date 2>/dev/null || echo ""); echo "---"; (cat /sys/class/dmi/id/sys_vendor 2>/dev/null || cat /sys/class/dmi/id/product_name 2>/dev/null || echo ""); echo "---"; (stat -c %Y /etc/machine-id 2>/dev/null || stat -c %Y /etc/ssh/ssh_host_rsa_key 2>/dev/null || stat -c %Y /var/log 2>/dev/null || echo 0); echo "---"; cat /proc/diskstats 2>/dev/null | awk '{if ($3 ~ /^([hsv]d[a-z]|nvme[0-9]+n[0-9]+|xvd[a-z]|mmcblk[0-9]+)$/) {r+=$6; w+=$10}} END {print (r?r:0)*512, (w?w:0)*512}'; echo "---"; (ps -eo pid,user,%cpu,%mem,rss,comm --sort=-%cpu 2>/dev/null || ps -eo pid,user,%cpu,%mem,rss,args 2>/dev/null) | head -n 6; echo "---"; (ps -eo pid,user,%cpu,%mem,rss,comm --sort=-rss 2>/dev/null || ps -eo pid,user,%cpu,%mem,rss,args 2>/dev/null) | head -n 6; echo "---"; ([ $(awk '/SwapTotal/ {print $2}' /proc/meminfo 2>/dev/null || echo 0) -gt 0 ] && grep -s -H -E '^(VmSwap|Name|Uid):' /proc/[0-9]*/status 2>/dev/null | awk -F'[: \t]+' '{if ($2=="VmSwap" && $3>0) {split($1,a,"/"); print a[3], (uid[a[3]]?uid[a[3]]:"0"), $3, name[a[3]]} else if ($2=="Name") {split($1,a,"/"); name[a[3]]=$3} else if ($2=="Uid") {split($1,a,"/"); uid[a[3]]=$3}}' | sort -k3 -rn | head -n 5) || true`
 
+func splitMetricsSections(stdout string) []string {
+	lines := strings.Split(stdout, "\n")
+	var sections []string
+	var cur strings.Builder
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "---" {
+			sections = append(sections, cur.String())
+			cur.Reset()
+		} else {
+			if cur.Len() > 0 {
+				cur.WriteByte('\n')
+			}
+			cur.WriteString(line)
+		}
+	}
+	sections = append(sections, cur.String())
+	return sections
+}
+
 func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner) error {
 	stdout, _, _, err := runner.Exec(SystemMetricsBatchCmd)
 	if err != nil {
 		return fmt.Errorf("exec metrics batch: %w", err)
 	}
 
-	sections := strings.Split(stdout, "---")
+	sections := splitMetricsSections(stdout)
 	if len(sections) >= 1 {
 		h.Kernel = strings.TrimSpace(sections[0])
 	}
@@ -1474,7 +1497,7 @@ elif command -v rpm >/dev/null 2>&1; then
     echo "===PKGS==="
     rpm -qa --qf '%{NAME}\t%{VERSION}-%{RELEASE}\t%{SIZE}\t%{INSTALLTIME}\n' 2>/dev/null
     echo "===MANUAL==="
-    (dnf history userinstalled 2>/dev/null || yumdb search reason user 2>/dev/null | awk '/^[0-9a-f]+-/ {print $1}')
+    (dnf history userinstalled 2>/dev/null || yumdb search reason user 2>/dev/null | awk '!/reason =/ && !/Loaded plugins/ && NF {sub(/\/reason:?$/, ""); print $1}' || awk '/Installed:/ {print $NF}' /var/log/yum.log* 2>/dev/null)
 elif [ -f /lib/apk/db/installed ]; then
     echo "TYPE:APK"
     echo "===PKGS==="
@@ -1489,7 +1512,11 @@ elif command -v pacman >/dev/null 2>&1; then
     pacman -Qqe 2>/dev/null
 fi
 echo "===SERVICES==="
-(systemctl list-units --type=service --all --no-legend --no-pager 2>/dev/null || service --status-all 2>/dev/null || true) | awk '{print $1, $3, $4}'
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl list-units --type=service --all --no-legend --no-pager 2>/dev/null | awk '{print $1, $3, $4}'
+elif command -v chkconfig >/dev/null 2>&1; then
+    chkconfig --list 2>/dev/null | awk '{print $1, ($5 ~ /3:on/ ? "active running" : "inactive")}'
+fi
 `
 
 func parseServicesMap(out string) map[string]string {
@@ -1509,6 +1536,52 @@ func parseServicesMap(out string) map[string]string {
 	return m
 }
 
+// normalizeRpmPackageName extracts the base package name from NEVRA or path strings.
+// e.g. "nginx-1.18.0-1.el6.ngx.x86_64" -> "nginx", "openssh-server-5.3p1-124.el6_10.x86_64" -> "openssh-server"
+func normalizeRpmPackageName(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return ""
+	}
+	s = strings.TrimSuffix(s, "/reason")
+	s = strings.TrimSuffix(s, "/reason:user")
+	if idx := strings.LastIndex(s, "/"); idx != -1 {
+		s = s[idx+1:]
+	}
+	if s == "reason" || strings.HasPrefix(s, "reason") {
+		return ""
+	}
+	// Strip optional transaction hex hash prefix (e.g. 1a2b3c4d-nginx-...)
+	if dashIdx := strings.Index(s, "-"); dashIdx > 0 && dashIdx <= 64 {
+		isHex := true
+		for _, ch := range s[:dashIdx] {
+			if !((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F')) {
+				isHex = false
+				break
+			}
+		}
+		if isHex && len(s) > dashIdx+1 {
+			s = s[dashIdx+1:]
+		}
+	}
+	// Strip arch extension if present (.x86_64, .noarch, .i686, etc.)
+	if dotIdx := strings.LastIndex(s, "."); dotIdx != -1 {
+		lastDash := strings.LastIndex(s, "-")
+		if dotIdx > lastDash {
+			s = s[:dotIdx]
+		}
+	}
+	// Now s is name-version-release or name
+	parts := strings.Split(s, "-")
+	if len(parts) >= 3 {
+		// last part is release, second-to-last is version, rest is name
+		return strings.Join(parts[:len(parts)-2], "-")
+	} else if len(parts) == 2 {
+		return parts[0]
+	}
+	return s
+}
+
 func parseManualMap(out string) map[string]bool {
 	m := make(map[string]bool)
 	lines := strings.Split(out, "\n")
@@ -1516,6 +1589,9 @@ func parseManualMap(out string) map[string]bool {
 		pkg := strings.TrimSpace(l)
 		if pkg != "" {
 			m[pkg] = true
+			if norm := normalizeRpmPackageName(pkg); norm != "" {
+				m[norm] = true
+			}
 		}
 	}
 	return m
@@ -1571,7 +1647,7 @@ func parseRpmOutput(out string, manualMap map[string]bool, servicesMap map[strin
 		version := strings.TrimSpace(parts[1])
 		sizeBytes, _ := strconv.ParseInt(strings.TrimSpace(parts[2]), 10, 64)
 		installEpoch, _ := strconv.ParseInt(strings.TrimSpace(parts[3]), 10, 64)
-		isManual := manualMap[name]
+		isManual := manualMap[name] || manualMap[name+"-"+version] || manualMap[normalizeRpmPackageName(name)]
 		svcStatus := ""
 		svcName := ""
 		if s, ok := servicesMap[name]; ok {
@@ -1595,6 +1671,23 @@ func parseRpmOutput(out string, manualMap map[string]bool, servicesMap map[strin
 
 // ScanPackages executes the agentless package inventory scanner on the host and stores the result.
 func (ins *Inspector) ScanPackages(hostID int64) error {
+	return ins.ScanPackagesWithTimeout(hostID, 45*time.Second)
+}
+
+// ScanPackagesWithTimeout executes the package inventory scan with a timeout budget and concurrency guard.
+func (ins *Inspector) ScanPackagesWithTimeout(hostID int64, timeout time.Duration) error {
+	if _, loaded := ins.packageInFlight.LoadOrStore(hostID, struct{}{}); loaded {
+		// ponytail: Concurrency guard / singleflight prevents overlapping package scans.
+		return ErrPackageScanInProgress
+	}
+	defer ins.packageInFlight.Delete(hostID)
+
+	if timeout <= 0 {
+		timeout = 45 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	host, err := ins.db.GetHost(hostID)
 	if err != nil {
 		return err
@@ -1609,8 +1702,22 @@ func (ins *Inspector) ScanPackages(hostID int64) error {
 	}
 	defer runner.Close()
 
+	// Ensure runner connection is immediately aborted if context timeout expires, unblocking hung commands.
+	doneChan := make(chan struct{})
+	defer close(doneChan)
+	go func() {
+		select {
+		case <-doneChan:
+		case <-ctx.Done():
+			_ = runner.Close()
+		}
+	}()
+
 	stdout, _, _, err := runner.Exec(PackageScanBatchCmd)
 	if err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("exec package scan timed out: %w", ctx.Err())
+		}
 		return fmt.Errorf("exec package scan: %w", err)
 	}
 
@@ -1654,6 +1761,10 @@ func (ins *Inspector) ScanPackages(hostID int64) error {
 		} else {
 			pkgs = parseRpmOutput(pkgsSec, manualMap, servicesMap, hostID)
 		}
+	}
+
+	if len(pkgs) == 0 {
+		return fmt.Errorf("no packages discovered or package manager output was empty; keeping existing scan results")
 	}
 
 	return ins.db.ReplaceHostPackages(hostID, pkgs)

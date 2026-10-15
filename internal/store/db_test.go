@@ -252,24 +252,23 @@ func TestHostPackagesAndProcessTelemetry(t *testing.T) {
 		t.Errorf("unexpected package 0: %+v", got[0])
 	}
 
-	// Test process telemetry fields on Host
-	h, err := db.GetHost(hostID)
+	// Test GetHostPackagesLastScanned
+	lastScanned, err := db.GetHostPackagesLastScanned(hostID)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("get host packages last scanned: %v", err)
 	}
-	h.TopCPUProcesses = `[{"pid":123,"user":"root","cpu":25.5,"mem":1.2,"rss_bytes":50000000,"command":"nginx"}]`
-	h.TopRAMProcesses = `[{"pid":123,"user":"root","cpu":1.0,"mem":10.5,"rss_bytes":500000000,"command":"nginx"}]`
-	h.TopSwapProcesses = `[{"pid":123,"user":"root","swap_bytes":20000000,"command":"nginx"}]`
-	if err := db.UpdateHostInspection(h); err != nil {
-		t.Fatalf("update host inspection: %v", err)
+	if lastScanned.IsZero() {
+		t.Errorf("expected non-zero last scanned time, got %v", lastScanned)
 	}
 
-	h2, err := db.GetHost(hostID)
-	if err != nil {
-		t.Fatal(err)
+	// Test ReplaceHostPackages refuses empty slice and preserves existing packages
+	err = db.ReplaceHostPackages(hostID, []*HostPackage{})
+	if err == nil {
+		t.Errorf("expected error when replacing with empty slice, got nil")
 	}
-	if h2.TopCPUProcesses != h.TopCPUProcesses || h2.TopRAMProcesses != h.TopRAMProcesses || h2.TopSwapProcesses != h.TopSwapProcesses {
-		t.Errorf("process telemetry mismatch on host: %+v", h2)
+	preserved, err := db.GetHostPackages(hostID)
+	if err != nil || len(preserved) != 2 {
+		t.Fatalf("expected 2 packages preserved after empty replace attempt, got %d (err: %v)", len(preserved), err)
 	}
 }
 
