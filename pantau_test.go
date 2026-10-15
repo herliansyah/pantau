@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -1429,6 +1430,30 @@ func TestResolveConfigFallbacks(t *testing.T) {
 	port, db, explicit = resolveConfig(8080, "pantau.db")
 	if port != 9191 || db != "data/pantau_pref.db" || !explicit {
 		t.Fatalf("expected PANTAU_* precedence (9191, data/pantau_pref.db, true), got (%d, %s, %v)", port, db, explicit)
+	}
+}
+
+func TestResolveLogLevelFallbacks(t *testing.T) {
+	// 1. Default when flag and env are empty: error
+	t.Setenv("PANTAU_LOG_LEVEL", "")
+	if lvl := resolveLogLevel("", false); lvl != slog.LevelError {
+		t.Fatalf("expected default LevelError, got %v", lvl)
+	}
+
+	// 2. Quiet flag overrides everything to LevelError
+	if lvl := resolveLogLevel("info", true); lvl != slog.LevelError {
+		t.Fatalf("expected LevelError when quiet=true, got %v", lvl)
+	}
+
+	// 3. Env var fallback
+	t.Setenv("PANTAU_LOG_LEVEL", "info")
+	if lvl := resolveLogLevel("", false); lvl != slog.LevelInfo {
+		t.Fatalf("expected LevelInfo from env, got %v", lvl)
+	}
+
+	// 4. Flag takes precedence over env var
+	if lvl := resolveLogLevel("debug", false); lvl != slog.LevelDebug {
+		t.Fatalf("expected LevelDebug from flag, got %v", lvl)
 	}
 }
 

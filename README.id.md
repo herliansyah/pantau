@@ -272,6 +272,8 @@ systemctl enable --now pantau
 | `-check-update` | - | `false` | Periksa ketersediaan versi rilis terbaru, tampilkan catatan rilis, lalu keluar |
 | `-update` | - | `false` | Perbarui biner Pantau ke versi rilis terbaru lalu keluar |
 | `-disable-update-check` | `PANTAU_DISABLE_UPDATE_CHECK` | `false` | Nonaktifkan pengecekan pembaruan otomatis (cocok untuk airgapped) |
+| `-log-level` | `PANTAU_LOG_LEVEL` | `error` | Tingkat log konsol CLI (`debug`, `info`, `warn`, `error`, `off`) |
+| `-q`, `-quiet` | - | `false` | Redam log konsol selain error (shorthand untuk `-log-level=error`) |
 | `-v`, `-version` | - | - | Cetak versi Pantau lalu keluar |
 
 ---

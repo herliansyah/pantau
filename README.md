@@ -272,6 +272,8 @@ systemctl enable --now pantau
 | `-check-update` | - | `false` | Check for latest upstream release version, print release notes, and exit |
 | `-update` | - | `false` | Update Pantau executable to latest release and exit |
 | `-disable-update-check` | `PANTAU_DISABLE_UPDATE_CHECK` | `false` | Disable background update checker (recommended for airgapped environments) |
+| `-log-level` | `PANTAU_LOG_LEVEL` | `error` | Console log level (`debug`, `info`, `warn`, `error`, `off`) |
+| `-q`, `-quiet` | - | `false` | Suppress non-error console logs (shorthand for `-log-level=error`) |
 | `-v`, `-version` | - | - | Print Pantau version and exit |
 
 ---

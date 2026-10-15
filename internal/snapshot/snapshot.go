@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -320,13 +319,10 @@ func (m *Manager) checkAndBackup(ctx context.Context) {
 		}
 	}
 
-	log.Printf("[Snapshot] Running scheduled automated backup to GitHub (%s)...", CleanRepo(repo))
 	logger.Info("snapshot", "", fmt.Sprintf("Running scheduled automated backup to GitHub (%s)", CleanRepo(repo)), "repo", CleanRepo(repo))
 	if err := m.SyncNow(ctx); err != nil {
-		log.Printf("[Snapshot] Scheduled backup failed: %v", err)
 		logger.Error("snapshot", "", fmt.Sprintf("Scheduled backup failed: %v", err), "error", err.Error())
 	} else {
-		log.Printf("[Snapshot] Scheduled backup completed successfully.")
 		logger.Info("snapshot", "", "Scheduled backup completed successfully", "repo", CleanRepo(repo))
 	}
 }

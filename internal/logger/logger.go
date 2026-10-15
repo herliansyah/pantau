@@ -247,6 +247,26 @@ func (h *broadcastHandler) WithGroup(name string) slog.Handler {
 	}
 }
 
+// ParseLevel maps string representation to slog.Level.
+// Defaults to slog.LevelError if empty or unrecognized.
+// ponytail: Defaults to slog.LevelError to keep terminal output completely silent during runtime while preserving full Activity Console events in Web UI.
+func ParseLevel(s string) slog.Level {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn", "warning":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	case "off", "none", "silent":
+		return slog.Level(999)
+	default:
+		return slog.LevelError
+	}
+}
+
 // SetupGlobalLogger initializes standard slog with broadcast capabilities and stderr handler.
 func SetupGlobalLogger(w io.Writer, level slog.Level) *Broadcaster {
 	if w == nil {

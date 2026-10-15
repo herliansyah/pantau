@@ -97,3 +97,66 @@ func TestSetupGlobalLoggerAndEmit(t *testing.T) {
 		t.Fatal("timed out waiting for emitted event")
 	}
 }
+
+func TestParseLevel(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected slog.Level
+	}{
+		{"debug", slog.LevelDebug},
+		{"DEBUG", slog.LevelDebug},
+		{"info", slog.LevelInfo},
+		{"warn", slog.LevelWarn},
+		{"warning", slog.LevelWarn},
+		{"error", slog.LevelError},
+		{"off", slog.Level(999)},
+		{"silent", slog.Level(999)},
+		{"unknown", slog.LevelError},
+		{"", slog.LevelError},
+	}
+	for _, tc := range tests {
+		got := ParseLevel(tc.input)
+		if got != tc.expected {
+			t.Errorf("ParseLevel(%q) = %v, expected %v", tc.input, got, tc.expected)
+		}
+	}
+}
+
+func TestLogLevelFilterAndBroadcasterIsolation(t *testing.T) {
+	var buf bytes.Buffer
+	// Setup with LevelWarn: CLI (buf) should ignore Info but broadcaster must still receive it
+	b := SetupGlobalLogger(&buf, slog.LevelWarn)
+	ch, unsub := b.Subscribe()
+	defer unsub()
+
+	Info("inspect", "server-quiet", "All rules passed")
+
+	select {
+	case evt := <-ch:
+		if evt.Message != "All rules passed" {
+			t.Errorf("expected broadcaster to receive info event, got: %+v", evt)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timed out waiting for broadcaster event")
+	}
+
+	if buf.Len() != 0 {
+		t.Errorf("expected empty buffer for INFO event when level=WARN, got: %s", buf.String())
+	}
+
+	Warn("inspect", "server-quiet", "Disk usage high")
+
+	select {
+	case evt := <-ch:
+		if evt.Message != "Disk usage high" {
+			t.Errorf("expected broadcaster to receive warn event, got: %+v", evt)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("timed out waiting for broadcaster event")
+	}
+
+	if !bytes.Contains(buf.Bytes(), []byte("Disk usage high")) {
+		t.Errorf("expected buffer to contain warning log, got: %s", buf.String())
+	}
+}
+

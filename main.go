@@ -5,7 +5,6 @@ import (
 	"embed"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -116,6 +115,19 @@ func resolveConfig(flagPort int, flagDB string) (port int, dbPath string, portEx
 	return port, dbPath, portExplicit
 }
 
+func resolveLogLevel(flagLevel string, quiet bool) slog.Level {
+	if quiet {
+		return slog.LevelError
+	}
+	if flagLevel != "" {
+		return logger.ParseLevel(flagLevel)
+	}
+	if envLevel := os.Getenv("PANTAU_LOG_LEVEL"); envLevel != "" {
+		return logger.ParseLevel(envLevel)
+	}
+	return slog.LevelError
+}
+
 // tryListen checks if port p is free on both IPv4 loopback and wildcard interfaces.
 // ponytail: on Windows Winsock, net.Listen("tcp", ":p") binds dual-stack IPv6 without error even if an IPv4 service (e.g. SQLFox) occupies 127.0.0.1:p.
 // Probing 127.0.0.1 via Dial and verifying IPv4 binding ensures busy ports are correctly detected across OSes.
@@ -151,7 +163,7 @@ func listenPort(port int, portExplicit bool) (net.Listener, int, error) {
 	for p := port; p <= port+19; p++ {
 		if l := tryListen(p); l != nil {
 			if p != port {
-				log.Printf("⚠️ Port %d was in use, auto-scanned and bound to port %d", port, p)
+				fmt.Printf("⚠️ Port %d was in use, auto-scanned and bound to port %d\n", port, p)
 			}
 			return l, p, nil
 		}
@@ -172,6 +184,9 @@ func main() {
 	dbFlag := flag.String("db", "pantau.db", "SQLite database file path")
 	openBrowserFlag := flag.Bool("open", runtime.GOOS == "windows", "Open default browser on start")
 	disable2FAFlag := flag.Bool("disable-2fa", false, "Emergency bypass flag to disable 2FA")
+	logLevelFlag := flag.String("log-level", "", "Console log level (debug, info, warn, error, off; default: error) [env: PANTAU_LOG_LEVEL]")
+	quietFlag := flag.Bool("quiet", false, "Suppress non-error console logs (shorthand for -log-level=error)")
+	flag.BoolVar(quietFlag, "q", false, "Suppress non-error console logs (shorthand)")
 	flag.Parse()
 
 	ver := resolveVersion()
@@ -245,9 +260,9 @@ func main() {
 			activePID = runningMeta.PID
 		}
 		if activePID > 0 {
-			log.Printf("ℹ️ Pantau is already running on http://localhost:%d (PID %d)", activePort, activePID)
+			fmt.Printf("ℹ️ Pantau is already running on http://localhost:%d (PID %d)\n", activePort, activePID)
 		} else {
-			log.Printf("ℹ️ Pantau is already running on http://localhost:%d", activePort)
+			fmt.Printf("ℹ️ Pantau is already running on http://localhost:%d\n", activePort)
 		}
 		if *openBrowserFlag {
 			openBrowser(fmt.Sprintf("http://localhost:%d", activePort))
@@ -255,19 +270,20 @@ func main() {
 		os.Exit(0)
 	}
 	if err != nil {
-		log.Printf("⚠️ Warning: could not acquire instance lock: %v", err)
+		fmt.Printf("⚠️ Warning: could not acquire instance lock: %v\n", err)
 	} else {
 		defer guard.Close()
 	}
 
-	logger.SetupGlobalLogger(nil, slog.LevelInfo)
-	log.Printf("Starting Pantau %s...", ver)
-	log.Printf("Database path: %s", dbPath)
+	logLevel := resolveLogLevel(*logLevelFlag, *quietFlag)
+	logger.SetupGlobalLogger(nil, logLevel)
 	logger.Info("system", "", fmt.Sprintf("Starting Pantau %s", ver), "db_path", dbPath)
 
 	db, err := store.Open(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		logger.Error("system", "", "Failed to open database: "+err.Error())
+		fmt.Fprintf(os.Stderr, "❌ Failed to open database: %v\n", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
@@ -276,7 +292,8 @@ func main() {
 		_ = db.DeleteSetting("totp_secret")
 		_ = db.DeleteSetting("totp_recovery_codes")
 		_ = db.DeleteSetting("last_totp_step")
-		log.Println("[SECURITY] 2FA has been disabled via -disable-2fa CLI bypass flag.")
+		fmt.Println("[SECURITY] 2FA has been disabled via -disable-2fa CLI bypass flag.")
+		logger.Warn("auth", "", "2FA has been disabled via -disable-2fa CLI bypass flag")
 	}
 
 	runnerFactory := sshrunner.DefaultFactory()
@@ -302,7 +319,9 @@ func main() {
 	server.SetDocsFS(embeddedDocs)
 	listener, port, err := listenPort(port, portExplicit)
 	if err != nil {
-		log.Fatalf("Failed to bind port: %v", err)
+		logger.Error("system", "", "Failed to bind port: "+err.Error())
+		fmt.Fprintf(os.Stderr, "❌ Failed to bind port: %v\n", err)
+		os.Exit(1)
 	}
 
 	if guard != nil {
@@ -325,10 +344,12 @@ func main() {
 	})
 
 	go func() {
-		log.Printf("🛡️ Pantau running on http://0.0.0.0:%d (Default password: admin)", port)
+		fmt.Printf("🛡️ Pantau running on http://0.0.0.0:%d (Default password: admin)\n\n", port)
 		logger.Info("system", "", fmt.Sprintf("🛡️ Pantau running on http://0.0.0.0:%d", port), "port", port)
 		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("HTTP server error: %v", err)
+			logger.Error("system", "", "HTTP server error: "+err.Error())
+			fmt.Fprintf(os.Stderr, "❌ HTTP server error: %v\n", err)
+			os.Exit(1)
 		}
 	}()
 	if *openBrowserFlag {
@@ -341,13 +362,13 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
-	log.Println("Shutting down Pantau...")
+	fmt.Println("\nShutting down Pantau...")
 	logger.Info("system", "", "Shutting down Pantau...")
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	_ = httpServer.Shutdown(shutdownCtx)
-	log.Println("Pantau stopped cleanly.")
+	fmt.Println("Pantau stopped cleanly.")
 	logger.Info("system", "", "Pantau stopped cleanly.")
 }
 
