@@ -1109,6 +1109,7 @@ body.has-workspace-shelf .container {
     </div>
     <div style="display: flex; gap: 8px; align-items: center;">
       <div class="header-cluster">
+        <button class="btn btn-icon" id="btnHeaderNetDiag" onclick="openNetDiagModal()" title="Network Diagnostics" data-i18n-title="netdiag_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></button>
         <button class="btn btn-icon" onclick="openTransfersModal()" title="Cross-Host Transfers" data-i18n-title="transfers_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 6h18"/><path d="m7 22-4-4 4-4"/><path d="M21 18H3"/></svg><span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
         <button class="btn btn-icon" onclick="openGlobalNotesModal()" title="Global Notes" data-i18n-title="global_notes_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>
         <button class="btn btn-icon" id="btnHeaderTerminal" onclick="toggleTerminalDock()" title="Terminal Dock" data-i18n-title="terminal_dock_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span id="activeTerminalBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
@@ -1530,6 +1531,7 @@ body.has-workspace-shelf .container {
       <div class="tabs" id="hostDetailTabs">
         <div class="tab active" data-tab="overview" onclick="switchTab('overview')" data-i18n="tab_overview">Overview</div>
         <div class="tab" data-tab="network" onclick="switchTab('network')" data-i18n="tab_network">Network & Security</div>
+        <div class="tab" data-tab="netdiag" onclick="switchTab('netdiag')" data-i18n="tab_netdiag">Network Diagnostics</div>
         <div class="tab" data-tab="packages" onclick="switchTab('packages')" data-i18n="tab_packages">Packages</div>
         <div class="tab" data-tab="desired" onclick="switchTab('desired')" data-i18n="tab_desired">Desired State (Drift)</div>
         <div class="tab" data-tab="docker" onclick="switchTab('docker')" data-i18n="tab_docker">Docker</div>
@@ -2120,6 +2122,22 @@ body.has-workspace-shelf .container {
   </div>
 </div>
 
+<!-- Network Diagnostics Modal (Action Dialog) -->
+<div id="netDiagModal" class="modal">
+  <div class="modal-content modal-dialog-lg" style="display: flex; flex-direction: column; max-height: 85vh;">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 1.25rem;">📡</span>
+        <h3 data-i18n="netdiag_title">Network Diagnostics</h3>
+      </div>
+      <button class="btn btn-sm" onclick="closeModal('netDiagModal')">✕</button>
+    </div>
+    <div class="modal-body" id="netDiagModalBody" style="padding: 16px; overflow-y: auto;">
+      <!-- Content populated dynamically -->
+    </div>
+  </div>
+</div>
+
 <script src="/vendor/xterm.js"></script>
 <script src="/vendor/xterm-addon-fit.js"></script>
 <script src="/vendor/codemirror.min.js"></script>
@@ -2637,7 +2655,41 @@ const I18N = {
     "duplicate_success": "Item duplicated successfully",
     "duplicate_conflict": "Target file or folder already exists",
     "duplicate_large_warn": "Large item (≥ 500 MB). Duplication might take several seconds.",
-    "duplicate_disk_insufficient": "Insufficient disk space on host (required size + 100 MB buffer exceeds available disk)"
+    "duplicate_disk_insufficient": "Insufficient disk space on host (required size + 100 MB buffer exceeds available disk)",
+    "netdiag_title": "Network Diagnostics",
+    "tab_netdiag": "Network Diagnostics",
+    "netdiag_source_host": "Source Host",
+    "netdiag_target_mode": "Probe Target",
+    "netdiag_target_inter_host": "Inter-Host",
+    "netdiag_target_custom": "Internet / Custom Target",
+    "netdiag_target_host_select": "Select Target Host",
+    "netdiag_target_ph": "e.g. 1.1.1.1 or google.com",
+    "netdiag_tool": "Diagnostic Tool",
+    "netdiag_tool_ping": "Ping (ICMP)",
+    "netdiag_tool_traceroute": "Traceroute (Path)",
+    "netdiag_tool_port": "Port Probe (TCP)",
+    "netdiag_tool_dns": "DNS Resolve",
+    "netdiag_port_label": "TCP Port",
+    "netdiag_port_ph": "1 - 65535",
+    "netdiag_run_btn": "⚡ Run Diagnostic",
+    "netdiag_running": "Running probe...",
+    "netdiag_raw_output": "Raw CLI Output",
+    "netdiag_copy_raw": "Copy Output",
+    "netdiag_raw_copied": "Copied!",
+    "netdiag_no_other_hosts": "No other hosts available to probe.",
+    "netdiag_status_offline": "Offline",
+    "netdiag_zone_private": "Local / Private VPC",
+    "netdiag_zone_transit": "Transit / Upstream",
+    "netdiag_zone_destination": "Destination",
+    "netdiag_zone_timeout": "Timeout / No Reply",
+    "netdiag_packets_sent": "Packets Sent",
+    "netdiag_packets_recv": "Packets Received",
+    "netdiag_packet_loss": "Packet Loss",
+    "netdiag_avg_latency": "Avg Latency",
+    "netdiag_status_open": "PORT OPEN",
+    "netdiag_status_closed": "PORT CLOSED",
+    "netdiag_resolved_ips": "Resolved IP Addresses",
+    "netdiag_hops_detected": "Hops Detected"
   },
   id: {
     "brand_subtitle": "Manajemen Server Agentless",
@@ -3142,7 +3194,41 @@ const I18N = {
     "duplicate_success": "Berkas/folder berhasil diduplikasi",
     "duplicate_conflict": "Berkas atau folder dengan nama tersebut sudah ada",
     "duplicate_large_warn": "Item berukuran besar (≥ 500 MB). Proses duplikasi mungkin memakan waktu beberapa detik.",
-    "duplicate_disk_insufficient": "Kapasitas ruang disk tidak mencukupi (ukuran item + buffer 100 MB melebihi sisa disk)"
+    "duplicate_disk_insufficient": "Kapasitas ruang disk tidak mencukupi (ukuran item + buffer 100 MB melebihi sisa disk)",
+    "netdiag_title": "Diagnostik Jaringan",
+    "tab_netdiag": "Diagnostik Jaringan",
+    "netdiag_source_host": "Host Sumber",
+    "netdiag_target_mode": "Target Probe",
+    "netdiag_target_inter_host": "Antar-Host",
+    "netdiag_target_custom": "Internet / Target Kustom",
+    "netdiag_target_host_select": "Pilih Host Tujuan",
+    "netdiag_target_ph": "contoh: 1.1.1.1 atau google.com",
+    "netdiag_tool": "Perkakas Diagnostik",
+    "netdiag_tool_ping": "Ping (ICMP)",
+    "netdiag_tool_traceroute": "Traceroute (Rute)",
+    "netdiag_tool_port": "Uji Port (TCP)",
+    "netdiag_tool_dns": "Resolusi DNS",
+    "netdiag_port_label": "Port TCP",
+    "netdiag_port_ph": "1 - 65535",
+    "netdiag_run_btn": "⚡ Mulai Diagnostik",
+    "netdiag_running": "Menjalankan diagnostik...",
+    "netdiag_raw_output": "Output Raw Terminal",
+    "netdiag_copy_raw": "Salin Output",
+    "netdiag_raw_copied": "Disalin!",
+    "netdiag_no_other_hosts": "Tidak ada host lain yang tersedia untuk diuji.",
+    "netdiag_status_offline": "Offline",
+    "netdiag_zone_private": "Gateway Lokal / Private",
+    "netdiag_zone_transit": "Transit / ISP Upstream",
+    "netdiag_zone_destination": "Tujuan Akhir",
+    "netdiag_zone_timeout": "Timeout / Tanpa Respons",
+    "netdiag_packets_sent": "Paket Terkirim",
+    "netdiag_packets_recv": "Paket Diterima",
+    "netdiag_packet_loss": "Paket Hilang",
+    "netdiag_avg_latency": "Latensi Rata-rata",
+    "netdiag_status_open": "PORT TERBUKA",
+    "netdiag_status_closed": "PORT TERTUTUP",
+    "netdiag_resolved_ips": "Alamat IP Hasil Resolusi",
+    "netdiag_hops_detected": "Hop Terdeteksi"
   }
 };
 
@@ -5258,10 +5344,12 @@ function switchTab(tab, presetID) {
     renderInspectionRunsTab();
   } else if (tab === 'packages') {
     renderPackagesTab();
-    } else if (tab === 'files') {
-      const startPath = (currentHost && (currentHost._lastPath || (currentHost.id ? getHostFilesPath(currentHost.id) : null))) || '/';
-      loadFiles(startPath);
-    }
+  } else if (tab === 'netdiag') {
+    renderNetDiagTab(d.host);
+  } else if (tab === 'files') {
+    const startPath = (currentHost && (currentHost._lastPath || (currentHost.id ? getHostFilesPath(currentHost.id) : null))) || '/';
+    loadFiles(startPath);
+  }
   } catch(err) {
     console.error("switchTab error:", err);
     if (content) {
@@ -9612,6 +9700,712 @@ document.addEventListener('click', (e) => {
     menu.style.display = 'none';
   }
 });
+
+// ==========================================
+// Network Diagnostics Module (ADR Network Diagnostic)
+// ==========================================
+let currentNetDiagSSE = null;
+let currentNetDiagHops = [];
+let currentNetDiagRawLines = [];
+let currentNetDiagTool = 'ping';
+let currentNetDiagTargetMode = 'inter_host';
+
+function openNetDiagModal(initialSourceHostId) {
+  openModal('netDiagModal');
+  const container = document.getElementById('netDiagModalBody');
+  renderNetDiagUI(container, 'modal', initialSourceHostId || (currentHost ? currentHost.id : null), false);
+}
+
+function renderNetDiagTab(host) {
+  const container = document.getElementById('tabContent');
+  renderNetDiagUI(container, 'tab', host ? host.id : null, true);
+}
+
+function renderNetDiagUI(container, contextPrefix, defaultSourceId, isSourceLocked) {
+  if (!container) return;
+
+  if (currentNetDiagSSE) {
+    currentNetDiagSSE.close();
+    currentNetDiagSSE = null;
+  }
+  currentNetDiagHops = [];
+  currentNetDiagRawLines = [];
+
+  const onlineHosts = (allRawHosts || []).filter(h => h.status !== 'down');
+  const availableSourceHosts = isSourceLocked ? (allRawHosts || []).filter(h => h.id === defaultSourceId) : onlineHosts;
+
+  let activeSourceId = defaultSourceId;
+  if (!activeSourceId && availableSourceHosts.length > 0) {
+    activeSourceId = availableSourceHosts[0].id;
+  }
+
+  const cid = `netdiag_${contextPrefix}`;
+
+  container.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <!-- Diagnostic Controls Header Card -->
+      <div class="card" style="padding: 16px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 8px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; align-items: start;">
+          <!-- Source Host -->
+          <div class="form-group" style="margin-bottom: 0;">
+            <div style="height: 28px; display: flex; align-items: center; margin-bottom: 8px;">
+              <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin: 0;">
+                <span>🖥️</span> <span>${t('netdiag_source_host')}</span>
+              </label>
+            </div>
+            ${isSourceLocked ? `
+              <div style="height: 38px; box-sizing: border-box; padding: 0 12px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--card-border); border-radius: 6px; font-size: 0.9rem; display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-weight: 600; color: #f8fafc;">${escapeHtml(currentHost ? currentHost.name : '-')}</span>
+                <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-family: monospace;">${escapeHtml(currentHost ? currentHost.host : '-')}</span>
+              </div>
+              <input type="hidden" id="${cid}_sourceHost" value="${activeSourceId || ''}" />
+            ` : `
+              <select id="${cid}_sourceHost" class="input" style="height: 38px; box-sizing: border-box; width: 100%;" onchange="onNetDiagSourceChange('${cid}')">
+                ${availableSourceHosts.length === 0 ? `<option value="">-- No Online Hosts --</option>` : ''}
+                ${availableSourceHosts.map(h => `
+                  <option value="${h.id}" ${h.id === activeSourceId ? 'selected' : ''}>
+                    🟢 ${escapeHtml(h.name)} (${escapeHtml(h.host)})
+                  </option>
+                `).join('')}
+              </select>
+            `}
+          </div>
+
+          <!-- Target Mode & Destination -->
+          <div class="form-group" style="margin-bottom: 0;">
+            <div style="height: 28px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin: 0;">
+                <span>🎯</span> <span>${t('netdiag_target_mode')}</span>
+              </label>
+              <div style="display: inline-flex; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 2px;">
+                <button type="button" class="btn btn-sm ${currentNetDiagTargetMode === 'inter_host' ? 'active' : ''}" id="${cid}_targetModeInter" onclick="setNetDiagTargetMode('${cid}', 'inter_host')" style="padding: 2px 8px; font-size: 0.72rem; ${currentNetDiagTargetMode === 'inter_host' ? 'background: #2563eb; color: #fff;' : 'background: transparent; color: var(--text-muted);'}">
+                  ${t('netdiag_target_inter_host')}
+                </button>
+                <button type="button" class="btn btn-sm ${currentNetDiagTargetMode === 'custom' ? 'active' : ''}" id="${cid}_targetModeCustom" onclick="setNetDiagTargetMode('${cid}', 'custom')" style="padding: 2px 8px; font-size: 0.72rem; ${currentNetDiagTargetMode === 'custom' ? 'background: #2563eb; color: #fff;' : 'background: transparent; color: var(--text-muted);'}">
+                  ${t('netdiag_target_custom')}
+                </button>
+              </div>
+            </div>
+
+            <!-- Inter-Host Target Dropdown -->
+            <div id="${cid}_interHostContainer" style="${currentNetDiagTargetMode === 'inter_host' ? 'display: block;' : 'display: none;'}">
+              <select id="${cid}_targetHost" class="input" style="height: 38px; box-sizing: border-box; width: 100%;">
+                <!-- Populated by populateNetDiagTargetHosts -->
+              </select>
+            </div>
+
+            <!-- Custom / Internet Target Input & Presets -->
+            <div id="${cid}_customTargetContainer" style="${currentNetDiagTargetMode === 'custom' ? 'display: block;' : 'display: none;'}">
+              <input type="text" id="${cid}_targetCustomInput" class="input" style="height: 38px; box-sizing: border-box; width: 100%; margin-bottom: 6px; font-family: monospace;" value="1.1.1.1" placeholder="${t('netdiag_target_ph')}" />
+              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.72rem; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25); color: #93c5fd;" onclick="setNetDiagPresetTarget('${cid}', '1.1.1.1')">1.1.1.1 (Cloudflare)</button>
+                <button type="button" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.72rem; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25); color: #93c5fd;" onclick="setNetDiagPresetTarget('${cid}', '8.8.8.8')">8.8.8.8 (Google)</button>
+                <button type="button" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.72rem; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25); color: #93c5fd;" onclick="setNetDiagPresetTarget('${cid}', 'google.com')">google.com</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tool Selection & Port Selector -->
+        <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--card-border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+              <span>🛠️</span> <span>${t('netdiag_tool')}</span>
+            </label>
+            <div style="display: inline-flex; gap: 6px; flex-wrap: wrap;">
+              <button type="button" class="btn btn-sm ${currentNetDiagTool === 'ping' ? 'btn-primary' : ''}" id="${cid}_tool_ping" onclick="setNetDiagTool('${cid}', 'ping')">
+                📡 ${t('netdiag_tool_ping')}
+              </button>
+              <button type="button" class="btn btn-sm ${currentNetDiagTool === 'traceroute' ? 'btn-primary' : ''}" id="${cid}_tool_traceroute" onclick="setNetDiagTool('${cid}', 'traceroute')">
+                🛤️ ${t('netdiag_tool_traceroute')}
+              </button>
+              <button type="button" class="btn btn-sm ${currentNetDiagTool === 'port_probe' ? 'btn-primary' : ''}" id="${cid}_tool_port_probe" onclick="setNetDiagTool('${cid}', 'port_probe')">
+                🔌 ${t('netdiag_tool_port')}
+              </button>
+              <button type="button" class="btn btn-sm ${currentNetDiagTool === 'dns_resolve' ? 'btn-primary' : ''}" id="${cid}_tool_dns_resolve" onclick="setNetDiagTool('${cid}', 'dns_resolve')">
+                🔍 ${t('netdiag_tool_dns')}
+              </button>
+            </div>
+          </div>
+
+          <!-- Port Probe Extra Options -->
+          <div id="${cid}_portOptions" style="${currentNetDiagTool === 'port_probe' ? 'display: flex;' : 'display: none;'} flex-direction: column; gap: 6px;">
+            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+              <span>🔌</span> <span>${t('netdiag_port_label')}</span>
+            </label>
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+              <input type="number" id="${cid}_portInput" class="input" style="width: 85px; font-family: monospace;" value="80" min="1" max="65535" />
+              <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="document.getElementById('${cid}_portInput').value=80">80</button>
+                <button type="button" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="document.getElementById('${cid}_portInput').value=443">443</button>
+                <button type="button" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="document.getElementById('${cid}_portInput').value=22">22</button>
+                <button type="button" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="document.getElementById('${cid}_portInput').value=3306">3306</button>
+                <button type="button" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="document.getElementById('${cid}_portInput').value=5432">5432</button>
+                <button type="button" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.72rem;" onclick="document.getElementById('${cid}_portInput').value=6379">6379</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <div style="display: flex; align-items: flex-end; margin-left: auto;">
+            <button class="btn btn-primary" id="${cid}_runBtn" onclick="runNetDiag('${cid}')" style="min-width: 140px; height: 36px; font-weight: 600;">
+              ${t('netdiag_run_btn')}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Execution Status & Live Feedback -->
+      <div id="${cid}_statusBanner" style="display: none; padding: 10px 14px; border-radius: 6px; font-size: 0.85rem; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></div>
+          <span id="${cid}_statusText" style="color: #60a5fa; font-weight: 500;">${t('netdiag_running')}</span>
+        </div>
+        <button class="btn btn-sm btn-danger" onclick="abortNetDiag('${cid}')" style="padding: 2px 8px; font-size: 0.75rem;">Cancel</button>
+      </div>
+
+      <!-- Automated Diagnosis Banner (Auto-Diagnosis) -->
+      <div id="${cid}_autoDiagBanner" style="display: none; padding: 14px 16px; border-radius: 8px; border: 1px solid var(--card-border); background: rgba(15, 23, 42, 0.6);">
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+          <span id="${cid}_autoDiagIcon" style="font-size: 1.5rem; line-height: 1;">⚡</span>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+              <span style="font-weight: 700; font-size: 0.95rem; color: #f8fafc;">${t('netdiag_auto_diag_title', 'Automated Diagnosis')}</span>
+              <span id="${cid}_autoDiagBadge" class="badge"></span>
+            </div>
+            <div id="${cid}_autoDiagSummary" style="font-size: 0.88rem; line-height: 1.5; color: #cbd5e1;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Structured Results Cards Container -->
+      <div id="${cid}_structuredResults" style="display: none;">
+        <!-- Populated dynamically based on tool -->
+      </div>
+
+      <!-- Raw CLI Output Accordion -->
+      <div id="${cid}_rawSection" style="display: none; margin-top: 4px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <label style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted); cursor: pointer;" onclick="toggleNetDiagRaw('${cid}')">
+            <span>📋</span> <span>${t('netdiag_raw_output')}</span> <span id="${cid}_rawToggleIcon">▼</span>
+          </label>
+          <button class="btn btn-sm" onclick="copyNetDiagRaw('${cid}')" style="padding: 2px 8px; font-size: 0.72rem;">
+            ${t('netdiag_copy_raw')}
+          </button>
+        </div>
+        <pre id="${cid}_rawPre" style="background: #091322; border: 1px solid var(--card-border); padding: 12px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; max-height: 220px; overflow-y: auto; color: #94a3b8; white-space: pre-wrap; line-height: 1.45;"></pre>
+      </div>
+    </div>
+  `;
+
+  populateNetDiagTargetHosts(cid);
+}
+
+function onNetDiagSourceChange(cid) {
+  populateNetDiagTargetHosts(cid);
+}
+
+function populateNetDiagTargetHosts(cid) {
+  const sourceEl = document.getElementById(`${cid}_sourceHost`);
+  const targetSelect = document.getElementById(`${cid}_targetHost`);
+  if (!targetSelect) return;
+
+  const currentSourceId = sourceEl ? parseInt(sourceEl.value, 10) : 0;
+  const otherHosts = (allRawHosts || []).filter(h => h.id !== currentSourceId);
+
+  if (otherHosts.length === 0) {
+    targetSelect.innerHTML = `<option value="" disabled selected>${t('netdiag_no_other_hosts')}</option>`;
+    return;
+  }
+
+  targetSelect.innerHTML = otherHosts.map(h => {
+    const isOffline = h.status === 'down';
+    if (isOffline) {
+      return `<option value="${h.id}" disabled style="color: var(--text-muted); background: #1e293b;">❌ ${escapeHtml(h.name)} [${t('netdiag_status_offline')}] (${escapeHtml(h.host)})</option>`;
+    }
+    return `<option value="${h.id}">🟢 ${escapeHtml(h.name)} (${escapeHtml(h.host)})</option>`;
+  }).join('');
+}
+
+function setNetDiagTargetMode(cid, mode) {
+  currentNetDiagTargetMode = mode;
+  const btnInter = document.getElementById(`${cid}_targetModeInter`);
+  const btnCustom = document.getElementById(`${cid}_targetModeCustom`);
+  const interContainer = document.getElementById(`${cid}_interHostContainer`);
+  const customContainer = document.getElementById(`${cid}_customTargetContainer`);
+
+  if (!btnInter || !btnCustom) return;
+
+  if (mode === 'inter_host') {
+    btnInter.style.background = '#2563eb';
+    btnInter.style.color = '#fff';
+    btnCustom.style.background = 'transparent';
+    btnCustom.style.color = 'var(--text-muted)';
+    if (interContainer) interContainer.style.display = 'block';
+    if (customContainer) customContainer.style.display = 'none';
+  } else {
+    btnCustom.style.background = '#2563eb';
+    btnCustom.style.color = '#fff';
+    btnInter.style.background = 'transparent';
+    btnInter.style.color = 'var(--text-muted)';
+    if (customContainer) customContainer.style.display = 'block';
+    if (interContainer) interContainer.style.display = 'none';
+  }
+}
+
+function setNetDiagPresetTarget(cid, address) {
+  const input = document.getElementById(`${cid}_targetCustomInput`);
+  if (input) input.value = address;
+}
+
+function setNetDiagTool(cid, tool) {
+  currentNetDiagTool = tool;
+  const tools = ['ping', 'traceroute', 'port_probe', 'dns_resolve'];
+  tools.forEach(tName => {
+    const btn = document.getElementById(`${cid}_tool_${tName}`);
+    if (btn) {
+      if (tName === tool) {
+        btn.classList.add('btn-primary');
+      } else {
+        btn.classList.remove('btn-primary');
+      }
+    }
+  });
+
+  const portOpt = document.getElementById(`${cid}_portOptions`);
+  if (portOpt) {
+    portOpt.style.display = (tool === 'port_probe') ? 'flex' : 'none';
+  }
+}
+
+function runNetDiag(cid) {
+  const sourceEl = document.getElementById(`${cid}_sourceHost`);
+  const sourceId = sourceEl ? parseInt(sourceEl.value, 10) : 0;
+  if (!sourceId) {
+    showToast('Please select a valid source host', 'error');
+    return;
+  }
+
+  let targetAddress = '';
+  let targetHostId = 0;
+
+  if (currentNetDiagTargetMode === 'inter_host') {
+    const targetSelect = document.getElementById(`${cid}_targetHost`);
+    targetHostId = targetSelect ? parseInt(targetSelect.value, 10) : 0;
+    if (!targetHostId) {
+      showToast('Please select a target host', 'error');
+      return;
+    }
+  } else {
+    const targetInput = document.getElementById(`${cid}_targetCustomInput`);
+    targetAddress = targetInput ? targetInput.value.trim() : '';
+    if (!targetAddress) {
+      showToast('Please enter a target address or domain', 'error');
+      return;
+    }
+  }
+
+  let port = 0;
+  if (currentNetDiagTool === 'port_probe') {
+    const portInput = document.getElementById(`${cid}_portInput`);
+    port = portInput ? parseInt(portInput.value, 10) : 80;
+    if (isNaN(port) || port < 1 || port > 65535) {
+      showToast('Port must be between 1 and 65535', 'error');
+      return;
+    }
+  }
+
+  // Reset UI
+  if (currentNetDiagSSE) {
+    currentNetDiagSSE.close();
+    currentNetDiagSSE = null;
+  }
+  currentNetDiagHops = [];
+  currentNetDiagRawLines = [];
+
+  const runBtn = document.getElementById(`${cid}_runBtn`);
+  if (runBtn) {
+    runBtn.disabled = true;
+    runBtn.innerText = t('netdiag_running');
+  }
+
+  const statusBanner = document.getElementById(`${cid}_statusBanner`);
+  const statusText = document.getElementById(`${cid}_statusText`);
+  if (statusBanner) {
+    statusBanner.style.display = 'flex';
+    statusBanner.style.background = 'rgba(59, 130, 246, 0.12)';
+    statusBanner.style.border = '1px solid rgba(59, 130, 246, 0.3)';
+  }
+  if (statusText) statusText.innerText = `${t('netdiag_running')} (${currentNetDiagTool.toUpperCase()})`;
+
+  const autoDiag = document.getElementById(`${cid}_autoDiagBanner`);
+  if (autoDiag) autoDiag.style.display = 'none';
+
+  const results = document.getElementById(`${cid}_structuredResults`);
+  if (results) {
+    results.style.display = 'block';
+    results.innerHTML = '';
+  }
+
+  const rawSection = document.getElementById(`${cid}_rawSection`);
+  const rawPre = document.getElementById(`${cid}_rawPre`);
+  if (rawSection) rawSection.style.display = 'block';
+  if (rawPre) rawPre.innerText = '';
+
+  if (currentNetDiagTool === 'traceroute' && results) {
+    results.innerHTML = `
+      <div class="card" style="padding: 12px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 8px;">
+        <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+          <span>🛤️ ${t('netdiag_hops_detected')}</span>
+          <span id="${cid}_hopCounterBadge" class="badge">0 hops</span>
+        </div>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+            <thead>
+              <tr style="border-bottom: 1px solid var(--card-border); text-align: left; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">
+                <th style="padding: 6px 8px; width: 45px;">${t('netdiag_hop')}</th>
+                <th style="padding: 6px 8px;">${t('netdiag_host_ip')}</th>
+                <th style="padding: 6px 8px; width: 140px;">${t('netdiag_latency')}</th>
+                <th style="padding: 6px 8px; width: 150px;">${t('netdiag_zone')}</th>
+                <th style="padding: 6px 8px; width: 90px; text-align: right;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="${cid}_hopsTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  const queryParams = new URLSearchParams({
+    source_host_id: sourceId,
+    type: currentNetDiagTool,
+    target_type: currentNetDiagTargetMode === 'inter_host' ? 'host' : 'custom',
+    target_host_id: targetHostId,
+    target: targetAddress,
+    port: port
+  });
+
+  const streamURL = `/api/netdiag/stream?${queryParams.toString()}`;
+  const evtSource = new EventSource(streamURL);
+  currentNetDiagSSE = evtSource;
+
+  evtSource.onmessage = function(e) {
+    try {
+      const data = JSON.parse(e.data);
+      handleNetDiagEvent(cid, data);
+    } catch (err) {
+      console.error("Netdiag SSE parse error:", err);
+    }
+  };
+
+  evtSource.onerror = function() {
+    evtSource.close();
+    finishNetDiag(cid);
+  };
+}
+
+function abortNetDiag(cid) {
+  if (currentNetDiagSSE) {
+    currentNetDiagSSE.close();
+    currentNetDiagSSE = null;
+  }
+  finishNetDiag(cid);
+  const statusText = document.getElementById(`${cid}_statusText`);
+  if (statusText) statusText.innerText = "Probe aborted by user.";
+}
+
+function finishNetDiag(cid) {
+  const runBtn = document.getElementById(`${cid}_runBtn`);
+  if (runBtn) {
+    runBtn.disabled = false;
+    runBtn.innerText = t('netdiag_run_btn');
+  }
+  const statusBanner = document.getElementById(`${cid}_statusBanner`);
+  if (statusBanner) statusBanner.style.display = 'none';
+}
+
+function handleNetDiagEvent(cid, evt) {
+  if (evt.type === 'raw' && evt.raw_line !== undefined) {
+    currentNetDiagRawLines.push(evt.raw_line);
+    const rawPre = document.getElementById(`${cid}_rawPre`);
+    if (rawPre) {
+      rawPre.innerText += evt.raw_line + "\n";
+      rawPre.scrollTop = rawPre.scrollHeight;
+    }
+  }
+
+  if (evt.type === 'hop' && evt.hop) {
+    const hop = evt.hop;
+    const existingIdx = currentNetDiagHops.findIndex(h => h.hop === hop.hop);
+    if (existingIdx >= 0) {
+      currentNetDiagHops[existingIdx] = hop;
+    } else {
+      currentNetDiagHops.push(hop);
+    }
+
+    const tbody = document.getElementById(`${cid}_hopsTbody`);
+    const counterBadge = document.getElementById(`${cid}_hopCounterBadge`);
+    if (counterBadge) counterBadge.innerText = `${currentNetDiagHops.length} hops`;
+
+    if (tbody) {
+      renderHopRow(tbody, hop);
+    }
+  }
+
+  if (evt.type === 'hop_analysis' && evt.analysis) {
+    renderHopAnalysisBanner(cid, evt.analysis);
+  }
+
+  if (evt.type === 'ping_stats' && evt.ping) {
+    renderPingResults(cid, evt.ping);
+  }
+
+  if (evt.type === 'port_stats' && evt.port) {
+    renderPortResults(cid, evt.port);
+  }
+
+  if (evt.type === 'dns_stats' && evt.dns) {
+    renderDNSResults(cid, evt.dns);
+  }
+
+  if (evt.type === 'error') {
+    showToast(evt.message || 'Diagnostic probe error', 'error');
+    const autoDiag = document.getElementById(`${cid}_autoDiagBanner`);
+    const autoDiagIcon = document.getElementById(`${cid}_autoDiagIcon`);
+    const autoDiagBadge = document.getElementById(`${cid}_autoDiagBadge`);
+    const autoDiagSummary = document.getElementById(`${cid}_autoDiagSummary`);
+    if (autoDiag && autoDiagSummary) {
+      autoDiag.style.display = 'block';
+      autoDiag.style.background = 'rgba(239, 68, 68, 0.12)';
+      autoDiag.style.borderColor = 'rgba(239, 68, 68, 0.35)';
+      if (autoDiagIcon) autoDiagIcon.innerText = '❌';
+      if (autoDiagBadge) {
+        autoDiagBadge.className = 'badge badge-down';
+        autoDiagBadge.innerText = 'FAILED';
+      }
+      autoDiagSummary.innerHTML = `<span style="color: #f87171; font-weight: 600;">${escapeHtml(evt.message)}</span>`;
+    }
+    finishNetDiag(cid);
+  }
+
+  if (evt.type === 'done') {
+    if (currentNetDiagSSE) {
+      currentNetDiagSSE.close();
+      currentNetDiagSSE = null;
+    }
+    finishNetDiag(cid);
+  }
+}
+
+function renderHopRow(tbody, hop) {
+  let rowEl = document.getElementById(`hop_row_${hop.hop}`);
+  const isNew = !rowEl;
+  if (isNew) {
+    rowEl = document.createElement('tr');
+    rowEl.id = `hop_row_${hop.hop}`;
+    rowEl.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+    tbody.appendChild(rowEl);
+  }
+
+  let zoneBadge = '';
+  switch (hop.zone) {
+    case 'private':
+      zoneBadge = `<span class="badge" style="background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); font-size: 0.72rem;">🏠 ${t('netdiag_zone_private')}</span>`;
+      break;
+    case 'destination':
+      zoneBadge = `<span class="badge badge-healthy" style="font-size: 0.72rem;">🎯 ${t('netdiag_zone_destination')}</span>`;
+      break;
+    case 'timeout':
+      zoneBadge = `<span class="badge" style="background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25); font-size: 0.72rem;">⚠️ ${t('netdiag_zone_timeout')}</span>`;
+      break;
+    default:
+      zoneBadge = `<span class="badge" style="background: rgba(148,163,184,0.12); color: #cbd5e1; border: 1px solid rgba(148,163,184,0.25); font-size: 0.72rem;">🌐 ${t('netdiag_zone_transit')}</span>`;
+  }
+
+  let statusBadge = '';
+  if (hop.status === 'timeout') {
+    statusBadge = `<span class="badge badge-down">DROP</span>`;
+  } else if (hop.status === 'warning') {
+    statusBadge = `<span class="badge badge-degraded">HIGH RTT</span>`;
+  } else {
+    statusBadge = `<span class="badge badge-healthy">OK</span>`;
+  }
+
+  const barWidth = Math.min(100, Math.max(8, hop.rtt_ms * 0.8));
+  const barColor = hop.rtt_ms > 100 ? '#fbbf24' : '#34d399';
+
+  rowEl.innerHTML = `
+    <td style="padding: 8px; font-weight: 700; color: #94a3b8; font-family: monospace;">#${hop.hop}</td>
+    <td style="padding: 8px;">
+      <div style="font-weight: 600; font-family: monospace; color: #f8fafc;">${escapeHtml(hop.host || '* * *')}</div>
+      ${hop.ip && hop.ip !== hop.host ? `<div style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">(${escapeHtml(hop.ip)})</div>` : ''}
+    </td>
+    <td style="padding: 8px;">
+      ${hop.rtt_ms > 0 ? `
+        <div style="font-weight: 600; color: ${barColor}; font-family: monospace; font-size: 0.82rem;">${hop.rtt_ms.toFixed(1)} ms</div>
+        <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 3px; overflow: hidden;">
+          <div style="width: ${barWidth}%; height: 100%; background: ${barColor}; border-radius: 2px;"></div>
+        </div>
+      ` : `<span style="color: var(--text-muted); font-family: monospace;">* * *</span>`}
+    </td>
+    <td style="padding: 8px;">${zoneBadge}</td>
+    <td style="padding: 8px; text-align: right;">${statusBadge}</td>
+  `;
+}
+
+function renderHopAnalysisBanner(cid, analysis) {
+  const autoDiag = document.getElementById(`${cid}_autoDiagBanner`);
+  const autoDiagIcon = document.getElementById(`${cid}_autoDiagIcon`);
+  const autoDiagBadge = document.getElementById(`${cid}_autoDiagBadge`);
+  const autoDiagSummary = document.getElementById(`${cid}_autoDiagSummary`);
+  if (!autoDiag || !autoDiagSummary) return;
+
+  autoDiag.style.display = 'block';
+
+  let bg = 'rgba(16, 185, 129, 0.12)';
+  let border = 'rgba(16, 185, 129, 0.35)';
+  let icon = '✅';
+  let badgeClass = 'badge badge-healthy';
+  let badgeText = 'OPTIMAL';
+
+  if (analysis.status === 'degraded') {
+    bg = 'rgba(245, 158, 11, 0.12)';
+    border = 'rgba(245, 158, 11, 0.35)';
+    icon = '⚠️';
+    badgeClass = 'badge badge-degraded';
+    badgeText = 'DEGRADED';
+  } else if (analysis.status === 'failed') {
+    bg = 'rgba(239, 68, 68, 0.12)';
+    border = 'rgba(239, 68, 68, 0.35)';
+    icon = '🛑';
+    badgeClass = 'badge badge-down';
+    badgeText = 'FAILED';
+  }
+
+  autoDiag.style.background = bg;
+  autoDiag.style.borderColor = border;
+  if (autoDiagIcon) autoDiagIcon.innerText = icon;
+  if (autoDiagBadge) {
+    autoDiagBadge.className = badgeClass;
+    autoDiagBadge.innerText = badgeText;
+  }
+
+  const summaryText = currentLang === 'id' && analysis.summary_id ? analysis.summary_id : analysis.summary;
+  autoDiagSummary.innerHTML = `<span>${escapeHtml(summaryText)}</span>`;
+}
+
+function renderPingResults(cid, ping) {
+  const results = document.getElementById(`${cid}_structuredResults`);
+  if (!results) return;
+
+  const isHealthy = ping.status === 'healthy';
+  const isDegraded = ping.status === 'degraded';
+  const lossColor = ping.packet_loss_pct === 0 ? '#34d399' : (ping.packet_loss_pct === 100 ? '#f87171' : '#fbbf24');
+
+  results.innerHTML = `
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px;">
+      <div class="card" style="padding: 12px; background: rgba(15, 23, 42, 0.4); text-align: center;">
+        <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">${t('netdiag_packets_sent')}</div>
+        <div style="font-size: 1.4rem; font-weight: 700; color: #f8fafc; font-family: monospace;">${ping.packets_transmitted}</div>
+      </div>
+      <div class="card" style="padding: 12px; background: rgba(15, 23, 42, 0.4); text-align: center;">
+        <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">${t('netdiag_packets_recv')}</div>
+        <div style="font-size: 1.4rem; font-weight: 700; color: #34d399; font-family: monospace;">${ping.packets_received}</div>
+      </div>
+      <div class="card" style="padding: 12px; background: rgba(15, 23, 42, 0.4); text-align: center;">
+        <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">${t('netdiag_packet_loss')}</div>
+        <div style="font-size: 1.4rem; font-weight: 700; color: ${lossColor}; font-family: monospace;">${ping.packet_loss_pct.toFixed(0)}%</div>
+      </div>
+      <div class="card" style="padding: 12px; background: rgba(15, 23, 42, 0.4); text-align: center;">
+        <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">${t('netdiag_avg_latency')}</div>
+        <div style="font-size: 1.4rem; font-weight: 700; color: #38bdf8; font-family: monospace;">${ping.avg_ms > 0 ? ping.avg_ms.toFixed(1) + ' ms' : '-'}</div>
+      </div>
+    </div>
+  `;
+
+  renderHopAnalysisBanner(cid, {
+    status: isHealthy ? 'optimal' : (isDegraded ? 'degraded' : 'failed'),
+    summary: ping.summary,
+    summary_id: ping.summary_id
+  });
+}
+
+function renderPortResults(cid, portStats) {
+  const results = document.getElementById(`${cid}_structuredResults`);
+  if (!results) return;
+
+  const isOpen = portStats.open;
+  results.innerHTML = `
+    <div class="card" style="padding: 20px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 8px; text-align: center;">
+      <div style="font-size: 2.2rem; margin-bottom: 8px;">${isOpen ? '🟢' : '🔴'}</div>
+      <div style="font-size: 1.25rem; font-weight: 700; color: ${isOpen ? '#34d399' : '#f87171'}; font-family: monospace;">
+        PORT ${portStats.port} ${isOpen ? t('netdiag_status_open') : t('netdiag_status_closed')}
+      </div>
+      <div style="color: var(--text-muted); font-size: 0.88rem; margin-top: 6px;">
+        ${currentLang === 'id' ? portStats.summary_id : portStats.summary}
+      </div>
+    </div>
+  `;
+
+  renderHopAnalysisBanner(cid, {
+    status: isOpen ? 'optimal' : 'failed',
+    summary: portStats.summary,
+    summary_id: portStats.summary_id
+  });
+}
+
+function renderDNSResults(cid, dnsStats) {
+  const results = document.getElementById(`${cid}_structuredResults`);
+  if (!results) return;
+
+  const isHealthy = dnsStats.status === 'healthy';
+  results.innerHTML = `
+    <div class="card" style="padding: 16px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 8px;">
+      <div style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">
+        🔍 ${t('netdiag_resolved_ips')} (${escapeHtml(dnsStats.target)}):
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        ${dnsStats.resolved_ips && dnsStats.resolved_ips.length > 0 ? dnsStats.resolved_ips.map(ip => `
+          <span class="badge badge-healthy" style="font-size: 0.9rem; font-family: monospace; padding: 4px 10px;">
+            ${escapeHtml(ip)}
+          </span>
+        `).join('') : `<span style="color: #f87171;">None</span>`}
+      </div>
+    </div>
+  `;
+
+  renderHopAnalysisBanner(cid, {
+    status: isHealthy ? 'optimal' : 'failed',
+    summary: dnsStats.summary,
+    summary_id: dnsStats.summary_id
+  });
+}
+
+function toggleNetDiagRaw(cid) {
+  const pre = document.getElementById(`${cid}_rawPre`);
+  const icon = document.getElementById(`${cid}_rawToggleIcon`);
+  if (pre && icon) {
+    if (pre.style.display === 'none') {
+      pre.style.display = 'block';
+      icon.innerText = '▼';
+    } else {
+      pre.style.display = 'none';
+      icon.innerText = '▶';
+    }
+  }
+}
+
+function copyNetDiagRaw(cid) {
+  const pre = document.getElementById(`${cid}_rawPre`);
+  if (pre && pre.innerText) {
+    navigator.clipboard.writeText(pre.innerText).then(() => {
+      showToast(t('netdiag_raw_copied'), 'success');
+    }).catch(() => {
+      showToast('Failed to copy', 'error');
+    });
+  }
+}
 
 setLanguage(currentLang);
 checkAuth();
