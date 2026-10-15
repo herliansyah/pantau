@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -525,6 +526,7 @@ func TestTicket07_AlertDispatcher(t *testing.T) {
 // Ticket 08: Interactive Web Terminal
 func TestTicket08_InteractiveWebTerminal(t *testing.T) {
 	env := setupTestEnv(t)
+	client := loginClient(t, env)
 
 	hostID, _ := env.db.CreateHost(&store.Host{
 		Name: "Terminal Host",
@@ -534,7 +536,12 @@ func TestTicket08_InteractiveWebTerminal(t *testing.T) {
 	})
 
 	wsURL := "ws" + strings.TrimPrefix(env.httpServer.URL, "http") + fmt.Sprintf("/ws/terminal?host_id=%d", hostID)
-	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	header := http.Header{}
+	u, _ := url.Parse(env.httpServer.URL)
+	for _, c := range client.Jar.Cookies(u) {
+		header.Add("Cookie", c.String())
+	}
+	ws, _, err := websocket.DefaultDialer.Dial(wsURL, header)
 	if err != nil {
 		t.Fatalf("dial websocket terminal failed: %v", err)
 	}

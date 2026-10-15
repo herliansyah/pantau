@@ -922,13 +922,22 @@ func (d *DB) IsFresh() (bool, error) {
 	}
 	var completed string
 	err := d.QueryRow("SELECT value FROM settings WHERE key = 'bootstrap_completed'").Scan(&completed)
-	if err == sql.ErrNoRows {
-		return true, nil
+	if err == nil && completed == "1" {
+		return false, nil
 	}
-	if err != nil {
+	if err != nil && err != sql.ErrNoRows {
 		return false, err
 	}
-	return completed != "1", nil
+
+	var hash string
+	err = d.QueryRow("SELECT value FROM settings WHERE key = 'admin_password_hash'").Scan(&hash)
+	if err == nil && hash != "" {
+		if bcrypt.CompareHashAndPassword([]byte(hash), []byte("admin")) != nil {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 func (d *DB) MarkBootstrapCompleted() error {

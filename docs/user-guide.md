@@ -72,7 +72,7 @@ When connecting a new **Host** to Pantau:
 4. Click **Save & Test Connection**. Pantau performs an initial handshake to verify connectivity.
 
 > [!NOTE]
-> For legacy Linux systems (CentOS 6, Debian 7, or systems running OpenSSH 5.3+), Pantau automatically enables legacy cipher fallbacks (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`) during the SSH handshake.
+> For legacy Linux systems (CentOS 5/6, Debian 7, or systems running OpenSSH 4.x/5.x), Pantau automatically enables legacy cipher and host key fallbacks (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`, `ssh-rsa`) during the SSH handshake. Pantau applies TOFU (Trust-On-First-Use) host key verification, seamlessly recording the target host's fingerprint on initial connection while actively protecting subsequent sessions against Machine-in-the-Middle (MITM) tampering.
 
 ### Organizing with Host Groups & Manual Host Order
 

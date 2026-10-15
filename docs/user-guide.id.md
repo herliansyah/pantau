@@ -72,7 +72,7 @@ Untuk menghubungkan **Host** baru ke dalam Pantau:
 4. Klik **Save & Test Connection**. Pantau akan melakukan uji koneksi (*handshake*) untuk memvalidasi akses.
 
 > [!NOTE]
-> Untuk server Linux lawas (*legacy*) seperti CentOS 6, Debian 7, atau OpenSSH 5.3+, Pantau secara otomatis mengaktifkan fallback cipher warisan (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`) saat negosiasi SSH.
+> Untuk server Linux lawas (*legacy*) seperti CentOS 5/6, Debian 7, atau OpenSSH 4.x/5.x, Pantau secara otomatis mengaktifkan fallback cipher dan algoritma host key warisan (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`, `ssh-rsa`) saat negosiasi SSH. Pantau menerapkan verifikasi host key TOFU (Trust-On-First-Use) yang otomatis mencatat fingerprint host pada koneksi awal sekaligus melindungi sesi berikutnya dari manipulasi Machine-in-the-Middle (MITM).
 
 ### Pengelompokan Host Group & Manual Host Order
 

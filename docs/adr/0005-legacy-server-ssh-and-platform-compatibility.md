@@ -20,7 +20,8 @@ Target Linux environments frequently include legacy production servers (such as 
    - For existing installations with Ed25519 keys, preserve stored keys non-destructively and offer an optional key regeneration action in settings.
 2. **Permissive SSH Cryptographic Profile in ClientConfig**:
    - Explicitly configure `ssh.ClientConfig` to allow legacy Key Exchange algorithms (`diffie-hellman-group14-sha1`, `diffie-hellman-group1-sha1`, `diffie-hellman-group-exchange-sha1`, `diffie-hellman-group-exchange-sha256`) and legacy ciphers (`aes128-cbc`, `aes256-cbc`, `3des-cbc`), while ordering modern algorithms first.
-   - Include `ssh-rsa` alongside modern RSA and Ed25519 algorithms in `HostKeyAlgorithms`.
+   - Include `ssh-rsa` and `ssh-dss` (`ssh.KeyAlgoDSA`) alongside modern RSA and Ed25519 algorithms in `HostKeyAlgorithms` to support OpenSSH 4.3 (CentOS 5) through latest OpenSSH.
+   - Replace `InsecureIgnoreHostKey` with `TOFUHostKeyCallback()`: seamlessly accepts and records host keys on initial connection without manual `known_hosts` setup, while actively verifying host key fingerprints on subsequent connections to prevent MITM attacks.
 3. **Universal Polyglot Batch Shell Inspection**:
    - Update `SystemMetricsBatchCmd` to read OS identity from `/etc/os-release`, `/usr/lib/os-release`, `/etc/redhat-release`, and `/etc/centos-release`.
    - Remove `--level` from `dmesg` disk error checks in favor of portable pattern filtering.
