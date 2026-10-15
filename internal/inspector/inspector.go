@@ -228,7 +228,7 @@ func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration
 // SystemMetricsBatchCmd is the single-shot batch command to gather system, network, and security metrics.
 // ponytail: Universal polyglot batching keeps agentless overhead near zero on modern & legacy Linux.
 // ponytail: Uses df -lPk with timeout fallback to guard against hung NFS / network storage.
-const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; (timeout -k 2s 5s df -lPk / 2>/dev/null || df -lPk / 2>/dev/null); echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 -m 4 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 -m 4 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l; echo "---"; (nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1); echo "---"; (cat /sys/class/dmi/id/bios_date 2>/dev/null || echo ""); echo "---"; (cat /sys/class/dmi/id/sys_vendor 2>/dev/null || cat /sys/class/dmi/id/product_name 2>/dev/null || echo ""); echo "---"; (stat -c %Y /etc/machine-id 2>/dev/null || stat -c %Y /etc/ssh/ssh_host_rsa_key 2>/dev/null || stat -c %Y /var/log 2>/dev/null || echo 0); echo "---"; cat /proc/diskstats 2>/dev/null | awk '{if ($3 ~ /^([hsv]d[a-z]|nvme[0-9]+n[0-9]+|xvd[a-z]|mmcblk[0-9]+)$/) {r+=$6; w+=$10}} END {print (r?r:0)*512, (w?w:0)*512}'`
+const SystemMetricsBatchCmd = `uname -r; echo "---"; cat /etc/os-release 2>/dev/null || cat /usr/lib/os-release 2>/dev/null || cat /etc/redhat-release 2>/dev/null || cat /etc/centos-release 2>/dev/null || cat /etc/issue 2>/dev/null; echo "---"; uptime; echo "---"; free -b 2>/dev/null; echo "---"; (timeout -k 2s 5s df -lPk / 2>/dev/null || df -lPk / 2>/dev/null); echo "---"; (dmesg 2>/dev/null || cat /var/log/dmesg 2>/dev/null) | grep -iE 'I/O error|EXT4-fs error|BTRFS error' | wc -l; echo "---"; cat /proc/net/dev 2>/dev/null | grep -vE 'lo|Inter-|face' | awk '{rx+=$2; tx+=$10} END {print rx, tx}'; echo "---"; (ping -c 1 -W 2 1.1.1.1 2>/dev/null | grep -oE 'time=[0-9.]+' | cut -d= -f2) || echo "OFFLINE"; echo "---"; curl -s --connect-timeout 2 -m 4 https://icanhazip.com 2>/dev/null || curl -s --connect-timeout 2 -m 4 https://ifconfig.me 2>/dev/null || echo ""; echo "---"; (ss -nt state established 2>/dev/null || ss -nt 2>/dev/null || netstat -nt 2>/dev/null) | awk '!/Recv-Q|Proto|Active/ {if (NF>=5) print $4, $5; else if (NF>=4) print $3, $4}' | head -n 50; echo "---"; (ss -tlpn 2>/dev/null || netstat -tlpn 2>/dev/null) | awk '!/State|Proto|Active/ {print $1, $4, $6}' | head -n 30; echo "---"; (grep -i "Failed password" /var/log/auth.log 2>/dev/null || grep -i "Failed password" /var/log/secure 2>/dev/null || true) | wc -l; echo "---"; (nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo 1); echo "---"; (cat /sys/class/dmi/id/bios_date 2>/dev/null || echo ""); echo "---"; (cat /sys/class/dmi/id/sys_vendor 2>/dev/null || cat /sys/class/dmi/id/product_name 2>/dev/null || echo ""); echo "---"; (stat -c %Y /etc/machine-id 2>/dev/null || stat -c %Y /etc/ssh/ssh_host_rsa_key 2>/dev/null || stat -c %Y /var/log 2>/dev/null || echo 0); echo "---"; cat /proc/diskstats 2>/dev/null | awk '{if ($3 ~ /^([hsv]d[a-z]|nvme[0-9]+n[0-9]+|xvd[a-z]|mmcblk[0-9]+)$/) {r+=$6; w+=$10}} END {print (r?r:0)*512, (w?w:0)*512}'; echo "---"; (ps -eo pid,user,%cpu,%mem,rss,comm --sort=-%cpu 2>/dev/null || ps -eo pid,user,%cpu,%mem,rss,args 2>/dev/null) | head -n 6; echo "---"; (ps -eo pid,user,%cpu,%mem,rss,comm --sort=-rss 2>/dev/null || ps -eo pid,user,%cpu,%mem,rss,args 2>/dev/null) | head -n 6; echo "---"; ([ $(awk '/SwapTotal/ {print $2}' /proc/meminfo 2>/dev/null || echo 0) -gt 0 ] && grep -s -H -E '^(VmSwap|Name|Uid):' /proc/[0-9]*/status 2>/dev/null | awk -F'[: \t]+' '{if ($2=="VmSwap" && $3>0) {split($1,a,"/"); print a[3], (uid[a[3]]?uid[a[3]]:"0"), $3, name[a[3]]} else if ($2=="Name") {split($1,a,"/"); name[a[3]]=$3} else if ($2=="Uid") {split($1,a,"/"); uid[a[3]]=$3}}' | sort -k3 -rn | head -n 5) || true`
 
 func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner) error {
 	stdout, _, _, err := runner.Exec(SystemMetricsBatchCmd)
@@ -317,7 +317,86 @@ func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner
 	}
 	parseDiskIOMetrics(h, diskStatsSec)
 
+	// Process Telemetry: Top CPU, Top RAM, Top Swap
+	if len(sections) >= 18 {
+		topCPU := parseTopProcesses(sections[17])
+		if b, err := json.Marshal(topCPU); err == nil {
+			h.TopCPUProcesses = string(b)
+		}
+	}
+	if len(sections) >= 19 {
+		topRAM := parseTopProcesses(sections[18])
+		if b, err := json.Marshal(topRAM); err == nil {
+			h.TopRAMProcesses = string(b)
+		}
+	}
+	if len(sections) >= 20 {
+		topSwap := parseTopSwap(sections[19])
+		if b, err := json.Marshal(topSwap); err == nil {
+			h.TopSwapProcesses = string(b)
+		}
+	}
+
 	return nil
+}
+
+// parseTopProcesses parses the output of ps -eo pid,user,%cpu,%mem,rss,comm.
+func parseTopProcesses(out string) []store.ProcessInfo {
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	var list []store.ProcessInfo
+	for _, l := range lines {
+		fields := strings.Fields(l)
+		if len(fields) < 6 {
+			continue
+		}
+		if fields[0] == "PID" || fields[0] == "COMMAND" {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[0])
+		if err != nil {
+			continue
+		}
+		user := fields[1]
+		cpu, _ := strconv.ParseFloat(fields[2], 64)
+		mem, _ := strconv.ParseFloat(fields[3], 64)
+		rssKB, _ := strconv.ParseInt(fields[4], 10, 64)
+		cmd := strings.Join(fields[5:], " ")
+		list = append(list, store.ProcessInfo{
+			PID:      pid,
+			User:     user,
+			CPU:      cpu,
+			MEM:      mem,
+			RSSBytes: rssKB * 1024,
+			Command:  cmd,
+		})
+	}
+	return list
+}
+
+// parseTopSwap parses the output of conditional /proc/*/status VmSwap reader.
+func parseTopSwap(out string) []store.ProcessInfo {
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	var list []store.ProcessInfo
+	for _, l := range lines {
+		fields := strings.Fields(l)
+		if len(fields) < 4 {
+			continue
+		}
+		pid, err := strconv.Atoi(fields[0])
+		if err != nil {
+			continue
+		}
+		user := fields[1]
+		swapKB, _ := strconv.ParseInt(fields[2], 10, 64)
+		cmd := strings.Join(fields[3:], " ")
+		list = append(list, store.ProcessInfo{
+			PID:       pid,
+			User:      user,
+			SwapBytes: swapKB * 1024,
+			Command:   cmd,
+		})
+	}
+	return list
 }
 
 func parseNetworkMetrics(h *store.Host, netDevSec, pingSec, pubIPSec, estSec, listenSec, failedSec string) {

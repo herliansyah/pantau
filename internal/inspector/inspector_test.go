@@ -490,5 +490,38 @@ func TestParseDiskIOMetrics(t *testing.T) {
 	}
 }
 
+func TestParseTopProcesses(t *testing.T) {
+	sampleOutput := `PID USER %CPU %MEM RSS COMMAND
+1001 www-data 12.5 4.2 45000 /usr/sbin/nginx
+1002 mysql 8.1 15.0 160000 /usr/sbin/mysqld
+`
+	procs := parseTopProcesses(sampleOutput)
+	if len(procs) != 2 {
+		t.Fatalf("expected 2 processes, got %d", len(procs))
+	}
+	if procs[0].PID != 1001 || procs[0].User != "www-data" || procs[0].CPU != 12.5 || procs[0].MEM != 4.2 {
+		t.Errorf("unexpected proc 0: %+v", procs[0])
+	}
+	if procs[0].RSSBytes != 45000*1024 {
+		t.Errorf("unexpected RSS bytes: %d", procs[0].RSSBytes)
+	}
+	if procs[0].Command != "/usr/sbin/nginx" {
+		t.Errorf("unexpected command: %s", procs[0].Command)
+	}
+}
+
+func TestParseTopSwap(t *testing.T) {
+	sampleSwap := `1002 mysql 153600 /usr/sbin/mysqld
+1005 redis 20480 /usr/bin/redis-server
+`
+	swaps := parseTopSwap(sampleSwap)
+	if len(swaps) != 2 {
+		t.Fatalf("expected 2 swaps, got %d", len(swaps))
+	}
+	if swaps[0].PID != 1002 || swaps[0].SwapBytes != 153600*1024 || swaps[0].User != "mysql" {
+		t.Errorf("unexpected swap 0: %+v", swaps[0])
+	}
+}
+
 
 
