@@ -31,6 +31,7 @@ import (
 
 	"pantau/internal/inspector"
 	"pantau/internal/logger"
+	"pantau/internal/netdiag"
 	"pantau/internal/notify"
 	"pantau/internal/snapshot"
 	"pantau/internal/sshrunner"
@@ -79,6 +80,7 @@ type Server struct {
 	transferMgr       *transfer.Manager
 	snapshotMgr       *snapshot.Manager
 	updaterMgr        *updater.Manager
+	netdiagService    *netdiag.Service
 	mux               *http.ServeMux
 	sessions          sync.Map // token -> expiry
 	temp2FAChallenges sync.Map // tempToken -> *temp2FAChallenge
@@ -107,17 +109,22 @@ func (s *Server) prepareHTML(raw []byte) {
 
 func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) *Server {
 	s := &Server{
-		db:          db,
-		inspector:   ins,
-		dispatcher:  disp,
-		provisioner: sshrunner.DefaultKeyProvisioner,
-		transferMgr: transfer.NewManager(db, nil),
-		snapshotMgr: snapshot.NewManager(db, nil),
-		mux:         http.NewServeMux(),
+		db:             db,
+		inspector:      ins,
+		dispatcher:     disp,
+		provisioner:    sshrunner.DefaultKeyProvisioner,
+		transferMgr:    transfer.NewManager(db, nil),
+		snapshotMgr:    snapshot.NewManager(db, nil),
+		netdiagService: netdiag.NewService(db, ins),
+		mux:            http.NewServeMux(),
 	}
 	s.prepareHTML(embeddedHTML)
 	s.routes()
 	return s
+}
+
+func (s *Server) SetNetdiagService(ns *netdiag.Service) {
+	s.netdiagService = ns
 }
 
 func (s *Server) SetKeyProvisioner(p sshrunner.KeyProvisioner) {
@@ -221,6 +228,9 @@ func (s *Server) routes() {
 
 	// Live Event Stream (Activity Console)
 	s.mux.HandleFunc("/api/logs/stream", s.authMiddleware(s.handleLogsStream))
+
+	// Network Diagnostics (ADR Network Diagnostic)
+	s.mux.HandleFunc("/api/netdiag/stream", s.authMiddleware(s.handleNetDiagStream))
 }
 
 func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {

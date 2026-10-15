@@ -369,6 +369,18 @@ _Avoid_: Process list, ps dump, task manager, top monitor
 Paket perangkat lunak atau unit layanan pada Host yang terpasang namun teridentifikasi tidak memiliki aktivitas eksekusi proses atau layanan aktif dalam kurun waktu observasi inspeksi.
 _Avoid_: Unused app, dead software, zombie program, orphan app
 
+**Network Diagnostic**:
+Modul perkakas interaktif pengujian jaringan on-demand berbasis SSH untuk memverifikasi keterjangkauan, perutean paket, port layanan, dan resolusi nama domain langsung dari Host tanpa instalasi agen remote.
+_Avoid_: Net test, network tool, ping utility, network troubleshooter
 
+**Diagnostic Probe**:
+Satu sesi eksekusi uji jaringan spesifik (`ping`, `traceroute`, `port_probe`, atau `dns_resolve`) yang dijalankan secara asinkron dari Host sumber ke Probe Target.
+_Avoid_: Network job, probe command, test runner
 
+**Probe Target**:
+Sasaran tujuan pengujian jaringan yang dapat berupa Host terkelola lain dalam inventaris Pantau (*Inter-Host*) atau alamat IP/FQDN eksternal publik (*External Target*).
+_Avoid_: Destination, remote endpoint, probe address
 
+**Hop Analysis**:
+Hasil interpretasi heuristik terhadap rantai hop perutean traceroute yang secara otomatis mengklasifikasikan gateway privat, mendeteksi titik putus firewall, dan menyoroti lonjakan latensi tanpa interpretasi manual.
+_Avoid_: Traceroute summary, route report, hop parser
