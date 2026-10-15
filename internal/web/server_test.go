@@ -1626,6 +1626,68 @@ func TestFileDuplicationRoutingAndValidation(t *testing.T) {
 	}
 }
 
+func TestHostPackagesAPI(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-web-pkg-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{Name: "web1", Host: "10.0.0.1", Port: 22, User: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = db.ReplaceHostPackages(hostID, []*store.HostPackage{
+		{HostID: hostID, Name: "nginx", Version: "1.18", SizeBytes: 500000, IsManual: true, ServiceStatus: "active"},
+	})
+
+	srv := NewServer(db, nil, nil)
+	token := "valid_test_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{
+			Name:  "pantau_session",
+			Value: token,
+		})
+	}
+
+	// 1. GET /api/hosts/{id}/packages
+	req := httptest.NewRequest(http.MethodGet, "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/packages", nil)
+	authReq(req)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var pkgs []*store.HostPackage
+	if err := json.NewDecoder(w.Body).Decode(&pkgs); err != nil {
+		t.Fatalf("failed decoding packages json: %v", err)
+	}
+	if len(pkgs) != 1 || pkgs[0].Name != "nginx" || !pkgs[0].IsManual {
+		t.Errorf("unexpected pkgs response: %+v", pkgs)
+	}
+
+	// 2. POST /api/hosts/{id}/packages/scan within cooldown should return 429 Too Many Requests
+	reqScan := httptest.NewRequest(http.MethodPost, "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/packages/scan", nil)
+	authReq(reqScan)
+	wScan := httptest.NewRecorder()
+	srv.ServeHTTP(wScan, reqScan)
+
+	if wScan.Code != http.StatusTooManyRequests {
+		t.Errorf("expected 429 Too Many Requests due to cooldown, got %d: %s", wScan.Code, wScan.Body.String())
+	}
+}
+
+
 
 
 

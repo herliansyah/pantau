@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -73,6 +74,32 @@ type Host struct {
 	CommissionDate    string `json:"commission_date"` // YYYY-MM-DD manual override for New Old Stock
 	BIOSDate          string `json:"bios_date"`       // Raw motherboard BIOS release date telemetry
 	OSInstallEpoch    int64  `json:"os_install_epoch"` // Unix epoch of OS deployment for VM age tracking
+	TopCPUProcesses   string `json:"top_cpu_processes"`  // JSON serialized []ProcessInfo
+	TopRAMProcesses   string `json:"top_ram_processes"`  // JSON serialized []ProcessInfo
+	TopSwapProcesses  string `json:"top_swap_processes"` // JSON serialized []ProcessInfo
+}
+
+type ProcessInfo struct {
+	PID       int     `json:"pid"`
+	User      string  `json:"user"`
+	CPU       float64 `json:"cpu"`
+	MEM       float64 `json:"mem"`
+	RSSBytes  int64   `json:"rss_bytes"`
+	SwapBytes int64   `json:"swap_bytes,omitempty"`
+	Command   string  `json:"command"`
+}
+
+type HostPackage struct {
+	ID            int64     `json:"id"`
+	HostID        int64     `json:"host_id"`
+	Name          string    `json:"name"`
+	Version       string    `json:"version"`
+	SizeBytes     int64     `json:"size_bytes"`
+	InstallEpoch  int64     `json:"install_epoch"`
+	IsManual      bool      `json:"is_manual"`
+	ServiceName   string    `json:"service_name,omitempty"`
+	ServiceStatus string    `json:"service_status,omitempty"`
+	LastScannedAt time.Time `json:"last_scanned_at"`
 }
 
 type TopConn struct {
@@ -229,8 +256,25 @@ func (d *DB) migrate() error {
 		group_name TEXT DEFAULT '',
 		commission_date TEXT DEFAULT '',
 		bios_date TEXT DEFAULT '',
-		os_install_epoch INTEGER DEFAULT 0
+		os_install_epoch INTEGER DEFAULT 0,
+		top_cpu_processes TEXT DEFAULT '',
+		top_ram_processes TEXT DEFAULT '',
+		top_swap_processes TEXT DEFAULT ''
 	);
+
+	CREATE TABLE IF NOT EXISTS host_packages (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		version TEXT NOT NULL,
+		size_bytes INTEGER NOT NULL DEFAULT 0,
+		install_epoch INTEGER NOT NULL DEFAULT 0,
+		is_manual INTEGER NOT NULL DEFAULT 0,
+		service_name TEXT NOT NULL DEFAULT '',
+		service_status TEXT NOT NULL DEFAULT '',
+		last_scanned_at DATETIME NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_host_packages_host_manual ON host_packages(host_id, is_manual);
 
 	CREATE TABLE IF NOT EXISTS desired_rules (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -331,6 +375,9 @@ func (d *DB) migrate() error {
 	_ = d.alterAddColumn("hosts", "commission_date", "TEXT DEFAULT ''")
 	_ = d.alterAddColumn("hosts", "bios_date", "TEXT DEFAULT ''")
 	_ = d.alterAddColumn("hosts", "os_install_epoch", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("hosts", "top_cpu_processes", "TEXT DEFAULT ''")
+	_ = d.alterAddColumn("hosts", "top_ram_processes", "TEXT DEFAULT ''")
+	_ = d.alterAddColumn("hosts", "top_swap_processes", "TEXT DEFAULT ''")
 
 	return nil
 }
@@ -498,7 +545,8 @@ const hostSelectCols = `SELECT id, name, host, port, user, COALESCE(custom_key,'
 	COALESCE(failed_logins_count, 0), COALESCE(top_connections, ''), COALESCE(listening_ports, ''),
 	COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, ''),
 	COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0),
-	COALESCE(last_duration_ms, 0), COALESCE(commission_date, ''), COALESCE(bios_date, ''), COALESCE(os_install_epoch, 0)
+	COALESCE(last_duration_ms, 0), COALESCE(commission_date, ''), COALESCE(bios_date, ''), COALESCE(os_install_epoch, 0),
+	COALESCE(top_cpu_processes, ''), COALESCE(top_ram_processes, ''), COALESCE(top_swap_processes, '')
 	FROM hosts `
 
 func scanHost(s rowScanner) (*Host, error) {
@@ -512,7 +560,8 @@ func scanHost(s rowScanner) (*Host, error) {
 		&h.FailedLoginsCount, &h.TopConnections, &h.ListeningPorts,
 		&h.Notes, &h.SortOrder, &h.GroupName,
 		&h.CPUCores, &h.HardwareModel, &h.SwapUsedBytes, &h.SwapTotalBytes,
-		&h.LastDurationMs, &h.CommissionDate, &h.BIOSDate, &h.OSInstallEpoch)
+		&h.LastDurationMs, &h.CommissionDate, &h.BIOSDate, &h.OSInstallEpoch,
+		&h.TopCPUProcesses, &h.TopRAMProcesses, &h.TopSwapProcesses)
 	if err != nil {
 		return nil, err
 	}
@@ -617,14 +666,89 @@ func (d *DB) UpdateHostInspection(h *Host) error {
 	if h.InternetOnline {
 		onlineInt = 1
 	}
-	_, err := d.Exec(`UPDATE hosts SET status=?, os_info=?, kernel=?, uptime=?, cpu_load=?, ram_used_bytes=?, ram_total_bytes=?, disk_used_bytes=?, disk_total_bytes=?, lifecycle_score=?, lifecycle_notes=?, lifecycle_breakdown=?, last_inspected=?, net_rx_bytes=?, net_tx_bytes=?, net_rx_speed_bps=?, net_tx_speed_bps=?, disk_read_bytes=?, disk_write_bytes=?, disk_read_speed_bps=?, disk_write_speed_bps=?, internet_online=?, internet_latency_ms=?, public_ip=?, active_conn_count=?, failed_logins_count=?, top_connections=?, listening_ports=?, cpu_cores=?, hardware_model=?, swap_used_bytes=?, swap_total_bytes=?, last_duration_ms=?, bios_date=?, os_install_epoch=? WHERE id=?`,
+	_, err := d.Exec(`UPDATE hosts SET status=?, os_info=?, kernel=?, uptime=?, cpu_load=?, ram_used_bytes=?, ram_total_bytes=?, disk_used_bytes=?, disk_total_bytes=?, lifecycle_score=?, lifecycle_notes=?, lifecycle_breakdown=?, last_inspected=?, net_rx_bytes=?, net_tx_bytes=?, net_rx_speed_bps=?, net_tx_speed_bps=?, disk_read_bytes=?, disk_write_bytes=?, disk_read_speed_bps=?, disk_write_speed_bps=?, internet_online=?, internet_latency_ms=?, public_ip=?, active_conn_count=?, failed_logins_count=?, top_connections=?, listening_ports=?, cpu_cores=?, hardware_model=?, swap_used_bytes=?, swap_total_bytes=?, last_duration_ms=?, bios_date=?, os_install_epoch=?, top_cpu_processes=?, top_ram_processes=?, top_swap_processes=? WHERE id=?`,
 		h.Status, h.OSInfo, h.Kernel, h.Uptime, h.CPULoad, h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, h.LifecycleScore, h.LifecycleNotes, h.LifecycleBreakdown, now,
 		h.NetRxBytes, h.NetTxBytes, h.NetRxSpeedBps, h.NetTxSpeedBps,
 		h.DiskReadBytes, h.DiskWriteBytes, h.DiskReadSpeedBps, h.DiskWriteSpeedBps,
 		onlineInt, h.InternetLatencyMs, h.PublicIP, h.ActiveConnCount, h.FailedLoginsCount, h.TopConnections, h.ListeningPorts,
 		h.CPUCores, h.HardwareModel, h.SwapUsedBytes, h.SwapTotalBytes, h.LastDurationMs, h.BIOSDate, h.OSInstallEpoch,
+		h.TopCPUProcesses, h.TopRAMProcesses, h.TopSwapProcesses,
 		h.ID)
 	return err
+}
+
+// Host Package operations
+// ponytail: Atomic host-scoped replace eliminates orphan/uninstalled packages cleanly in one transaction.
+// ponytail: Guard against accidental database wipe if scan returned empty or timed out.
+func (d *DB) ReplaceHostPackages(hostID int64, pkgs []*HostPackage) error {
+	if len(pkgs) == 0 {
+		return fmt.Errorf("refusing to replace with empty packages list; keeping existing scan results")
+	}
+
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`DELETE FROM host_packages WHERE host_id = ?`, hostID); err != nil {
+		return err
+	}
+
+	stmt, err := tx.Prepare(`INSERT INTO host_packages (host_id, name, version, size_bytes, install_epoch, is_manual, service_name, service_status, last_scanned_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	now := time.Now()
+	for _, p := range pkgs {
+		isManualInt := 0
+		if p.IsManual {
+			isManualInt = 1
+		}
+		scannedAt := p.LastScannedAt
+		if scannedAt.IsZero() {
+			scannedAt = now
+		}
+		if _, err := stmt.Exec(hostID, p.Name, p.Version, p.SizeBytes, p.InstallEpoch, isManualInt, p.ServiceName, p.ServiceStatus, scannedAt); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (d *DB) GetHostPackages(hostID int64) ([]*HostPackage, error) {
+	rows, err := d.Query(`SELECT id, host_id, name, version, size_bytes, install_epoch, is_manual, service_name, service_status, last_scanned_at FROM host_packages WHERE host_id = ? ORDER BY is_manual DESC, size_bytes DESC, name ASC`, hostID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var pkgs []*HostPackage
+	for rows.Next() {
+		var p HostPackage
+		var isManualInt int
+		if err := rows.Scan(&p.ID, &p.HostID, &p.Name, &p.Version, &p.SizeBytes, &p.InstallEpoch, &isManualInt, &p.ServiceName, &p.ServiceStatus, &p.LastScannedAt); err != nil {
+			return nil, err
+		}
+		p.IsManual = isManualInt == 1
+		pkgs = append(pkgs, &p)
+	}
+	return pkgs, nil
+}
+
+// GetHostPackagesLastScanned returns the most recent last_scanned_at timestamp for a host's packages.
+func (d *DB) GetHostPackagesLastScanned(hostID int64) (time.Time, error) {
+	var ts time.Time
+	err := d.QueryRow(`SELECT last_scanned_at FROM host_packages WHERE host_id = ? ORDER BY last_scanned_at DESC LIMIT 1`, hostID).Scan(&ts)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return time.Time{}, nil
+		}
+		return time.Time{}, err
+	}
+	return ts, nil
 }
 
 // Inspection Run operations

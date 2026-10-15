@@ -490,5 +490,227 @@ func TestParseDiskIOMetrics(t *testing.T) {
 	}
 }
 
+func TestParseTopProcesses(t *testing.T) {
+	sampleOutput := `PID USER %CPU %MEM RSS COMMAND
+1001 www-data 12.5 4.2 45000 /usr/sbin/nginx
+1002 mysql 8.1 15.0 160000 /usr/sbin/mysqld
+`
+	procs := parseTopProcesses(sampleOutput)
+	if len(procs) != 2 {
+		t.Fatalf("expected 2 processes, got %d", len(procs))
+	}
+	if procs[0].PID != 1001 || procs[0].User != "www-data" || procs[0].CPU != 12.5 || procs[0].MEM != 4.2 {
+		t.Errorf("unexpected proc 0: %+v", procs[0])
+	}
+	if procs[0].RSSBytes != 45000*1024 {
+		t.Errorf("unexpected RSS bytes: %d", procs[0].RSSBytes)
+	}
+	if procs[0].Command != "/usr/sbin/nginx" {
+		t.Errorf("unexpected command: %s", procs[0].Command)
+	}
+}
+
+func TestParseTopSwap(t *testing.T) {
+	sampleSwap := `1002 mysql 153600 /usr/sbin/mysqld
+1005 redis 20480 /usr/bin/redis-server
+`
+	swaps := parseTopSwap(sampleSwap)
+	if len(swaps) != 2 {
+		t.Fatalf("expected 2 swaps, got %d", len(swaps))
+	}
+	if swaps[0].PID != 1002 || swaps[0].SwapBytes != 153600*1024 || swaps[0].User != "mysql" {
+		t.Errorf("unexpected swap 0: %+v", swaps[0])
+	}
+}
+
+func TestParseDpkgPackages(t *testing.T) {
+	dpkgOutput := "nginx\t1.18.0-0ubuntu1\t1024\tinstalled\ncurl\t7.68.0-1ubuntu2\t512\tinstalled\n"
+	manualMap := map[string]bool{"nginx": true}
+	servicesMap := map[string]string{"nginx": "active", "apache2": "inactive"}
+
+	pkgs := parseDpkgOutput(dpkgOutput, manualMap, servicesMap, 42)
+	if len(pkgs) != 2 {
+		t.Fatalf("expected 2 packages, got %d", len(pkgs))
+	}
+	if pkgs[0].Name != "nginx" || !pkgs[0].IsManual || pkgs[0].ServiceStatus != "active" || pkgs[0].SizeBytes != 1024*1024 {
+		t.Errorf("unexpected package 0: %+v", pkgs[0])
+	}
+	if pkgs[1].Name != "curl" || pkgs[1].IsManual || pkgs[1].SizeBytes != 512*1024 {
+		t.Errorf("unexpected package 1: %+v", pkgs[1])
+	}
+}
+
+func TestParseRpmPackages(t *testing.T) {
+	rpmOutput := "httpd\t2.4.37-43.module_el8\t5000000\t1620000000\nbash\t4.4.20-1.el8\t1500000\t1600000000\n"
+	manualMap := map[string]bool{"httpd": true}
+	servicesMap := map[string]string{"httpd": "inactive (dead)"}
+
+	pkgs := parseRpmOutput(rpmOutput, manualMap, servicesMap, 42)
+	if len(pkgs) != 2 {
+		t.Fatalf("expected 2 packages, got %d", len(pkgs))
+	}
+	if pkgs[0].Name != "httpd" || !pkgs[0].IsManual || pkgs[0].InstallEpoch != 1620000000 || pkgs[0].ServiceStatus != "inactive (dead)" {
+		t.Errorf("unexpected package 0: %+v", pkgs[0])
+	}
+}
+
+func TestScanPackagesIntegration(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-scan-pkg-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{Name: "Server Debian", Host: "10.0.0.5", Port: 22, User: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		if strings.Contains(cmd, "dpkg-query") {
+			out := "TYPE:DPKG\n===PKGS===\nnginx\t1.18.0\t1024\tinstalled\n===MANUAL===\nnginx\n===SERVICES===\nnginx.service active running\n"
+			return out, "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	ins := New(db, func(host string, port int, user, key string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	if err := ins.ScanPackages(hostID); err != nil {
+		t.Fatalf("scan packages failed: %v", err)
+	}
+
+	pkgs, err := db.GetHostPackages(hostID)
+	if err != nil {
+		t.Fatalf("get host packages failed: %v", err)
+	}
+	if len(pkgs) != 1 {
+		t.Fatalf("expected 1 package, got %d", len(pkgs))
+	}
+	if pkgs[0].Name != "nginx" || !pkgs[0].IsManual || pkgs[0].ServiceStatus != "active running" {
+		t.Errorf("unexpected package: %+v", pkgs[0])
+	}
+}
+
+func TestNormalizeRpmPackageName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"nginx-1.18.0-1.el6.ngx.x86_64", "nginx"},
+		{"openssh-server-5.3p1-124.el6_10.x86_64", "openssh-server"},
+		{"c1a2b3-httpd-2.4.6-97.el7.centos.x86_64", "httpd"},
+		{"bash", "bash"},
+		{"libgcc-4.4.7-23.el6.i686", "libgcc"},
+		{"/var/lib/yum/yumdb/n/123-nginx-1.18.0-1.el6.x86_64/reason", "nginx"},
+		{"reason = user", ""},
+		{"", ""},
+	}
+
+	for _, tt := range tests {
+		got := normalizeRpmPackageName(tt.input)
+		if got != tt.expected {
+			t.Errorf("normalizeRpmPackageName(%q) = %q; want %q", tt.input, got, tt.expected)
+		}
+	}
+}
+
+func TestCentOS6PackageScanParsing(t *testing.T) {
+	rpmOutput := "nginx\t1.18.0-1.el6.ngx\t1000000\t1600000000\nhttpd\t2.2.15-69.el6.centos\t2000000\t1600000000\ncoreutils\t8.4-47.el6\t5000000\t1500000000\n"
+	manualSec := "Loaded plugins: fastestmirror\nnginx-1.18.0-1.el6.ngx.x86_64\n   reason = user\nhttpd-2.2.15-69.el6.centos.x86_64\n   reason = user\n"
+	servicesSec := "httpd active running\nnginx inactive\n"
+
+	manualMap := parseManualMap(manualSec)
+	servicesMap := parseServicesMap(servicesSec)
+
+	pkgs := parseRpmOutput(rpmOutput, manualMap, servicesMap, 99)
+	if len(pkgs) != 3 {
+		t.Fatalf("expected 3 packages, got %d", len(pkgs))
+	}
+
+	pkgMap := make(map[string]*store.HostPackage)
+	for _, p := range pkgs {
+		pkgMap[p.Name] = p
+	}
+
+	if p, ok := pkgMap["nginx"]; !ok || !p.IsManual || p.ServiceStatus != "inactive" {
+		t.Errorf("nginx package mismatch: %+v", p)
+	}
+	if p, ok := pkgMap["httpd"]; !ok || !p.IsManual || p.ServiceStatus != "active running" {
+		t.Errorf("httpd package mismatch: %+v", p)
+	}
+	if p, ok := pkgMap["coreutils"]; !ok || p.IsManual {
+		t.Errorf("coreutils should be base package (not manual): %+v", p)
+	}
+}
+
+func TestSplitMetricsSectionsWithDashesInProcess(t *testing.T) {
+	stdout := "5.15.0\n---\nUbuntu 22.04\n---\nup 1 day\n---\nMem: 1000\n---\n/dev/sda1 100 50\n---\n0\n---\n100 100\n---\ntime=10\n---\n1.2.3.4\n---\nconns\n---\nports\n---\n0\n---\n2\n---\n01/01/2020\n---\nKVM\n---\n1600000000\n---\n0 0\n---\n123 root 1.0 1.0 1024 python app.py ---flag-value=1\n---\n123 root 1.0 1.0 1024 python app.py\n---\n"
+	sections := splitMetricsSections(stdout)
+	if len(sections) < 18 {
+		t.Fatalf("expected at least 18 sections, got %d", len(sections))
+	}
+	// Verify that --- within python command didn't create spurious extra sections
+	if !strings.Contains(sections[17], "---flag-value=1") {
+		t.Errorf("expected command line with dashes preserved, got %q", sections[17])
+	}
+}
+
+func TestScanPackagesConcurrencyGuard(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-pkg-concurrency-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{Name: "Server Lock", Host: "10.0.0.9", Port: 22, User: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	execStarted := make(chan struct{})
+	execFinish := make(chan struct{})
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		close(execStarted)
+		<-execFinish
+		return "TYPE:DPKG\n===PKGS===\ncurl\t7.68.0\t512\tinstalled\n===MANUAL===\ncurl\n", "", 0, nil
+	}
+
+	ins := New(db, func(host string, port int, user, key string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	go func() {
+		_ = ins.ScanPackages(hostID)
+	}()
+
+	<-execStarted
+
+	// Second concurrent call should fail with ErrPackageScanInProgress
+	err = ins.ScanPackages(hostID)
+	if !errors.Is(err, ErrPackageScanInProgress) {
+		t.Errorf("expected ErrPackageScanInProgress, got %v", err)
+	}
+
+	close(execFinish)
+}
+
 
 

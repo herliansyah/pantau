@@ -87,7 +87,7 @@ a.btn:hover { text-decoration: none; color: var(--text); }
 .modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); z-index: 50; align-items: center; justify-content: center; padding: 20px; }
 .modal.open { display: flex; }
 .modal-content { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5); }
-.modal-workspace { width: 75vw; height: 80vh; max-width: 1400px; min-width: 760px; }
+.modal-workspace { width: 85vw; height: 84vh; max-width: 1500px; min-width: 760px; }
 .modal-dialog { width: 100%; max-width: 520px; max-height: 90vh; }
 .modal-dialog-md { width: 100%; max-width: 600px; max-height: 90vh; }
 .modal-dialog-lg { width: 100%; max-width: 740px; max-height: 90vh; }
@@ -184,8 +184,12 @@ select, select option { background-color: #1e293b !important; color: #f8fafc !im
   border-radius: 8px;
   border: 1px solid var(--card-border);
   background: var(--card-bg);
+  width: 100%;
+  flex: 1;
+  min-height: 0;
 }
 .files-table-container table {
+  width: 100%;
   margin: 0;
   border-collapse: collapse;
 }
@@ -195,6 +199,10 @@ select, select option { background-color: #1e293b !important; color: #f8fafc !im
   background: #1e293b;
   z-index: 5;
   box-shadow: 0 1px 0 var(--card-border);
+  padding: 10px 14px;
+}
+.files-table-container tbody td {
+  padding: 10px 14px;
 }
 .files-table-container tbody tr {
   transition: background 0.15s ease;
@@ -1522,6 +1530,7 @@ body.has-workspace-shelf .container {
       <div class="tabs" id="hostDetailTabs">
         <div class="tab active" data-tab="overview" onclick="switchTab('overview')" data-i18n="tab_overview">Overview</div>
         <div class="tab" data-tab="network" onclick="switchTab('network')" data-i18n="tab_network">Network & Security</div>
+        <div class="tab" data-tab="packages" onclick="switchTab('packages')" data-i18n="tab_packages">Packages</div>
         <div class="tab" data-tab="desired" onclick="switchTab('desired')" data-i18n="tab_desired">Desired State (Drift)</div>
         <div class="tab" data-tab="docker" onclick="switchTab('docker')" data-i18n="tab_docker">Docker</div>
         <div class="tab" data-tab="timeline" onclick="switchTab('timeline')" data-i18n="tab_timeline">Incident Timeline</div>
@@ -2328,6 +2337,7 @@ const I18N = {
     "inject_key_failed": "\u274c Failed: ",
     "tab_overview": "Overview",
     "tab_network": "Network & Security",
+    "tab_packages": "Packages",
     "tab_desired": "Desired State (Drift)",
     "tab_docker": "Docker",
     "tab_timeline": "Incident Timeline",
@@ -2832,6 +2842,7 @@ const I18N = {
     "inject_key_failed": "\u274c Gagal: ",
     "tab_overview": "Overview",
     "tab_network": "Network & Keamanan",
+    "tab_packages": "Paket & Aplikasi",
     "tab_desired": "Desired State (Drift)",
     "tab_docker": "Docker",
     "tab_timeline": "Timeline Insiden",
@@ -4801,6 +4812,13 @@ async function openHostTerminal(hostID, presetID) {
   openTerminalForHost(hostID, presetID);
 }
 
+function formatProcessCmd(cmd) {
+  if (!cmd || typeof cmd !== 'string') return '-';
+  const parts = cmd.trim().split(/\s+/);
+  const exe = parts[0].split('/').pop();
+  return exe || cmd;
+}
+
 function switchTab(tab, presetID) {
   currentTab = tab;
   if (currentHost && currentHost.id) {
@@ -4814,7 +4832,8 @@ function switchTab(tab, presetID) {
   const d = window.detailData;
   if (!d) return;
 
-  if (tab === 'overview') {
+  try {
+    if (tab === 'overview') {
     let scoreColor = '#34d399';
     if (d.host.lifecycle_score < 50) scoreColor = '#f87171';
     else if (d.host.lifecycle_score < 80) scoreColor = '#fbbf24';
@@ -4822,9 +4841,39 @@ function switchTab(tab, presetID) {
     let breakdownList = [];
     try {
       if (d.host.lifecycle_breakdown) {
-        breakdownList = JSON.parse(d.host.lifecycle_breakdown);
+        const parsed = JSON.parse(d.host.lifecycle_breakdown);
+        if (Array.isArray(parsed)) breakdownList = parsed;
       }
     } catch(e) {}
+
+    let topCPU = [];
+    try {
+      if (d.host.top_cpu_processes) {
+        const parsed = JSON.parse(d.host.top_cpu_processes);
+        if (Array.isArray(parsed)) topCPU = parsed;
+      }
+    } catch(e) {}
+
+    let topRAM = [];
+    try {
+      if (d.host.top_ram_processes) {
+        const parsed = JSON.parse(d.host.top_ram_processes);
+        if (Array.isArray(parsed)) topRAM = parsed;
+      }
+    } catch(e) {}
+
+    let topSwap = [];
+    try {
+      if (d.host.top_swap_processes) {
+        const parsed = JSON.parse(d.host.top_swap_processes);
+        if (Array.isArray(parsed)) topSwap = parsed;
+      }
+    } catch(e) {}
+
+    topCPU = Array.isArray(topCPU) ? topCPU : [];
+    topRAM = Array.isArray(topRAM) ? topRAM : [];
+    topSwap = Array.isArray(topSwap) ? topSwap : [];
+    breakdownList = Array.isArray(breakdownList) ? breakdownList : [];
 
     const detailRecency = formatRelativeTime(d.host.last_inspected);
 
@@ -4882,6 +4931,86 @@ function switchTab(tab, presetID) {
               <div style="font-size: 0.76rem; color: #94a3b8;">${t('refresh_justification')}</div>
             </div>
           ` : ''}
+        </div>
+        <div class="card top-resource-consumers" style="grid-column: 1 / -1;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+              <span>⚡</span> <span>${t('top_resource_consumers', 'Top Resource Consumers (Process Telemetry)')}</span>
+            </h4>
+            <button class="btn btn-sm" onclick="openTerminalForHost(${d.host.id}, null, true)" style="display: inline-flex; align-items: center; gap: 4px;">
+              <span>💻</span> <span>${t('open_terminal', 'Open Terminal')}</span>
+            </button>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 6px;">
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px;">
+              <div style="font-weight: 600; font-size: 0.82rem; color: #60a5fa; margin-bottom: 6px; display: flex; justify-content: space-between;">
+                <span>🔥 Top CPU</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">${d.host.cpu_cores || 1} Cores</span>
+              </div>
+              ${topCPU.length === 0 ? '<div style="color: var(--text-muted); font-size: 0.78rem; text-align: center; padding: 12px;">No active processes reported</div>' : `
+                <table style="width: 100%; font-size: 0.78rem; margin: 0;">
+                  <thead><tr><th>PID</th><th>Command</th><th style="text-align: right;">CPU%</th></tr></thead>
+                  <tbody>
+                    ${topCPU.map(p => {
+                      const cpuVal = Number(p.cpu) || 0;
+                      return `
+                      <tr>
+                        <td style="font-family: monospace; color: var(--text-muted);">${escapeHtml(String(p.pid || '-'))}</td>
+                        <td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(p.command || '')}"><b>${escapeHtml(formatProcessCmd(p.command))}</b> <span style="font-size: 0.7rem; color: var(--text-muted);">${escapeHtml(p.user || '-')}</span></td>
+                        <td style="text-align: right; font-weight: 700; color: ${cpuVal > 50 ? '#f87171' : (cpuVal > 20 ? '#fbbf24' : '#34d399')};">${cpuVal.toFixed(1)}%</td>
+                      </tr>
+                    `;}).join('')}
+                  </tbody>
+                </table>
+              `}
+            </div>
+
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px;">
+              <div style="font-weight: 600; font-size: 0.82rem; color: #a78bfa; margin-bottom: 6px; display: flex; justify-content: space-between;">
+                <span>🧠 Top RAM (RSS)</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">${formatBytes(d.host.ram_used_bytes || 0)}</span>
+              </div>
+              ${topRAM.length === 0 ? '<div style="color: var(--text-muted); font-size: 0.78rem; text-align: center; padding: 12px;">No active processes reported</div>' : `
+                <table style="width: 100%; font-size: 0.78rem; margin: 0;">
+                  <thead><tr><th>PID</th><th>Command</th><th style="text-align: right;">Memory</th></tr></thead>
+                  <tbody>
+                    ${topRAM.map(p => `
+                      <tr>
+                        <td style="font-family: monospace; color: var(--text-muted);">${escapeHtml(String(p.pid || '-'))}</td>
+                        <td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(p.command || '')}"><b>${escapeHtml(formatProcessCmd(p.command))}</b> <span style="font-size: 0.7rem; color: var(--text-muted);">${escapeHtml(p.user || '-')}</span></td>
+                        <td style="text-align: right; font-weight: 700; color: #c084fc;">${formatBytes(Number(p.rss_bytes) || 0)}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              `}
+            </div>
+
+            <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px;">
+              <div style="font-weight: 600; font-size: 0.82rem; color: #f59e0b; margin-bottom: 6px; display: flex; justify-content: space-between;">
+                <span>💾 Top Swap</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">${d.host.swap_total_bytes > 0 ? formatBytes(d.host.swap_used_bytes || 0) : 'Disabled'}</span>
+              </div>
+              ${topSwap.length === 0 ? `
+                <div style="color: var(--text-muted); font-size: 0.78rem; text-align: center; padding: 12px;">
+                  ${d.host.swap_total_bytes === 0 ? 'Swap is disabled' : (d.host.swap_used_bytes === 0 ? 'No swap usage (Clean)' : 'No swap processes active')}
+                </div>
+              ` : `
+                <table style="width: 100%; font-size: 0.78rem; margin: 0;">
+                  <thead><tr><th>PID</th><th>Command</th><th style="text-align: right;">Swap</th></tr></thead>
+                  <tbody>
+                    ${topSwap.map(p => `
+                      <tr>
+                        <td style="font-family: monospace; color: var(--text-muted);">${escapeHtml(String(p.pid || '-'))}</td>
+                        <td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(p.command || '')}"><b>${escapeHtml(formatProcessCmd(p.command))}</b></td>
+                        <td style="text-align: right; font-weight: 700; color: #fbbf24;">${formatBytes(Number(p.swap_bytes) || 0)}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              `}
+            </div>
+          </div>
         </div>
         <div class="card" style="grid-column: 1 / -1;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -5127,9 +5256,17 @@ function switchTab(tab, presetID) {
     `;
   } else if (tab === 'runs') {
     renderInspectionRunsTab();
-  } else if (tab === 'files') {
-    const startPath = (currentHost && (currentHost._lastPath || (currentHost.id ? getHostFilesPath(currentHost.id) : null))) || '/';
-    loadFiles(startPath);
+  } else if (tab === 'packages') {
+    renderPackagesTab();
+    } else if (tab === 'files') {
+      const startPath = (currentHost && (currentHost._lastPath || (currentHost.id ? getHostFilesPath(currentHost.id) : null))) || '/';
+      loadFiles(startPath);
+    }
+  } catch(err) {
+    console.error("switchTab error:", err);
+    if (content) {
+      content.innerHTML = `<div class="card" style="padding: 20px; color: var(--danger);">Error displaying tab ${escapeHtml(tab)}: ${escapeHtml(err.message)}</div>`;
+    }
   }
 }
 
@@ -5255,6 +5392,261 @@ async function loadAndDisplayInspectionRuns(hostID, filter = 'all') {
   }).join('');
 
   container.innerHTML = `<div style="display: flex; flex-direction: column; gap: 6px;">${rowsHtml}</div>`;
+}
+
+let rawPackagesList = [];
+let activePackagesFilter = 'manual';
+let packagesSearchQuery = '';
+let pkgCooldownTimer = null;
+
+function updatePkgCooldownUI(seconds, lastScannedIso) {
+  if (pkgCooldownTimer) {
+    clearInterval(pkgCooldownTimer);
+    pkgCooldownTimer = null;
+  }
+  const infoEl = document.getElementById('pkgLastScannedTime');
+  if (infoEl) {
+    if (lastScannedIso) {
+      const rel = formatRelativeTime(lastScannedIso);
+      infoEl.innerHTML = `<b>${escapeHtml(rel.title)}</b> (${escapeHtml(rel.relative)})`;
+    } else if (rawPackagesList && rawPackagesList.length > 0 && rawPackagesList[0].last_scanned_at) {
+      const rel = formatRelativeTime(rawPackagesList[0].last_scanned_at);
+      infoEl.innerHTML = `<b>${escapeHtml(rel.title)}</b> (${escapeHtml(rel.relative)})`;
+    } else {
+      infoEl.innerHTML = '<span style="color: var(--text-muted);">' + t('never_scanned', 'Belum pernah dipindai') + '</span>';
+    }
+  }
+  const btn = document.getElementById('btnRescanPkgs');
+  if (!btn) return;
+  let rem = Number(seconds) || 0;
+  if (rem > 0) {
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳</span> <span>${t('cooldown_wait', 'Tunggu')} (${rem}s)</span>`;
+    pkgCooldownTimer = setInterval(() => {
+      rem--;
+      if (rem <= 0) {
+        clearInterval(pkgCooldownTimer);
+        pkgCooldownTimer = null;
+        btn.disabled = false;
+        btn.innerHTML = `<span>🔄</span> <span>${t('rescan_packages', 'Rescan Packages')}</span>`;
+      } else {
+        btn.innerHTML = `<span>⏳</span> <span>${t('cooldown_wait', 'Tunggu')} (${rem}s)</span>`;
+      }
+    }, 1000);
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = `<span>🔄</span> <span>${t('rescan_packages', 'Rescan Packages')}</span>`;
+  }
+}
+
+async function renderPackagesTab() {
+  const content = document.getElementById('tabContent');
+  const d = window.detailData;
+  if (!d || !d.host) return;
+
+  activePackagesFilter = 'manual';
+  packagesSearchQuery = '';
+
+  content.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <h4 style="margin: 0;">📦 ${t('package_inventory', 'Package Inventory')}</h4>
+        <span id="pkgLastScannedInfo" style="font-size: 0.78rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 4px;">
+          🕒 ${t('last_scanned_label', 'Last Scanned:')} <span id="pkgLastScannedTime">...</span>
+        </span>
+        <div style="display: inline-flex; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 2px;">
+          <button id="btnPkgFilterManual" class="btn btn-sm btn-primary" style="border: none; border-radius: 4px; padding: 4px 10px; font-size: 0.78rem;" onclick="filterPackages('manual')">
+            ⭐ ${t('pkg_filter_manual', 'Manual Install')}
+          </button>
+          <button id="btnPkgFilterDormant" class="btn btn-sm" style="border: none; border-radius: 4px; padding: 4px 10px; font-size: 0.78rem;" onclick="filterPackages('dormant')">
+            💤 ${t('pkg_filter_dormant', 'Dormant Packages')}
+          </button>
+          <button id="btnPkgFilterAll" class="btn btn-sm" style="border: none; border-radius: 4px; padding: 4px 10px; font-size: 0.78rem;" onclick="filterPackages('all')">
+            📋 ${t('pkg_filter_all', 'All Packages')}
+          </button>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="text" id="pkgSearchInput" placeholder="${t('search_packages', 'Search package...')}" oninput="searchPackages(this.value)" style="background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 4px 10px; font-size: 0.8rem; color: #fff; width: 180px;">
+        <button id="btnRescanPkgs" class="btn btn-sm btn-primary" onclick="rescanHostPackages(${d.host.id})" style="display: inline-flex; align-items: center; gap: 4px;">
+          <span>🔄</span> <span>${t('rescan_packages', 'Rescan Packages')}</span>
+        </button>
+      </div>
+    </div>
+    <div id="packagesContainer" style="overflow-y: auto; flex: 1;">
+      <div style="text-align: center; padding: 24px; color: var(--text-muted);">${t('loading', 'Loading...')}</div>
+    </div>
+  `;
+
+  await loadHostPackages(d.host.id);
+}
+
+async function loadHostPackages(hostID) {
+  const container = document.getElementById('packagesContainer');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/hosts/' + hostID + '/packages');
+    if (res.ok) {
+      rawPackagesList = await res.json() || [];
+      const lastScanned = res.headers.get('X-Last-Scanned') || (rawPackagesList[0] ? rawPackagesList[0].last_scanned_at : null);
+      const cooldownRem = parseInt(res.headers.get('X-Cooldown-Remaining') || '0', 10);
+      displayPackagesTable(hostID);
+      updatePkgCooldownUI(cooldownRem, lastScanned);
+    } else {
+      container.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 20px;">Failed to load packages</div>';
+    }
+  } catch(e) {
+    container.innerHTML = '<div style="text-align: center; color: var(--danger); padding: 20px;">' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+async function rescanHostPackages(hostID) {
+  if (rawPackagesList && rawPackagesList.length > 0) {
+    const ok = await showConfirm({
+      title: t('rescan_packages', 'Rescan Packages'),
+      message: t('confirm_rescan_msg', 'Pindai ulang paket perangkat lunak di server ini? Pantau akan melakukan inspeksi SSH agentless.'),
+      confirmText: t('start_scan', 'Mulai Pindai'),
+      danger: false
+    });
+    if (!ok) return;
+  }
+
+  const btn = document.getElementById('btnRescanPkgs');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> <span>Scanning...</span>';
+  }
+  try {
+    const res = await fetch('/api/hosts/' + hostID + '/packages/scan', { method: 'POST' });
+    if (res.ok) {
+      rawPackagesList = await res.json() || [];
+      displayPackagesTable(hostID);
+      showToast('Package scan complete', 'success');
+      updatePkgCooldownUI(60, new Date().toISOString());
+    } else if (res.status === 429) {
+      const errData = await res.json().catch(() => ({}));
+      showToast(errData.error || 'Cooldown scan aktif, mohon tunggu sebentar', 'warning');
+      updatePkgCooldownUI(errData.cooldown_remaining || 60, null);
+    } else if (res.status === 409) {
+      showToast('Pemindaian paket sedang berlangsung di latar belakang', 'warning');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🔄</span> <span>' + t('rescan_packages', 'Rescan Packages') + '</span>';
+      }
+    } else {
+      const errData = await res.json().catch(() => ({}));
+      showToast('Scan failed: ' + (errData.error || res.statusText), 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🔄</span> <span>' + t('rescan_packages', 'Rescan Packages') + '</span>';
+      }
+    }
+  } catch(e) {
+    showToast('Scan error: ' + e.message, 'error');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🔄</span> <span>' + t('rescan_packages', 'Rescan Packages') + '</span>';
+    }
+  }
+}
+
+function filterPackages(type) {
+  activePackagesFilter = type;
+  const btnManual = document.getElementById('btnPkgFilterManual');
+  const btnDormant = document.getElementById('btnPkgFilterDormant');
+  const btnAll = document.getElementById('btnPkgFilterAll');
+  if (btnManual && btnDormant && btnAll) {
+    btnManual.className = type === 'manual' ? 'btn btn-sm btn-primary' : 'btn btn-sm';
+    btnDormant.className = type === 'dormant' ? 'btn btn-sm btn-primary' : 'btn btn-sm';
+    btnAll.className = type === 'all' ? 'btn btn-sm btn-primary' : 'btn btn-sm';
+  }
+  const d = window.detailData;
+  if (d && d.host) displayPackagesTable(d.host.id);
+}
+
+function searchPackages(query) {
+  packagesSearchQuery = (query || '').toLowerCase().trim();
+  const d = window.detailData;
+  if (d && d.host) displayPackagesTable(d.host.id);
+}
+
+function displayPackagesTable(hostID) {
+  const container = document.getElementById('packagesContainer');
+  if (!container) return;
+
+  let filtered = rawPackagesList.slice();
+
+  if (activePackagesFilter === 'manual') {
+    filtered = filtered.filter(p => p.is_manual);
+  } else if (activePackagesFilter === 'dormant') {
+    filtered = filtered.filter(p => {
+      if (!p.is_manual) return false;
+      if (p.service_status) {
+        const s = p.service_status.toLowerCase();
+        return s.includes('inactive') || s.includes('dead') || s.includes('failed') || s.includes('disabled');
+      }
+      return false;
+    });
+  }
+
+  if (packagesSearchQuery) {
+    filtered = filtered.filter(p => (p.name && p.name.toLowerCase().includes(packagesSearchQuery)) || (p.version && p.version.toLowerCase().includes(packagesSearchQuery)));
+  }
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📦</div>
+        <div class="empty-state-title">${rawPackagesList.length === 0 ? 'No Packages Scanned Yet' : 'No Packages Match Filter'}</div>
+        <div class="empty-state-desc">${rawPackagesList.length === 0 ? 'Click "Rescan Packages" to perform an agentless inventory scan on this host.' : 'Try changing your search keywords or filter category.'}</div>
+        ${rawPackagesList.length === 0 ? `<button class="btn btn-primary" onclick="rescanHostPackages(${hostID})" style="margin-top: 10px;">🔄 ${t('rescan_packages', 'Rescan Packages')}</button>` : ''}
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <table style="width: 100%;">
+      <thead>
+        <tr>
+          <th>${t('pkg_name', 'Package Name')}</th>
+          <th>${t('version', 'Version')}</th>
+          <th>${t('size', 'Disk Size')}</th>
+          <th>${t('install_type', 'Type')}</th>
+          <th>${t('service_status', 'Service Status')}</th>
+          <th style="text-align: right;">${t('action', 'Action')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map(p => {
+          let svcBadge = '<span style="color: var(--text-muted); font-size: 0.75rem;">-</span>';
+          if (p.service_status) {
+            const s = p.service_status.toLowerCase();
+            const isActive = s.includes('active') && !s.includes('inactive');
+            const isDormant = s.includes('inactive') || s.includes('dead') || s.includes('failed') || s.includes('disabled');
+            const color = isActive ? '#34d399' : (isDormant ? '#fbbf24' : '#94a3b8');
+            const bg = isActive ? 'rgba(52,211,153,0.15)' : (isDormant ? 'rgba(251,191,36,0.15)' : 'rgba(148,163,184,0.15)');
+            svcBadge = `<span class="badge" style="background: ${bg}; color: ${color};" title="${escapeHtml(p.service_name || '')}">${escapeHtml(p.service_status)}</span>`;
+          }
+          const typeBadge = p.is_manual 
+            ? '<span class="badge" style="background: rgba(96,165,250,0.15); color: #60a5fa;">Manual</span>' 
+            : '<span class="badge" style="background: rgba(148,163,184,0.1); color: var(--text-muted);">Base</span>';
+          return `
+            <tr>
+              <td><b>${escapeHtml(p.name)}</b></td>
+              <td style="font-family: monospace; font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(p.version)}</td>
+              <td style="font-weight: 600;">${p.size_bytes > 0 ? formatBytes(p.size_bytes) : '-'}</td>
+              <td>${typeBadge}</td>
+              <td>${svcBadge}</td>
+              <td style="text-align: right;">
+                <button class="btn btn-sm" onclick="openTerminalForHost(${hostID}, null, true)" title="Open in Terminal">💻</button>
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
 }
 
 async function generateBaseline(hostID) {
@@ -5475,11 +5867,11 @@ function renderFilesView() {
       <table>
         <thead>
           <tr>
-            <th><span class="sortable-th" onclick="toggleFileSort('name')">${t('file_name')} <span id="sortArrow_name" class="sort-arrow"></span></span></th>
-            <th><span class="sortable-th" onclick="toggleFileSort('size')">${t('file_size')} <span id="sortArrow_size" class="sort-arrow"></span></span></th>
-            <th>${t('file_perms')}</th>
-            <th><span class="sortable-th" onclick="toggleFileSort('mod_time')">${t('file_modified')} <span id="sortArrow_mod_time" class="sort-arrow"></span></span></th>
-            <th>${t('file_actions')}</th>
+            <th style="min-width: 220px;"><span class="sortable-th" onclick="toggleFileSort('name')">${t('file_name')} <span id="sortArrow_name" class="sort-arrow"></span></span></th>
+            <th style="width: 110px; text-align: right;"><span class="sortable-th" onclick="toggleFileSort('size')">${t('file_size')} <span id="sortArrow_size" class="sort-arrow"></span></span></th>
+            <th style="width: 110px; text-align: center;">${t('file_perms')}</th>
+            <th style="width: 170px; text-align: center;"><span class="sortable-th" onclick="toggleFileSort('mod_time')">${t('file_modified')} <span id="sortArrow_mod_time" class="sort-arrow"></span></span></th>
+            <th style="width: 1%; white-space: nowrap; text-align: right; padding-right: 14px;">${t('file_actions')}</th>
           </tr>
         </thead>
         <tbody id="filesTableBody"></tbody>
@@ -5567,17 +5959,17 @@ function renderFilesTableBody() {
     const icon = f.is_dir ? '📁' : getFileIcon(f.name);
     return `
       <tr>
-        <td>
+        <td style="word-break: break-all;">
           ${f.is_dir 
             ? '<a class="folder-link" href="javascript:void(0)" onclick="loadFiles(\'' + fullPath + '\')"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>' + escapeHtml(f.name) + '</b></a>' 
             : '<span style="font-size: 1.05em; margin-right: 4px;">' + icon + '</span> ' + escapeHtml(f.name)}
           ${isItemProtected ? '<span title="' + t('protected_path') + '" style="margin-left: 6px; font-size: 0.85em;">🔒</span>' : ''}
         </td>
-        <td>${f.is_dir ? '-' : formatBytes(f.size)}</td>
-        <td>${f.mode}</td>
-        <td>${f.mod_time}</td>
-        <td style="white-space: nowrap;">
-          <div class="action-grid">
+        <td style="text-align: right; font-family: monospace; white-space: nowrap;">${f.is_dir ? '-' : formatBytes(f.size)}</td>
+        <td style="text-align: center; font-family: monospace; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">${f.mode}</td>
+        <td style="text-align: center; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">${f.mod_time}</td>
+        <td style="text-align: right; white-space: nowrap; padding-right: 14px;">
+          <div class="action-grid" style="margin-left: auto;">
             <button class="btn btn-sm" title="${t('open_terminal_here', 'Open Terminal Here')}" onclick="openTerminalForPath('${escapeHtml(targetTermPath)}')">💻</button>
             ${!f.is_dir 
               ? `<button class="btn btn-primary btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openEditor('${escapeHtml(fullPath)}')">${t('edit')}</button>` 

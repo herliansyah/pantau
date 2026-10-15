@@ -1875,5 +1875,20 @@ func TestInspectionRuns_LifecycleAndAutoPruning(t *testing.T) {
 	}
 }
 
+func TestUIPackageTabAndProcessTelemetryPresence(t *testing.T) {
+	htmlContent, err := os.ReadFile("internal/web/static/index.html")
+	if err != nil {
+		t.Fatalf("read index.html: %v", err)
+	}
+	s := string(htmlContent)
+	if !strings.Contains(s, `data-tab="packages"`) {
+		t.Errorf("expected index.html to contain packages tab")
+	}
+	if !strings.Contains(s, `top-resource-consumers`) {
+		t.Errorf("expected index.html to contain top-resource-consumers section")
+	}
+}
+
+
 
 

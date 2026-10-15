@@ -196,3 +196,79 @@ func TestHostDiskIOStorage(t *testing.T) {
 	}
 }
 
+func TestHostPackagesAndProcessTelemetry(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-store-pkgs-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&Host{Name: "srv1", Host: "10.0.0.1", Port: 22, User: "root"})
+	if err != nil {
+		t.Fatalf("create host: %v", err)
+	}
+
+	pkgs := []*HostPackage{
+		{
+			HostID:        hostID,
+			Name:          "nginx",
+			Version:       "1.18.0",
+			SizeBytes:     1024000,
+			InstallEpoch:  1600000000,
+			IsManual:      true,
+			ServiceName:   "nginx.service",
+			ServiceStatus: "active",
+		},
+		{
+			HostID:        hostID,
+			Name:          "curl",
+			Version:       "7.68.0",
+			SizeBytes:     204800,
+			InstallEpoch:  1590000000,
+			IsManual:      false,
+			ServiceName:   "",
+			ServiceStatus: "",
+		},
+	}
+
+	if err := db.ReplaceHostPackages(hostID, pkgs); err != nil {
+		t.Fatalf("replace host packages: %v", err)
+	}
+
+	got, err := db.GetHostPackages(hostID)
+	if err != nil {
+		t.Fatalf("get host packages: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected 2 packages, got %d", len(got))
+	}
+	if got[0].Name != "nginx" || !got[0].IsManual || got[0].ServiceStatus != "active" {
+		t.Errorf("unexpected package 0: %+v", got[0])
+	}
+
+	// Test GetHostPackagesLastScanned
+	lastScanned, err := db.GetHostPackagesLastScanned(hostID)
+	if err != nil {
+		t.Fatalf("get host packages last scanned: %v", err)
+	}
+	if lastScanned.IsZero() {
+		t.Errorf("expected non-zero last scanned time, got %v", lastScanned)
+	}
+
+	// Test ReplaceHostPackages refuses empty slice and preserves existing packages
+	err = db.ReplaceHostPackages(hostID, []*HostPackage{})
+	if err == nil {
+		t.Errorf("expected error when replacing with empty slice, got nil")
+	}
+	preserved, err := db.GetHostPackages(hostID)
+	if err != nil || len(preserved) != 2 {
+		t.Fatalf("expected 2 packages preserved after empty replace attempt, got %d (err: %v)", len(preserved), err)
+	}
+}
+

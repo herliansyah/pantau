@@ -899,6 +899,74 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 
 	action := parts[1]
 	switch action {
+	case "packages":
+		if len(parts) >= 3 && parts[2] == "scan" {
+			if r.Method != http.MethodPost {
+				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			// ponytail: Cooldown guard (60s) prevents aggressive SSH scanning stampedes.
+			lastScanned, _ := s.db.GetHostPackagesLastScanned(hostID)
+			if !lastScanned.IsZero() && time.Since(lastScanned) < 60*time.Second {
+				rem := int(60 - time.Since(lastScanned).Seconds())
+				if rem > 0 {
+					writeJSON(w, http.StatusTooManyRequests, map[string]interface{}{
+						"error":              fmt.Sprintf("Scan cooldown active. Please wait %d seconds.", rem),
+						"cooldown_remaining": rem,
+					})
+					return
+				}
+			}
+
+			if s.inspector == nil {
+				http.Error(w, "inspector not available", http.StatusInternalServerError)
+				return
+			}
+
+			if err := s.inspector.ScanPackages(hostID); err != nil {
+				if errors.Is(err, inspector.ErrPackageScanInProgress) {
+					writeJSON(w, http.StatusConflict, map[string]interface{}{"error": "Package scan already in progress for this host"})
+					return
+				}
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
+				return
+			}
+			pkgs, _ := s.db.GetHostPackages(hostID)
+			if pkgs == nil {
+				pkgs = []*store.HostPackage{}
+			}
+			w.Header().Set("X-Last-Scanned", time.Now().UTC().Format(time.RFC3339))
+			w.Header().Set("X-Cooldown-Remaining", "60")
+			writeJSON(w, http.StatusOK, pkgs)
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		pkgs, err := s.db.GetHostPackages(hostID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if pkgs == nil {
+			pkgs = []*store.HostPackage{}
+		}
+		lastScanned, _ := s.db.GetHostPackagesLastScanned(hostID)
+		if !lastScanned.IsZero() {
+			w.Header().Set("X-Last-Scanned", lastScanned.UTC().Format(time.RFC3339))
+			elapsed := time.Since(lastScanned)
+			if elapsed < 60*time.Second {
+				rem := int(60 - elapsed.Seconds())
+				if rem > 0 {
+					w.Header().Set("X-Cooldown-Remaining", strconv.Itoa(rem))
+				}
+			}
+		}
+		writeJSON(w, http.StatusOK, pkgs)
+		return
+
 	case "commission-date":
 		if r.Method != http.MethodPut && r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
