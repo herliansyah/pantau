@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-15
+### Added
+- Agentless Network Diagnostics: on-demand diagnostic probe tools over SSH (Ping, Traceroute with intelligent tracepath fallback, TCP Port Probe, and DNS Resolve) with real-time Server-Sent Events (SSE) streaming.
+- Intelligent Hop Analysis: heuristic categorization of network hops into Local/Private VPC, ISP Transit, and Target Destination zones, with automated blackhole packet drop pinpointing and latency spike alerts (>60ms).
+- Zero-Dependency TCP Port Probe: direct `/dev/tcp/<target>/<port>` socket testing in remote bash, eliminating external utility dependencies like `nc`, `telnet`, or `nmap`.
+- Singleflight Concurrency Guard: per-host diagnostic locking using `sync.Map` to prevent command stacking and redundant SSH connection exhaustion.
+- Dual Access UI: dedicated "Network Diagnostics" tab in Host Workspace Modal and global quick-access launcher in header navbar cluster with offline target protection.
+- Architectural Decision Record: [ADR-0033](docs/adr/0033-agentless-network-diagnostics-and-hop-analysis.md).
+
 ## [0.21.0] - 2026-10-15
 ### Added
 - Process Telemetry: real-time agentless extraction of top 5 resource-consuming processes (Top CPU, Top RAM/RSS, and Top Swap) on every inspection cycle without remote daemon overhead.

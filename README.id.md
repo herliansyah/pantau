@@ -190,6 +190,11 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **Klasifikasi Higienitas & Deteksi Dormant Package**: Mengelompokkan paket secara otomatis menjadi **Manual Install** (dipasang eksplisit oleh administrator) vs **Base System** (bawaan instalasi distro/dependensi inti), serta mendeteksi **Dormant Package** (perangkat lunak berstatus daemon/service yang unit systemd-nya non-aktif, disabled, atau failed).
 - **Tab Packages & Guardrail Pemindaian**: Tab penjelajah paket khusus di Workspace Modal dengan pencarian instan, filter kategori (`⭐ Manual Install`, `💤 Dormant Packages`, `📋 All Packages`), tombol pemindaian ulang on-demand yang dilindungi cooldown anti-flood 30 detik (`HTTP 429`) dan kunci konkurensi latar belakang (`HTTP 409`).
 
+### 20. 🌐 Diagnostik Jaringan Agentless & Analisis Hop
+- **Perkakas Diagnostik On-Demand**: Uji coba interaktif Ping, Traceroute (dengan auto-fallback tracepath), TCP Port Probe tanpa dependensi (`/dev/tcp`), dan DNS Resolve secara real-time via Server-Sent Events (SSE).
+- **Analisis Hop Otomatis**: Klasifikasi hop jaringan ke zona Lokal/VPC Privat, Transit ISP, dan Destinasi, dilengkapi deteksi titik paket terhenti (*blackhole drop*) dan peringatan lonjakan latensi (>60ms).
+- **Proteksi Konkurensi & Pencegahan Kesalahan**: Guard singleflight mencegah penumpukan proses per host, serta seleksi target secara otomatis menonaktifkan host yang sedang offline.
+
 ---
 
 ## 🚀 Panduan Memulai Cepat (Quick Start)

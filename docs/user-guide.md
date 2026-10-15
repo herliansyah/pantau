@@ -24,6 +24,7 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
    - [Detecting Drift & Root Cause Excerpts](#detecting-drift--root-cause-excerpts)
    - [Interactive Diagnostics via Terminal Dock & Terminal Presets](#interactive-diagnostics-via-terminal-dock--terminal-presets)
    - [In-App Activity Console & Live Telemetry Stream](#in-app-activity-console--live-telemetry-stream)
+   - [Agentless Network Diagnostics & Hop Analysis](#agentless-network-diagnostics--hop-analysis)
    - [Evaluating Server Longevity with Lifecycle Assessment](#evaluating-server-longevity-with-lifecycle-assessment)
 5. [Phase 4: File Operations & Cross-Host Data Transfer](#5-phase-4-file-operations--cross-host-data-transfer)
    - [Cross-Host Transfer (Zero-Disk Memory Pipes)](#cross-host-transfer-zero-disk-memory-pipes)
@@ -209,6 +210,24 @@ To provide transparent operational feedback, Pantau includes a real-time diagnos
 - **Exporting Logs**: Click **Export** to instantly download the captured events as `.log` (plain text) or `.json` for debugging, external auditing, or incident reports.
 - **Security & Redaction Filter**: Sensitive values—including SSH passwords, private keys, authentication tokens, session cookies, and 2FA secrets—are deterministically sanitized into `[REDACTED]` before leaving the server.
 - **Zero-Waste Performance Throttling**: When the Activity Console is closed, DOM rendering operations are 100% bypassed to eliminate unnecessary CPU usage and browser layout recalculations.
+
+### Agentless Network Diagnostics & Hop Analysis
+
+When troubleshooting server connectivity issues, firewall blocking, or cross-datacenter routing anomalies:
+
+- **Diagnostic Modes**: Execute non-destructive diagnostics directly from the remote host:
+  - **Ping**: Probes host reachability and roundtrip times via `timeout 14 ping -c 4 -W 2 <target>`.
+  - **Traceroute**: Inspects network route hops using smart zero-dependency fallback (`tracepath` or `traceroute`) without requiring root/raw-socket privileges.
+  - **Port Probe (TCP)**: Tests TCP port connectivity via native bash socket `/dev/tcp/<target>/<port>`, bypassing the need for `nc`, `telnet`, or `nmap`.
+  - **DNS Resolve**: Verifies DNS resolution path and name resolution latency via `getent hosts` and `nslookup`.
+- **Intelligent Hop Analysis**: Automatically parses traceroute hops into structured topology cards:
+  - **Zone Classification**: Identifies whether each hop belongs to `Local/Private VPC` (RFC 1918 / CGNAT), `ISP Transit`, or `Destination`.
+  - **Blackhole Detection**: Pins down the exact network hop where traffic drops if destination is unreachable.
+  - **Latency Spike Alerts**: Highlights significant latency jumps (>60ms) between consecutive hops.
+- **Dual Launch Points**:
+  - Open from the **Network Diagnostics** tab in any Host Workspace Modal (with source host locked).
+  - Open globally via the **`⚡ NetDiag`** button in the top navigation header cluster (with host picker).
+- **Concurrency & Safety Guards**: Employs an in-memory singleflight lock per host to prevent SSH session saturation. Offline hosts are automatically disabled in inter-host target dropdowns.
 
 ### Evaluating Server Longevity with Lifecycle Assessment
 

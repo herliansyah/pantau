@@ -24,6 +24,7 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
    - [Mendeteksi Drift & Root Cause Excerpt](#mendeteksi-drift--root-cause-excerpt)
    - [Investigasi Interaktif via Terminal Dock & Terminal Preset](#investigasi-interaktif-via-terminal-dock--terminal-preset)
    - [In-App Activity Console & Live Telemetry Stream](#in-app-activity-console--live-telemetry-stream)
+   - [Diagnostik Jaringan Agentless & Analisis Hop](#diagnostik-jaringan-agentless--analisis-hop)
    - [Evaluasi Kelayakan Server dengan Lifecycle Assessment](#evaluasi-kelayakan-server-dengan-lifecycle-assessment)
 5. [Fase 4: Operasi Berkas & Aliran Data Lintas-Host](#5-fase-4-operasi-berkas--aliran-data-lintas-host)
    - [Cross-Host Transfer (Pipa Memori Tanpa Disk Lokal)](#cross-host-transfer-pipa-memori-tanpa-disk-lokal)
@@ -209,6 +210,24 @@ Untuk memberikan visibilitas operasional yang transparan, Pantau dilengkapi deng
 - **Ekspor Riwayat Log**: Klik **Export** untuk langsung mengunduh rekaman peristiwa yang ada di buffer ke format berkas teks mentah `.log` atau format `.json` untuk kebutuhan audit, debugging, atau pelaporan insiden.
 - **Keamanan & Redaction Filter**: Data kredensial sensitif—termasuk password SSH, private key, token autentikasi, cookie sesi, dan rahasia 2FA—secara deterministik disensor menjadi `[REDACTED]` sebelum dikirimkan ke stream browser.
 - **Throttling Performa Ringan**: Saat Activity Console tertutup, operasi perenderan DOM diabaikan 100% untuk menjaga penggunaan CPU dan memori browser tetap minimal.
+
+### Diagnostik Jaringan Agentless & Analisis Hop
+
+Saat menangani kendala konektivitas antar-server, pemblokiran firewall, atau anomali rute data center:
+
+- **Mode Diagnostik**: Eksekusi pengujian non-destruktif langsung dari host jarak jauh:
+  - **Ping**: Menguji keterjangkauan host dan roundtrip time via `timeout 14 ping -c 4 -W 2 <target>`.
+  - **Traceroute**: Memeriksa hop rute jaringan menggunakan fallback cerdas tanpa dependensi (`tracepath` atau `traceroute`) tanpa butuh hak akses root/raw-socket.
+  - **Port Probe (TCP)**: Menguji konektivitas port TCP via socket bash native `/dev/tcp/<target>/<port>`, tanpa butuh `nc`, `telnet`, atau `nmap`.
+  - **DNS Resolve**: Memverifikasi jalur resolusi DNS dan latensi nama domain via `getent hosts` dan `nslookup`.
+- **Analisis Hop Cerdas**: Memetakan hop rute traceroute secara otomatis ke dalam kartu topologi terstruktur:
+  - **Klasifikasi Zona**: Mengidentifikasi apakah tiap hop merupakan `Lokal/VPC Privat` (RFC 1918 / CGNAT), `Transit ISP`, atau `Destinasi`.
+  - **Deteksi Titik Terhenti (*Blackhole Drop*)**: Menunjukkan persis hop jaringan tempat paket terhenti jika target tidak tercapai.
+  - **Peringatan Lonjakan Latensi**: Menandai lonjakan latensi signifikan (>60ms) antar dua hop berurutan.
+- **Dua Titik Akses UI**:
+  - Buka melalui tab **Network Diagnostics** di Workspace Modal (dengan host sumber terkunci).
+  - Buka secara global via tombol **`⚡ NetDiag`** di header navbar atas (dengan pemilih host sumber aktif).
+- **Proteksi Konkurensi & Keamanan**: Menggunakan kunci singleflight in-memory per host untuk mencegah kehabisan sesi SSH. Host yang sedang offline secara otomatis dinonaktifkan dari daftar target antar-host.
 
 ### Evaluasi Kelayakan Server dengan Lifecycle Assessment
 
