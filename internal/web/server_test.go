@@ -1675,6 +1675,16 @@ func TestHostPackagesAPI(t *testing.T) {
 	if len(pkgs) != 1 || pkgs[0].Name != "nginx" || !pkgs[0].IsManual {
 		t.Errorf("unexpected pkgs response: %+v", pkgs)
 	}
+
+	// 2. POST /api/hosts/{id}/packages/scan within cooldown should return 429 Too Many Requests
+	reqScan := httptest.NewRequest(http.MethodPost, "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/packages/scan", nil)
+	authReq(reqScan)
+	wScan := httptest.NewRecorder()
+	srv.ServeHTTP(wScan, reqScan)
+
+	if wScan.Code != http.StatusTooManyRequests {
+		t.Errorf("expected 429 Too Many Requests due to cooldown, got %d: %s", wScan.Code, wScan.Body.String())
+	}
 }
 
 

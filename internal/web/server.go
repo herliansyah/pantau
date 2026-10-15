@@ -905,11 +905,29 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 				return
 			}
+			// ponytail: Cooldown guard (60s) prevents aggressive SSH scanning stampedes.
+			lastScanned, _ := s.db.GetHostPackagesLastScanned(hostID)
+			if !lastScanned.IsZero() && time.Since(lastScanned) < 60*time.Second {
+				rem := int(60 - time.Since(lastScanned).Seconds())
+				if rem > 0 {
+					writeJSON(w, http.StatusTooManyRequests, map[string]interface{}{
+						"error":              fmt.Sprintf("Scan cooldown active. Please wait %d seconds.", rem),
+						"cooldown_remaining": rem,
+					})
+					return
+				}
+			}
+
 			if s.inspector == nil {
 				http.Error(w, "inspector not available", http.StatusInternalServerError)
 				return
 			}
+
 			if err := s.inspector.ScanPackages(hostID); err != nil {
+				if errors.Is(err, inspector.ErrPackageScanInProgress) {
+					writeJSON(w, http.StatusConflict, map[string]interface{}{"error": "Package scan already in progress for this host"})
+					return
+				}
 				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 				return
 			}
@@ -917,6 +935,8 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			if pkgs == nil {
 				pkgs = []*store.HostPackage{}
 			}
+			w.Header().Set("X-Last-Scanned", time.Now().UTC().Format(time.RFC3339))
+			w.Header().Set("X-Cooldown-Remaining", "60")
 			writeJSON(w, http.StatusOK, pkgs)
 			return
 		}
@@ -932,6 +952,17 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		}
 		if pkgs == nil {
 			pkgs = []*store.HostPackage{}
+		}
+		lastScanned, _ := s.db.GetHostPackagesLastScanned(hostID)
+		if !lastScanned.IsZero() {
+			w.Header().Set("X-Last-Scanned", lastScanned.UTC().Format(time.RFC3339))
+			elapsed := time.Since(lastScanned)
+			if elapsed < 60*time.Second {
+				rem := int(60 - elapsed.Seconds())
+				if rem > 0 {
+					w.Header().Set("X-Cooldown-Remaining", strconv.Itoa(rem))
+				}
+			}
 		}
 		writeJSON(w, http.StatusOK, pkgs)
 		return
