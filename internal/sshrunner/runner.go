@@ -5,6 +5,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +13,40 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
+
+var (
+	tofuMu         sync.RWMutex
+	tofuKnownHosts = make(map[string]ssh.PublicKey)
+)
+
+// TOFUHostKeyCallback automatically accepts and trusts the host key upon first connection,
+// and enforces that subsequent connections match the recorded key to prevent MITM attacks.
+func TOFUHostKeyCallback() ssh.HostKeyCallback {
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		addr := hostname
+		if remote != nil {
+			addr = remote.String()
+		}
+		tofuMu.RLock()
+		trustedKey, exists := tofuKnownHosts[addr]
+		tofuMu.RUnlock()
+
+		if !exists {
+			tofuMu.Lock()
+			if trustedKey, exists = tofuKnownHosts[addr]; !exists {
+				tofuKnownHosts[addr] = key
+				tofuMu.Unlock()
+				return nil
+			}
+			tofuMu.Unlock()
+		}
+
+		if bytes.Equal(trustedKey.Marshal(), key.Marshal()) {
+			return nil
+		}
+		return fmt.Errorf("ssh host key mismatch for %s: potential MITM attack or changed host key", addr)
+	}
+}
 
 type Runner interface {
 	Exec(cmd string) (stdout, stderr string, exitCode int, err error)
@@ -66,9 +101,8 @@ func Connect(host string, port int, user, privateKeyPEM string, timeout time.Dur
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeys(signers...),
 		},
-		// ponytail: InsecureIgnoreHostKey simplifies first-time connection without manual known_hosts trust dance.
-		// Upgrade path: implement known_hosts pinning with TOFU (Trust On First Use) stored in database.
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		// ponytail: TOFU (Trust On First Use) provides seamless first-time connection while guarding against MITM.
+		HostKeyCallback: TOFUHostKeyCallback(),
 		Timeout:         timeout,
 	}
 	configureLegacyCompatibleSSH(config)
@@ -83,7 +117,7 @@ func Connect(host string, port int, user, privateKeyPEM string, timeout time.Dur
 }
 
 // configureLegacyCompatibleSSH applies a comprehensive set of key exchanges, ciphers, and host key algorithms
-// so Pantau can seamlessly connect to both modern servers and legacy servers (CentOS 6, Debian 7) without per-host flags.
+// so Pantau can seamlessly connect to both modern servers and legacy servers (CentOS 5/6, Debian 7) without per-host flags.
 // ponytail: Universal legacy-compatible cryptographic profile.
 // Upgrade path: per-host SSH security profiles if high-compliance environments forbid SHA-1 / CBC.
 func configureLegacyCompatibleSSH(config *ssh.ClientConfig) {
@@ -118,6 +152,7 @@ func configureLegacyCompatibleSSH(config *ssh.ClientConfig) {
 		ssh.KeyAlgoRSASHA512,
 		ssh.KeyAlgoRSASHA256,
 		ssh.KeyAlgoRSA, // Enables legacy ssh-rsa (SHA-1) host keys common on CentOS 6
+		ssh.KeyAlgoDSA, // Enables legacy ssh-dss (DSA) host keys common on CentOS 5 / OpenSSH 4.x
 		ssh.KeyAlgoECDSA256,
 		ssh.KeyAlgoECDSA384,
 		ssh.KeyAlgoECDSA521,
@@ -132,7 +167,7 @@ func DefaultKeyProvisioner(host string, port int, user, password, pubKey string)
 		Auth: []ssh.AuthMethod{
 			ssh.Password(password),
 		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: TOFUHostKeyCallback(),
 		Timeout:         8 * time.Second,
 	}
 	configureLegacyCompatibleSSH(config)
@@ -315,6 +350,12 @@ func NewMockRunner() *MockRunner {
 	}
 }
 
+func normalizeMockCmd(s string) string {
+	s = strings.ReplaceAll(s, "'", "")
+	s = strings.ReplaceAll(s, "\"", "")
+	return strings.Join(strings.Fields(s), " ")
+}
+
 func (m *MockRunner) Exec(cmd string) (stdout, stderr string, exitCode int, err error) {
 	m.mu.Lock()
 	m.ExecHistory = append(m.ExecHistory, cmd)
@@ -330,6 +371,16 @@ func (m *MockRunner) Exec(cmd string) (stdout, stderr string, exitCode int, err 
 	m.mu.Lock()
 	for prefix, h := range m.Handlers {
 		if strings.HasPrefix(cmd, prefix) || strings.Contains(cmd, prefix) {
+			m.mu.Unlock()
+			return h()
+		}
+	}
+
+	// Quote-normalized match fallback for tests with differing quote styles
+	normCmd := normalizeMockCmd(cmd)
+	for prefix, h := range m.Handlers {
+		normPrefix := normalizeMockCmd(prefix)
+		if normCmd == normPrefix || strings.Contains(normCmd, normPrefix) || strings.HasPrefix(normCmd, normPrefix) {
 			m.mu.Unlock()
 			return h()
 		}

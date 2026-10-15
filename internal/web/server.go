@@ -3,8 +3,10 @@ package web
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,16 +15,19 @@ import (
 	"io/fs"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
 	"github.com/gorilla/websocket"
-	"golang.org/x/crypto/bcrypt"
 	"github.com/pkg/sftp"
+	"golang.org/x/crypto/bcrypt"
 
 	"pantau/internal/inspector"
 	"pantau/internal/logger"
@@ -34,9 +39,23 @@ import (
 	"pantau/internal/updater"
 )
 
+var validContainerNameRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]+$`)
+
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true // ponytail: single-origin or local network usage
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+		u, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+		return strings.EqualFold(u.Host, r.Host)
 	},
 }
 
@@ -184,8 +203,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/presets/", s.authMiddleware(s.handlePresetDetail))
 
 	// WebSockets (Terminal & Docker Logs)
-	s.mux.HandleFunc("/ws/terminal", s.handleWSTerminal)
-	s.mux.HandleFunc("/ws/docker/logs", s.handleWSDockerLogs)
+	s.mux.HandleFunc("/ws/terminal", s.authMiddleware(s.handleWSTerminal))
+	s.mux.HandleFunc("/ws/docker/logs", s.authMiddleware(s.handleWSDockerLogs))
 
 	// Snapshots & GitHub Backup
 	s.mux.HandleFunc("/api/snapshot/status", s.handleSnapshotStatus)
@@ -222,7 +241,11 @@ func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Server) issueSession(w http.ResponseWriter) string {
-	token := fmt.Sprintf("%d_%d", time.Now().UnixNano(), time.Now().Unix())
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		b = []byte(fmt.Sprintf("%d_%d", time.Now().UnixNano(), time.Now().Unix()))
+	}
+	token := hex.EncodeToString(b)
 	expiry := time.Now().Add(24 * 7 * time.Hour)
 	s.sessions.Store(token, expiry)
 
@@ -265,7 +288,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Check if 2FA is active
 	totpEnabled, _ := s.db.GetSetting("totp_enabled")
 	if totpEnabled == "true" {
-		tempToken := fmt.Sprintf("2fa_%d_%d", time.Now().UnixNano(), time.Now().Unix())
+		b := make([]byte, 16)
+		_, _ = rand.Read(b)
+		tempToken := fmt.Sprintf("2fa_%s", hex.EncodeToString(b))
 		s.temp2FAChallenges.Store(tempToken, &temp2FAChallenge{
 			expiry:   time.Now().Add(5 * time.Minute),
 			attempts: 0,
@@ -587,6 +612,7 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = s.db.SetSetting("admin_password_hash", string(newHash))
+	_ = s.db.MarkBootstrapCompleted()
 	writeJSON(w, http.StatusOK, map[string]string{"status": "password_updated"})
 }
 
@@ -1088,6 +1114,11 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "bad request", http.StatusBadRequest)
 				return
 			}
+			rData.Target = strings.TrimSpace(rData.Target)
+			if rData.Target == "" || strings.ContainsAny(rData.Target, ";;&|`$\n\r") {
+				http.Error(w, "invalid target: shell metacharacters not allowed", http.StatusBadRequest)
+				return
+			}
 			rData.HostID = hostID
 			if err := s.db.SaveDesiredRule(&rData); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1366,9 +1397,9 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "path required", http.StatusBadRequest)
 			return
 		}
-		out, _, _, _ := runner.Exec(fmt.Sprintf(`du -sb %q 2>/dev/null | cut -f1`, targetPath))
+		out, _, _, _ := runner.Exec(fmt.Sprintf(`du -sb %s 2>/dev/null | cut -f1`, shellQuote(targetPath)))
 		size, _ := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
-		outDf, _, _, _ := runner.Exec(fmt.Sprintf(`df -PB1 %q 2>/dev/null | tail -n 1 | awk '{print $4}'`, path.Dir(targetPath)))
+		outDf, _, _, _ := runner.Exec(fmt.Sprintf(`df -PB1 %s 2>/dev/null | tail -n 1 | awk '{print $4}'`, shellQuote(path.Dir(targetPath))))
 		avail, _ := strconv.ParseInt(strings.TrimSpace(outDf), 10, 64)
 		writeJSON(w, http.StatusOK, map[string]int64{
 			"size":      size,
@@ -1414,9 +1445,9 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 
 		// Disk Space Safety Check:
 		// Measure source size and available space on target partition (+ 100MB safety buffer)
-		outSize, _, _, _ := runner.Exec(fmt.Sprintf(`du -sb %q 2>/dev/null | cut -f1`, req.Path))
+		outSize, _, _, _ := runner.Exec(fmt.Sprintf(`du -sb %s 2>/dev/null | cut -f1`, shellQuote(req.Path)))
 		sourceSize, _ := strconv.ParseInt(strings.TrimSpace(outSize), 10, 64)
-		outDf, _, _, _ := runner.Exec(fmt.Sprintf(`df -PB1 %q 2>/dev/null | tail -n 1 | awk '{print $4}'`, parentDir))
+		outDf, _, _, _ := runner.Exec(fmt.Sprintf(`df -PB1 %s 2>/dev/null | tail -n 1 | awk '{print $4}'`, shellQuote(parentDir)))
 		availBytes, _ := strconv.ParseInt(strings.TrimSpace(outDf), 10, 64)
 
 		const safetyBuffer = 100 * 1024 * 1024 // 100 MB buffer
@@ -1426,7 +1457,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		}
 
 		// ponytail: Use native remote cp -a to perform instant atomic copy with preserved permissions
-		cmd := fmt.Sprintf("cp -a -- %q %q", req.Path, destPath)
+		cmd := fmt.Sprintf("cp -a -- %s %s", shellQuote(req.Path), shellQuote(destPath))
 		_, stderr, exitCode, err := runner.Exec(cmd)
 		if err != nil || exitCode != 0 {
 			http.Error(w, fmt.Sprintf("duplication failed: %s", strings.TrimSpace(stderr)), http.StatusInternalServerError)
@@ -1459,12 +1490,12 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			if hasZip {
 				w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", base+".zip"))
 				w.Header().Set("Content-Type", "application/zip")
-				cmd := fmt.Sprintf(`cd %q && zip -r -q - %q`, parent, base)
+				cmd := fmt.Sprintf(`cd %s && zip -r -q - %s`, shellQuote(parent), shellQuote(base))
 				_ = runner.PipeCommand(cmd, nil, w)
 			} else {
 				w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", base+".tar.gz"))
 				w.Header().Set("Content-Type", "application/gzip")
-				cmd := fmt.Sprintf(`tar -czf - -C %q %q`, parent, base)
+				cmd := fmt.Sprintf(`tar -czf - -C %s %s`, shellQuote(parent), shellQuote(base))
 				_ = runner.PipeCommand(cmd, nil, w)
 			}
 			return
@@ -1953,7 +1984,11 @@ func (s *Server) handlePresetDetail(w http.ResponseWriter, r *http.Request) {
 // WebSocket Docker Log Stream
 func (s *Server) handleWSDockerLogs(w http.ResponseWriter, r *http.Request) {
 	hostIDStr := r.URL.Query().Get("host_id")
-	container := r.URL.Query().Get("container")
+	container := strings.TrimSpace(r.URL.Query().Get("container"))
+	if !validContainerNameRegex.MatchString(container) {
+		http.Error(w, "invalid container name", http.StatusBadRequest)
+		return
+	}
 	hostID, _ := strconv.ParseInt(hostIDStr, 10, 64)
 
 	ws, err := upgrader.Upgrade(w, r, nil)
@@ -2001,7 +2036,7 @@ func (s *Server) handleWSDockerLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	cmd := fmt.Sprintf("docker logs -f --tail 100 %s", container)
+	cmd := fmt.Sprintf("docker logs -f --tail 100 %s", shellQuote(container))
 	_ = runner.Stream(cmd, outWriter)
 }
 

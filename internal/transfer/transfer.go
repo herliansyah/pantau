@@ -15,6 +15,10 @@ import (
 	"pantau/internal/store"
 )
 
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
 type TransferJob struct {
 	ID               int64      `json:"id"`
 	SourceHostID     int64      `json:"source_host_id"`
@@ -131,15 +135,15 @@ func (m *Manager) runTransfer(ctx context.Context, job *TransferJob, srcHost, ds
 	defer dstRunner.Close()
 
 	// 1. Inspect source: check if directory and calculate total size
-	checkDirCmd := fmt.Sprintf(`test -d %q && echo "DIR" || echo "FILE"`, job.SourcePath)
+	checkDirCmd := fmt.Sprintf(`test -d %s && echo "DIR" || echo "FILE"`, shellQuote(job.SourcePath))
 	typeOut, _, _, _ := srcRunner.Exec(checkDirCmd)
 	isDir := strings.TrimSpace(typeOut) == "DIR"
 
-	sizeCmd := fmt.Sprintf(`du -sb %q 2>/dev/null | cut -f1`, job.SourcePath)
+	sizeCmd := fmt.Sprintf(`du -sb %s 2>/dev/null | cut -f1`, shellQuote(job.SourcePath))
 	sizeOut, _, _, _ := srcRunner.Exec(sizeCmd)
 	totalBytes, _ := strconv.ParseInt(strings.TrimSpace(sizeOut), 10, 64)
 	if totalBytes <= 0 {
-		statCmd := fmt.Sprintf(`stat -c "%%s" %q 2>/dev/null`, job.SourcePath)
+		statCmd := fmt.Sprintf(`stat -c "%%s" %s 2>/dev/null`, shellQuote(job.SourcePath))
 		statOut, _, _, _ := srcRunner.Exec(statCmd)
 		totalBytes, _ = strconv.ParseInt(strings.TrimSpace(statOut), 10, 64)
 	}
@@ -159,7 +163,7 @@ func (m *Manager) runTransfer(ctx context.Context, job *TransferJob, srcHost, ds
 		destDir = path.Dir(job.DestPath)
 		destFile = job.DestPath
 	}
-	_, _, _, _ = dstRunner.Exec(fmt.Sprintf(`mkdir -p %q`, destDir))
+	_, _, _, _ = dstRunner.Exec(fmt.Sprintf(`mkdir -p %s`, shellQuote(destDir)))
 
 	// 3. Create stream pipe
 	pr, pw := io.Pipe()
@@ -223,11 +227,11 @@ func (m *Manager) runTransfer(ctx context.Context, job *TransferJob, srcHost, ds
 	if isDir {
 		srcParent := path.Dir(job.SourcePath)
 		srcBase := path.Base(job.SourcePath)
-		srcCmd = fmt.Sprintf(`tar -cf - -C %q %q`, srcParent, srcBase)
-		dstCmd = fmt.Sprintf(`tar -xf - -C %q`, job.DestPath)
+		srcCmd = fmt.Sprintf(`tar -cf - -C %s %s`, shellQuote(srcParent), shellQuote(srcBase))
+		dstCmd = fmt.Sprintf(`tar -xf - -C %s`, shellQuote(job.DestPath))
 	} else {
-		srcCmd = fmt.Sprintf(`cat %q`, job.SourcePath)
-		dstCmd = fmt.Sprintf(`cat > %q`, destFile)
+		srcCmd = fmt.Sprintf(`cat %s`, shellQuote(job.SourcePath))
+		dstCmd = fmt.Sprintf(`cat > %s`, shellQuote(destFile))
 	}
 
 	errChan := make(chan error, 2)
@@ -274,8 +278,8 @@ func (m *Manager) runTransfer(ctx context.Context, job *TransferJob, srcHost, ds
 	// 5. Verification Phase (if Verified Mode requested)
 	if job.Mode == "verified" {
 		if !isDir {
-			srcHashOut, _, _, _ := srcRunner.Exec(fmt.Sprintf(`sha256sum %q | cut -d' ' -f1`, job.SourcePath))
-			dstHashOut, _, _, _ := dstRunner.Exec(fmt.Sprintf(`sha256sum %q | cut -d' ' -f1`, destFile))
+			srcHashOut, _, _, _ := srcRunner.Exec(fmt.Sprintf(`sha256sum %s | cut -d' ' -f1`, shellQuote(job.SourcePath)))
+			dstHashOut, _, _, _ := dstRunner.Exec(fmt.Sprintf(`sha256sum %s | cut -d' ' -f1`, shellQuote(destFile)))
 
 			srcHash := strings.TrimSpace(srcHashOut)
 			dstHash := strings.TrimSpace(dstHashOut)
@@ -285,7 +289,7 @@ func (m *Manager) runTransfer(ctx context.Context, job *TransferJob, srcHost, ds
 				return
 			}
 		} else {
-			dstCountOut, _, _, _ := dstRunner.Exec(fmt.Sprintf(`find %q -type f | wc -l`, job.DestPath))
+			dstCountOut, _, _, _ := dstRunner.Exec(fmt.Sprintf(`find %s -type f | wc -l`, shellQuote(job.DestPath)))
 			if strings.TrimSpace(dstCountOut) == "0" && job.TotalBytes > 0 {
 				m.failJob(job, "directory transfer verification failed: destination has 0 files")
 				return

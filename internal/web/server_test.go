@@ -1517,23 +1517,53 @@ func TestWorkspaceModalMaximizeAndTerminalFromPath(t *testing.T) {
 	}
 	defer db.Close()
 	srv := NewServer(db, nil, nil)
+	testToken := "ws_test_token"
+	srv.sessions.Store(testToken, time.Now().Add(time.Hour))
+	authCookie := &http.Cookie{Name: "pantau_session", Value: testToken}
 
-	// Invalid host_id query
+	// Unauthenticated request to /ws/terminal returns 401
+	reqUnauth := httptest.NewRequest("GET", "/ws/terminal?host_id=1", nil)
+	wUnauth := httptest.NewRecorder()
+	srv.mux.ServeHTTP(wUnauth, reqUnauth)
+	if wUnauth.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized for unauthenticated /ws/terminal, got %d", wUnauth.Code)
+	}
+
+	// Invalid host_id query (authenticated)
 	reqBad := httptest.NewRequest("GET", "/ws/terminal?host_id=invalid", nil)
+	reqBad.AddCookie(authCookie)
 	wBad := httptest.NewRecorder()
 	srv.mux.ServeHTTP(wBad, reqBad)
 	if wBad.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 Bad Request for invalid host_id, got %d", wBad.Code)
 	}
 
-	// Valid host_id with dir param but non-existent host
+	// Valid host_id with dir param but non-existent host (authenticated)
 	reqNonExistent := httptest.NewRequest("GET", "/ws/terminal?host_id=999999&dir=/var/log", nil)
+	reqNonExistent.AddCookie(authCookie)
 	wNonExistent := httptest.NewRecorder()
-srv.mux.ServeHTTP(wNonExistent, reqNonExistent)
-// WebSockets return 400 Bad Request if not a websocket upgrade request
-if wNonExistent.Code != http.StatusBadRequest {
-	t.Errorf("expected 400 Bad Request on non-websocket request to /ws/terminal, got %d", wNonExistent.Code)
-}
+	srv.mux.ServeHTTP(wNonExistent, reqNonExistent)
+	// WebSockets return 400 Bad Request if not a websocket upgrade request
+	if wNonExistent.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request on non-websocket request to /ws/terminal, got %d", wNonExistent.Code)
+	}
+
+	// Docker logs unauthenticated returns 401
+	reqDockUnauth := httptest.NewRequest("GET", "/ws/docker/logs?host_id=1&container=mycontainer", nil)
+	wDockUnauth := httptest.NewRecorder()
+	srv.mux.ServeHTTP(wDockUnauth, reqDockUnauth)
+	if wDockUnauth.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 Unauthorized for unauthenticated /ws/docker/logs, got %d", wDockUnauth.Code)
+	}
+
+	// Docker logs with invalid container name returns 400
+	reqDockBad := httptest.NewRequest("GET", "/ws/docker/logs?host_id=1&container=my_container;rm", nil)
+	reqDockBad.AddCookie(authCookie)
+	wDockBad := httptest.NewRecorder()
+	srv.mux.ServeHTTP(wDockBad, reqDockBad)
+	if wDockBad.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for invalid container name, got %d", wDockBad.Code)
+	}
 }
 
 func TestFileDuplicationRoutingAndValidation(t *testing.T) {

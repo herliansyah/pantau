@@ -337,4 +337,12 @@ _Avoid_: Forced scroll, jump lock
 Filter batas deterministik yang mencegat pesan dan atribut log telemetri untuk menyensor password SSH, private key, token autentikasi, recovery code, dan passphrase menjadi `[REDACTED]` sebelum dipancarkan ke Live Event Stream.
 _Avoid_: Secret hiding, raw dump, password censor
 
+**TOFU (Trust On First Use)**:
+Mekanisme verifikasi host key SSH otomatis pada koneksi pertama yang mencatat fingerprint host untuk memvalidasi koneksi berikutnya dan mendeteksi serangan Machine-in-the-Middle (MITM) tanpa memerlukan konfigurasi manual `known_hosts`.
+_Avoid_: Insecure ignore host key, manual known hosts, strict pinning
+
+**Shell Quote Escaping**:
+Mekanisme pembungkusan argumen perintah jarak jauh menggunakan tanda kutip tunggal POSIX (`'...'`) universal yang menetralkan ekspansi variabel shell (`$`, backtick, operator piping) di seluruh versi Linux dari kernel lawas (CentOS 5) hingga modern.
+_Avoid_: Double quote interpolation, shell sanitization, cmd escape
+
 

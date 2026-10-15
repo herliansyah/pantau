@@ -20,6 +20,10 @@ import (
 	"pantau/internal/store"
 )
 
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
 var ErrAlreadyInspecting = errors.New("inspection already in progress for this host")
 
 type Inspector struct {
@@ -999,7 +1003,7 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 	switch rule.Kind {
 	case "container":
 		// Check docker container status
-		inspectCmd := fmt.Sprintf(`docker inspect -f '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}|{{.State.Error}}' %s 2>/dev/null`, rule.Target)
+		inspectCmd := fmt.Sprintf(`docker inspect -f '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}|{{.State.Error}}' %s 2>/dev/null`, shellQuote(rule.Target))
 		out, _, exitCode, _ := runner.Exec(inspectCmd)
 		out = strings.TrimSpace(out)
 		if exitCode != 0 || out == "" {
@@ -1021,7 +1025,7 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 			if len(parts) >= 4 {
 				diag.WriteString(fmt.Sprintf("ExitCode: %s, OOMKilled: %s, Error: %s\n", parts[1], parts[2], parts[3]))
 			}
-			logOut, _, _, _ := runner.Exec(fmt.Sprintf(`docker logs --tail 50 %s 2>&1`, rule.Target))
+			logOut, _, _, _ := runner.Exec(fmt.Sprintf(`docker logs --tail 50 %s 2>&1`, shellQuote(rule.Target)))
 			diag.WriteString("--- Last 50 lines of container logs ---\n")
 			diag.WriteString(strings.TrimSpace(logOut))
 			rootCause = diag.String()
@@ -1035,7 +1039,7 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 			target = "/"
 		}
 		// ponytail: Use timeout wrapper to prevent hanging on stale NFS/remote mounts
-		dfCmd := fmt.Sprintf(`timeout -k 2s 5s df -Pk %s 2>/dev/null || df -Pk %s 2>/dev/null`, target, target)
+		dfCmd := fmt.Sprintf(`timeout -k 2s 5s df -Pk %s 2>/dev/null || df -Pk %s 2>/dev/null`, shellQuote(target), shellQuote(target))
 		out, _, exitCode, _ := runner.Exec(dfCmd)
 		if exitCode == 124 {
 			current = "unresponsive"
@@ -1077,7 +1081,7 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 
 	case "backup":
 		// Target is file path or glob (e.g. /var/backups/db-*.sql.gz)
-		statCmd := fmt.Sprintf(`stat -c "%%s %%Y" %s 2>/dev/null || ls -l %s 2>/dev/null`, rule.Target, rule.Target)
+		statCmd := fmt.Sprintf(`stat -c "%%s %%Y" %s 2>/dev/null || ls -l %s 2>/dev/null`, shellQuote(rule.Target), shellQuote(rule.Target))
 		out, _, exitCode, _ := runner.Exec(statCmd)
 		out = strings.TrimSpace(out)
 		if exitCode != 0 || out == "" {
@@ -1144,7 +1148,7 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 	case "service":
 		// Target is service name (e.g. "mysql", "mysqld", "nginx", "httpd")
 		// Polyglot check supporting both systemd and SysVinit (CentOS 6, Debian 7)
-		svcCmd := fmt.Sprintf(`sh -c 'if command -v systemctl >/dev/null 2>&1; then systemctl is-active "$1" 2>/dev/null; elif service "$1" status 2>&1 | grep -iq "running"; then echo "active"; else echo "inactive"; fi' -- %s`, rule.Target)
+		svcCmd := fmt.Sprintf(`sh -c 'if command -v systemctl >/dev/null 2>&1; then systemctl is-active "$1" 2>/dev/null; elif service "$1" status 2>&1 | grep -iq "running"; then echo "active"; else echo "inactive"; fi' -- %s`, shellQuote(rule.Target))
 		out, _, _, _ := runner.Exec(svcCmd)
 		activeState := strings.TrimSpace(out)
 		current = activeState
@@ -1152,7 +1156,7 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 			status = "ok"
 		} else {
 			status = "drift"
-			diagCmd := fmt.Sprintf(`sh -c 'if command -v journalctl >/dev/null 2>&1; then journalctl -u "$1" -n 50 --no-pager 2>&1; elif [ -f "/var/log/$1.log" ]; then tail -n 50 "/var/log/$1.log" 2>&1; elif [ -f "/var/log/$1/error.log" ]; then tail -n 50 "/var/log/$1/error.log" 2>&1; else tail -n 50 /var/log/messages 2>&1 || tail -n 50 /var/log/syslog 2>&1; fi' -- %s`, rule.Target)
+			diagCmd := fmt.Sprintf(`sh -c 'if command -v journalctl >/dev/null 2>&1; then journalctl -u "$1" -n 50 --no-pager 2>&1; elif [ -f "/var/log/$1.log" ]; then tail -n 50 "/var/log/$1.log" 2>&1; elif [ -f "/var/log/$1/error.log" ]; then tail -n 50 "/var/log/$1/error.log" 2>&1; else tail -n 50 /var/log/messages 2>&1 || tail -n 50 /var/log/syslog 2>&1; fi' -- %s`, shellQuote(rule.Target))
 			diagOut, _, _, _ := runner.Exec(diagCmd)
 			rootCause = fmt.Sprintf("Service %s is %s (expected active)\n--- Service diagnostics ---\n%s", rule.Target, activeState, strings.TrimSpace(diagOut))
 		}
@@ -1165,7 +1169,14 @@ func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule 
 		if idx := strings.LastIndex(target, ":"); idx != -1 {
 			port = target[idx+1:]
 		}
-		portCmd := fmt.Sprintf(`sh -c 'if command -v ss >/dev/null 2>&1; then ss -tlpn 2>/dev/null; elif command -v netstat >/dev/null 2>&1; then netstat -tlpn 2>/dev/null; else lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null; fi' | grep -E ":%s\b"`, port)
+		pNum, err := strconv.Atoi(port)
+		if err != nil || pNum <= 0 || pNum > 65535 {
+			current = "invalid_port"
+			status = "drift"
+			rootCause = fmt.Sprintf("Invalid port target: %s", target)
+			return
+		}
+		portCmd := fmt.Sprintf(`sh -c 'if command -v ss >/dev/null 2>&1; then ss -tlpn 2>/dev/null; elif command -v netstat >/dev/null 2>&1; then netstat -tlpn 2>/dev/null; else lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null; fi' | grep -E ":%d\b"`, pNum)
 		out, _, exitCode, _ := runner.Exec(portCmd)
 		isListening := exitCode == 0 && strings.TrimSpace(out) != ""
 
@@ -1337,7 +1348,7 @@ func (ins *Inspector) DockerAction(hostID int64, containerName, action string) (
 	}
 	defer runner.Close()
 
-	cmd := fmt.Sprintf("docker %s %s", action, containerName)
+	cmd := fmt.Sprintf("docker %s %s", action, shellQuote(containerName))
 	stdout, stderr, exitCode, err := runner.Exec(cmd)
 	if err != nil || exitCode != 0 {
 		return "", fmt.Errorf("docker %s failed (exit %d): %s %s", action, exitCode, stdout, stderr)
