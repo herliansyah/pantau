@@ -1661,28 +1661,35 @@ body.has-workspace-shelf .container {
 
 <!-- File Pin & Note Modal -->
 <div id="filePinModal" class="modal">
-  <div class="modal-content modal-dialog">
-    <div class="modal-header">
+  <div class="modal-content modal-dialog" style="max-width: 480px; border: 1px solid var(--card-border); background: #0f172a; border-radius: 8px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);">
+    <div class="modal-header" style="padding: 14px 18px; border-bottom: 1px solid var(--card-border); display: flex; align-items: center; justify-content: space-between;">
       <div style="display: flex; align-items: center; gap: 8px;">
-        <span>📌</span>
-        <h3 data-i18n="pin_file_modal_title">Pin to Quick Access</h3>
+        <span style="font-size: 1.1rem;">📌</span>
+        <h3 style="margin: 0; font-size: 1rem; font-weight: 600;" data-i18n="pin_file_modal_title">Pin to Quick Access</h3>
+        <span id="pinModalHostBadge" class="badge" style="display: none; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.72rem; padding: 2px 6px; border-radius: 4px;"></span>
       </div>
       <button class="btn btn-sm" onclick="closeModal('filePinModal')">✕</button>
     </div>
-    <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+    <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; padding: 18px;">
       <div>
-        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="pin_path_label">Path:</label>
-        <div id="pinModalPath" style="font-family: monospace; font-size: 0.85rem; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--card-border); word-break: break-all; color: #f1f5f9;"></div>
+        <label style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted); display: block; margin-bottom: 6px;" data-i18n="pin_path_label">Path:</label>
+        <div id="pinModalPath" style="font-family: monospace; font-size: 0.85rem; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--card-border); word-break: break-all; color: #f1f5f9;"></div>
+        <div id="pinModalPathInputWrapper" style="display: none; flex-direction: column; gap: 8px;">
+          <div style="position: relative; display: flex; align-items: center;">
+            <span style="position: absolute; left: 10px; font-size: 0.85rem; pointer-events: none; opacity: 0.7;">📁</span>
+            <input type="text" id="pinModalPathInput" placeholder="/var/log/nginx or /etc" style="width: 100%; box-sizing: border-box; font-family: monospace; font-size: 0.85rem; padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid var(--card-border); background: rgba(0,0,0,0.3); color: #f1f5f9; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='var(--primary, #38bdf8)'" onblur="this.style.borderColor='var(--card-border)'" onkeydown="if(event.key==='Enter'){event.preventDefault(); submitSavePin();}" />
+          </div>
+        </div>
       </div>
       <div>
-        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="pin_note_label">Description / Operational Note (Optional):</label>
-        <textarea id="pinModalNote" rows="3" placeholder="e.g. Main reverse proxy config, daily rotate log..." data-i18n-placeholder="pin_note_ph" style="width: 100%; box-sizing: border-box; font-family: inherit; font-size: 0.88rem; padding: 8px 10px; border-radius: 6px;"></textarea>
+        <label style="font-size: 0.8rem; font-weight: 500; color: var(--text-muted); display: block; margin-bottom: 6px;" data-i18n="pin_note_label">Description / Operational Note (Optional):</label>
+        <textarea id="pinModalNote" rows="3" placeholder="e.g. Main reverse proxy config, daily rotate log..." data-i18n-placeholder="pin_note_ph" style="width: 100%; box-sizing: border-box; font-family: inherit; font-size: 0.85rem; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--card-border); background: rgba(0,0,0,0.3); color: #f1f5f9; resize: vertical; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='var(--primary, #38bdf8)'" onblur="this.style.borderColor='var(--card-border)'" onkeydown="if(event.key==='Enter' && (event.ctrlKey || event.metaKey)){event.preventDefault(); submitSavePin();}"></textarea>
       </div>
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
-        <button id="btnPinModalUnpin" type="button" class="btn btn-danger btn-sm" onclick="submitUnpin()" data-i18n="btn_unpin">Unpin</button>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05);">
+        <button id="btnPinModalUnpin" type="button" class="btn btn-danger btn-sm" onclick="submitUnpin()" style="padding: 6px 14px; font-size: 0.8rem;" data-i18n="btn_unpin">Unpin</button>
         <div style="display: flex; gap: 8px; margin-left: auto;">
-          <button type="button" class="btn btn-sm" onclick="closeModal('filePinModal')" data-i18n="cancel">Cancel</button>
-          <button type="button" class="btn btn-primary btn-sm" onclick="submitSavePin()" data-i18n="btn_save_pin">Save Pin</button>
+          <button type="button" class="btn btn-sm" onclick="closeModal('filePinModal')" style="padding: 6px 14px; font-size: 0.8rem;" data-i18n="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="submitSavePin()" style="padding: 6px 16px; font-size: 0.8rem; font-weight: 500;" data-i18n="btn_save_pin">Save Pin</button>
         </div>
       </div>
     </div>
@@ -2572,6 +2579,8 @@ const I18N = {
     "scope_host": "🎯 This Host Only",
     "use_tmux": "Keep session persistent with tmux if available",
     "save_preset": "Save Preset",
+    "search_presets": "Search presets...",
+    "no_matching_presets": "No matching presets",
     "split_terminal": "Split (Alt+\\)",
     "unsplit_terminal": "Unsplit (Alt+\\)",
     "terminal_font_size": "Terminal Font Size",
@@ -2584,6 +2593,13 @@ const I18N = {
     "maximize_workspace": "Maximize Workspace",
     "restore_workspace": "Restore Workspace",
     "open_terminal_here": "Open Terminal Here",
+    "open_in_file_manager": "Open in File Manager",
+    "pinned_paths": "Pinned Paths",
+    "pin_new_path": "Pin New Path",
+    "is_directory": "Directory (folder)",
+    "no_pinned_paths": "No pinned paths on this host",
+    "search_pins": "Search pinned paths...",
+    "no_matching_pins": "No matching pinned paths",
     "close_all_terminals_confirm": "Close all terminal sessions? Active remote shell processes will be disconnected.",
     "terminal_tab_limit_notice": "Notice: 8+ active terminal sessions open. Consider closing unused tabs to save resources.",
     "new_terminal_tab": "New Terminal Tab",
@@ -3159,6 +3175,8 @@ const I18N = {
     "scope_host": "🎯 Hanya Host Ini",
     "use_tmux": "Gunakan sesi tmux persisten jika tersedia",
     "save_preset": "Simpan Preset",
+    "search_presets": "Cari preset...",
+    "no_matching_presets": "Tidak ada preset yang cocok",
     "split_terminal": "Bagi Panel (Alt+\\)",
     "unsplit_terminal": "Tutup Panel (Alt+\\)",
     "terminal_font_size": "Ukuran Font Terminal",
@@ -3171,6 +3189,13 @@ const I18N = {
     "maximize_workspace": "Layar Penuh Ruang Kerja",
     "restore_workspace": "Pulihkan Ruang Kerja",
     "open_terminal_here": "Buka Terminal di Sini",
+    "open_in_file_manager": "Buka di File Manager",
+    "pinned_paths": "Jalur Tersemat",
+    "pin_new_path": "Sematkan Jalur Baru",
+    "is_directory": "Direktori (folder)",
+    "no_pinned_paths": "Belum ada jalur tersemat di host ini",
+    "search_pins": "Cari jalur tersemat...",
+    "no_matching_pins": "Tidak ada jalur tersemat yang cocok",
     "close_all_terminals_confirm": "Tutup seluruh sesi terminal? Proses shell remote yang sedang aktif akan terputus.",
     "terminal_tab_limit_notice": "Perhatian: 8+ sesi terminal aktif terbuka. Pertimbangkan menutup tab yang tidak digunakan untuk menghemat sumber daya.",
     "new_terminal_tab": "Tab Terminal Baru",
@@ -6710,46 +6735,93 @@ async function executeDuplicate() {
 // File Pin & Global Bookmark Functions
 let currentPinEditingPath = '';
 let currentPinEditingIsDir = false;
+let currentPinHostId = null;
+let currentPinRefreshTabId = null;
 
-function openPinModal(path, isDir) {
-  currentPinEditingPath = path;
+function openPinModal(path, isDir, hostId = null, refreshTabId = null, isManualInput = false) {
+  currentPinEditingPath = path || '';
   currentPinEditingIsDir = !!isDir;
-  const pin = currentHostFilePins && currentHostFilePins.find(p => p.path === path);
+  currentPinHostId = hostId || (currentHost ? currentHost.id : null);
+  currentPinRefreshTabId = refreshTabId;
+
+  const targetHost = (allRawHosts || []).find(x => x.id === currentPinHostId) || (currentHost && currentHost.id === currentPinHostId ? currentHost : null);
+  const hostBadge = document.getElementById('pinModalHostBadge');
+  if (hostBadge) {
+    if (targetHost && targetHost.name) {
+      hostBadge.innerText = targetHost.name;
+      hostBadge.style.display = 'inline-block';
+    } else {
+      hostBadge.style.display = 'none';
+    }
+  }
+
   const pathEl = document.getElementById('pinModalPath');
-  if (pathEl) pathEl.innerText = path;
+  const pathInputWrapper = document.getElementById('pinModalPathInputWrapper');
+  const pathInput = document.getElementById('pinModalPathInput');
   const noteInput = document.getElementById('pinModalNote');
-  if (noteInput) {
-    noteInput.value = pin ? (pin.note || '') : '';
-  }
   const btnUnpin = document.getElementById('btnPinModalUnpin');
-  if (btnUnpin) {
-    btnUnpin.style.display = pin ? 'inline-block' : 'none';
-  }
-  openModal('filePinModal');
-  if (noteInput) {
-    setTimeout(() => noteInput.focus(), 50);
+
+  if (!isManualInput && path) {
+    if (pathEl) { pathEl.innerText = path; pathEl.style.display = 'block'; }
+    if (pathInputWrapper) pathInputWrapper.style.display = 'none';
+    const pin = currentHostFilePins && currentHostFilePins.find(p => p.path === path);
+    if (noteInput) noteInput.value = pin ? (pin.note || '') : '';
+    if (btnUnpin) btnUnpin.style.display = pin ? 'inline-block' : 'none';
+    openModal('filePinModal');
+    if (noteInput) setTimeout(() => noteInput.focus(), 50);
+  } else {
+    // Manual path entry mode (e.g. from Terminal) with auto-filled active path
+    if (pathEl) pathEl.style.display = 'none';
+    if (pathInputWrapper) pathInputWrapper.style.display = 'flex';
+    if (pathInput) {
+      pathInput.value = path || '/';
+    }
+    if (noteInput) noteInput.value = '';
+    if (btnUnpin) btnUnpin.style.display = 'none';
+    openModal('filePinModal');
+    if (pathInput) {
+      setTimeout(() => {
+        pathInput.focus();
+        pathInput.select();
+      }, 50);
+    }
   }
 }
 
 async function submitSavePin() {
-  if (!currentHost || !currentPinEditingPath) return;
+  const pathInput = document.getElementById('pinModalPathInput');
+  const pathInputWrapper = document.getElementById('pinModalPathInputWrapper');
+  const isManualMode = pathInputWrapper && pathInputWrapper.style.display !== 'none';
+  const savePath = isManualMode ? pathInput.value.trim() : currentPinEditingPath;
+  const saveIsDir = isManualMode ? true : currentPinEditingIsDir;
+  const targetHostId = currentPinHostId || (currentHost ? currentHost.id : null);
+
+  if (!targetHostId || !savePath) {
+    showToast(t('fill_all_fields', 'Please enter a path'), 'error');
+    return;
+  }
   const noteInput = document.getElementById('pinModalNote');
   const note = noteInput ? noteInput.value.trim() : '';
   try {
-    const res = await fetch('/api/hosts/' + currentHost.id + '/files/pins', {
+    const res = await fetch('/api/hosts/' + targetHostId + '/files/pins', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        path: currentPinEditingPath,
-        is_dir: currentPinEditingIsDir,
+        path: savePath,
+        is_dir: saveIsDir,
         note: note
       })
     });
     if (res.ok) {
       closeModal('filePinModal');
       showToast(t('pin_saved'), 'success');
-      await loadHostFilePins(currentHost.id);
-      renderFilesView();
+      if (currentPinRefreshTabId) {
+        loadTerminalPins(currentPinRefreshTabId);
+      }
+      if (currentHost && currentHost.id === targetHostId) {
+        await loadHostFilePins(currentHost.id);
+        renderFilesView();
+      }
     } else {
       const d = await res.json();
       showToast(t('error_prefix', 'Error: ') + (d.error || 'Failed to save pin'), 'error');
@@ -6760,24 +6832,29 @@ async function submitSavePin() {
 }
 
 async function submitUnpin() {
-  if (!currentHost || !currentPinEditingPath) return;
+  const targetHostId = currentPinHostId || (currentHost ? currentHost.id : null);
+  if (!targetHostId || !currentPinEditingPath) return;
   const fileName = currentPinEditingPath.split('/').filter(Boolean).pop() || currentPinEditingPath;
   const promptMsg = t('confirm_unpin_item', 'Are you sure you want to unpin "{name}"?').replace('{name}', fileName);
   if (!await showConfirm({ message: promptMsg, confirmText: t('btn_unpin', 'Unpin'), danger: true })) {
     return;
   }
   try {
-    const res = await fetch('/api/hosts/' + currentHost.id + '/files/pins?path=' + encodeURIComponent(currentPinEditingPath), {
+    const res = await fetch('/api/hosts/' + targetHostId + '/files/pins?path=' + encodeURIComponent(currentPinEditingPath), {
       method: 'DELETE'
     });
     if (res.ok) {
       closeModal('filePinModal');
-      showToast(t('pin_removed'), 'success');
-      await loadHostFilePins(currentHost.id);
-      renderFilesView();
+      showToast(t('pin_removed'), 'info');
+      if (currentPinRefreshTabId) {
+        loadTerminalPins(currentPinRefreshTabId);
+      }
+      if (currentHost && currentHost.id === targetHostId) {
+        await loadHostFilePins(currentHost.id);
+        renderFilesView();
+      }
     } else {
-      const d = await res.json();
-      showToast(t('error_prefix', 'Error: ') + (d.error || 'Failed to unpin'), 'error');
+      showToast(t('error_prefix', 'Error: ') + 'Failed to unpin', 'error');
     }
   } catch(e) {
     showToast(t('error_prefix', 'Error: ') + e.message, 'error');
@@ -7416,27 +7493,79 @@ function createTabWorkspaceDOM(tab) {
   ws.id = 'workspace_' + tab.id;
   ws.className = 'terminal-tab-workspace';
   ws.innerHTML = `
-    <div class="terminal-toolbar" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; background: #0f172a; border: 1px solid var(--card-border); padding: 6px 10px; border-radius: 6px; flex-shrink: 0;">
-      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1;">
-        <span style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">⚡ Presets:</span>
-        <div id="presetButtonsList_${tab.id}" style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
-          <span style="font-size: 0.72rem; color: var(--text-muted);">Loading...</span>
+    <div class="terminal-toolbar" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; background: #0f172a; border: 1px solid var(--card-border); padding: 5px 10px; border-radius: 6px; flex-shrink: 0;">
+      <!-- Left side: Presets Dropdown -->
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div class="terminal-presets-wrapper" style="position: relative; display: inline-block;">
+          <button class="btn btn-sm" onclick="toggleTerminalPresetsDropdown('${tab.id}', event)" title="${t('tab_settings_presets', 'Presets')}" style="padding: 3px 8px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 4px;">
+            ⚡ <span id="lblPresets_${tab.id}">${t('tab_settings_presets', 'Presets')}</span> <span style="font-size: 0.65rem;">▼</span>
+          </button>
+          <div id="presetsDropdownMenu_${tab.id}" class="terminal-dropdown-menu" style="display: none; min-width: 280px; max-width: 380px; left: 0; right: auto;">
+            <div class="terminal-dropdown-search">
+              <input type="text" id="presetSearchInput_${tab.id}" class="terminal-dropdown-search-input" placeholder="${t('search_presets', 'Search presets...')}" oninput="filterTabPresets('${tab.id}')" onclick="event.stopPropagation()">
+            </div>
+            <div id="presetDropdownList_${tab.id}" class="terminal-dropdown-list">
+              <div style="padding: 8px 12px; font-size: 0.75rem; color: var(--text-muted);">${t('loading', 'Loading...')}</div>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--card-border); background: rgba(0,0,0,0.2);">
+              <button class="btn btn-sm" onclick="openCreatePresetModal(null, ${tab.hostID}); toggleTerminalPresetsDropdown('${tab.id}', event)" style="font-size: 0.72rem; padding: 3px 8px; flex: 1;">
+                ➕ ${t('add_preset', 'New Preset')}
+              </button>
+              <button class="btn btn-sm" onclick="openPresetManagerModal(${tab.hostID}); toggleTerminalPresetsDropdown('${tab.id}', event)" title="Manage Presets" style="font-size: 0.72rem; padding: 3px 8px;">
+                ⚙️ ${t('manage_presets', 'Manage')}
+              </button>
+            </div>
+          </div>
         </div>
-        <button class="btn btn-sm" onclick="openCreatePresetModal(null, ${tab.hostID})" title="Add new preset" style="padding: 2px 7px; font-size: 0.72rem;">➕</button>
-        <button class="btn btn-sm" onclick="openPresetManagerModal(${tab.hostID})" title="Manage presets" style="padding: 2px 7px; font-size: 0.72rem;">⚙️</button>
       </div>
-      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-        <div style="display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); padding: 1px 6px; border-radius: 6px;" title="${t('terminal_font_size', 'Terminal Font Size')}">
+
+      <!-- Right side: Cleanly grouped clusters -->
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <!-- Cluster 1: Host Navigation & Shortcuts -->
+        <div style="display: inline-flex; align-items: center; gap: 4px;">
+          <button class="btn btn-sm" onclick="openFileManagerForTab('${tab.id}')" title="${t('open_in_file_manager', 'Open in File Manager')}" style="padding: 3px 8px; font-size: 0.72rem;">
+            📁 <span id="lblFileManager_${tab.id}">${t('open_in_file_manager', 'File Manager')}</span>
+          </button>
+          <div class="terminal-pins-wrapper" style="position: relative; display: inline-block;">
+            <button class="btn btn-sm" onclick="toggleTerminalPinsDropdown('${tab.id}', event)" title="${t('pinned_paths', 'Pinned Paths')}" style="padding: 3px 8px; font-size: 0.72rem;">
+              📌 <span id="lblPins_${tab.id}">${t('pinned_paths', 'Pins')}</span> <span style="font-size: 0.65rem;">▼</span>
+            </button>
+            <div id="pinsDropdownMenu_${tab.id}" class="terminal-dropdown-menu" style="display: none; min-width: 280px; max-width: 380px; right: 0;">
+              <div class="terminal-dropdown-search">
+                <input type="text" id="pinSearchInput_${tab.id}" class="terminal-dropdown-search-input" placeholder="${t('search_pins', 'Search pinned paths...')}" oninput="filterTerminalPins('${tab.id}')" onclick="event.stopPropagation()">
+              </div>
+              <div id="pinsDropdownList_${tab.id}" class="terminal-dropdown-list">
+                <div style="padding: 8px 12px; font-size: 0.75rem; color: var(--text-muted);">${t('loading', 'Loading...')}</div>
+              </div>
+              <div style="padding: 6px 8px; border-top: 1px solid var(--card-border); background: rgba(0,0,0,0.2);">
+                <button class="btn btn-sm btn-primary" onclick="openTerminalPinModal('${tab.id}')" style="width: 100%; font-size: 0.72rem; padding: 3px 6px;">
+                  ➕ ${t('pin_new_path', 'Pin New Path')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="width: 1px; height: 16px; background: var(--card-border); flex-shrink: 0;"></div>
+
+        <!-- Cluster 2: View Controls (Font Size) -->
+        <div style="display: inline-flex; align-items: center; gap: 4px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); padding: 2px 6px; border-radius: 5px;" title="${t('terminal_font_size', 'Terminal Font Size')}">
           <span style="font-size: 0.72rem; color: var(--text-muted); user-select: none;">🔍</span>
           <button class="btn btn-sm" onclick="adjustTerminalFontSize(-1)" title="${t('font_size_decrease', 'Decrease font size')}" style="padding: 0 4px; font-size: 0.68rem; height: 20px; line-height: 1;">A-</button>
           <span class="term-font-size-val" style="font-size: 0.7rem; color: var(--text-muted); min-width: 24px; text-align: center; font-family: monospace;">13px</span>
           <button class="btn btn-sm" onclick="adjustTerminalFontSize(1)" title="${t('font_size_increase', 'Increase font size')}" style="padding: 0 4px; font-size: 0.68rem; height: 20px; line-height: 1;">A+</button>
         </div>
-        <button class="btn btn-sm" onclick="toggleTabSplit('${tab.id}')" title="Split Terminal (Alt+\\)" style="padding: 3px 8px; font-size: 0.72rem;">
-          🪟 <span id="lblSplit_${tab.id}">${t('split_terminal')}</span>
-        </button>
-        <button class="btn btn-sm" onclick="clearTabActiveTerminal('${tab.id}')" title="Clear screen" style="padding: 3px 8px; font-size: 0.72rem;">🧹 Clear</button>
-        <button class="btn btn-sm" onclick="reconnectTabTerminal('${tab.id}')" title="Reconnect SSH" style="padding: 3px 8px; font-size: 0.72rem;">🔄 Reconnect</button>
+
+        <div style="width: 1px; height: 16px; background: var(--card-border); flex-shrink: 0;"></div>
+
+        <!-- Cluster 3: Terminal Session Controls -->
+        <div style="display: inline-flex; align-items: center; gap: 4px;">
+          <button class="btn btn-sm" onclick="toggleTabSplit('${tab.id}')" title="Split Terminal (Alt+\\)" style="padding: 3px 8px; font-size: 0.72rem;">
+            🪟 <span id="lblSplit_${tab.id}">${t('split_terminal')}</span>
+          </button>
+          <button class="btn btn-sm" onclick="clearTabActiveTerminal('${tab.id}')" title="Clear screen" style="padding: 3px 8px; font-size: 0.72rem;">🧹 Clear</button>
+          <button class="btn btn-sm" onclick="reconnectTabTerminal('${tab.id}')" title="Reconnect SSH" style="padding: 3px 8px; font-size: 0.72rem;">🔄 Reconnect</button>
+        </div>
       </div>
     </div>
 
@@ -7691,6 +7820,75 @@ function setupTerminalClipboardBridge(term, ws, container) {
   }
 }
 
+// ponytail: tracks active working directory in interactive terminal via OSC 7, shell window titles, and cd commands
+function extractPathFromTerminalTitle(title) {
+  if (!title || typeof title !== 'string') return null;
+  let str = title.trim();
+  str = str.replace(/[\x00\x07]/g, '').trim();
+  const colonIdx = str.lastIndexOf(':');
+  if (colonIdx !== -1) {
+    str = str.substring(colonIdx + 1).trim();
+  }
+  str = str.replace(/[\$#]\s*$/, '').trim();
+  if (!str) return null;
+  if (str.startsWith('/') || str.startsWith('~')) {
+    return str;
+  }
+  return null;
+}
+
+function setTabActivePath(tab, pane, path) {
+  if (!tab || !path) return;
+  if (pane === 'right') {
+    tab.currentDirRight = path;
+  } else {
+    tab.currentDirLeft = path;
+  }
+}
+
+function getTerminalActivePath(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return '/';
+  const isRight = (tab.isSplit && tab.focusedPane === 'right');
+  const targetHostId = isRight ? (tab.hostIDRight || tab.hostID) : tab.hostID;
+  const currentPath = isRight ? (tab.currentDirRight || tab.initialDir) : (tab.currentDirLeft || tab.initialDir);
+  if (currentPath && currentPath !== '/') {
+    return currentPath;
+  }
+  return tab.initialDir || getHostFilesPath(targetHostId) || '/';
+}
+
+function setupTerminalPathTracking(tab, pane, term) {
+  if (!tab || !term) return;
+
+  // 1. OSC 7 sequence handler (file://hostname/path)
+  if (term.parser && term.parser.registerOscHandler) {
+    term.parser.registerOscHandler(7, data => {
+      try {
+        let p = data;
+        if (p.startsWith('file://')) {
+          const match = p.match(/^file:\/\/[^\/]*(\/.*)$/);
+          if (match) p = decodeURIComponent(match[1]);
+        }
+        if (p && (p.startsWith('/') || p.startsWith('~'))) {
+          setTabActivePath(tab, pane, p);
+        }
+      } catch (e) {}
+      return true;
+    });
+  }
+
+  // 2. Shell Window Title changes (default bash/zsh prompt: \e]0;user@host: \w\a)
+  if (term.onTitleChange) {
+    term.onTitleChange(title => {
+      const p = extractPathFromTerminalTitle(title);
+      if (p) {
+        setTabActivePath(tab, pane, p);
+      }
+    });
+  }
+}
+
 function initTabLeftTerminal(tab, presetID) {
   if (tab.socketLeft) {
     try { tab.socketLeft.close(); } catch(e) {}
@@ -7736,6 +7934,7 @@ function initTabLeftTerminal(tab, presetID) {
   tab.socketLeft = ws;
   ws.binaryType = 'arraybuffer';
   setupTerminalClipboardBridge(term, ws, container);
+  setupTerminalPathTracking(tab, 'left', term);
 
   ws.onopen = () => {
     tab.connectedLeft = true;
@@ -7825,6 +8024,7 @@ function initTabRightTerminal(tab, hostID, presetID) {
   tab.socketRight = ws;
   ws.binaryType = 'arraybuffer';
   setupTerminalClipboardBridge(term, ws, container);
+  setupTerminalPathTracking(tab, 'right', term);
 
   ws.onopen = () => {
     tab.connectedRight = true;
@@ -7973,46 +8173,261 @@ function reconnectTabTerminal(tabId) {
 function sendTabCommand(tabId, cmd) {
   const tab = terminalTabs.find(t => t.id === tabId);
   if (!tab) return;
+  if (cmd && typeof cmd === 'string') {
+    const trimmed = cmd.trim();
+    const cdMatch = trimmed.match(/^cd\s+['"]?([^'";\s]+)['"]?/);
+    if (cdMatch && cdMatch[1] && (cdMatch[1].startsWith('/') || cdMatch[1].startsWith('~'))) {
+      setTabActivePath(tab, tab.focusedPane, cdMatch[1]);
+    }
+  }
   const ws = (tab.focusedPane === 'right' && tab.isSplit) ? tab.socketRight : tab.socketLeft;
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(cmd + '\r');
   }
 }
 
+// ponytail: loads presets into searchable terminal presets dropdown
 async function loadTabPresets(tab) {
-  const listContainer = document.getElementById('presetButtonsList_' + tab.id);
+  const listContainer = document.getElementById('presetDropdownList_' + tab.id);
   if (!listContainer) return;
   try {
     const res = await fetch('/api/presets?host_id=' + tab.hostID);
     if (!res.ok) {
-      listContainer.innerHTML = '<span style="font-size: 0.72rem; color: var(--text-muted);">No presets</span>';
+      tab.presets = [];
+      renderTabPresetsList(tab.id, []);
       return;
     }
     const data = await res.json();
     tab.presets = Array.isArray(data) ? data : [];
     currentPresetList = tab.presets;
-
-    if (tab.presets.length === 0) {
-      listContainer.innerHTML = '<span style="font-size: 0.72rem; color: var(--text-muted);">No presets</span>';
-      return;
-    }
-
-    listContainer.innerHTML = tab.presets.map(p => `
-      <button class="preset-btn" onclick="triggerTabPreset('${tab.id}', ${p.id})" title="${escapeHtml(p.command)} ${p.use_tmux ? '(tmux)' : ''}">
-        ▶ ${escapeHtml(p.name)}
-      </button>
-    `).join('');
+    renderTabPresetsList(tab.id, tab.presets);
   } catch (err) {
-    listContainer.innerHTML = '<span style="font-size: 0.72rem; color: var(--text-muted);">No presets</span>';
+    tab.presets = [];
+    renderTabPresetsList(tab.id, []);
+  }
+}
+
+function renderTabPresetsList(tabId, presets) {
+  const listEl = document.getElementById('presetDropdownList_' + tabId);
+  if (!listEl) return;
+  if (!presets || presets.length === 0) {
+    const input = document.getElementById('presetSearchInput_' + tabId);
+    const hasQuery = input && input.value.trim().length > 0;
+    listEl.innerHTML = `<div style="padding: 12px 14px; font-size: 0.75rem; color: var(--text-muted); text-align: center;">${hasQuery ? t('no_matching_presets', 'No matching presets') : t('no_presets', 'No presets configured')}</div>`;
+    return;
+  }
+
+  listEl.innerHTML = presets.map(p => `
+    <div class="terminal-dropdown-item" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); gap: 8px;" onclick="triggerTabPreset('${tabId}', ${p.id})" title="${escapeHtml(p.command)} ${p.use_tmux ? '(tmux)' : ''}">
+      <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+        <span style="color: #38bdf8; font-size: 0.75rem; flex-shrink: 0;">▶</span>
+        <div style="min-width: 0; display: flex; flex-direction: column;">
+          <span style="font-size: 0.78rem; font-weight: 500; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(p.name)}</span>
+          <span style="font-family: monospace; font-size: 0.68rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(p.command)}</span>
+        </div>
+      </div>
+      ${p.use_tmux ? `<span style="font-size: 0.65rem; background: rgba(56,189,248,0.15); color: #38bdf8; border: 1px solid rgba(56,189,248,0.3); border-radius: 3px; padding: 1px 4px; flex-shrink: 0;">tmux</span>` : ''}
+    </div>
+  `).join('');
+}
+
+function filterTabPresets(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const input = document.getElementById('presetSearchInput_' + tabId);
+  const q = (input ? input.value : '').trim().toLowerCase();
+  const presets = tab.presets || [];
+  if (!q) {
+    renderTabPresetsList(tabId, presets);
+    return;
+  }
+  const filtered = presets.filter(p => {
+    return (p.name && p.name.toLowerCase().includes(q)) ||
+           (p.command && p.command.toLowerCase().includes(q));
+  });
+  renderTabPresetsList(tabId, filtered);
+}
+
+function toggleTerminalPresetsDropdown(tabId, e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('presetsDropdownMenu_' + tabId);
+  if (!menu) return;
+  if (menu.style.display === 'block') {
+    menu.style.display = 'none';
+    return;
+  }
+  document.querySelectorAll('.terminal-dropdown-menu').forEach(m => {
+    if (m !== menu) {
+      m.style.display = 'none';
+    }
+  });
+  menu.style.display = 'block';
+  const input = document.getElementById('presetSearchInput_' + tabId);
+  if (input) {
+    input.value = '';
+    filterTabPresets(tabId);
+    setTimeout(() => input.focus(), 40);
   }
 }
 
 function triggerTabPreset(tabId, presetId) {
+  const menu = document.getElementById('presetsDropdownMenu_' + tabId);
+  if (menu) menu.style.display = 'none';
   const tab = terminalTabs.find(t => t.id === tabId);
   if (!tab) return;
-  const p = (tab.presets || []).find(x => x.id === presetId) || currentPresetList.find(x => x.id === presetId);
+  const p = (tab.presets || []).find(x => x.id === presetId) || (currentPresetList || []).find(x => x.id === presetId);
   if (!p) return;
   sendTabCommand(tabId, p.command);
+}
+
+// ponytail: switches context seamlessly from active terminal tab/pane to host file manager, minimizing terminal dock
+async function openFileManagerForTab(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const targetHostId = (tab.isSplit && tab.focusedPane === 'right') ? (tab.hostIDRight || tab.hostID) : tab.hostID;
+  if (!targetHostId) return;
+
+  let targetPath = getTerminalActivePath(tabId);
+
+  minimizeTerminalDock();
+  await openHostDetail(targetHostId);
+  setHostFilesPath(targetHostId, targetPath);
+  if (currentHost) currentHost._lastPath = targetPath;
+  switchTab('files');
+}
+
+// ponytail: toggle terminal pinned paths dropdown for active tab host
+async function toggleTerminalPinsDropdown(tabId, e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('pinsDropdownMenu_' + tabId);
+  if (!menu) return;
+  if (menu.style.display === 'block') {
+    menu.style.display = 'none';
+    return;
+  }
+  document.querySelectorAll('.terminal-dropdown-menu').forEach(m => {
+    if (m !== menu) {
+      m.style.display = 'none';
+    }
+  });
+  menu.style.display = 'block';
+  const input = document.getElementById('pinSearchInput_' + tabId);
+  if (input) {
+    input.value = '';
+    setTimeout(() => input.focus(), 40);
+  }
+  await loadTerminalPins(tabId);
+}
+
+async function loadTerminalPins(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const listEl = document.getElementById('pinsDropdownList_' + tabId);
+  if (!listEl) return;
+  const targetHostId = (tab.isSplit && tab.focusedPane === 'right') ? (tab.hostIDRight || tab.hostID) : tab.hostID;
+  listEl.innerHTML = `<div style="padding: 10px 12px; font-size: 0.75rem; color: var(--text-muted);">${t('loading', 'Loading...')}</div>`;
+  try {
+    const res = await fetch('/api/hosts/' + targetHostId + '/files/pins');
+    if (!res.ok) throw new Error('Failed to load pins');
+    const pins = await res.json() || [];
+    tab.pins = pins;
+    const input = document.getElementById('pinSearchInput_' + tabId);
+    if (input && input.value.trim().length > 0) {
+      filterTerminalPins(tabId);
+    } else {
+      renderTerminalPinsList(tabId, targetHostId, pins);
+    }
+  } catch(err) {
+    tab.pins = [];
+    listEl.innerHTML = `<div style="padding: 10px 12px; font-size: 0.75rem; color: var(--danger);">${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function filterTerminalPins(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const input = document.getElementById('pinSearchInput_' + tabId);
+  const q = (input ? input.value : '').trim().toLowerCase();
+  const pins = tab.pins || [];
+  const targetHostId = (tab.isSplit && tab.focusedPane === 'right') ? (tab.hostIDRight || tab.hostID) : tab.hostID;
+  if (!q) {
+    renderTerminalPinsList(tabId, targetHostId, pins);
+    return;
+  }
+  const filtered = pins.filter(p => {
+    return (p.path && p.path.toLowerCase().includes(q)) ||
+           (p.note && p.note.toLowerCase().includes(q));
+  });
+  renderTerminalPinsList(tabId, targetHostId, filtered);
+}
+
+function renderTerminalPinsList(tabId, hostId, pins) {
+  const listEl = document.getElementById('pinsDropdownList_' + tabId);
+  if (!listEl) return;
+  if (!pins || pins.length === 0) {
+    const input = document.getElementById('pinSearchInput_' + tabId);
+    const hasQuery = input && input.value.trim().length > 0;
+    listEl.innerHTML = `<div style="padding: 12px 14px; font-size: 0.75rem; color: var(--text-muted); text-align: center;">${hasQuery ? t('no_matching_pins', 'No matching pinned paths') : t('no_pinned_paths', 'No pinned paths on this host')}</div>`;
+    return;
+  }
+  listEl.innerHTML = pins.map(pin => {
+    const icon = pin.is_dir ? '📁' : '📄';
+    const actionHint = pin.is_dir ? 'Click to cd' : 'Click to insert path';
+    return `
+      <div class="terminal-dropdown-item" style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); gap: 8px;" onclick="triggerPinAction('${tabId}', '${escapeHtml(pin.path)}', ${pin.is_dir})" title="${escapeHtml(actionHint)}">
+        <div style="display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;">
+          <span style="font-size: 0.85rem;">${icon}</span>
+          <div style="min-width: 0; display: flex; flex-direction: column;">
+            <span style="font-family: monospace; font-size: 0.75rem; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(pin.path)}</span>
+            ${pin.note ? `<span style="font-size: 0.68rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">📝 ${escapeHtml(pin.note)}</span>` : ''}
+          </div>
+        </div>
+        <button class="btn btn-sm" onclick="event.stopPropagation(); deleteTerminalPin('${tabId}', ${hostId}, '${escapeHtml(pin.path)}')" title="Unpin" style="padding: 0 4px; font-size: 0.65rem; color: var(--text-muted); line-height: 1.2;">✕</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function triggerPinAction(tabId, path, isDir) {
+  const menu = document.getElementById('pinsDropdownMenu_' + tabId);
+  if (menu) menu.style.display = 'none';
+  if (isDir) {
+    const tab = terminalTabs.find(t => t.id === tabId);
+    if (tab) {
+      setTabActivePath(tab, tab.focusedPane, path);
+    }
+    sendTabCommand(tabId, "cd '" + path.replace(/'/g, "'\\''") + "'");
+  } else {
+    // Inject path into active terminal session with quotes and trailing space without newline
+    const escaped = "'" + path.replace(/'/g, "'\\''") + "' ";
+    const tab = terminalTabs.find(t => t.id === tabId);
+    if (!tab) return;
+    const ws = (tab.focusedPane === 'right' && tab.isSplit) ? tab.socketRight : tab.socketLeft;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(escaped);
+    }
+  }
+}
+
+async function deleteTerminalPin(tabId, hostId, path) {
+  try {
+    const res = await fetch('/api/hosts/' + hostId + '/files/pins?path=' + encodeURIComponent(path), {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      loadTerminalPins(tabId);
+    }
+  } catch(e) {}
+}
+
+function openTerminalPinModal(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const targetHostId = (tab.isSplit && tab.focusedPane === 'right') ? (tab.hostIDRight || tab.hostID) : tab.hostID;
+  const menu = document.getElementById('pinsDropdownMenu_' + tabId);
+  if (menu) menu.style.display = 'none';
+  const defaultPath = getTerminalActivePath(tabId);
+  openPinModal(defaultPath, true, targetHostId, tabId, true);
 }
 
 function openTerminalForHost(hostID, presetID, forceNew = false, customTitle = null, initialDir = null) {
@@ -9530,6 +9945,15 @@ window.addEventListener('click', (e) => {
       menu.style.display = 'none';
     }
   }
+
+  document.querySelectorAll('.terminal-dropdown-menu').forEach(m => {
+    if (m.style.display === 'block') {
+      const wrap = m.closest('.terminal-pins-wrapper, .terminal-presets-wrapper');
+      if (!wrap || !wrap.contains(e.target)) {
+        m.style.display = 'none';
+      }
+    }
+  });
 
   if (e.target && e.target.classList && e.target.classList.contains('modal') && e.target.classList.contains('open')) {
     if (e.target.id === 'confirmModal') {

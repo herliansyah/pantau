@@ -1484,11 +1484,22 @@ func TestWorkspaceModalMaximizeAndTerminalFromPath(t *testing.T) {
 		}
 	}
 
-	// 3. Check Terminal From Path actions & launchers
+	// 3. Check Terminal From Path & Pins actions
 	terminalPathElements := []string{
 		"openTerminalForPath",
 		"targetTermPath",
 		"initialDir",
+		"openFileManagerForTab",
+		"toggleTerminalPinsDropdown",
+		"openTerminalPinModal",
+		"triggerPinAction",
+		"toggleTerminalPresetsDropdown",
+		"filterTabPresets",
+		"renderTabPresetsList",
+		"presetSearchInput_",
+		"presetDropdownList_",
+		"filterTerminalPins",
+		"pinSearchInput_",
 	}
 	for _, el := range terminalPathElements {
 		if !strings.Contains(html, el) {
@@ -1501,6 +1512,13 @@ func TestWorkspaceModalMaximizeAndTerminalFromPath(t *testing.T) {
 		`"maximize_workspace":`,
 		`"restore_workspace":`,
 		`"open_terminal_here":`,
+		`"open_in_file_manager":`,
+		`"pinned_paths":`,
+		`"pin_new_path":`,
+		`"search_presets":`,
+		`"no_matching_presets":`,
+		`"search_pins":`,
+		`"no_matching_pins":`,
 	}
 	for _, k := range newI18nKeys {
 		cnt := strings.Count(html, k)
@@ -1509,7 +1527,18 @@ func TestWorkspaceModalMaximizeAndTerminalFromPath(t *testing.T) {
 		}
 	}
 
-	// 5. Test handleWSTerminal invalid host_id and invalid host error
+	// 5. Check active terminal path tracking
+	activePathElements := []string{
+		"getTerminalActivePath",
+		"extractPathFromTerminalTitle",
+	}
+	for _, el := range activePathElements {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected embedded index.html to contain active path tracking element %q", el)
+		}
+	}
+
+	// 6. Test handleWSTerminal invalid host_id and invalid host error
 	tmpDB := filepath.Join(t.TempDir(), "test.db")
 	db, err := store.Open(tmpDB)
 	if err != nil {
