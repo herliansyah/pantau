@@ -26,9 +26,11 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
    - [In-App Activity Console & Live Telemetry Stream](#in-app-activity-console--live-telemetry-stream)
    - [Diagnostik Jaringan Agentless & Analisis Hop](#diagnostik-jaringan-agentless--analisis-hop)
    - [Evaluasi Kelayakan Server dengan Lifecycle Assessment](#evaluasi-kelayakan-server-dengan-lifecycle-assessment)
+   - [Evaluasi Komparatif Multi-Host & Matriks Penilaian](#evaluasi-komparatif-multi-host--matriks-penilaian)
 5. [Fase 4: Operasi Berkas & Aliran Data Lintas-Host](#5-fase-4-operasi-berkas--aliran-data-lintas-host)
    - [Cross-Host Transfer (Pipa Memori Tanpa Disk Lokal)](#cross-host-transfer-pipa-memori-tanpa-disk-lokal)
    - [Folder Streaming Download Langsung ke Browser](#folder-streaming-download-langsung-ke-browser)
+   - [Pin Berkas dengan Catatan Operasional & Global Bookmarks](#pin-berkas-dengan-catatan-operasional--global-bookmarks)
 6. [Fase 5: Pengerasan Keamanan, Snapshot & Pemulihan Bencana](#6-fase-5-pengerasan-keamanan-snapshot--pemulihan-bencana)
    - [Two-Factor Authentication (2FA) & 2FA Bypass Flag](#two-factor-authentication-2fa--2fa-bypass-flag)
    - [System Snapshot Terenkripsi & Disaster Recovery GitHub](#system-snapshot-terenkripsi--disaster-recovery-github)
@@ -242,6 +244,20 @@ Pantau menghitung nilai kelayakan sistem secara transparan melalui **Lifecycle S
 
 Ketika skor memasuki batas kritis, Pantau menghasilkan rekomendasi formal **Hardware Refresh** sebagai dasar pengajuan peremajaan infrastruktur.
 
+### Evaluasi Komparatif Multi-Host & Matriks Penilaian
+
+Saat mengevaluasi disparitas performa infrastruktur, memilih server tujuan migrasi beban kerja, atau mengaudit konsistensi klaster:
+
+- **Matriks Komparasi Interaktif**: Buka melalui tombol **`⚖️ Bandingkan`** di header global atau melalui tab Host Workspace Modal. Pilih 2 hingga 4 host secara bersamaan untuk meninjau telemetri perbandingan berkepadatan tinggi dalam tampilan modal luas (75vw × 80vh).
+- **Penilaian 4 Dimensi Terstandarisasi**:
+  - **Kapasitas & Beban Komputasi**: Core fisik/virtual, clock speed, arsitektur, dan saturasi beban sistem ternormalisasi per core.
+  - **Penyimpanan & I/O Disk**: Utilisasi partisi, integritas berkas sistem, dan kecepatan throughput I/O aktif.
+  - **Keandalan Jaringan**: Jitter latensi, reliabilitas transmisi paket, dan status keterjangkauan.
+  - **Higienitas Sistem & Siklus Hidup**: Status deviasi aturan konfigurasi, akumulasi paket dorman, masa aktif sistem (*uptime*), dan skor siklus hidup (*lifecycle score*).
+- **Filter Derau Deadband 5%**: Selisih performa tipis dalam rentang toleransi ±5% diperlakukan setara/imbang (*tie*) untuk meredam fluktuasi metrik dan mencegah pemeringkatan semu. Host yang stale atau offline dikenakan penalti skor proporsional.
+- **Sintesis Keputusan Eksekutif**: Merangkum kesimpulan operasional secara otomatis dalam bahasa manusia, menyoroti juara tiap kategori (*category champions*), rekomendasi penempatan beban kerja, dan peringatan risiko server tersaturasi.
+- **Ekspor Markdown Sekali Klik**: Salin papan skor matriks perbandingan dan ringkasan eksekutif ke clipboard dalam format Markdown rapi (tetap berfungsi pada koneksi LAN HTTP polos via mekanisme fallback browser).
+
 ---
 
 ## 5. Fase 4: Operasi Berkas & Aliran Data Lintas-Host
@@ -296,6 +312,18 @@ Saat menyunting skrip, konfigurasi, atau berkas `.env` pada editor CodeMirror te
 - **Workspace Modal Maximize**: Klik tombol maximize `⛶` atau klik dua kali (*double-click*) pada header modal untuk memperbesar area editor hingga memenuhi seluruh area layar peramban (100vw &times; 100vh) untuk kenyamanan penelaahan kode yang luas.
 - **Palet Tema VS Code Dark+**: Dilengkapi tema gelap modern tersemat (latar belakang `#1e1e1e`, pewarnaan sintaks kontras tinggi untuk *keywords*, *functions*, *variables*, dan *strings*) dengan tipografi monospace modern (`JetBrains Mono`, `Fira Code`, `Consolas`).
 - **Deteksi Sintaks Dinamis**: Menyesuaikan mode *syntax highlighting* secara otomatis untuk berkas PHP, JavaScript, Shell, YAML, CSS, HTML, XML, dan C-like berdasarkan ekstensi berkas.
+
+### Pin Berkas dengan Catatan Operasional & Global Bookmarks
+
+Untuk mempermudah akses ke berkas konfigurasi penting, rahasia aplikasi, dan folder log layanan yang aktif ditinjau:
+
+- **Penyematan Berkas & Direktori**: Klik ikon pin (`📌`) pada baris mana pun di File Manager SFTP. Tambahkan catatan operasional opsional (contoh: `Konfigurasi utama nginx produksi` atau `Direktori arsip WAL Postgres`). Baris yang tersemat akan ditandai dengan aksen border dan lencana catatan visual.
+- **Bilah Quick Access**: Path berkas/folder yang disematkan untuk host aktif akan muncul sebagai tombol akses cepat (*chips*) pada bilah Quick Access tepat di atas tabel berkas. Mengklik chip akan langsung membuka folder atau memilih berkas terkait.
+- **Modal Global Bookmarks**: Akses seluruh berkas tersemat dari semua host secara terpusat dengan mengklik **`🔖 Bookmarks`** pada header navigasi global:
+  - **Pencarian Real-Time**: Saring bookmark lintas host, path, dan catatan secara instan.
+  - **Editor Terintegrasi**: Buka berkas teks atau konfigurasi tersemat langsung di editor CodeMirror.
+  - **Loncat ke Terminal Dock**: Buka tab terminal baru yang secara otomatis telah berada di direktori induk berkas tersemat (`openTerminalForHost` dengan path tujuan).
+  - **Sunting Catatan & Lepas Pin**: Perbarui catatan operasional atau lepas sematan berkas langsung dari jendela modal.
 
 ---
 

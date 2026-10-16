@@ -396,3 +396,11 @@ _Avoid_: Metric group, scoring bucket, comparison tab
 **Comparison Winner**:
 Host yang memperoleh skor atau nilai keunggulan tertinggi pada suatu Comparison Category atau secara akumulatif dalam satu sesi Host Comparison.
 _Avoid_: Best server, benchmark winner, top machine
+
+**File Pin**:
+Sematkan berkas atau direktori penting per host lengkap dengan catatan operasional (*notes*) untuk akses instan di pengelola berkas.
+_Avoid_: Bookmarked file, favorite path, saved item
+
+**Global Bookmarks**:
+Modal penjelajah global di header utama untuk menelusuri, memfilter, mengedit, atau membuka sesi terminal ke seluruh File Pin di semua host terkelola.
+_Avoid_: Saved files list, pinned manager, favorites modal

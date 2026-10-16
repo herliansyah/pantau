@@ -26,9 +26,11 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
    - [In-App Activity Console & Live Telemetry Stream](#in-app-activity-console--live-telemetry-stream)
    - [Agentless Network Diagnostics & Hop Analysis](#agentless-network-diagnostics--hop-analysis)
    - [Evaluating Server Longevity with Lifecycle Assessment](#evaluating-server-longevity-with-lifecycle-assessment)
+   - [Multi-Host Side-by-Side Comparison & Scoring Matrix](#multi-host-side-by-side-comparison--scoring-matrix)
 5. [Phase 4: File Operations & Cross-Host Data Transfer](#5-phase-4-file-operations--cross-host-data-transfer)
    - [Cross-Host Transfer (Zero-Disk Memory Pipes)](#cross-host-transfer-zero-disk-memory-pipes)
    - [On-The-Fly Folder Streaming Download](#on-the-fly-folder-streaming-download)
+   - [File Pinning with Notes & Global Bookmarks](#file-pinning-with-notes--global-bookmarks)
 6. [Phase 5: Hardening, Snapshots & Disaster Recovery](#6-phase-5-hardening-snapshots--disaster-recovery)
    - [Two-Factor Authentication (2FA) & Emergency Bypass](#two-factor-authentication-2fa--emergency-bypass)
    - [Encrypted System Snapshots & GitHub Disaster Recovery](#encrypted-system-snapshots--github-disaster-recovery)
@@ -242,6 +244,20 @@ Pantau continuously calculates an auditable **Lifecycle Score** (0–100) based 
 
 When a host drops into degraded lifecycle thresholds, Pantau generates concrete **Hardware Refresh** justifications for capacity planning and hardware replacement.
 
+### Multi-Host Side-by-Side Comparison & Scoring Matrix
+
+When evaluating infrastructure performance discrepancies, selecting optimal hosts for workload migrations, or auditing cluster consistency:
+
+- **Interactive Comparison Matrix**: Open via the **`⚖️ Compare`** button in the global header or within any Host Workspace Modal. Select 2 to 4 hosts simultaneously to inspect high-density comparative telemetry inside a generous modal view (75vw × 80vh).
+- **Standardized 4-Dimension Scoring**:
+  - **Compute Capacity & Load**: Physical/virtual cores, clock speeds, architecture, and core-normalized load saturation.
+  - **Storage & Disk I/O**: Partition utilization, filesystem health, and active I/O speed.
+  - **Network Health**: Latency jitter, packet reliability, and reachability.
+  - **System Hygiene & Lifecycle**: Configuration drift status, dormant package accumulation, uptime longevity, and lifecycle score.
+- **5% Deadband Noise Filter**: Minor differences within a ±5% margin are treated as ties to eliminate metric jitter and prevent false winner rankings. Stale or unreachable hosts receive soft score penalties.
+- **Executive Decision Narrative**: Automatically synthesizes human-readable operational takeaways, highlighting category champions, recommended migration destinations, and warning about saturated hosts.
+- **Markdown Export**: Copy formatted Markdown scoreboard with full standings and executive takeaways to clipboard with one click (supported even in plain HTTP LAN environments via standard fallback).
+
 ---
 
 ## 5. Phase 4: File Operations & Cross-Host Data Transfer
@@ -296,6 +312,18 @@ When editing scripts, configurations, or environment files in the integrated Cod
 - **Workspace Modal Maximize**: Click the `⛶` maximize button or double-click the modal header to expand the editor into a full-viewport canvas (100vw &times; 100vh) for distraction-free code review.
 - **VS Code Dark+ Palette**: Features an embedded modern dark theme (`#1e1e1e` background, high-contrast syntax highlighting for keywords, functions, variables, and strings) with monospace font styling (`JetBrains Mono`, `Fira Code`, `Consolas`).
 - **Dynamic Syntax Detection**: Automatically sets syntax highlighting mode for PHP, JavaScript, Shell, YAML, CSS, HTML, XML, and C-like languages based on file extension.
+
+### File Pinning with Notes & Global Bookmarks
+
+To streamline access to frequent configuration files, application secrets, and active service log directories:
+
+- **Pinning Files & Directories**: Click the pin icon (`📌`) on any row in the SFTP File Manager. Attach an optional operational note (e.g. `Main production nginx config` or `Postgres WAL archive directory`). Pinned rows display an accent border and note badges.
+- **Quick Access Toolbar**: Pinned paths for the current host appear as quick-jump chips in the Quick Access bar directly above the file listing. Clicking a chip navigates directly to the directory or selects the file.
+- **Global Bookmarks Modal**: Access all pinned files across all hosts simultaneously by clicking **`🔖 Bookmarks`** in the global navigation header:
+  - **Instant Search**: Filter bookmarks across hosts, paths, and notes with real-time text matching.
+  - **Integrated Code Editor**: Open any pinned text or configuration file directly in the CodeMirror editor.
+  - **Direct Terminal Dock Jump**: Launch an interactive terminal tab already positioned in the parent directory of the pinned file (`openTerminalForHost` with target path).
+  - **Inline Note Updates & Unpinning**: Update operational notes or remove pins directly from the modal.
 
 ---
 

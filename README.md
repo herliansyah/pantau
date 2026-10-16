@@ -195,6 +195,16 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - **Automated Hop Analysis**: Categorizes network hops into Local/Private VPC, ISP Transit, and Destination zones, with automated blackhole packet drop detection and latency jump alerts (>60ms).
 - **Concurrency & Human-Error Protection**: Singleflight guard prevents concurrent diagnostic tasks per source host, while target selection automatically disables unreachable/offline hosts.
 
+### 21. ⚖️ Multi-Host Side-by-Side Comparison & Scoring Matrix
+- **Head-to-Head Comparative Matrix**: Side-by-side interactive evaluation comparing 2 to 4 hosts inside a dedicated Workspace Modal using client-side inspection telemetry.
+- **Standardized Multi-Category Scoring**: Evaluates hosts across Compute, Storage & I/O, Network Health, and System Hygiene & Lifecycle with a 5% deadband noise filter and stale-host penalty.
+- **Automated Decision Synthesis & Export**: Generates executive workload placement recommendations and one-click formatted Markdown summaries for stakeholder reports.
+
+### 22. 📌 File Pinning with Notes & Global Bookmarks
+- **Operational File & Directory Pinning**: Pin critical configuration files and log paths per host with contextual operator notes and visual badges.
+- **Quick Access & Global Bookmarks**: Instant access via the file manager Quick Access toolbar or globally across all hosts through the header `🔖 Bookmarks` launcher.
+- **Cross-Host Navigation & Terminal Jump**: Search pinned files globally, open them in the integrated code editor, or launch a Terminal Dock session straight into the parent directory.
+
 ---
 
 ## 🚀 Quick Start

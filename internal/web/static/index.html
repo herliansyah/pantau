@@ -6763,7 +6763,7 @@ async function submitUnpin() {
   if (!currentHost || !currentPinEditingPath) return;
   const fileName = currentPinEditingPath.split('/').filter(Boolean).pop() || currentPinEditingPath;
   const promptMsg = t('confirm_unpin_item', 'Are you sure you want to unpin "{name}"?').replace('{name}', fileName);
-  if (!confirm(promptMsg)) {
+  if (!await showConfirm({ message: promptMsg, confirmText: t('btn_unpin', 'Unpin'), danger: true })) {
     return;
   }
   try {
@@ -6920,7 +6920,7 @@ function openTerminalFromGlobalPin(hostId, targetPath, isDir) {
 async function deleteGlobalPin(hostId, path) {
   const fileName = path.split('/').filter(Boolean).pop() || path;
   const promptMsg = t('confirm_unpin_item', 'Are you sure you want to unpin "{name}"?').replace('{name}', fileName);
-  if (!confirm(promptMsg)) {
+  if (!await showConfirm({ message: promptMsg, confirmText: t('btn_unpin', 'Unpin'), danger: true })) {
     return;
   }
   try {

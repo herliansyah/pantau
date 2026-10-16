@@ -195,6 +195,16 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **Analisis Hop Otomatis**: Klasifikasi hop jaringan ke zona Lokal/VPC Privat, Transit ISP, dan Destinasi, dilengkapi deteksi titik paket terhenti (*blackhole drop*) dan peringatan lonjakan latensi (>60ms).
 - **Proteksi Konkurensi & Pencegahan Kesalahan**: Guard singleflight mencegah penumpukan proses per host, serta seleksi target secara otomatis menonaktifkan host yang sedang offline.
 
+### 21. ⚖️ Evaluasi Komparatif Multi-Host & Matriks Penilaian
+- **Matriks Komparasi Head-to-Head**: Evaluasi interaktif berdampingan membandingkan 2 hingga 4 host secara bersamaan di Workspace Modal menggunakan telemetri inspeksi sisi klien.
+- **Penilaian Multi-Kategori Terstandarisasi**: Menilai performa host lintas 4 dimensi (Komputasi, Penyimpanan & I/O, Keandalan Jaringan, serta Higienitas Sistem & Siklus Hidup) dengan filter derau toleransi 5% (*deadband*) dan penalti host stale.
+- **Sintesis Keputusan Eksekutif & Ekspor Markdown**: Menghasilkan rekomendasi penempatan beban kerja (*workload placement*) otomatis dan salin ringkasan Markdown terformat sekali klik untuk dokumentasi operasional.
+
+### 22. 📌 Pin Berkas dengan Catatan Operasional & Global Bookmarks
+- **Penyematan Berkas & Direktori Penting**: Sematkan berkas konfigurasi kritis atau folder log per host lengkap dengan catatan operasional (*notes*) dan lencana visual.
+- **Akses Cepat & Global Bookmarks**: Navigasi instan melalui bilah Quick Access di pengelola berkas atau secara menyeluruh lintas-host melalui tombol `🔖 Bookmarks` di header navigasi atas.
+- **Pencarian Lintas-Host & Loncat ke Terminal**: Cari berkas tersemat secara global, buka langsung di editor kode terintegrasi, atau luncurkan sesi Terminal Dock langsung ke direktori kerja berkas tersebut.
+
 ---
 
 ## 🚀 Panduan Memulai Cepat (Quick Start)

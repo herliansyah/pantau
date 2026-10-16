@@ -5,13 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.23.0] - 2026-10-16
 ### Added
 - Multi-Host Side-by-Side Comparison: interactive evaluation matrix comparing 2 to 4 hosts simultaneously inside a Workspace Modal (75vw × 80vh) without additional backend endpoints.
 - Best-in-Class Head-to-Head Scoring: transparent scoring across 4 standardized dimensions (Compute, Storage & I/O, Network Health, System Hygiene & Lifecycle) with a 5% deadband noise filter and soft penalty for unreachable/stale hosts.
 - Executive Decision Narrative Generator: automated decision recommendation synthesis highlighting winner strengths, workload placement recommendations, and risk warnings for saturated hosts.
 - Markdown Report Export: one-click copy to clipboard formatting full comparative scoreboard, standings, and takeaway summary for documentation and stakeholder meetings.
 - Global Header Launcher: dedicated ⚖️ Host Comparison button in header navigation cluster.
+- File Pinning & Operational Notes: pin mission-critical configuration files and log directories per host with custom operational notes and note badges in file manager.
+- Quick Access Bar: visual pinned toolbar positioned above file manager directory listing for instant 1-click navigation to pinned files and folders.
+- Global Bookmarks Modal: dedicated `🔖 Bookmarks` modal accessible globally from header navigation cluster with real-time search, file viewer/editor launcher, inline note editing, and one-click Terminal Dock launch into parent directories.
+- File Pins Persistence & REST API: backed by SQLite `host_file_pins` table and dedicated endpoints (`GET/POST/DELETE /api/hosts/{id}/pins`, `GET /api/pins`) with automatic cascade cleanup on host removal.
 
 ## [0.22.0] - 2026-10-15
 ### Added
