@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PROTOTYPE - Pantau Host Comparison UI Variants</title>
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --success: #22c55e;
+      --success-bg: rgba(34, 197, 94, 0.15);
+      --warning: #eab308;
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.15);
+      --gold: #fbbf24;
+      --gold-bg: rgba(251, 191, 36, 0.15);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body {
+      background-color: #0b0f19;
+      color: var(--text-main);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .proto-banner {
+      background: #312e81;
+      color: #c7d2fe;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    /* Workspace Modal Simulation Container (75vw x 80vh) */
+    .workspace-modal-sim {
+      width: 75vw;
+      min-width: 900px;
+      max-width: 1400px;
+      height: 80vh;
+      min-height: 560px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      overflow: hidden;
+      position: relative;
+    }
+    .modal-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.6);
+    }
+    .modal-header h3 { font-size: 1.15rem; display: flex; align-items: center; gap: 10px; }
+    .host-selector-bar {
+      padding: 12px 24px;
+      background: rgba(15, 23, 42, 0.3);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .host-pill {
+      background: #334155;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .host-pill .remove-btn { cursor: pointer; color: #94a3b8; font-weight: bold; }
+    .host-pill .remove-btn:hover { color: #ef4444; }
+    .modal-body {
+      padding: 20px 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    /* Common UI badges */
+    .badge-winner {
+      background: var(--gold-bg);
+      color: var(--gold);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .cell-winner {
+      background: var(--success-bg) !important;
+      color: #86efac !important;
+      font-weight: 600;
+    }
+    .cell-stale {
+      color: var(--danger) !important;
+      opacity: 0.7;
+    }
+
+    /* VARIANT A: Unified Matrix Table */
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .matrix-table th, .matrix-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(51, 65, 85, 0.6);
+      text-align: left;
+    }
+    .matrix-table th.metric-col { width: 220px; color: var(--text-muted); font-weight: 500; }
+    .matrix-category-header {
+      background: rgba(15, 23, 42, 0.7);
+      color: var(--accent);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+    .host-summary-card {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    .host-summary-card.overall-winner {
+      border-color: var(--gold);
+      box-shadow: 0 0 15px rgba(251, 191, 36, 0.2);
+    }
+
+    /* VARIANT B: Card Deck Columns */
+    .deck-grid {
+      display: grid;
+      gap: 16px;
+      height: 100%;
+    }
+    .host-column-card {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .host-column-card.deck-winner {
+      border-color: var(--gold);
+    }
+    .cat-box {
+      background: rgba(30, 41, 59, 0.5);
+      border: 1px solid rgba(51, 65, 85, 0.4);
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 0.8rem;
+    }
+    .cat-box-title {
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* VARIANT C: Executive Podium + Category Tabs */
+    .podium-banner {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      justify-content: center;
+      align-items: flex-end;
+    }
+    .podium-slot {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+      width: 220px;
+    }
+    .podium-slot.rank-1 {
+      border-color: var(--gold);
+      transform: translateY(-8px);
+    }
+    .v-tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 16px;
+    }
+    .v-tab {
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+    }
+    .v-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Floating Switcher Bar */
+    .prototype-switcher-bar {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e1b4b;
+      border: 2px solid #6366f1;
+      padding: 8px 18px;
+      border-radius: 30px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6);
+      z-index: 9999;
+    }
+    .switcher-btn {
+      background: #4338ca;
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: background 0.15s;
+    }
+    .switcher-btn:hover { background: #4f46e5; }
+    .switcher-label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #e0e7ff;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="proto-banner">
+    🧪 <span>PROTOTYPE ONLY — Evaluasi 3 Variasi UI Host Comparison Modal</span>
+  </div>
+
+  <!-- Workspace Modal Simulation -->
+  <div class="workspace-modal-sim">
+    <!-- Header -->
+    <div class="modal-header">
+      <h3>⚖️ Host Comparison <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal;">(Evaluasi Multi-Host Side-by-Side)</span></h3>
+      <div style="display: flex; gap: 8px;">
+        <button class="switcher-btn" onclick="copyMarkdownSummary()">📋 Salin Ringkasan (MD)</button>
+        <span style="color: var(--text-muted); padding: 4px 8px; cursor: pointer;">✕</span>
+      </div>
+    </div>
+
+    <!-- Host Selector Bar -->
+    <div class="host-selector-bar">
+      <span style="font-size: 0.85rem; color: var(--text-muted);">Membandingkan 3 Host:</span>
+      <div class="host-pill">🖥️ prod-db-primary <span class="remove-btn">×</span></div>
+      <div class="host-pill">🖥️ prod-app-01 <span class="remove-btn">×</span></div>
+      <div class="host-pill">🖥️ staging-worker <span class="remove-btn">×</span></div>
+      <select style="background: #1e293b; color: #94a3b8; border: 1px solid var(--card-border); padding: 4px 8px; border-radius: 6px; font-size: 0.8rem;">
+        <option>+ Tambah Host (Maks 4)</option>
+      </select>
+    </div>
+
+    <!-- Modal Body with Dynamic Variant Content -->
+    <div class="modal-body" id="variantContainer">
+      <!-- Injected by JS -->
+    </div>
+  </div>
+
+  <!-- Floating Switcher -->
+  <div class="prototype-switcher-bar">
+    <button class="switcher-btn" onclick="cycleVariant(-1)">◀ Prev</button>
+    <div class="switcher-label" id="currentVariantLabel">Variant A — Unified Comparative Matrix</div>
+    <button class="switcher-btn" onclick="cycleVariant(1)">Next ▶</button>
+  </div>
+
+  <script>
+    // Sample Host Data mimicking Pantau's state.hosts
+    const sampleHosts = [
+      {
+        id: 1,
+        name: "prod-db-primary",
+        host: "10.0.1.5",
+        status: "healthy",
+        cpu_cores: 8,
+        cpu_load: "1.20 1.10 0.95",
+        ram_total_bytes: 32 * 1024 * 1024 * 1024,
+        ram_used_bytes: 18 * 1024 * 1024 * 1024,
+        disk_total_bytes: 500 * 1024 * 1024 * 1024,
+        disk_used_bytes: 280 * 1024 * 1024 * 1024,
+        disk_read_speed_bps: 14500000,
+        disk_write_speed_bps: 8900000,
+        internet_online: true,
+        internet_latency_ms: 12,
+        failed_logins_count: 0,
+        lifecycle_score: 88,
+        uptime: "48 days"
+      },
+      {
+        id: 2,
+        name: "prod-app-01",
+        host: "10.0.1.12",
+        status: "healthy",
+        cpu_cores: 4,
+        cpu_load: "0.45 0.50 0.40",
+        ram_total_bytes: 16 * 1024 * 1024 * 1024,
+        ram_used_bytes: 6 * 1024 * 1024 * 1024,
+        disk_total_bytes: 200 * 1024 * 1024 * 1024,
+        disk_used_bytes: 50 * 1024 * 1024 * 1024,
+        disk_read_speed_bps: 2100000,
+        disk_write_speed_bps: 1200000,
+        internet_online: true,
+        internet_latency_ms: 14,
+        failed_logins_count: 0,
+        lifecycle_score: 94,
+        uptime: "120 days"
+      },
+      {
+        id: 3,
+        name: "staging-worker",
+        host: "10.0.2.80",
+        status: "degraded",
+        cpu_cores: 2,
+        cpu_load: "1.95 1.80 1.70",
+        ram_total_bytes: 8 * 1024 * 1024 * 1024,
+        ram_used_bytes: 7.2 * 1024 * 1024 * 1024,
+        disk_total_bytes: 100 * 1024 * 1024 * 1024,
+        disk_used_bytes: 85 * 1024 * 1024 * 1024,
+        disk_read_speed_bps: 450000,
+        disk_write_speed_bps: 320000,
+        internet_online: true,
+        internet_latency_ms: 38,
+        failed_logins_count: 5,
+        lifecycle_score: 55,
+        uptime: "12 days"
+      }
+    ];
+
+    const variants = [
+      { key: "A", name: "Variant A — Unified Comparative Matrix (Table Grid)" },
+      { key: "B", name: "Variant B — Side-by-Side Card Deck (Independent Columns)" },
+      { key: "C", name: "Variant C — Executive Podium + Category Deep-Dive" }
+    ];
+
+    let currentVariantIdx = 0;
+
+    function renderVariantA() {
+      return `
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <!-- Top Host Summary Cards -->
+          <div style="display: grid; grid-template-columns: 220px repeat(3, 1fr); gap: 12px; align-items: stretch;">
+            <div style="display: flex; align-items: center; justify-content: center; font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+              ⚡ <strong>Performa & Kapasitas</strong><br>Ringkasan Komparatif
+            </div>
+            <div class="host-summary-card overall-winner">
+              <span class="badge-winner">🏆 Overall Winner (7 Poin)</span>
+              <h4 style="margin: 6px 0 2px 0;">prod-db-primary</h4>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">8 Cores | 32 GB RAM | 88 Score</div>
+            </div>
+            <div class="host-summary-card">
+              <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">Runner Up (5 Poin)</span>
+              <h4 style="margin: 6px 0 2px 0;">prod-app-01</h4>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">4 Cores | 16 GB RAM | 94 Score</div>
+            </div>
+            <div class="host-summary-card" style="border-color: rgba(239, 68, 68, 0.4);">
+              <span style="font-size: 0.75rem; color: var(--danger); font-weight: 600;">⚠️ Degraded (1 Poin)</span>
+              <h4 style="margin: 6px 0 2px 0;">staging-worker</h4>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">2 Cores | 8 GB RAM | 55 Score</div>
+            </div>
+          </div>
+
+          <!-- Comparative Matrix Table -->
+          <table class="matrix-table">
+            <thead>
+              <tr class="matrix-category-header">
+                <td colspan="4">⚡ Compute Category (Winner: prod-db-primary)</td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="metric-col">Total CPU Cores</td>
+                <td class="cell-winner">⭐ 8 Cores</td>
+                <td>4 Cores</td>
+                <td>2 Cores</td>
+              </tr>
+              <tr>
+                <td class="metric-col">Normalized Load / Core</td>
+                <td>0.15 / core</td>
+                <td class="cell-winner">⭐ 0.11 / core (Paling santai)</td>
+                <td class="cell-stale">0.97 / core (High)</td>
+              </tr>
+              <tr>
+                <td class="metric-col">Total RAM</td>
+                <td class="cell-winner">⭐ 32 GB</td>
+                <td>16 GB</td>
+                <td>8 GB</td>
+              </tr>
+              <tr>
+                <td class="metric-col">Free RAM %</td>
+                <td>43.8% (14.0 GB)</td>
+                <td class="cell-winner">⭐ 62.5% (10.0 GB)</td>
+                <td class="cell-stale">10.0% (0.8 GB)</td>
+              </tr>
+            </tbody>
+
+            <thead>
+              <tr class="matrix-category-header">
+                <td colspan="4">💾 Storage & I/O Category (Winner: prod-db-primary)</td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="metric-col">Total Root Storage</td>
+                <td class="cell-winner">⭐ 500 GB</td>
+                <td>200 GB</td>
+                <td>100 GB</td>
+              </tr>
+              <tr>
+                <td class="metric-col">Free Disk %</td>
+                <td>44.0% (220 GB)</td>
+                <td class="cell-winner">⭐ 75.0% (150 GB)</td>
+                <td class="cell-stale">15.0% (15 GB)</td>
+              </tr>
+              <tr>
+                <td class="metric-col">Disk Throughput I/O</td>
+                <td>23.4 MB/s (Aktif)</td>
+                <td class="cell-winner">⭐ 3.3 MB/s (Low Load)</td>
+                <td>0.77 MB/s</td>
+              </tr>
+            </tbody>
+
+            <thead>
+              <tr class="matrix-category-header">
+                <td colspan="4">🌐 Network Health Category (Winner: prod-db-primary & prod-app-01 [Tie])</td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="metric-col">Internet Latency</td>
+                <td class="cell-winner">⭐ 12 ms</td>
+                <td class="cell-winner">⭐ 14 ms (Tie &lt;5%)</td>
+                <td>38 ms</td>
+              </tr>
+              <tr>
+                <td class="metric-col">Auth Safety (Failed Logins)</td>
+                <td class="cell-winner">⭐ 0 fails</td>
+                <td class="cell-winner">⭐ 0 fails</td>
+                <td class="cell-stale">5 failed attempts</td>
+              </tr>
+            </tbody>
+
+            <thead>
+              <tr class="matrix-category-header">
+                <td colspan="4">🛡️ System Hygiene & Lifecycle (Winner: prod-app-01)</td>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="metric-col">Lifecycle Score</td>
+                <td>88 / 100</td>
+                <td class="cell-winner">⭐ 94 / 100 (Optimal)</td>
+                <td class="cell-stale">55 / 100 (Uzur)</td>
+              </tr>
+              <tr>
+                <td class="metric-col">System Uptime</td>
+                <td>48 days</td>
+                <td class="cell-winner">⭐ 120 days</td>
+                <td>12 days</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderVariantB() {
+      return `
+        <div class="deck-grid" style="grid-template-columns: repeat(3, 1fr);">
+          <!-- Host Column 1 -->
+          <div class="host-column-card deck-winner">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h4 style="font-size: 1.05rem;">prod-db-primary</h4>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">10.0.1.5 • healthy</div>
+              </div>
+              <span class="badge-winner">🏆 7 Poin</span>
+            </div>
+
+            <div class="cat-box">
+              <div class="cat-box-title">⚡ Compute <span>Winner 🏆</span></div>
+              <div>• 8 Cores (Best)</div>
+              <div>• 32 GB RAM (Best)</div>
+              <div>• Load: 0.15 / core</div>
+            </div>
+
+            <div class="cat-box">
+              <div class="cat-box-title">💾 Storage <span>Winner 🏆</span></div>
+              <div>• 500 GB Disk (Best)</div>
+              <div>• 220 GB Free</div>
+              <div>• 23.4 MB/s I/O</div>
+            </div>
+
+            <div class="cat-box">
+              <div class="cat-box-title">🌐 Network & Hygiene</div>
+              <div>• Latency: 12ms (Best)</div>
+              <div>• Lifecycle Score: 88</div>
+            </div>
+          </div>
+
+          <!-- Host Column 2 -->
+          <div class="host-column-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h4 style="font-size: 1.05rem;">prod-app-01</h4>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">10.0.1.12 • healthy</div>
+              </div>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">5 Poin</span>
+            </div>
+
+            <div class="cat-box">
+              <div class="cat-box-title">⚡ Compute</div>
+              <div>• 4 Cores</div>
+              <div>• 16 GB RAM</div>
+              <div>• Free RAM: 62.5% (Best)</div>
+            </div>
+
+            <div class="cat-box">
+              <div class="cat-box-title">💾 Storage</div>
+              <div>• 200 GB Disk</div>
+              <div>• Free Disk: 75% (Best)</div>
+              <div>• 3.3 MB/s I/O</div>
+            </div>
+
+            <div class="cat-box">
+              <div class="cat-box-title">🛡️ Hygiene <span>Winner 🏆</span></div>
+              <div>• Lifecycle Score: 94 (Best)</div>
+              <div>• Uptime: 120 days</div>
+            </div>
+          </div>
+
+          <!-- Host Column 3 -->
+          <div class="host-column-card" style="opacity: 0.8; border-color: rgba(239, 68, 68, 0.4);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h4 style="font-size: 1.05rem; color: var(--danger);">staging-worker</h4>
+                <div style="font-size: 0.75rem; color: var(--danger);">10.0.2.80 • degraded</div>
+              </div>
+              <span style="font-size: 0.75rem; color: var(--danger);">1 Poin</span>
+            </div>
+
+            <div class="cat-box">
+              <div class="cat-box-title" style="color: var(--danger);">⚡ Compute (High Load)</div>
+              <div>• 2 Cores</div>
+              <div>• 8 GB RAM (10% free)</div>
+              <div>• Load: 0.97 / core</div>
+            </div>
+
+            <div class="cat-box">
+              <div class="cat-box-title" style="color: var(--danger);">💾 Storage (Near Full)</div>
+              <div>• 100 GB Disk</div>
+              <div>• Free: 15% (15 GB)</div>
+            </div>
+
+            <div class="cat-box">
+              <div class="cat-box-title" style="color: var(--danger);">🛡️ Hygiene (At Risk)</div>
+              <div>• Lifecycle Score: 55</div>
+              <div>• 5 Failed Logins</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderVariantC() {
+      return `
+        <div>
+          <!-- Executive Podium Top -->
+          <div class="podium-banner">
+            <div class="podium-slot">
+              <div style="font-size: 1.5rem;">🥈</div>
+              <strong>prod-app-01</strong>
+              <div style="color: var(--text-muted); font-size: 0.8rem;">Runner-up (5 Poin)</div>
+              <div style="font-size: 0.75rem; color: var(--success); margin-top: 4px;">Top Free RAM & Lifecycle</div>
+            </div>
+            <div class="podium-slot rank-1">
+              <div style="font-size: 2rem;">👑</div>
+              <strong style="color: var(--gold); font-size: 1.1rem;">prod-db-primary</strong>
+              <div style="color: var(--gold); font-size: 0.85rem; font-weight: bold;">Overall Winner (7 Poin)</div>
+              <div style="font-size: 0.75rem; color: #86efac; margin-top: 4px;">Top Cores, Storage, Low Latency</div>
+            </div>
+            <div class="podium-slot">
+              <div style="font-size: 1.5rem;">🥉</div>
+              <strong>staging-worker</strong>
+              <div style="color: var(--text-muted); font-size: 0.8rem;">3rd Place (1 Poin)</div>
+              <div style="font-size: 0.75rem; color: var(--danger); margin-top: 4px;">High Memory & Disk Saturation</div>
+            </div>
+          </div>
+
+          <!-- Category Navigation Tabs -->
+          <div class="v-tabs">
+            <div class="v-tab active">⚡ Overview & Scorecard</div>
+            <div class="v-tab">💻 Compute Head-to-Head</div>
+            <div class="v-tab">💾 Storage & I/O Breakdown</div>
+            <div class="v-tab">🌐 Network & Latency</div>
+            <div class="v-tab">🛡️ System Hygiene</div>
+          </div>
+
+          <!-- Tab Focus Arena -->
+          <div style="background: #0f172a; padding: 16px; border-radius: 8px; border: 1px solid var(--card-border);">
+            <h5 style="color: var(--accent); margin-bottom: 12px;">📊 Executive Decision Summary:</h5>
+            <p style="font-size: 0.9rem; line-height: 1.6; color: #e2e8f0;">
+              Berdasarkan evaluasi terhadap 3 Host terpilih, <strong>prod-db-primary</strong> adalah kandidat paling tangguh untuk beban kerja intensif dengan spesifikasi CPU 8-Core dan volume storage 500 GB. Namun, <strong>prod-app-01</strong> menunjukkan efisiensi operasional tertinggi dengan sisa RAM 62.5% dan Lifecycle Score 94. Host <strong>staging-worker</strong> tidak direkomendasikan untuk penambahan beban karena utilisasi memori dan disk telah melampaui batas aman.
+            </p>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderCurrentVariant() {
+      const v = variants[currentVariantIdx];
+      document.getElementById("currentVariantLabel").innerText = v.name;
+      const container = document.getElementById("variantContainer");
+      if (v.key === "A") container.innerHTML = renderVariantA();
+      else if (v.key === "B") container.innerHTML = renderVariantB();
+      else if (v.key === "C") container.innerHTML = renderVariantC();
+    }
+
+    function cycleVariant(delta) {
+      currentVariantIdx = (currentVariantIdx + delta + variants.length) % variants.length;
+      renderCurrentVariant();
+    }
+
+    function copyMarkdownSummary() {
+      const md = "# ⚖️ Pantau Host Comparison Summary\\n\\n" +
+        "**Host Evaluasi**: `prod-db-primary`, `prod-app-01`, `staging-worker`\\n\\n" +
+        "### 🏆 Skor Akhir:\\n" +
+        "- **prod-db-primary**: **7 Poin** (Winner — Compute, Storage, Latency)\\n" +
+        "- **prod-app-01**: **5 Poin** (Runner-up — Free Memory, Lifecycle Score)\\n" +
+        "- **staging-worker**: **1 Poin** (Degraded / Saturation Warning)\\n\\n" +
+        "### 💡 Rekomendasi Keputusan:\\n" +
+        "> Prioritaskan `prod-db-primary` untuk deployment service kritikal kapasitas besar. `staging-worker` membutuhkan pembersihan disk segera.";
+      navigator.clipboard.writeText(md).then(() => {
+        alert("Rangkuman Markdown berhasil disalin ke clipboard!");
+      });
+    }
+
+    // Keyboard shortcut for cycling variants
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft") cycleVariant(-1);
+      if (e.key === "ArrowRight") cycleVariant(1);
+    });
+
+    // Initial render
+    renderCurrentVariant();
+  </script>
+</body>
+</html>
