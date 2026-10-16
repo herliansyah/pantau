@@ -205,6 +205,12 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **Akses Cepat & Global Bookmarks**: Navigasi instan melalui bilah Quick Access di pengelola berkas atau secara menyeluruh lintas-host melalui tombol `🔖 Bookmarks` di header navigasi atas.
 - **Pencarian Lintas-Host & Loncat ke Terminal**: Cari berkas tersemat secara global, buka langsung di editor kode terintegrasi, atau luncurkan sesi Terminal Dock langsung ke direktori kerja berkas tersebut.
 
+### 23. ⚡ Pencarian Presets Terminal & Akses Cepat Pinned Paths
+- **Pencarian Live Presets Terminal**: Filter instan pada menu dropdown preset terminal berdasarkan judul preset, perintah, atau tag sesi tmux (`t:tag`), mempercepat eksekusi perintah diagnostik rutin tanpa perlu menggulir daftar panjang.
+- **Dropdown Pinned Paths Terminal**: Akses cepat khusus (`📌`) pada toolbar terminal yang menampilkan seluruh berkas dan direktori tersemat untuk host aktif, dilengkapi pencarian real-time berdasarkan path atau catatan operasional, aksi loncat direktori `cd` satu-klik, serta penyisipan path bertanda kutip ke dalam sesi shell.
+- **Bilah Alat Terminal Ringkas & Terintegrasi**: Pengelompokan toolbar yang bersih (lencana status host & reconnect, kontrol zoom font `+`/`-`/`0`, tombol pindah langsung ke Pengelola Berkas `📁 Files`, dan split-pane `⬛ Split`).
+- **Pelacakan Direktori Kerja Terminal Aktif**: Pelacakan direktori kerja shell remote secara real-time melalui judul jendela terminal dan sekuens ANSI OSC 7 untuk sinkronisasi navigasi.
+
 ---
 
 ## 🚀 Panduan Memulai Cepat (Quick Start)

@@ -189,7 +189,11 @@ When a drift or alert requires hands-on investigation:
 - **Terminal Header Launcher**: Access and toggle the global dock from the application header. A reactive session counter badge tracks all active PTY sessions system-wide. When empty, clicking the launcher presents a host selector dropdown to open new sessions instantly.
 - **Reactive Host Session Badges**: Host cards in Grid and List views show contextual session count badges whenever active shells are connected to that target.
 - **Split-Pane View (`Alt+\`)**: Split the terminal view to compare logs or configurations across two hosts side by side in real time.
-- **Terminal Preset**: Execute pre-configured one-click diagnostic commands (e.g., `htop`, `journalctl -f`, `docker stats`) bound globally or dynamically scoped to the active terminal tab's host context.
+- **Terminal Presets & Live Search**: Execute pre-configured one-click diagnostic commands (e.g., `htop`, `journalctl -f`, `docker stats`) bound globally or scoped to the active terminal tab's host context. Includes real-time search filtering in the presets dropdown matching by title, command, or tmux session tag (`t:tag`).
+- **Terminal Pinned Paths Quick-Access (`📌`)**: Access pinned files and directories for the active host directly from the terminal toolbar. Features real-time search across paths and operational notes. Clicking a directory runs `cd '<path>'`; clicking a file injects its quoted path directly into the terminal prompt. Unpin items inline via the `✕` button.
+- **Direct Switch to File Manager (`📁 Files`)**: Seamlessly jump from the active terminal tab to the Host File Manager focused on the current working directory while minimizing the terminal dock.
+- **Font Zoom Controls**: Quick adjust terminal text scaling directly from the toolbar (`+`, `-`, and `0` to reset).
+- **Working Directory Synchronization**: Synchronizes active working directory via shell window titles and OSC 7 ANSI escape sequences.
 - **Modal Stacking & Escape Key**: Child action dialogs (preset forms, rule modals, notes) dynamically stack above parent modals and maximized terminal docks. Pressing `Escape` hierarchically dismisses the top-most active dialog before passing keyboard input to lower layers.
 
 ### In-App Activity Console & Live Telemetry Stream

@@ -404,3 +404,11 @@ _Avoid_: Bookmarked file, favorite path, saved item
 **Global Bookmarks**:
 Modal penjelajah global di header utama untuk menelusuri, memfilter, mengedit, atau membuka sesi terminal ke seluruh File Pin di semua host terkelola.
 _Avoid_: Saved files list, pinned manager, favorites modal
+
+**Terminal Preset Live Search**:
+Fitur pemfilteran instan pada dropdown preset terminal berdasarkan judul preset, perintah, atau tag tmux (`t:tag`) untuk eksekusi perintah diagnostik cepat.
+_Avoid_: Preset finder, terminal filter, command search
+
+**Terminal Pinned Paths Dropdown**:
+Akses cepat berkas dan direktori tersemat (File Pin) langsung dari bilah alat terminal (`📌`) untuk navigasi `cd` cepat atau penyisipan path ke sesi shell.
+_Avoid_: Terminal bookmarks, pin menu, path picker

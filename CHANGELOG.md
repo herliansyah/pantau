@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] - 2026-10-16
+### Added
+- Live Search in Terminal Presets: real-time search filtering in the terminal presets dropdown by preset title, command, or tmux session tag (`t:tag`), enabling instant command dispatch across extensive preset catalogs.
+- Terminal Pinned Paths Dropdown: quick-access dropdown (`📌`) in the terminal toolbar displaying all pinned files and directories for the active host with real-time query filtering by path and operator notes.
+- Instant Path Actions: single-click directory navigation (`cd '<path>'`) and quoted path injection into the active terminal shell session without executing extraneous commands.
+- Quick Jump to File Manager: one-click toolbar button (`📁 Files`) that switches context seamlessly from the active terminal tab to the Host File Manager focused on the current working directory.
+- Working Directory Synchronization: automated tracking of remote shell working directory via terminal window titles and OSC 7 ANSI escape sequences.
+
 ## [0.23.0] - 2026-10-16
 ### Added
 - Multi-Host Side-by-Side Comparison: interactive evaluation matrix comparing 2 to 4 hosts simultaneously inside a Workspace Modal (75vw × 80vh) without additional backend endpoints.

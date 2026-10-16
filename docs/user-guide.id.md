@@ -189,7 +189,11 @@ Saat insiden memerlukan penanganan terminal langsung:
 - **Terminal Header Launcher**: Akses dan kontrol dok terminal dari header navigasi utama. Lencana sesi aktif menampilkan akumulasi sesi PTY di seluruh sistem. Saat dok kosong, mengklik launcher akan langsung membuka dropdown pemilih host untuk memulai sesi baru.
 - **Reactive Host Session Badges**: Kartu host pada Grid View dan List View menyematkan badge angka reaktif ketika terdapat sesi shell yang aktif untuk server tersebut.
 - **Split-Pane View (`Alt+\`)**: Belah area kerja terminal menjadi dua jendela berdampingan untuk mengamati log dari dua host berbeda secara sinkron.
-- **Terminal Preset**: Jalankan perintah investigasi rutin yang telah disimpan (misal: `htop`, `journalctl -f`, `docker stats`) baik berlingkup global maupun terikat secara dinamis pada host aktif di tab terminal.
+- **Terminal Preset & Pencarian Live**: Jalankan perintah investigasi rutin yang telah disimpan (misal: `htop`, `journalctl -f`, `docker stats`) baik berlingkup global maupun terikat secara dinamis pada host aktif di tab terminal. Dilengkapi kolom pencarian instan pada dropdown yang menyaring berdasarkan judul preset, perintah, atau tag sesi tmux (`t:tag`).
+- **Akses Cepat Pinned Paths Terminal (`📌`)**: Akses daftar berkas dan direktori tersemat untuk host aktif langsung dari bilah alat terminal. Dilengkapi pencarian real-time lintas path dan catatan operasional. Mengklik direktori akan mengeksekusi `cd '<path>'`; mengklik berkas akan menyisipkan path bertanda kutip ke sesi terminal. Lepas sematan secara instan lewat tombol `✕`.
+- **Pindah Langsung ke Pengelola Berkas (`📁 Files`)**: Lompat mulus dari tab terminal aktif ke tab Pengelola Berkas host yang langsung membuka direktori kerja terminal saat itu sekaligus meminimalkan dok terminal.
+- **Kontrol Zoom Font**: Sesuaikan ukuran teks terminal langsung dari toolbar (`+`, `-`, dan `0` untuk reset).
+- **Sinkronisasi Direktori Kerja**: Memantau direktori kerja aktif secara otomatis melalui pembaruan judul jendela terminal dan sekuens escape ANSI OSC 7.
 - **Modal Stacking & Tombol Escape**: Dialog aksi turunan (form preset, aturan desired state, catatan) menumpuk di atas modal induk secara dinamis dengan layer z-index bertingkat. Penekanan tombol `Escape` menutup dialog paling atas secara berurutan tanpa merusak sesi terminal di bawahnya.
 
 ### In-App Activity Console & Live Telemetry Stream
