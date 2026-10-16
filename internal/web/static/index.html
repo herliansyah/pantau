@@ -102,6 +102,23 @@ a.btn:hover { text-decoration: none; color: var(--text); }
   border-radius: 0 !important;
   border: none !important;
 }
+/* Host Comparison Modal */
+.compare-host-selector-bar { padding: 10px 20px; background: rgba(15, 23, 42, 0.4); border-bottom: 1px solid var(--card-border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex-shrink: 0; }
+.compare-pill { background: #334155; border: 1px solid #475569; color: #f8fafc; padding: 3px 10px; border-radius: 6px; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+.compare-pill .remove-btn { cursor: pointer; color: #94a3b8; font-weight: bold; font-size: 0.9rem; transition: color 0.15s; }
+.compare-pill .remove-btn:hover { color: #ef4444; }
+.compare-host-card { background: #0f172a; border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; text-align: center; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; position: relative; }
+.compare-host-card.overall-winner { border-color: #fbbf24; box-shadow: 0 0 16px rgba(251, 191, 36, 0.2); }
+.badge-winner { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.35); padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; width: fit-content; margin: 0 auto; }
+.badge-runnerup { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; width: fit-content; margin: 0 auto; }
+.badge-tie { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; width: fit-content; margin: 0 auto; }
+.compare-matrix-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.compare-matrix-table th, .compare-matrix-table td { padding: 9px 12px; border-bottom: 1px solid rgba(51, 65, 85, 0.6); text-align: left; }
+.compare-matrix-table th.metric-col { width: 220px; color: var(--text-muted); font-weight: 600; font-size: 0.8rem; background: rgba(15, 23, 42, 0.4); }
+.compare-category-header { background: rgba(15, 23, 42, 0.85) !important; color: #38bdf8 !important; font-weight: 700 !important; font-size: 0.76rem !important; letter-spacing: 0.05em; text-transform: uppercase; border-top: 1px solid rgba(56, 189, 248, 0.2); }
+.cell-winner { background: rgba(34, 197, 94, 0.12) !important; color: #86efac !important; font-weight: 600; }
+.cell-stale { color: #ef4444 !important; opacity: 0.8; }
+.compare-takeaway-card { background: #0f172a; border: 1px solid var(--card-border); border-radius: 8px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
 @media (max-width: 768px) {
   .modal { padding: 0; }
   .modal-workspace, .modal-dialog, .modal-dialog-md, .modal-dialog-lg { width: 100vw; height: 100vh; max-width: 100vw; min-width: 100vw; border-radius: 0; border: none; }
@@ -1113,6 +1130,7 @@ body.has-workspace-shelf .container {
         <button class="btn btn-icon" onclick="openTransfersModal()" title="Cross-Host Transfers" data-i18n-title="transfers_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 6h18"/><path d="m7 22-4-4 4-4"/><path d="M21 18H3"/></svg><span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
         <button class="btn btn-icon" onclick="openGlobalNotesModal()" title="Global Notes" data-i18n-title="global_notes_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>
         <button class="btn btn-icon" id="btnHeaderTerminal" onclick="toggleTerminalDock()" title="Terminal Dock" data-i18n-title="terminal_dock_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span id="activeTerminalBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
+        <button class="btn btn-icon" id="btnHeaderCompare" onclick="openHostCompareModal()" title="Host Comparison" data-i18n-title="compare_hosts_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg></button>
       </div>
       <div class="header-divider"></div>
       <div class="header-cluster">
@@ -2138,6 +2156,42 @@ body.has-workspace-shelf .container {
   </div>
 </div>
 
+<!-- Host Comparison Modal (Workspace Modal layout 75vw x 80vh) -->
+<div id="hostCompareModal" class="modal">
+  <div class="modal-content modal-workspace" style="display: flex; flex-direction: column;">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 1.25rem;">⚖️</span>
+        <h3 data-i18n="compare_hosts_title">Host Comparison</h3>
+        <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.72rem; font-weight: 600;" data-i18n="compare_badge_side_by_side">Side-by-Side</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <button class="btn btn-sm btn-secondary" onclick="copyComparisonMarkdown()" id="btnCopyCompareMD" title="Copy Markdown Summary" data-i18n="compare_btn_copy_md">📋 Copy Summary (MD)</button>
+        <button class="btn btn-sm" onclick="closeHostCompareModal()">✕</button>
+      </div>
+    </div>
+
+    <!-- Host Selector Bar -->
+    <div class="compare-host-selector-bar" id="compareHostSelectorBar">
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1;">
+        <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;" data-i18n="compare_selected_hosts">Selected Hosts:</span>
+        <div id="compareSelectedPills" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
+        <div id="compareAddHostWrapper" style="display: inline-block;">
+          <select id="compareAddHostSelect" class="form-control" style="height: 28px; padding: 2px 8px; font-size: 0.8rem; width: auto; max-width: 220px; display: inline-block;" onchange="onAddCompareHost(this)">
+            <option value="" data-i18n="compare_add_host_ph">+ Add Host (Max 4)...</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-sm" style="font-size: 0.75rem; padding: 3px 8px;" onclick="resetCompareHosts()" data-i18n="compare_reset_btn">🔄 Reset</button>
+    </div>
+
+    <!-- Modal Body with Comparison Matrix -->
+    <div class="modal-body" id="compareModalBody" style="padding: 16px 20px; gap: 16px; overflow-y: auto;">
+      <!-- Content populated dynamically -->
+    </div>
+  </div>
+</div>
+
 <script src="/vendor/xterm.js"></script>
 <script src="/vendor/xterm-addon-fit.js"></script>
 <script src="/vendor/codemirror.min.js"></script>
@@ -2689,7 +2743,37 @@ const I18N = {
     "netdiag_status_open": "PORT OPEN",
     "netdiag_status_closed": "PORT CLOSED",
     "netdiag_resolved_ips": "Resolved IP Addresses",
-    "netdiag_hops_detected": "Hops Detected"
+    "netdiag_hops_detected": "Hops Detected",
+    "compare_hosts_title": "Host Comparison",
+    "compare_badge_side_by_side": "Side-by-Side Evaluation",
+    "compare_btn_copy_md": "📋 Copy Summary (MD)",
+    "compare_selected_hosts": "Selected Hosts:",
+    "compare_add_host_ph": "+ Add Host (Max 4)...",
+    "compare_reset_btn": "🔄 Reset",
+    "compare_min_hosts_msg": "Please select at least 2 hosts to compare.",
+    "compare_max_hosts_msg": "Maximum 4 hosts can be compared side-by-side.",
+    "compare_overall_winner": "Overall Winner",
+    "compare_runner_up": "Runner Up",
+    "compare_shared_tie": "Shared Co-Leader",
+    "compare_unreachable": "⚠️ Unreachable / Stale",
+    "compare_cat_compute": "⚡ Compute Capacity & Load",
+    "compare_cat_storage": "💾 Storage Capacity & I/O",
+    "compare_cat_network": "🌐 Network Health & Security",
+    "compare_cat_hygiene": "🛡️ System Hygiene & Lifecycle",
+    "compare_decision_takeaway": "Decision Recommendation",
+    "compare_copied_toast": "Comparison summary copied to clipboard!",
+    "compare_points_label": "Points",
+    "cpu_load_per_core": "CPU Load (1m) / Core",
+    "total_ram": "Total RAM",
+    "free_ram_pct": "Free RAM Headroom",
+    "total_disk": "Total Root Storage",
+    "free_disk_pct": "Free Disk Headroom",
+    "disk_io_throughput": "Current Disk I/O Rate",
+    "egress_latency": "Internet Latency",
+    "auth_fails": "Failed Auth Attempts",
+    "egress_connectivity": "Internet Egress Status",
+    "system_status_label": "System Desired State",
+    "inspection_freshness": "Inspection Freshness"
   },
   id: {
     "brand_subtitle": "Manajemen Server Agentless",
@@ -3228,7 +3312,37 @@ const I18N = {
     "netdiag_status_open": "PORT TERBUKA",
     "netdiag_status_closed": "PORT TERTUTUP",
     "netdiag_resolved_ips": "Alamat IP Hasil Resolusi",
-    "netdiag_hops_detected": "Hop Terdeteksi"
+    "netdiag_hops_detected": "Hop Terdeteksi",
+    "compare_hosts_title": "Komparasi Host",
+    "compare_badge_side_by_side": "Evaluasi Berdampingan",
+    "compare_btn_copy_md": "📋 Salin Ringkasan (MD)",
+    "compare_selected_hosts": "Host Terpilih:",
+    "compare_add_host_ph": "+ Tambah Host (Maks 4)...",
+    "compare_reset_btn": "🔄 Atur Ulang",
+    "compare_min_hosts_msg": "Pilih minimal 2 Host untuk melakukan perbandingan.",
+    "compare_max_hosts_msg": "Maksimal 4 Host dapat dibandingkan berdampingan.",
+    "compare_overall_winner": "Juara Keseluruhan",
+    "compare_runner_up": "Posisi Kedua",
+    "compare_shared_tie": "Posisi Berimbang",
+    "compare_unreachable": "⚠️ Tidak Terjangkau / Stale",
+    "compare_cat_compute": "⚡ Kapasitas & Beban Komputasi",
+    "compare_cat_storage": "💾 Kapasitas Penyimpanan & I/O",
+    "compare_cat_network": "🌐 Keandalan Jaringan & Keamanan",
+    "compare_cat_hygiene": "🛡️ Higienitas Sistem & Siklus Hidup",
+    "compare_decision_takeaway": "Rekomendasi Keputusan",
+    "compare_copied_toast": "Ringkasan komparasi berhasil disalin ke clipboard!",
+    "compare_points_label": "Poin",
+    "cpu_load_per_core": "Beban CPU (1m) / Core",
+    "total_ram": "Total RAM",
+    "free_ram_pct": "Sisa Ruang Bebas RAM",
+    "total_disk": "Total Penyimpanan Root",
+    "free_disk_pct": "Sisa Ruang Bebas Disk",
+    "disk_io_throughput": "Laju Throughput I/O Disk",
+    "egress_latency": "Latensi Internet",
+    "auth_fails": "Percobaan Login Gagal",
+    "egress_connectivity": "Status Akses Internet",
+    "system_status_label": "Kondisi Desired State",
+    "inspection_freshness": "Kebaruan Inspeksi"
   }
 };
 
@@ -10405,6 +10519,561 @@ function copyNetDiagRaw(cid) {
       showToast('Failed to copy', 'error');
     });
   }
+}
+
+// ==========================================
+// Host Comparison Module (ADR Host Comparison)
+// ==========================================
+let compareHostIDs = [];
+
+function openHostCompareModal(targetHostId) {
+  if (targetHostId) {
+    if (!compareHostIDs.includes(targetHostId)) {
+      if (compareHostIDs.length >= 4) {
+        compareHostIDs.pop();
+      }
+      compareHostIDs.unshift(targetHostId);
+    }
+  }
+
+  // If compareHostIDs has fewer than 2 hosts, auto-populate from allRawHosts
+  if (compareHostIDs.length < 2 && allRawHosts && allRawHosts.length > 0) {
+    const available = allRawHosts.map(h => h.id);
+    for (const hid of available) {
+      if (!compareHostIDs.includes(hid)) {
+        compareHostIDs.push(hid);
+        if (compareHostIDs.length >= 3) break;
+      }
+    }
+  }
+
+  openModal('hostCompareModal');
+  renderHostCompareView();
+}
+
+function closeHostCompareModal() {
+  closeModal('hostCompareModal');
+}
+
+function onAddCompareHost(selectEl) {
+  const val = parseInt(selectEl.value, 10);
+  if (!val) return;
+  if (!compareHostIDs.includes(val)) {
+    if (compareHostIDs.length >= 4) {
+      showToast(t('compare_max_hosts_msg', 'Maximum 4 hosts can be compared side-by-side.'), 'warning');
+      selectEl.value = '';
+      return;
+    }
+    compareHostIDs.push(val);
+    renderHostCompareView();
+  }
+  selectEl.value = '';
+}
+
+function removeCompareHost(hostId) {
+  compareHostIDs = compareHostIDs.filter(id => id !== hostId);
+  renderHostCompareView();
+}
+
+function resetCompareHosts() {
+  compareHostIDs = [];
+  if (allRawHosts && allRawHosts.length > 0) {
+    compareHostIDs = allRawHosts.slice(0, Math.min(3, allRawHosts.length)).map(h => h.id);
+  }
+  renderHostCompareView();
+}
+
+function calculateHostComparison(hosts) {
+  // Categories and metrics specification
+  // Polarity: 1 = HIB (Higher is Better), -1 = LIB (Lower is Better)
+  const categories = [
+    {
+      id: 'compute',
+      name: t('compare_cat_compute', '⚡ Compute Capacity & Load'),
+      metrics: [
+        {
+          id: 'cpu_cores',
+          label: t('cores', 'CPU Cores'),
+          polarity: 1,
+          extract: h => h.cpu_cores || 1,
+          format: (v, h) => `${v} ${v > 1 ? t('cores', 'Cores') : t('core', 'Core')}`
+        },
+        {
+          id: 'cpu_load_norm',
+          label: t('cpu_load_per_core', 'CPU Load (1m) / Core'),
+          polarity: -1,
+          extract: h => {
+            let load1m = 0;
+            if (h.cpu_load) {
+              const parts = h.cpu_load.replace(',', ' ').trim().split(/\s+/);
+              if (parts.length > 0) load1m = parseFloat(parts[0]) || 0;
+            }
+            return load1m / Math.max(1, h.cpu_cores || 1);
+          },
+          format: (v, h) => `${v.toFixed(2)} / core`
+        },
+        {
+          id: 'ram_total',
+          label: t('total_ram', 'Total RAM'),
+          polarity: 1,
+          extract: h => h.ram_total_bytes || 0,
+          format: (v, h) => formatBytes(v)
+        },
+        {
+          id: 'ram_free_pct',
+          label: t('free_ram_pct', 'Free RAM Headroom'),
+          polarity: 1,
+          extract: h => h.ram_total_bytes > 0 ? Math.max(0, ((h.ram_total_bytes - (h.ram_used_bytes || 0)) / h.ram_total_bytes) * 100) : 0,
+          format: (v, h) => {
+            const freeBytes = Math.max(0, (h.ram_total_bytes || 0) - (h.ram_used_bytes || 0));
+            return `${v.toFixed(1)}% (${formatBytes(freeBytes)})`;
+          }
+        }
+      ]
+    },
+    {
+      id: 'storage',
+      name: t('compare_cat_storage', '💾 Storage Capacity & I/O'),
+      metrics: [
+        {
+          id: 'disk_total',
+          label: t('total_disk', 'Total Root Storage'),
+          polarity: 1,
+          extract: h => h.disk_total_bytes || 0,
+          format: (v, h) => formatBytes(v)
+        },
+        {
+          id: 'disk_free_pct',
+          label: t('free_disk_pct', 'Free Disk Headroom'),
+          polarity: 1,
+          extract: h => h.disk_total_bytes > 0 ? Math.max(0, ((h.disk_total_bytes - (h.disk_used_bytes || 0)) / h.disk_total_bytes) * 100) : 0,
+          format: (v, h) => {
+            const freeBytes = Math.max(0, (h.disk_total_bytes || 0) - (h.disk_used_bytes || 0));
+            return `${v.toFixed(1)}% (${formatBytes(freeBytes)})`;
+          }
+        },
+        {
+          id: 'disk_io_bps',
+          label: t('disk_io_throughput', 'Current Disk I/O Rate'),
+          polarity: -1,
+          extract: h => (h.disk_read_speed_bps || 0) + (h.disk_write_speed_bps || 0),
+          format: (v, h) => `${formatBytes(v)}/s`
+        }
+      ]
+    },
+    {
+      id: 'network',
+      name: t('compare_cat_network', '🌐 Network Health & Security'),
+      metrics: [
+        {
+          id: 'net_latency',
+          label: t('egress_latency', 'Internet Latency'),
+          polarity: -1,
+          extract: h => h.internet_online ? (h.internet_latency_ms || 999) : 99999,
+          format: (v, h) => h.internet_online ? `${v} ms` : 'Offline'
+        },
+        {
+          id: 'auth_safety',
+          label: t('auth_fails', 'Failed Auth Attempts'),
+          polarity: -1,
+          extract: h => h.failed_logins_count || 0,
+          format: (v, h) => `${v} failed`
+        },
+        {
+          id: 'net_egress_status',
+          label: t('egress_connectivity', 'Internet Egress Status'),
+          polarity: 1,
+          extract: h => h.internet_online ? 1 : 0,
+          format: (v, h) => h.internet_online ? '✅ Connected' : '❌ Offline'
+        }
+      ]
+    },
+    {
+      id: 'hygiene',
+      name: t('compare_cat_hygiene', '🛡️ System Hygiene & Lifecycle'),
+      metrics: [
+        {
+          id: 'lifecycle_score',
+          label: t('lifecycle_score_title', 'Lifecycle Score'),
+          polarity: 1,
+          extract: h => h.lifecycle_score || 0,
+          format: (v, h) => `${v} / 100`
+        },
+        {
+          id: 'system_status',
+          label: t('system_status_label', 'System Desired State'),
+          polarity: 1,
+          extract: h => h.status === 'healthy' ? 1 : 0,
+          format: (v, h) => h.status === 'healthy' ? '✅ Healthy' : (h.status === 'degraded' ? '⚠️ Degraded' : '❌ Down')
+        },
+        {
+          id: 'freshness_lag',
+          label: t('inspection_freshness', 'Inspection Freshness'),
+          polarity: -1,
+          extract: h => {
+            if (!h.last_inspected) return 999999999;
+            return Math.max(0, Date.now() - new Date(h.last_inspected).getTime());
+          },
+          format: (v, h) => {
+            if (!h.last_inspected) return 'Never';
+            const secs = Math.round(v / 1000);
+            if (secs < 60) return `${secs}s ago`;
+            const mins = Math.round(secs / 60);
+            if (mins < 60) return `${mins}m ago`;
+            const hrs = Math.round(mins / 60);
+            return `${hrs}h ago`;
+          }
+        }
+      ]
+    }
+  ];
+
+  const hostScores = {};
+  hosts.forEach(h => {
+    hostScores[h.id] = { total: 0, byCat: {} };
+    categories.forEach(c => { hostScores[h.id].byCat[c.id] = 0; });
+  });
+
+  const matrixResults = [];
+
+  categories.forEach(cat => {
+    const metricRows = [];
+    cat.metrics.forEach(m => {
+      const rowValues = {};
+      const candidateList = [];
+
+      hosts.forEach(h => {
+        const isStaleOrDown = h.status === 'down' || (!h.last_inspected);
+        const rawVal = m.extract(h);
+        const formatted = m.format(rawVal, h);
+        rowValues[h.id] = { raw: rawVal, formatted, isWinner: false, isTie: false, isStale: isStaleOrDown };
+
+        if (h.status !== 'down') {
+          candidateList.push({ hostId: h.id, val: rawVal });
+        }
+      });
+
+      if (candidateList.length > 0) {
+        candidateList.sort((a, b) => {
+          return m.polarity === 1 ? (b.val - a.val) : (a.val - b.val);
+        });
+
+        const best = candidateList[0];
+        let runnerUp = candidateList.length > 1 ? candidateList[1] : null;
+
+        let hasDistinctWinner = false;
+        if (runnerUp) {
+          const maxAbs = Math.max(Math.abs(best.val), Math.abs(runnerUp.val));
+          const diff = Math.abs(best.val - runnerUp.val);
+          if (maxAbs === 0 || (diff / maxAbs) >= 0.05) {
+            hasDistinctWinner = true;
+          }
+        } else {
+          hasDistinctWinner = true;
+        }
+
+        if (hasDistinctWinner && candidateList.length > 0) {
+          rowValues[best.hostId].isWinner = true;
+          hostScores[best.hostId].total += 1;
+          hostScores[best.hostId].byCat[cat.id] += 1;
+        } else {
+          if (candidateList.length > 1) {
+            rowValues[candidateList[0].hostId].isTie = true;
+            rowValues[candidateList[1].hostId].isTie = true;
+          }
+        }
+      }
+
+      metricRows.push({ metric: m, values: rowValues });
+    });
+
+    let bestCatScore = -1;
+    let catWinners = [];
+    hosts.forEach(h => {
+      const score = hostScores[h.id].byCat[cat.id];
+      if (score > bestCatScore) {
+        bestCatScore = score;
+        catWinners = [h.id];
+      } else if (score === bestCatScore && score > 0) {
+        catWinners.push(h.id);
+      }
+    });
+
+    matrixResults.push({
+      category: cat,
+      metricRows,
+      categoryWinners: catWinners,
+      bestCatScore
+    });
+  });
+
+  const sortedHostsByScore = [...hosts].sort((a, b) => {
+    return hostScores[b.id].total - hostScores[a.id].total;
+  });
+
+  const maxTotalScore = sortedHostsByScore.length > 0 ? hostScores[sortedHostsByScore[0].id].total : 0;
+  const overallWinners = sortedHostsByScore.filter(h => hostScores[h.id].total === maxTotalScore && maxTotalScore > 0);
+
+  return {
+    categories,
+    matrixResults,
+    hostScores,
+    sortedHostsByScore,
+    overallWinners,
+    maxTotalScore
+  };
+}
+
+function generateDecisionNarrative(hosts, results) {
+  if (!hosts || hosts.length < 2) return { main: '', risk: '' };
+  const lang = currentLang;
+  const { hostScores, overallWinners, matrixResults } = results;
+
+  const hostStrengths = {};
+  hosts.forEach(h => {
+    hostStrengths[h.id] = [];
+  });
+
+  matrixResults.forEach(res => {
+    if (res.categoryWinners && res.categoryWinners.length > 0) {
+      res.categoryWinners.forEach(hid => {
+        if (hostStrengths[hid]) {
+          hostStrengths[hid].push(res.category.name);
+        }
+      });
+    }
+  });
+
+  const riskHosts = [];
+  hosts.forEach(h => {
+    const ramPct = h.ram_total_bytes > 0 ? (h.ram_used_bytes / h.ram_total_bytes) * 100 : 0;
+    const diskPct = h.disk_total_bytes > 0 ? (h.disk_used_bytes / h.disk_total_bytes) * 100 : 0;
+    if (h.status === 'down') {
+      riskHosts.push({ host: h, reason: lang === 'id' ? 'berstatus DOWN' : 'is DOWN' });
+    } else if (h.status === 'degraded') {
+      riskHosts.push({ host: h, reason: lang === 'id' ? 'terdeteksi deviasi Desired State (Degraded)' : 'has Desired State drift (Degraded)' });
+    } else if (ramPct > 85) {
+      riskHosts.push({ host: h, reason: lang === 'id' ? `saturasi memori tinggi (${ramPct.toFixed(0)}% terpakai)` : `high memory saturation (${ramPct.toFixed(0)}% used)` });
+    } else if (diskPct > 85) {
+      riskHosts.push({ host: h, reason: lang === 'id' ? `penyimpanan hampir penuh (${diskPct.toFixed(0)}% terpakai)` : `storage near capacity (${diskPct.toFixed(0)}% used)` });
+    }
+  });
+
+  let p1 = '';
+  if (overallWinners.length === 1) {
+    const w = overallWinners[0];
+    const pts = hostScores[w.id].total;
+    if (lang === 'id') {
+      p1 = `Berdasarkan perbandingan objektif ${hosts.length} Host, <strong>${escapeHtml(w.name)}</strong> menempati posisi unggul dengan perolehan <strong>${pts} Poin</strong>. Server ini mendominasi keunggulan di kategori ${hostStrengths[w.id].length > 0 ? hostStrengths[w.id].join(', ') : 'spesifikasi sistem'}.`;
+    } else {
+      p1 = `Based on an objective evaluation of ${hosts.length} hosts, <strong>${escapeHtml(w.name)}</strong> emerges as the top performer with <strong>${pts} Points</strong>, leading in ${hostStrengths[w.id].length > 0 ? hostStrengths[w.id].join(', ') : 'overall specifications'}.`;
+    }
+  } else if (overallWinners.length > 1) {
+    const names = overallWinners.map(h => `<strong>${escapeHtml(h.name)}</strong>`).join(' & ');
+    const pts = hostScores[overallWinners[0].id].total;
+    if (lang === 'id') {
+      p1 = `Komparasi menunjukkan posisi berimbang (${pts} Poin) antara ${names}, di mana masing-masing server memiliki spesialisasi keunggulan yang saling melengkapi.`;
+    } else {
+      p1 = `The comparison shows a shared lead (${pts} Points) between ${names}, with complementary strengths across evaluated categories.`;
+    }
+  }
+
+  let p2 = '';
+  if (riskHosts.length > 0) {
+    const riskStr = riskHosts.map(r => `<strong>${escapeHtml(r.host.name)}</strong> (${r.reason})`).join(', ');
+    if (lang === 'id') {
+      p2 = `⚠️ <strong>Peringatan Risiko:</strong> ${riskStr} memerlukan perhatian atau pemeliharaan sebelum dialokasikan beban kerja baru.`;
+    } else {
+      p2 = `⚠️ <strong>Risk Advisory:</strong> ${riskStr} requires maintenance or remediation before allocating additional workloads.`;
+    }
+  }
+
+  return { main: p1, risk: p2 };
+}
+
+async function copyComparisonMarkdown() {
+  const hosts = (allRawHosts || []).filter(h => compareHostIDs.includes(h.id));
+  if (hosts.length < 2) {
+    showToast(t('compare_min_hosts_msg', 'Please select at least 2 hosts to compare.'), 'warning');
+    return;
+  }
+
+  const results = calculateHostComparison(hosts);
+  const narrative = generateDecisionNarrative(hosts, results);
+  const nowStr = new Date().toLocaleString();
+
+  let md = `# ⚖️ Pantau — Host Comparison Report\n`;
+  md += `_Generated on: ${nowStr}_\n\n`;
+
+  md += `### 🏆 Scoreboard & Standing\n\n`;
+  md += `| Host | Status | Compute | Storage | Network | Hygiene | Total Points | Standing |\n`;
+  md += `| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |\n`;
+
+  results.sortedHostsByScore.forEach(h => {
+    const sc = results.hostScores[h.id];
+    const isOverall = results.overallWinners.some(w => w.id === h.id);
+    const standing = isOverall ? '🏆 Overall Winner' : 'Runner-up';
+    md += `| **${h.name}** (${h.host}) | ${h.status} | ${sc.byCat['compute']} | ${sc.byCat['storage']} | ${sc.byCat['network']} | ${sc.byCat['hygiene']} | **${sc.total} ⭐** | ${standing} |\n`;
+  });
+
+  md += `\n### 💡 Decision Takeaway\n\n`;
+  const cleanMain = narrative.main ? narrative.main.replace(/<[^>]+>/g, '') : '';
+  const cleanRisk = narrative.risk ? narrative.risk.replace(/<[^>]+>/g, '') : '';
+  if (cleanMain) md += `- ${cleanMain}\n`;
+  if (cleanRisk) md += `- ${cleanRisk}\n`;
+
+  try {
+    await copyTextToClipboard(md);
+    showToast(t('compare_copied_toast', 'Comparison summary copied to clipboard!'), 'success');
+  } catch (err) {
+    showToast('Failed to copy to clipboard', 'error');
+  }
+}
+
+function renderHostCompareView() {
+  const container = document.getElementById('compareModalBody');
+  const pillsContainer = document.getElementById('compareSelectedPills');
+  const selectEl = document.getElementById('compareAddHostSelect');
+  if (!container) return;
+
+  const hosts = (allRawHosts || []).filter(h => compareHostIDs.includes(h.id));
+
+  // Render host selection pills
+  if (pillsContainer) {
+    pillsContainer.innerHTML = hosts.map(h => `
+      <div class="compare-pill">
+        <span>🖥️ ${escapeHtml(h.name)}</span>
+        <span class="remove-btn" onclick="removeCompareHost(${h.id})" title="Remove">✕</span>
+      </div>
+    `).join('');
+  }
+
+  // Populate Add Host dropdown
+  if (selectEl) {
+    const unselected = (allRawHosts || []).filter(h => !compareHostIDs.includes(h.id));
+    selectEl.innerHTML = `<option value="">${t('compare_add_host_ph', '+ Add Host (Max 4)...')}</option>` +
+      unselected.map(h => `<option value="${h.id}">${escapeHtml(h.name)} (${escapeHtml(h.host)})</option>`).join('');
+    selectEl.disabled = compareHostIDs.length >= 4 || unselected.length === 0;
+  }
+
+  // Check minimum 2 hosts
+  if (hosts.length < 2) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 48px 20px; color: var(--text-muted);">
+        <div style="font-size: 2.5rem; margin-bottom: 12px;">⚖️</div>
+        <h4 style="color: var(--text-main); margin-bottom: 8px;" data-i18n="compare_min_hosts_msg">${t('compare_min_hosts_msg', 'Please select at least 2 hosts to compare.')}</h4>
+        <p style="font-size: 0.85rem; max-width: 480px; margin: 0 auto 16px auto;">Pilih 2 hingga 4 host melalui dropdown di atas untuk memulai evaluasi matriks komparatif.</p>
+        <button class="btn btn-primary btn-sm" onclick="resetCompareHosts()">${t('compare_reset_btn', '🔄 Reset')}</button>
+      </div>
+    `;
+    return;
+  }
+
+  const results = calculateHostComparison(hosts);
+  const narrative = generateDecisionNarrative(hosts, results);
+  const colCount = hosts.length;
+
+  let html = `<div style="display: flex; flex-direction: column; gap: 16px;">`;
+
+  // Top Host Summary Cards Grid
+  html += `
+    <div style="display: grid; grid-template-columns: 220px repeat(${colCount}, 1fr); gap: 12px; align-items: stretch;">
+      <div style="display: flex; flex-direction: column; justify-content: center; padding: 8px 12px; font-size: 0.82rem; color: var(--text-muted);">
+        <div style="font-weight: 700; color: #38bdf8; font-size: 0.95rem; margin-bottom: 4px;">⚖️ Head-to-Head</div>
+        <div>${hosts.length} Host Matrix Comparison</div>
+      </div>
+  `;
+
+  hosts.forEach(h => {
+    const sc = results.hostScores[h.id];
+    const isWinner = results.overallWinners.some(w => w.id === h.id);
+    const isDegraded = h.status === 'degraded' || h.status === 'down';
+    const cardClass = isWinner ? 'compare-host-card overall-winner' : 'compare-host-card';
+    const borderStyle = isDegraded ? 'border-color: rgba(239, 68, 68, 0.45);' : '';
+
+    html += `
+      <div class="${cardClass}" style="${borderStyle}">
+        ${isWinner ? `<span class="badge-winner">🏆 ${t('compare_overall_winner', 'Overall Winner')} (${sc.total} ⭐)</span>` : `<span class="badge-runnerup">${sc.total} ${t('compare_points_label', 'Points')} ⭐</span>`}
+        <h4 style="margin: 6px 0 2px 0; font-size: 1rem; color: ${isDegraded ? '#f87171' : 'var(--text-main)'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(h.name)}">${escapeHtml(h.name)}</h4>
+        <div style="font-size: 0.75rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(h.host)}</div>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">
+          ${h.cpu_cores || 1}C | ${formatBytes(h.ram_total_bytes || 0)} | ${h.lifecycle_score || 0} pts
+        </div>
+      </div>
+    `;
+  });
+  html += `</div>`;
+
+  // Comparison Matrix Table
+  html += `
+    <div style="background: #0f172a; border: 1px solid var(--card-border); border-radius: 8px; overflow: hidden;">
+      <table class="compare-matrix-table">
+  `;
+
+  results.matrixResults.forEach(catRes => {
+    const cat = catRes.category;
+    let winnerNames = '';
+    if (catRes.categoryWinners && catRes.categoryWinners.length > 0) {
+      winnerNames = hosts
+        .filter(h => catRes.categoryWinners.includes(h.id))
+        .map(h => h.name)
+        .join(', ');
+    }
+
+    html += `
+      <thead>
+        <tr class="compare-category-header">
+          <td colspan="${colCount + 1}" style="padding: 8px 12px;">
+            <span>${cat.name}</span>
+            ${winnerNames ? `<span style="float: right; font-weight: normal; font-size: 0.72rem; color: #86efac;">⭐ Winner: ${escapeHtml(winnerNames)}</span>` : ''}
+          </td>
+        </tr>
+      </thead>
+      <tbody>
+    `;
+
+    catRes.metricRows.forEach(row => {
+      html += `<tr>`;
+      html += `<td class="metric-col">${escapeHtml(row.metric.label)}</td>`;
+
+      hosts.forEach(h => {
+        const valInfo = row.values[h.id];
+        let cellClass = '';
+        let iconPrefix = '';
+        if (valInfo.isWinner) {
+          cellClass = 'cell-winner';
+          iconPrefix = '⭐ ';
+        } else if (valInfo.isStale) {
+          cellClass = 'cell-stale';
+        }
+
+        html += `<td class="${cellClass}">${iconPrefix}${escapeHtml(valInfo.formatted)}</td>`;
+      });
+
+      html += `</tr>`;
+    });
+
+    html += `</tbody>`;
+  });
+
+  html += `</table></div>`;
+
+  // Executive Decision Recommendation Card
+  if (narrative.main || narrative.risk) {
+    html += `
+      <div class="compare-takeaway-card">
+        <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #38bdf8; font-size: 0.9rem;">
+          <span>📊</span>
+          <span data-i18n="compare_decision_takeaway">${t('compare_decision_takeaway', 'Decision Recommendation')}</span>
+        </div>
+        ${narrative.main ? `<p style="font-size: 0.85rem; line-height: 1.55; color: #e2e8f0; margin: 0;">${narrative.main}</p>` : ''}
+        ${narrative.risk ? `<div style="font-size: 0.82rem; line-height: 1.5; color: #fca5a5; background: rgba(239, 68, 68, 0.1); border-left: 3px solid #ef4444; padding: 6px 10px; border-radius: 4px;">${narrative.risk}</div>` : ''}
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
 }
 
 setLanguage(currentLang);

@@ -384,3 +384,15 @@ _Avoid_: Destination, remote endpoint, probe address
 **Hop Analysis**:
 Hasil interpretasi heuristik terhadap rantai hop perutean traceroute yang secara otomatis mengklasifikasikan gateway privat, mendeteksi titik putus firewall, dan menyoroti lonjakan latensi tanpa interpretasi manual.
 _Avoid_: Traceroute summary, route report, hop parser
+
+**Host Comparison**:
+Fitur evaluasi komparatif multi-host (2–4 Host) secara berdampingan (side-by-side) pada antarmuka Workspace Modal untuk membandingkan kapasitas komputasi, beban I/O, latensi jaringan, status deviasi aturan, dan skor siklus hidup sistem.
+_Avoid_: Server comparison, machine diff, host benchmark tool
+
+**Comparison Category**:
+Dimensi evaluasi terstandarisasi dalam Host Comparison (Kapasitas & Beban Komputasi, Efisiensi Penyimpanan & I/O, Keandalan Jaringan, serta Higienitas Sistem & Lifecycle) yang menjadi acuan penilaian head-to-head.
+_Avoid_: Metric group, scoring bucket, comparison tab
+
+**Comparison Winner**:
+Host yang memperoleh skor atau nilai keunggulan tertinggi pada suatu Comparison Category atau secara akumulatif dalam satu sesi Host Comparison.
+_Avoid_: Best server, benchmark winner, top machine
