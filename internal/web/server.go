@@ -191,8 +191,9 @@ func (s *Server) routes() {
 	// Rules
 	s.mux.HandleFunc("/api/rules/", s.authMiddleware(s.handleRuleRoute))
 
-	// Global Notes
+	// Global Notes & Pins
 	s.mux.HandleFunc("/api/notes", s.authMiddleware(s.handleGlobalNotes))
+	s.mux.HandleFunc("/api/pins", s.authMiddleware(s.handleGlobalPins))
 
 	// Settings & Alerts
 	s.mux.HandleFunc("/api/settings", s.authMiddleware(s.handleSettings))
@@ -1308,6 +1309,56 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		http.Error(w, "host not found", http.StatusNotFound)
 		return
 	}
+	action := subparts[0]
+	if action == "pins" {
+		switch r.Method {
+		case http.MethodGet:
+			pins, err := s.db.GetFilePins(hostID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, http.StatusOK, pins)
+			return
+		case http.MethodPost:
+			var req struct {
+				Path  string `json:"path"`
+				IsDir bool   `json:"is_dir"`
+				Note  string `json:"note"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "invalid request body", http.StatusBadRequest)
+				return
+			}
+			req.Path = strings.TrimSpace(req.Path)
+			if req.Path == "" {
+				http.Error(w, "path is required", http.StatusBadRequest)
+				return
+			}
+			if err := s.db.SaveFilePin(hostID, req.Path, req.IsDir, req.Note); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]interface{}{"status": "ok"})
+			return
+		case http.MethodDelete:
+			filePath := r.URL.Query().Get("path")
+			if filePath == "" {
+				http.Error(w, "path query parameter required", http.StatusBadRequest)
+				return
+			}
+			if err := s.db.DeleteFilePin(hostID, filePath); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]interface{}{"status": "deleted"})
+			return
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+	}
+
 	if s.inspector == nil {
 		http.Error(w, "inspector not available", http.StatusInternalServerError)
 		return
@@ -1326,7 +1377,6 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 	}
 	defer sftpClient.Close()
 
-	action := subparts[0]
 	switch action {
 	case "list":
 		dirPath := r.URL.Query().Get("path")
@@ -1660,6 +1710,19 @@ func (s *Server) handleGlobalNotes(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func (s *Server) handleGlobalPins(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	pins, err := s.db.GetAllFilePins()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, pins)
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
