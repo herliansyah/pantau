@@ -272,3 +272,103 @@ func TestHostPackagesAndProcessTelemetry(t *testing.T) {
 	}
 }
 
+func TestFilePinsCRUD(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-pins-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&Host{
+		Name: "Web Server",
+		Host: "10.0.0.1",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Initial pins should be empty
+	pins, err := db.GetFilePins(hostID)
+	if err != nil {
+		t.Fatalf("get file pins: %v", err)
+	}
+	if len(pins) != 0 {
+		t.Fatalf("expected 0 pins, got %d", len(pins))
+	}
+
+	// 2. Save pins
+	if err := db.SaveFilePin(hostID, "/var/log/nginx", true, "Nginx log folder"); err != nil {
+		t.Fatalf("save folder pin: %v", err)
+	}
+	if err := db.SaveFilePin(hostID, "/etc/nginx/nginx.conf", false, "Main nginx conf"); err != nil {
+		t.Fatalf("save file pin: %v", err)
+	}
+
+	pins, err = db.GetFilePins(hostID)
+	if err != nil {
+		t.Fatalf("get file pins after save: %v", err)
+	}
+	if len(pins) != 2 {
+		t.Fatalf("expected 2 pins, got %d", len(pins))
+	}
+
+	// 3. GetAllFilePins
+	globalPins, err := db.GetAllFilePins()
+	if err != nil {
+		t.Fatalf("get all file pins: %v", err)
+	}
+	if len(globalPins) != 2 {
+		t.Fatalf("expected 2 global pins, got %d", len(globalPins))
+	}
+	if globalPins[0].HostName != "Web Server" {
+		t.Errorf("expected host name 'Web Server', got %q", globalPins[0].HostName)
+	}
+
+	// 4. Update note (upsert)
+	if err := db.SaveFilePin(hostID, "/var/log/nginx", true, "Updated log note"); err != nil {
+		t.Fatalf("update pin note: %v", err)
+	}
+	pins, err = db.GetFilePins(hostID)
+	if err != nil {
+		t.Fatalf("get file pins after update: %v", err)
+	}
+	if len(pins) != 2 {
+		t.Fatalf("expected still 2 pins, got %d", len(pins))
+	}
+	var foundFolder bool
+	for _, p := range pins {
+		if p.Path == "/var/log/nginx" {
+			foundFolder = true
+			if p.Note != "Updated log note" {
+				t.Errorf("expected updated note, got %q", p.Note)
+			}
+		}
+	}
+	if !foundFolder {
+		t.Errorf("folder pin not found")
+	}
+
+	// 5. Delete pin
+	if err := db.DeleteFilePin(hostID, "/var/log/nginx"); err != nil {
+		t.Fatalf("delete file pin: %v", err)
+	}
+	pins, err = db.GetFilePins(hostID)
+	if err != nil {
+		t.Fatalf("get file pins after delete: %v", err)
+	}
+	if len(pins) != 1 {
+		t.Fatalf("expected 1 pin remaining, got %d", len(pins))
+	}
+	if pins[0].Path != "/etc/nginx/nginx.conf" {
+		t.Errorf("expected remaining pin to be nginx.conf, got %q", pins[0].Path)
+	}
+}
+

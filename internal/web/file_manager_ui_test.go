@@ -163,3 +163,61 @@ func TestFileManagerDownloadButton(t *testing.T) {
 	}
 }
 
+func TestFileManagerPinsAndGlobalBookmarksUI(t *testing.T) {
+	html := string(embeddedHTML)
+
+	// Check elements
+	requiredElements := []string{
+		"btnHeaderBookmarks",
+		"globalPinsModal",
+		"globalPinsSearchInput",
+		"globalPinsList",
+		"filePinModal",
+		"pinModalPath",
+		"pinModalNote",
+		"btnPinModalUnpin",
+		"file-quick-access",
+		"file-pin-chip",
+		"btn-file-pin",
+		"file-pin-badge",
+		"openGlobalPinsModal",
+		"loadGlobalPins",
+		"onGlobalPinsSearch",
+		"renderGlobalPinsList",
+		"deleteGlobalPin",
+		"jumpToHostFile",
+		"openPinModal",
+		"submitSavePin",
+		"submitUnpin",
+		"loadHostFilePins",
+		"renderQuickAccessBar",
+		"openTerminalFromGlobalPin",
+	}
+
+	for _, el := range requiredElements {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected index.html to contain file pin/bookmark element %q", el)
+		}
+	}
+
+	// Check i18n keys exist in at least 2 dictionaries (EN and ID)
+	i18nKeys := []string{
+		`"global_pins_title":`,
+		`"global_pins_heading":`,
+		`"quick_access":`,
+		`"pin_file_modal_title":`,
+		`"btn_save_pin":`,
+		`"btn_unpin":`,
+		`"pin_saved":`,
+		`"pin_removed":`,
+		`"confirm_unpin_item":`,
+	}
+
+	for _, k := range i18nKeys {
+		cnt := strings.Count(html, k)
+		if cnt < 2 {
+			t.Errorf("expected i18n key %q to exist in at least 2 dictionaries, found %d", k, cnt)
+		}
+	}
+}
+

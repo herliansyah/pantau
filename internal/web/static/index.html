@@ -228,6 +228,140 @@ select, select option { background-color: #1e293b !important; color: #f8fafc !im
   background: rgba(255, 255, 255, 0.04);
 }
 
+/* Quick Access & File Pins */
+.file-quick-access {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  scrollbar-width: thin;
+}
+.file-quick-access-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-right: 4px;
+}
+.file-pin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card, #1e293b);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.file-pin-chip:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+  transform: translateY(-1px);
+}
+.file-pin-chip .pin-icon {
+  font-size: 0.9rem;
+}
+.file-pin-chip .pin-name {
+  font-weight: 500;
+  color: #f1f5f9;
+}
+.file-pin-chip .pin-note {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-pin-chip .pin-chip-action {
+  opacity: 0.4;
+  margin-left: 2px;
+  font-size: 0.75rem;
+  padding: 0 2px;
+}
+.file-pin-chip .pin-chip-action:hover {
+  opacity: 1;
+  color: var(--danger);
+}
+.btn-file-pin {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 0.9rem;
+  opacity: 0.3;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  vertical-align: middle;
+}
+.btn-file-pin:hover {
+  opacity: 1;
+  transform: scale(1.15);
+}
+.btn-file-pin.pinned {
+  opacity: 1;
+}
+.file-pin-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.global-pins-container {
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.global-pins-host-group {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.4);
+  overflow: hidden;
+}
+.global-pins-host-header {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--card-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.global-pins-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.12s ease;
+}
+.global-pins-item:last-child {
+  border-bottom: none;
+}
+.global-pins-item:hover {
+  background: rgba(56, 189, 248, 0.05);
+}
+
 /* VS Code Dark+ theme for CodeMirror */
 .cm-s-vscode-dark.CodeMirror {
   background: #1e1e1e !important;
@@ -1129,6 +1263,7 @@ body.has-workspace-shelf .container {
         <button class="btn btn-icon" id="btnHeaderNetDiag" onclick="openNetDiagModal()" title="Network Diagnostics" data-i18n-title="netdiag_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></button>
         <button class="btn btn-icon" onclick="openTransfersModal()" title="Cross-Host Transfers" data-i18n-title="transfers_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 6h18"/><path d="m7 22-4-4 4-4"/><path d="M21 18H3"/></svg><span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
         <button class="btn btn-icon" onclick="openGlobalNotesModal()" title="Global Notes" data-i18n-title="global_notes_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>
+        <button class="btn btn-icon" id="btnHeaderBookmarks" onclick="openGlobalPinsModal()" title="Global Bookmarks" data-i18n-title="global_pins_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg></button>
         <button class="btn btn-icon" id="btnHeaderTerminal" onclick="toggleTerminalDock()" title="Terminal Dock" data-i18n-title="terminal_dock_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span id="activeTerminalBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
         <button class="btn btn-icon" id="btnHeaderCompare" onclick="openHostCompareModal()" title="Host Comparison" data-i18n-title="compare_hosts_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg></button>
       </div>
@@ -1500,6 +1635,55 @@ body.has-workspace-shelf .container {
       <div id="globalNotesModalEditActions" style="display: none; justify-content: flex-end; gap: 10px; margin-top: 14px;">
         <button class="btn" onclick="cancelEditGlobalNotesModal()" data-i18n="cancel">Cancel</button>
         <button class="btn btn-primary" onclick="saveGlobalNotesModal()" data-i18n="save">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Global Bookmarks Modal -->
+<div id="globalPinsModal" class="modal">
+  <div class="modal-content modal-dialog-lg">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 1.2rem;">📌</span>
+        <h3 data-i18n="global_pins_heading">Global Bookmarks</h3>
+      </div>
+      <button class="btn btn-sm" onclick="closeModal('globalPinsModal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding: 16px;">
+      <div style="margin-bottom: 14px;">
+        <input type="text" id="globalPinsSearchInput" placeholder="Search bookmarks by host, path, or note..." data-i18n-placeholder="global_pins_search_ph" oninput="onGlobalPinsSearch(this.value)" style="width: 100%; box-sizing: border-box; padding: 8px 12px; font-size: 0.9rem;" />
+      </div>
+      <div id="globalPinsList" class="global-pins-container"></div>
+    </div>
+  </div>
+</div>
+
+<!-- File Pin & Note Modal -->
+<div id="filePinModal" class="modal">
+  <div class="modal-content modal-dialog">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span>📌</span>
+        <h3 data-i18n="pin_file_modal_title">Pin to Quick Access</h3>
+      </div>
+      <button class="btn btn-sm" onclick="closeModal('filePinModal')">✕</button>
+    </div>
+    <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+      <div>
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="pin_path_label">Path:</label>
+        <div id="pinModalPath" style="font-family: monospace; font-size: 0.85rem; background: rgba(0,0,0,0.3); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--card-border); word-break: break-all; color: #f1f5f9;"></div>
+      </div>
+      <div>
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="pin_note_label">Description / Operational Note (Optional):</label>
+        <textarea id="pinModalNote" rows="3" placeholder="e.g. Main reverse proxy config, daily rotate log..." data-i18n-placeholder="pin_note_ph" style="width: 100%; box-sizing: border-box; font-family: inherit; font-size: 0.88rem; padding: 8px 10px; border-radius: 6px;"></textarea>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+        <button id="btnPinModalUnpin" type="button" class="btn btn-danger btn-sm" onclick="submitUnpin()" data-i18n="btn_unpin">Unpin</button>
+        <div style="display: flex; gap: 8px; margin-left: auto;">
+          <button type="button" class="btn btn-sm" onclick="closeModal('filePinModal')" data-i18n="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="submitSavePin()" data-i18n="btn_save_pin">Save Pin</button>
+        </div>
       </div>
     </div>
   </div>
@@ -2240,6 +2424,24 @@ const I18N = {
 
     "transfers_title": "Cross-Host Transfers",
     "global_notes_title": "Global Notes",
+    "global_pins_title": "Global Bookmarks",
+    "global_pins_heading": "Global Bookmarks",
+    "global_pins_search_ph": "Search bookmarks by host, path, or note...",
+    "global_pins_empty": "No pinned files or folders across any hosts yet.",
+    "global_pins_empty_sub": "Open any host's File Manager and click 📌 on a file or folder to pin it here.",
+    "quick_access": "Quick Access",
+    "pin_file_modal_title": "Pin to Quick Access",
+    "pin_path_label": "Path:",
+    "pin_note_label": "Description / Operational Note (Optional):",
+    "pin_note_ph": "e.g. Main reverse proxy config, daily rotate log...",
+    "btn_save_pin": "Save Pin",
+    "btn_unpin": "Unpin",
+    "pin_saved": "Item pinned successfully",
+    "pin_removed": "Item unpinned successfully",
+    "pinned": "Pinned",
+    "edit_pin": "Edit Pin / Note",
+    "pin_this_item": "Pin to Quick Access",
+    "confirm_unpin_item": "Are you sure you want to unpin \"{name}\"?",
     "alerts_badge": "ALERTS",
     "add_host": "+ Add Host",
     "settings": "⚙️ Settings",
@@ -2809,6 +3011,24 @@ const I18N = {
 
     "transfers_title": "Transfer Lintas-Host",
     "global_notes_title": "Catatan Global",
+    "global_pins_title": "Bookmark Global",
+    "global_pins_heading": "Bookmark Global",
+    "global_pins_search_ph": "Cari bookmark berdasarkan host, path, atau catatan...",
+    "global_pins_empty": "Belum ada file atau folder yang di-pin pada host manapun.",
+    "global_pins_empty_sub": "Buka File Manager host manapun dan klik 📌 pada file atau folder untuk menyematkannya di sini.",
+    "quick_access": "Akses Cepat",
+    "pin_file_modal_title": "Sematkan ke Akses Cepat (Pin)",
+    "pin_path_label": "Path:",
+    "pin_note_label": "Keterangan / Catatan Operasional (Opsional):",
+    "pin_note_ph": "contoh: Konfigurasi utama reverse proxy, log rotasi harian...",
+    "btn_save_pin": "Simpan Pin",
+    "btn_unpin": "Lepas Pin",
+    "pin_saved": "Item berhasil disematkan",
+    "pin_removed": "Item berhasil dilepas dari pin",
+    "pinned": "Disematkan",
+    "edit_pin": "Edit Pin / Catatan",
+    "pin_this_item": "Sematkan ke Akses Cepat",
+    "confirm_unpin_item": "Apakah Anda yakin ingin melepas pin untuk \"{name}\"?",
     "alerts_badge": "ALERTS",
     "add_host": "+ Tambah Host",
     "settings": "⚙️ Pengaturan",
@@ -5959,10 +6179,25 @@ async function dockerAction(container, action) {
 
 // SFTP File Manager State
 let currentFilesData = null;
+let currentHostFilePins = [];
 let fileFilterQuery = '';
 let fileFilterType = 'all'; // 'all' | 'dir' | 'file'
 let fileSortColumn = 'name'; // 'name' | 'size' | 'mod_time'
 let fileSortOrder = 'asc'; // 'asc' | 'desc'
+
+async function loadHostFilePins(hostId) {
+  if (!hostId) return;
+  try {
+    const res = await fetch('/api/hosts/' + hostId + '/files/pins');
+    if (res.ok) {
+      currentHostFilePins = await res.json();
+    } else {
+      currentHostFilePins = [];
+    }
+  } catch(e) {
+    currentHostFilePins = [];
+  }
+}
 
 async function loadFiles(path) {
   if (currentHost && currentHost.id && path) {
@@ -5970,18 +6205,53 @@ async function loadFiles(path) {
   }
   const content = document.getElementById('tabContent');
   content.innerHTML = '<p>' + t('loading_files') + '</p>';
-  const res = await fetch('/api/hosts/' + currentHost.id + '/files/list?path=' + encodeURIComponent(path));
-  if (!res.ok) {
+  try {
+    const [listRes] = await Promise.all([
+      fetch('/api/hosts/' + currentHost.id + '/files/list?path=' + encodeURIComponent(path)),
+      loadHostFilePins(currentHost.id)
+    ]);
+    if (!listRes.ok) {
+      content.innerHTML = '<p style="color: var(--danger);">' + t('failed_open_path') + path + '</p>';
+      return;
+    }
+    const data = await listRes.json();
+    currentFilesData = data;
+    if (currentHost) {
+      currentHost._lastPath = data.path;
+    }
+    fileFilterQuery = '';
+    renderFilesView();
+  } catch(e) {
     content.innerHTML = '<p style="color: var(--danger);">' + t('failed_open_path') + path + '</p>';
-    return;
   }
-  const data = await res.json();
-  currentFilesData = data;
-  if (currentHost) {
-    currentHost._lastPath = data.path;
-  }
-  fileFilterQuery = '';
-  renderFilesView();
+}
+
+function renderQuickAccessBar() {
+  if (!currentHostFilePins || currentHostFilePins.length === 0) return '';
+  const chips = currentHostFilePins.map(pin => {
+    const isDir = !!pin.is_dir;
+    const icon = isDir ? '📁' : getFileIcon(pin.path);
+    const name = pin.path.split('/').filter(Boolean).pop() || '/';
+    const note = (pin.note || '').trim();
+    const action = isDir ? `loadFiles('${escapeHtml(pin.path)}')` : `openEditor('${escapeHtml(pin.path)}')`;
+    return `
+      <div class="file-pin-chip" onclick="${action}" title="${escapeHtml(pin.path)}${note ? ' — ' + escapeHtml(note) : ''}">
+        <span class="pin-icon">${icon}</span>
+        <span class="pin-name">${escapeHtml(name)}</span>
+        ${note ? `<span class="pin-note">(${escapeHtml(note)})</span>` : ''}
+        <span class="pin-chip-action" onclick="event.stopPropagation(); openPinModal('${escapeHtml(pin.path)}', ${isDir})" title="${t('edit_pin')}">✏️</span>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="file-quick-access">
+      <span class="file-quick-access-title">📌 ${t('quick_access')}:</span>
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; flex: 1;">
+        ${chips}
+      </div>
+    </div>
+  `;
 }
 
 function renderBreadcrumbs(currentPath) {
@@ -6050,6 +6320,7 @@ function renderFilesView() {
         <button class="btn btn-primary btn-sm" ${isProtectedDir ? 'disabled title="' + t('cannot_upload_protected') + '"' : ''} onclick="document.getElementById('fileUploadInput').click()">${t('upload_file')}</button>
       </div>
     </div>
+    ${renderQuickAccessBar()}
     <div class="file-filter-toolbar">
       <div class="file-search-box">
         <span style="font-size: 0.85rem; opacity: 0.6;">🔍</span>
@@ -6154,17 +6425,26 @@ function renderFilesTableBody() {
   }
 
   const isProtectedDir = !!currentFilesData.is_protected;
+  const pinMap = new Map();
+  if (currentHostFilePins && Array.isArray(currentHostFilePins)) {
+    currentHostFilePins.forEach(p => pinMap.set(p.path, p));
+  }
+
   tbody.innerHTML = filtered.map(f => {
     const fullPath = currentFilesData.path === '/' ? '/' + f.name : currentFilesData.path + '/' + f.name;
     const isItemProtected = !!(f.is_protected || isProtectedDir);
     const targetTermPath = f.is_dir ? fullPath : currentFilesData.path;
     const icon = f.is_dir ? '📁' : getFileIcon(f.name);
+    const pin = pinMap.get(fullPath);
+    const isPinned = !!pin;
     return `
       <tr>
         <td style="word-break: break-all;">
+          <button type="button" class="btn-file-pin ${isPinned ? 'pinned' : ''}" onclick="openPinModal('${escapeHtml(fullPath)}', ${f.is_dir})" title="${isPinned ? escapeHtml(pin.note || t('pinned')) : t('pin_this_item')}">${isPinned ? '📌' : '📍'}</button>
           ${f.is_dir 
             ? '<a class="folder-link" href="javascript:void(0)" onclick="loadFiles(\'' + fullPath + '\')"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>' + escapeHtml(f.name) + '</b></a>' 
             : '<span style="font-size: 1.05em; margin-right: 4px;">' + icon + '</span> ' + escapeHtml(f.name)}
+          ${isPinned && pin.note ? `<span class="file-pin-badge" title="${escapeHtml(pin.note)}">📝 ${escapeHtml(pin.note)}</span>` : ''}
           ${isItemProtected ? '<span title="' + t('protected_path') + '" style="margin-left: 6px; font-size: 0.85em;">🔒</span>' : ''}
         </td>
         <td style="text-align: right; font-family: monospace; white-space: nowrap;">${f.is_dir ? '-' : formatBytes(f.size)}</td>
@@ -6424,6 +6704,256 @@ async function executeDuplicate() {
       confirmBtn.disabled = false;
       confirmBtn.innerText = t('duplicate_btn');
     }
+  }
+}
+
+// File Pin & Global Bookmark Functions
+let currentPinEditingPath = '';
+let currentPinEditingIsDir = false;
+
+function openPinModal(path, isDir) {
+  currentPinEditingPath = path;
+  currentPinEditingIsDir = !!isDir;
+  const pin = currentHostFilePins && currentHostFilePins.find(p => p.path === path);
+  const pathEl = document.getElementById('pinModalPath');
+  if (pathEl) pathEl.innerText = path;
+  const noteInput = document.getElementById('pinModalNote');
+  if (noteInput) {
+    noteInput.value = pin ? (pin.note || '') : '';
+  }
+  const btnUnpin = document.getElementById('btnPinModalUnpin');
+  if (btnUnpin) {
+    btnUnpin.style.display = pin ? 'inline-block' : 'none';
+  }
+  openModal('filePinModal');
+  if (noteInput) {
+    setTimeout(() => noteInput.focus(), 50);
+  }
+}
+
+async function submitSavePin() {
+  if (!currentHost || !currentPinEditingPath) return;
+  const noteInput = document.getElementById('pinModalNote');
+  const note = noteInput ? noteInput.value.trim() : '';
+  try {
+    const res = await fetch('/api/hosts/' + currentHost.id + '/files/pins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path: currentPinEditingPath,
+        is_dir: currentPinEditingIsDir,
+        note: note
+      })
+    });
+    if (res.ok) {
+      closeModal('filePinModal');
+      showToast(t('pin_saved'), 'success');
+      await loadHostFilePins(currentHost.id);
+      renderFilesView();
+    } else {
+      const d = await res.json();
+      showToast(t('error_prefix', 'Error: ') + (d.error || 'Failed to save pin'), 'error');
+    }
+  } catch(e) {
+    showToast(t('error_prefix', 'Error: ') + e.message, 'error');
+  }
+}
+
+async function submitUnpin() {
+  if (!currentHost || !currentPinEditingPath) return;
+  const fileName = currentPinEditingPath.split('/').filter(Boolean).pop() || currentPinEditingPath;
+  const promptMsg = t('confirm_unpin_item', 'Are you sure you want to unpin "{name}"?').replace('{name}', fileName);
+  if (!confirm(promptMsg)) {
+    return;
+  }
+  try {
+    const res = await fetch('/api/hosts/' + currentHost.id + '/files/pins?path=' + encodeURIComponent(currentPinEditingPath), {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      closeModal('filePinModal');
+      showToast(t('pin_removed'), 'success');
+      await loadHostFilePins(currentHost.id);
+      renderFilesView();
+    } else {
+      const d = await res.json();
+      showToast(t('error_prefix', 'Error: ') + (d.error || 'Failed to unpin'), 'error');
+    }
+  } catch(e) {
+    showToast(t('error_prefix', 'Error: ') + e.message, 'error');
+  }
+}
+
+// Global Bookmarks
+let allGlobalPinsData = [];
+let globalPinsSearchQuery = '';
+
+async function openGlobalPinsModal() {
+  globalPinsSearchQuery = '';
+  const searchInput = document.getElementById('globalPinsSearchInput');
+  if (searchInput) searchInput.value = '';
+  openModal('globalPinsModal');
+  await loadGlobalPins();
+}
+
+async function loadGlobalPins() {
+  const container = document.getElementById('globalPinsList');
+  if (container) {
+    container.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px;">' + t('loading', 'Loading...') + '</p>';
+  }
+  try {
+    const res = await fetch('/api/pins');
+    if (res.ok) {
+      allGlobalPinsData = await res.json();
+    } else {
+      allGlobalPinsData = [];
+    }
+  } catch(e) {
+    allGlobalPinsData = [];
+  }
+  renderGlobalPinsList();
+}
+
+function onGlobalPinsSearch(query) {
+  globalPinsSearchQuery = (query || '').toLowerCase().trim();
+  renderGlobalPinsList();
+}
+
+function renderGlobalPinsList() {
+  const container = document.getElementById('globalPinsList');
+  if (!container) return;
+
+  const q = globalPinsSearchQuery;
+  const filtered = allGlobalPinsData.filter(p => {
+    if (!q) return true;
+    const matchPath = (p.path || '').toLowerCase().includes(q);
+    const matchNote = (p.note || '').toLowerCase().includes(q);
+    const matchHost = (p.host_name || '').toLowerCase().includes(q) || (p.host_ip || '').toLowerCase().includes(q);
+    return matchPath || matchNote || matchHost;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; color: var(--text-muted); padding: 40px 16px;">
+        <div style="font-size: 2.2rem; margin-bottom: 8px;">📌</div>
+        <p style="font-weight: 500; font-size: 0.95rem;">${t('global_pins_empty')}</p>
+        <p style="font-size: 0.82rem; opacity: 0.7;">${t('global_pins_empty_sub')}</p>
+      </div>
+    `;
+    return;
+  }
+
+  const groups = new Map();
+  filtered.forEach(p => {
+    if (!groups.has(p.host_id)) {
+      groups.set(p.host_id, {
+        hostId: p.host_id,
+        hostName: p.host_name,
+        hostIP: p.host_ip,
+        pins: []
+      });
+    }
+    groups.get(p.host_id).pins.push(p);
+  });
+
+  let html = '';
+  groups.forEach(g => {
+    html += `
+      <div class="global-pins-host-group">
+        <div class="global-pins-host-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1rem;">🖥️</span>
+            <span>${escapeHtml(g.hostName)}</span>
+            <span style="font-size: 0.78rem; color: var(--text-muted); font-family: monospace;">(${escapeHtml(g.hostIP)})</span>
+          </div>
+          <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 0.75rem;">${g.pins.length}</span>
+        </div>
+        <div>
+          ${g.pins.map(p => {
+            const isDir = !!p.is_dir;
+            const icon = isDir ? '📁' : getFileIcon(p.path);
+            const fileName = p.path.split('/').filter(Boolean).pop() || '/';
+            return `
+              <div class="global-pins-item">
+                <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; cursor: pointer;" onclick="jumpToHostFile(${p.host_id}, '${escapeHtml(p.path)}', ${isDir})" title="${escapeHtml(p.path)}">
+                  <span style="font-size: 1.1rem; flex-shrink: 0;">${icon}</span>
+                  <div style="min-width: 0; flex: 1;">
+                    <div style="font-weight: 600; font-size: 0.88rem; color: #f1f5f9; word-break: break-all;">
+                      ${escapeHtml(fileName)}
+                      <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal; margin-left: 6px; font-family: monospace;">${escapeHtml(p.path)}</span>
+                    </div>
+                    ${p.note ? `<div style="font-size: 0.78rem; color: #38bdf8; margin-top: 2px;">📝 ${escapeHtml(p.note)}</div>` : ''}
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: 12px;">
+                  <button class="btn btn-primary btn-sm" onclick="jumpToHostFile(${p.host_id}, '${escapeHtml(p.path)}', ${isDir})" style="font-size: 0.78rem; padding: 3px 8px;">
+                    ${isDir ? '📂 Open' : '✏️ Open'}
+                  </button>
+                  <button class="btn btn-sm" onclick="openTerminalFromGlobalPin(${p.host_id}, '${escapeHtml(p.path)}', ${isDir})" title="${t('open_terminal_here', 'Open Terminal Here')}" style="font-size: 0.78rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                    <span>💻</span> <span>Terminal</span>
+                  </button>
+                  <button class="btn btn-sm" onclick="deleteGlobalPin(${p.host_id}, '${escapeHtml(p.path)}')" title="${t('btn_unpin')}" style="padding: 3px 8px; color: var(--danger); opacity: 0.7;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">
+                    🗑️
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+function openTerminalFromGlobalPin(hostId, targetPath, isDir) {
+  closeModal('globalPinsModal');
+  const termDir = isDir ? targetPath : (targetPath.substring(0, targetPath.lastIndexOf('/')) || '/');
+  const host = (allRawHosts || []).find(h => h.id === hostId) || (currentHost && currentHost.id === hostId ? currentHost : null);
+  const hostName = host ? host.name : ('Host ' + hostId);
+  const folderName = (termDir === '/' || !termDir) ? '/' : termDir.split('/').filter(Boolean).pop() || termDir;
+  const customTitle = `${hostName}: ${folderName}`;
+  openTerminalForHost(hostId, null, true, customTitle, termDir);
+}
+
+async function deleteGlobalPin(hostId, path) {
+  const fileName = path.split('/').filter(Boolean).pop() || path;
+  const promptMsg = t('confirm_unpin_item', 'Are you sure you want to unpin "{name}"?').replace('{name}', fileName);
+  if (!confirm(promptMsg)) {
+    return;
+  }
+  try {
+    const res = await fetch('/api/hosts/' + hostId + '/files/pins?path=' + encodeURIComponent(path), {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      showToast(t('pin_removed'), 'success');
+      await loadGlobalPins();
+      if (currentHost && currentHost.id === hostId) {
+        await loadHostFilePins(hostId);
+        if (currentTab === 'files') {
+          renderFilesView();
+        }
+      }
+    }
+  } catch(e) {
+    showToast(t('error_prefix', 'Error: ') + e.message, 'error');
+  }
+}
+
+async function jumpToHostFile(hostId, targetPath, isDir) {
+  closeModal('globalPinsModal');
+  await openHostDetail(hostId);
+  switchTab('files');
+  if (isDir) {
+    loadFiles(targetPath);
+  } else {
+    const parentDir = targetPath.substring(0, targetPath.lastIndexOf('/')) || '/';
+    await loadFiles(parentDir);
+    setTimeout(() => {
+      openEditor(targetPath);
+    }, 400);
   }
 }
 

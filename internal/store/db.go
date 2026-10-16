@@ -180,6 +180,26 @@ type InspectionRun struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
+type FilePin struct {
+	ID        int64     `json:"id"`
+	HostID    int64     `json:"host_id"`
+	Path      string    `json:"path"`
+	IsDir     bool      `json:"is_dir"`
+	Note      string    `json:"note"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type GlobalFilePin struct {
+	ID        int64     `json:"id"`
+	HostID    int64     `json:"host_id"`
+	HostName  string    `json:"host_name"`
+	HostIP    string    `json:"host_ip"`
+	Path      string    `json:"path"`
+	IsDir     bool      `json:"is_dir"`
+	Note      string    `json:"note"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 func Open(dbPath string) (*DB, error) {
 	if dir := filepath.Dir(dbPath); dir != "." && dir != "" {
 		_ = os.MkdirAll(dir, 0755)
@@ -341,6 +361,17 @@ func (d *DB) migrate() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_inspection_runs_host ON inspection_runs(host_id, id DESC);
 	CREATE INDEX IF NOT EXISTS idx_inspection_runs_status ON inspection_runs(host_id, status, id DESC);
+
+	CREATE TABLE IF NOT EXISTS host_file_pins (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+		path TEXT NOT NULL,
+		is_dir INTEGER NOT NULL DEFAULT 0,
+		note TEXT NOT NULL DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(host_id, path)
+	);
+	CREATE INDEX IF NOT EXISTS idx_host_file_pins_host ON host_file_pins(host_id);
 	`
 	_, err := d.Exec(schema)
 	if err != nil {
@@ -1205,4 +1236,80 @@ func (d *DB) ImportSnapshot(payload *SnapshotPayload) error {
 	_, _ = tx.Exec(`INSERT INTO settings (key, value) VALUES ('bootstrap_completed', '1') ON CONFLICT(key) DO UPDATE SET value = '1'`)
 
 	return tx.Commit()
+}
+
+func (d *DB) GetFilePins(hostID int64) ([]FilePin, error) {
+	rows, err := d.Query(`
+		SELECT id, host_id, path, is_dir, note, created_at
+		FROM host_file_pins
+		WHERE host_id = ?
+		ORDER BY is_dir DESC, path ASC
+	`, hostID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var pins []FilePin
+	for rows.Next() {
+		var p FilePin
+		var isDirInt int
+		if err := rows.Scan(&p.ID, &p.HostID, &p.Path, &isDirInt, &p.Note, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		p.IsDir = isDirInt != 0
+		pins = append(pins, p)
+	}
+	if pins == nil {
+		pins = []FilePin{}
+	}
+	return pins, rows.Err()
+}
+
+func (d *DB) GetAllFilePins() ([]GlobalFilePin, error) {
+	rows, err := d.Query(`
+		SELECT p.id, p.host_id, h.name, h.host, p.path, p.is_dir, p.note, p.created_at
+		FROM host_file_pins p
+		JOIN hosts h ON p.host_id = h.id
+		ORDER BY h.name ASC, p.is_dir DESC, p.path ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var pins []GlobalFilePin
+	for rows.Next() {
+		var p GlobalFilePin
+		var isDirInt int
+		if err := rows.Scan(&p.ID, &p.HostID, &p.HostName, &p.HostIP, &p.Path, &isDirInt, &p.Note, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		p.IsDir = isDirInt != 0
+		pins = append(pins, p)
+	}
+	if pins == nil {
+		pins = []GlobalFilePin{}
+	}
+	return pins, rows.Err()
+}
+
+func (d *DB) SaveFilePin(hostID int64, path string, isDir bool, note string) error {
+	isDirInt := 0
+	if isDir {
+		isDirInt = 1
+	}
+	_, err := d.Exec(`
+		INSERT INTO host_file_pins (host_id, path, is_dir, note, created_at)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(host_id, path) DO UPDATE SET
+			is_dir = excluded.is_dir,
+			note = excluded.note
+	`, hostID, path, isDirInt, note)
+	return err
+}
+
+func (d *DB) DeleteFilePin(hostID int64, path string) error {
+	_, err := d.Exec(`DELETE FROM host_file_pins WHERE host_id = ? AND path = ?`, hostID, path)
+	return err
 }

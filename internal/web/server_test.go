@@ -1687,6 +1687,118 @@ func TestHostPackagesAPI(t *testing.T) {
 	}
 }
 
+func TestFilePinsAPI(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-web-pins-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	srv := NewServer(db, nil, nil)
+	token := "test_token_pins"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{
+			Name:  "pantau_session",
+			Value: token,
+		})
+	}
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name: "App Server",
+		Host: "192.168.1.50",
+		Port: 22,
+		User: "deploy",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Initial GET /api/hosts/{id}/files/pins -> empty
+	req := httptest.NewRequest(http.MethodGet, "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/files/pins", nil)
+	authReq(req)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var pins []store.FilePin
+	if err := json.NewDecoder(w.Body).Decode(&pins); err != nil {
+		t.Fatalf("failed decoding pins: %v", err)
+	}
+	if len(pins) != 0 {
+		t.Fatalf("expected 0 pins, got %d", len(pins))
+	}
+
+	// 2. POST pin
+	body := `{"path":"/var/log/syslog","is_dir":false,"note":"System log"}`
+	req = httptest.NewRequest(http.MethodPost, "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/files/pins", strings.NewReader(body))
+	authReq(req)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 on create pin, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// 3. GET pins again
+	req = httptest.NewRequest(http.MethodGet, "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/files/pins", nil)
+	authReq(req)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	pins = nil
+	if err := json.NewDecoder(w.Body).Decode(&pins); err != nil {
+		t.Fatalf("decode pins: %v", err)
+	}
+	if len(pins) != 1 || pins[0].Path != "/var/log/syslog" || pins[0].Note != "System log" {
+		t.Fatalf("unexpected pins: %+v", pins)
+	}
+
+	// 4. GET /api/pins (global)
+	req = httptest.NewRequest(http.MethodGet, "/api/pins", nil)
+	authReq(req)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 from /api/pins, got %d: %s", w.Code, w.Body.String())
+	}
+	var globalPins []store.GlobalFilePin
+	if err := json.NewDecoder(w.Body).Decode(&globalPins); err != nil {
+		t.Fatalf("decode global pins: %v", err)
+	}
+	if len(globalPins) != 1 || globalPins[0].HostName != "App Server" {
+		t.Fatalf("unexpected global pins: %+v", globalPins)
+	}
+
+	// 5. DELETE pin
+	req = httptest.NewRequest(http.MethodDelete, "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/files/pins?path=/var/log/syslog", nil)
+	authReq(req)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 on delete pin, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// 6. Verify empty again
+	req = httptest.NewRequest(http.MethodGet, "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/files/pins", nil)
+	authReq(req)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	pins = nil
+	_ = json.NewDecoder(w.Body).Decode(&pins)
+	if len(pins) != 0 {
+		t.Fatalf("expected 0 pins after delete, got %d", len(pins))
+	}
+}
+
 
 
 
