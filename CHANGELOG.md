@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.25.0] - 2026-10-21
+### Added
+- Interactive Terminal Link Detection: native `term.registerLinkProvider` integration in xterm.js matching RFC 3986 URLs and remote loopback addresses, with `Ctrl+Click` (Linux/Windows) and `Cmd+Click` (macOS) interaction to prevent accidental terminal text selection conflicts.
+- Remote Web Port Tunneling: agentless HTTP and WebSocket reverse proxy (`/api/tunnel/:hostId/:port/*`) streaming over OpenSSH RFC 4254 `direct-tcpip` channels (`golang.org/x/crypto/ssh` `DialContext`) without requiring public firewall port openings or remote daemons.
+- High-Performance Connection Pooling: per-host SSH transport caching eliminating 100–300ms connection handshakes across sequential asset requests (CSS, JS, images), featuring transparent auto-reconnect fallback on idle connection dropouts.
+- Native WebSocket Hijacking: full bidirectional streaming over SSH channels supporting protocol status `101 Switching Protocols` for real-time development servers and interactive web services.
+- SSRF & Port Security Enforcement: strict hardcoded remote loopback binding (`127.0.0.1:<port>`), mandatory `pantau_session` authentication, port range boundaries (1-65535), and blacklisting of the target host's own active SSH port.
+- Interactive Remote Web Service Modal: confirmation dialog on clicking remote localhost URLs in terminal output with 1-click tunnel launch and link copying.
+- Terminal Ports Dropdown Menu: dedicated `🌐 Ports` toolbar menu in the terminal dock for manual port forwarding entry and persistent recent port history (`localStorage`).
+- Zero-Configuration Remote Browser Bridge: automated OSC 1337 (`OpenURL`) and OSC 777 escape sequence receiver routing CLI tool browser requests (`gh auth login`, `xdg-open`, Python `webbrowser`, AWS SSO, `npm login`) directly to the client's desktop browser without headless text-browser (`w3m`/`lynx`) traps.
+- Silent Shell Environment Auto-Provisioning: non-intrusive provisioning of `/tmp/pantau-browser` and silent environment injection (`BROWSER`, `GH_BROWSER`) across login shells with zero console echo.
+- Architectural Decision Record: [ADR-0034](docs/adr/0034-terminal-link-detection-remote-browser-bridge-and-port-tunnel.md).
+
 ## [0.24.0] - 2026-10-16
 ### Added
 - Live Search in Terminal Presets: real-time search filtering in the terminal presets dropdown by preset title, command, or tmux session tag (`t:tag`), enabling instant command dispatch across extensive preset catalogs.

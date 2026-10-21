@@ -211,6 +211,15 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **Bilah Alat Terminal Ringkas & Terintegrasi**: Pengelompokan toolbar yang bersih (lencana status host & reconnect, kontrol zoom font `+`/`-`/`0`, tombol pindah langsung ke Pengelola Berkas `📁 Files`, dan split-pane `⬛ Split`).
 - **Pelacakan Direktori Kerja Terminal Aktif**: Pelacakan direktori kerja shell remote secara real-time melalui judul jendela terminal dan sekuens ANSI OSC 7 untuk sinkronisasi navigasi.
 
+### 24. 🌐 Deteksi Link Terminal, Remote Browser Bridge & Web Port Tunneling
+- **Deteksi Link Terminal Interaktif**: Menggunakan API bawaan `xterm.js` via `term.registerLinkProvider` tanpa dependensi eksternal. Mendukung interaksi **`Ctrl+Click`** (Linux/Windows) dan **`Cmd+Click`** (macOS) untuk membuka URL publik langsung ke tab browser baru tanpa mengganggu seleksi teks atau copy-paste log terminal.
+- **Remote Web Port Tunneling**: Reverse proxy HTTP dan WebSocket on-demand (`/api/tunnel/:hostId/:port/*`) yang dialirkan secara *agentless* melalui channel OpenSSH RFC 4254 `direct-tcpip` (`golang.org/x/crypto/ssh` `DialContext`). Akses layanan web internal remote (`localhost:port` atau `127.0.0.1:port`) secara aman dari peramban desktop Anda tanpa membuka port firewall ke publik.
+- **Connection Pooling Cepat Tanpa Handshake Ulang**: Meng-cache koneksi transport SSH per host dengan auto-reconnect cerdas, mengeliminasi jeda handshake 100–300ms untuk pemuatan puluhan aset web (CSS, JS, gambar).
+- **Dukungan WebSocket Bawaan**: Aliran dua arah *full-duplex* berbasis protokol HTTP status `101 Switching Protocols` untuk server pengembangan modern (Vite HMR, Next.js, Jupyter Notebook).
+- **Zero-Configuration Remote Browser Bridge**: Otomatisasi penangkap sinyal terminal OSC 1337 (`OpenURL`) dan OSC 777 yang secara otomatis meneruskan permintaan buka peramban dari CLI remote (`gh auth login`, `xdg-open`, Python `webbrowser`, AWS SSO, `npm login`) langsung ke peramban desktop asli pengguna tanpa terjebak browser teks konsol (`w3m`/`lynx`).
+- **Penyuntikan Senyap Lingkungan Shell**: Auto-provisioning script `/tmp/pantau-browser` dan penyetelan environment variable (`BROWSER`, `GH_BROWSER`) secara senyap pada shell login tanpa memicu echo perintah di layar konsol.
+- **Menu Toolbar Dropdown `🌐 Ports` & Modal Aksi**: Menu toolbar khusus `🌐 Ports` di terminal dock untuk membuka port remote secara bebas dan menyimpan riwayat port di *localStorage*, dipadukan dengan modal dialog konfirmasi interaktif saat URL remote diklik.
+
 ---
 
 ## 🚀 Panduan Memulai Cepat (Quick Start)

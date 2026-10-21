@@ -89,6 +89,7 @@ type Server struct {
 	htmlContentGz     []byte
 	htmlETag          string
 	docsFS            fs.FS
+	tunnelRunners     sync.Map // hostID -> *tunnelRunnerEntry
 	inspectAllMu      sync.Mutex
 	inspectAllActive  bool
 	lastInspectAll    time.Time
@@ -213,6 +214,9 @@ func (s *Server) routes() {
 	// WebSockets (Terminal & Docker Logs)
 	s.mux.HandleFunc("/ws/terminal", s.authMiddleware(s.handleWSTerminal))
 	s.mux.HandleFunc("/ws/docker/logs", s.authMiddleware(s.handleWSDockerLogs))
+
+	// SSH Direct-TCPIP Reverse Proxy Tunnel
+	s.mux.HandleFunc("/api/tunnel/", s.authMiddleware(s.handleTunnel))
 
 	// Snapshots & GitHub Backup
 	s.mux.HandleFunc("/api/snapshot/status", s.handleSnapshotStatus)
@@ -897,6 +901,7 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			}
 			writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 		case http.MethodDelete:
+			s.evictTunnelRunner(hostID)
 			if err := s.db.DeleteHost(hostID); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -1931,7 +1936,10 @@ func (s *Server) handleWSTerminal(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// ponytail: handle initial working directory (Terminal From Path) and preset command execution
+	// ponytail: Auto-provision /tmp/pantau-browser bridge script and export environment variables silently
+	s.ensureBrowserBridge(runner, host.ID)
+
+	// Handle initial working directory (Terminal From Path) and preset command execution
 	if strings.TrimSpace(dirParam) != "" || strings.TrimSpace(initialCmd) != "" {
 		go func() {
 			time.Sleep(150 * time.Millisecond)
@@ -1951,6 +1959,36 @@ func (s *Server) handleWSTerminal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = runner.Terminal(inReader, outWriter, 120, 40, resizeChan)
+}
+
+var (
+	browserBridgeMu          sync.Mutex
+	browserBridgeProvisioned = make(map[int64]bool)
+)
+
+func (s *Server) ensureBrowserBridge(runner sshrunner.Runner, hostID int64) {
+	browserBridgeMu.Lock()
+	if browserBridgeProvisioned[hostID] {
+		browserBridgeMu.Unlock()
+		return
+	}
+	browserBridgeProvisioned[hostID] = true
+	browserBridgeMu.Unlock()
+
+	cmd := `mkdir -p /tmp && cat << 'EOF' > /tmp/pantau-browser
+#!/bin/sh
+if [ -n "$1" ]; then
+  printf '\033]1337;OpenURL=%s\007' "$1"
+  printf '\033]777;open;%s\007' "$1"
+fi
+EOF
+chmod +x /tmp/pantau-browser
+for f in ~/.bashrc ~/.zshrc ~/.profile; do
+  if [ -f "$f" ] && ! grep -q "pantau-browser" "$f" 2>/dev/null; then
+    printf '\n# Pantau Remote Browser Bridge\nexport BROWSER=/tmp/pantau-browser GH_BROWSER=/tmp/pantau-browser\n' >> "$f"
+  fi
+done`
+	_, _, _, _ = runner.ExecTimeout(cmd, 2*time.Second)
 }
 
 func formatPresetExecution(cmd string, useTmux bool) string {

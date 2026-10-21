@@ -1465,6 +1465,38 @@ body.has-workspace-shelf .container {
   </div>
 </div>
 
+<!-- Remote Web Service Tunnel Modal -->
+<div id="tunnelModal" class="modal">
+  <div class="modal-content modal-dialog" style="max-width: 480px;">
+    <div class="modal-header">
+      <h3 style="display: flex; align-items: center; gap: 8px;">
+        <span>🌐</span> <span>Remote Web Service</span>
+      </h3>
+      <button class="btn btn-sm" onclick="closeModal('tunnelModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 14px; line-height: 1.5;">
+        Terdeteksi layanan web remote pada Host <strong id="tunnelHostName" style="color: var(--text);"></strong> di port <code id="tunnelPortBadge" style="color: var(--primary); font-weight: bold; background: rgba(99,102,241,0.15); padding: 2px 6px; border-radius: 4px;"></code>.
+      </p>
+      <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px 12px; margin-bottom: 16px;">
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 3px;">URL Asli:</div>
+        <div id="tunnelRawUrl" style="font-family: monospace; font-size: 0.82rem; word-break: break-all; color: #a5b4fc; margin-bottom: 8px;"></div>
+        <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 3px;">URL Pantau Tunnel:</div>
+        <div id="tunnelProxyUrl" style="font-family: monospace; font-size: 0.82rem; word-break: break-all; color: #34d399;"></div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+        <button class="btn" onclick="closeModal('tunnelModal')" data-i18n="cancel">Batal</button>
+        <button class="btn" onclick="copyTunnelUrl()" style="display: inline-flex; align-items: center; gap: 4px;">
+          📋 Salin Link
+        </button>
+        <button class="btn btn-primary" onclick="openTunnelInNewTab()" style="display: inline-flex; align-items: center; gap: 4px;">
+          🚀 Buka via Tunnel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Add Desired State Rule Modal (Action Dialog) -->
 <div id="ruleModal" class="modal">
   <div class="modal-content modal-dialog" style="max-width: 480px;">
@@ -7544,6 +7576,29 @@ function createTabWorkspaceDOM(tab) {
               </div>
             </div>
           </div>
+          <div class="terminal-ports-wrapper" style="position: relative; display: inline-block;">
+            <button class="btn btn-sm" onclick="toggleTerminalPortsDropdown('${tab.id}', event)" title="Forwarded Ports / Remote Web Tunnel" style="padding: 3px 8px; font-size: 0.72rem;">
+              🌐 <span id="lblPorts_${tab.id}">Ports</span> <span style="font-size: 0.65rem;">▼</span>
+            </button>
+            <div id="portsDropdownMenu_${tab.id}" class="terminal-dropdown-menu" style="display: none; min-width: 250px; max-width: 320px; right: 0;">
+              <div style="padding: 8px 10px; border-bottom: 1px solid var(--card-border); font-size: 0.75rem; font-weight: 600; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
+                <span>🌐 Remote Web Tunnel</span>
+              </div>
+              <div style="padding: 8px 10px;">
+                <label style="font-size: 0.72rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Buka Remote Port:</label>
+                <div style="display: flex; gap: 4px;">
+                  <input type="number" id="portInput_${tab.id}" placeholder="e.g. 8080, 3000" min="1" max="65535" style="flex: 1; padding: 4px 8px; font-size: 0.78rem; background: var(--bg); color: var(--text); border: 1px solid var(--card-border); border-radius: 4px;" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter') openCustomTunnelForTab('${tab.id}')">
+                  <button class="btn btn-sm btn-primary" onclick="openCustomTunnelForTab('${tab.id}')" style="padding: 3px 10px; font-size: 0.72rem;">
+                    Buka
+                  </button>
+                </div>
+              </div>
+              <div id="recentPortsSection_${tab.id}" style="border-top: 1px solid var(--card-border); padding: 6px 10px; font-size: 0.72rem;">
+                <div style="color: var(--text-muted); margin-bottom: 4px;">Port Cepat / Riwayat:</div>
+                <div id="recentPortsList_${tab.id}" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div style="width: 1px; height: 16px; background: var(--card-border); flex-shrink: 0;"></div>
@@ -7935,6 +7990,7 @@ function initTabLeftTerminal(tab, presetID) {
   ws.binaryType = 'arraybuffer';
   setupTerminalClipboardBridge(term, ws, container);
   setupTerminalPathTracking(tab, 'left', term);
+  setupTerminalLinkProvider(term, tab, tab.hostID);
 
   ws.onopen = () => {
     tab.connectedLeft = true;
@@ -8025,6 +8081,7 @@ function initTabRightTerminal(tab, hostID, presetID) {
   ws.binaryType = 'arraybuffer';
   setupTerminalClipboardBridge(term, ws, container);
   setupTerminalPathTracking(tab, 'right', term);
+  setupTerminalLinkProvider(term, tab, hostID);
 
   ws.onopen = () => {
     tab.connectedRight = true;
@@ -8428,6 +8485,250 @@ function openTerminalPinModal(tabId) {
   if (menu) menu.style.display = 'none';
   const defaultPath = getTerminalActivePath(tabId);
   openPinModal(defaultPath, true, targetHostId, tabId, true);
+}
+
+// --- Terminal Web Link Detection & SSH Tunnel Manager ---
+
+let currentTunnelTarget = null;
+
+function setupTerminalLinkProvider(term, tab, hostID) {
+  if (!term || typeof term.registerLinkProvider !== 'function') return;
+
+  const urlRegex = /(?:https?:\/\/[^\s"'<>()]+|(?:localhost|127\.0\.0\.1|0\.0\.0\.0):\d+[^\s"'<>()]*)/gi;
+
+  term.registerLinkProvider({
+    provideLinks(bufferLineNumber, callback) {
+      try {
+        const line = term.buffer.active.getLine(bufferLineNumber - 1);
+        if (!line) {
+          callback(undefined);
+          return;
+        }
+        const lineText = line.translateToString(true);
+        const links = [];
+        let match;
+        urlRegex.lastIndex = 0;
+
+        while ((match = urlRegex.exec(lineText)) !== null) {
+          const rawText = match[0];
+          const startIndex = match.index;
+
+          // Strip common trailing punctuation
+          let cleanedText = rawText;
+          while (/[.,;:)\]]$/.test(cleanedText)) {
+            if (cleanedText.endsWith(')') && (cleanedText.match(/\(/g) || []).length >= (cleanedText.match(/\)/g) || []).length) {
+              break;
+            }
+            cleanedText = cleanedText.slice(0, -1);
+          }
+
+          if (cleanedText.length > 0) {
+            links.push({
+              range: {
+                start: { x: startIndex + 1, y: bufferLineNumber },
+                end: { x: startIndex + cleanedText.length, y: bufferLineNumber }
+              },
+              text: cleanedText,
+              activate(event, text) {
+                handleTerminalLinkActivation(event, text, hostID);
+              }
+            });
+          }
+        }
+
+        callback(links.length > 0 ? links : undefined);
+      } catch (err) {
+        callback(undefined);
+      }
+    }
+  });
+
+  // Standard OSC 1337 (OpenURL) & OSC 777 remote browser opener hook
+  const handleRemoteBrowserOpen = (rawUrl) => {
+    let url = (rawUrl || '').trim();
+    if (!url) return false;
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'http://' + url;
+    }
+    try {
+      const parsed = new URL(url);
+      const hostname = parsed.hostname.toLowerCase();
+      const isLoopback = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0');
+      if (isLoopback && parsed.port) {
+        const subpath = parsed.pathname + (parsed.search || '') + (parsed.hash || '');
+        const tunnelUrl = location.origin + '/api/tunnel/' + hostID + '/' + parsed.port + (subpath.startsWith('/') ? subpath : '/' + subpath);
+        saveRecentPort(parsed.port);
+        window.open(tunnelUrl, '_blank');
+        showToast('🚀 Membuka remote port ' + parsed.port + ' via Pantau Tunnel', 'info', 2500);
+        return true;
+      }
+    } catch(e) {}
+    window.open(url, '_blank', 'noopener,noreferrer');
+    showToast('🚀 Membuka link di browser Anda: ' + url, 'info', 2500);
+    return true;
+  };
+
+  if (term.parser && typeof term.parser.registerOscHandler === 'function') {
+    term.parser.registerOscHandler(1337, (data) => {
+      if (data.startsWith('OpenURL=')) {
+        return handleRemoteBrowserOpen(data.slice(8));
+      }
+      return false;
+    });
+    term.parser.registerOscHandler(777, (data) => {
+      if (data.startsWith('open;')) {
+        return handleRemoteBrowserOpen(data.slice(5));
+      }
+      return false;
+    });
+  }
+}
+
+function handleTerminalLinkActivation(event, text, hostID) {
+  // Decision 01: Require Ctrl+Click (Win/Linux) or Cmd+Click (macOS)
+  const isModifier = event && (event.ctrlKey || event.metaKey);
+  if (!isModifier) {
+    showToast('💡 Tekan Ctrl+Click (atau Cmd+Click) untuk membuka link', 'info', 2500);
+    return;
+  }
+
+  let fullUrl = text;
+  if (!/^https?:\/\//i.test(fullUrl)) {
+    fullUrl = 'http://' + fullUrl;
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(fullUrl);
+  } catch (e) {
+    window.open(fullUrl, '_blank', 'noopener,noreferrer');
+    return;
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  const isLoopback = (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0');
+
+  if (isLoopback && parsed.port) {
+    const subpath = parsed.pathname + (parsed.search || '') + (parsed.hash || '');
+    showTunnelConfirmationModal(hostID, parsed.port, subpath, text);
+  } else {
+    window.open(fullUrl, '_blank', 'noopener,noreferrer');
+  }
+}
+
+function showTunnelConfirmationModal(hostID, port, subpath, rawUrl) {
+  const host = (typeof hosts !== 'undefined' && Array.isArray(hosts)) ? hosts.find(h => h.id === hostID) : null;
+  const hostName = host ? host.name : (currentHost && currentHost.id === hostID ? currentHost.name : ('Host #' + hostID));
+  const cleanSubpath = subpath ? (subpath.startsWith('/') ? subpath : '/' + subpath) : '/';
+  const tunnelUrl = location.origin + '/api/tunnel/' + hostID + '/' + port + cleanSubpath;
+
+  currentTunnelTarget = {
+    hostID: hostID,
+    hostName: hostName,
+    port: port,
+    subpath: cleanSubpath,
+    rawUrl: rawUrl,
+    tunnelUrl: tunnelUrl
+  };
+
+  const nameEl = document.getElementById('tunnelHostName');
+  if (nameEl) nameEl.textContent = hostName;
+  const badgeEl = document.getElementById('tunnelPortBadge');
+  if (badgeEl) badgeEl.textContent = ':' + port;
+  const rawEl = document.getElementById('tunnelRawUrl');
+  if (rawEl) rawEl.textContent = rawUrl;
+  const proxyEl = document.getElementById('tunnelProxyUrl');
+  if (proxyEl) proxyEl.textContent = tunnelUrl;
+
+  openModal('tunnelModal');
+}
+
+function openTunnelInNewTab() {
+  if (currentTunnelTarget && currentTunnelTarget.tunnelUrl) {
+    saveRecentPort(currentTunnelTarget.port);
+    window.open(currentTunnelTarget.tunnelUrl, '_blank');
+    closeModal('tunnelModal');
+  }
+}
+
+function copyTunnelUrl() {
+  if (currentTunnelTarget && currentTunnelTarget.tunnelUrl) {
+    copyTextToClipboard(currentTunnelTarget.tunnelUrl);
+    showToast('✓ Link tunnel disalin ke clipboard!', 'success', 2000);
+  }
+}
+
+function toggleTerminalPortsDropdown(tabId, e) {
+  if (e) e.stopPropagation();
+  const menu = document.getElementById('portsDropdownMenu_' + tabId);
+  if (!menu) return;
+  const isOpen = menu.style.display === 'block';
+  document.querySelectorAll('.terminal-dropdown-menu').forEach(m => {
+    m.style.display = 'none';
+  });
+  if (!isOpen) {
+    menu.style.display = 'block';
+    renderRecentPorts(tabId);
+    const input = document.getElementById('portInput_' + tabId);
+    if (input) {
+      input.value = '';
+      setTimeout(() => input.focus(), 40);
+    }
+  }
+}
+
+function getRecentPorts() {
+  try {
+    const raw = localStorage.getItem('pantau_recent_tunnel_ports');
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr) && arr.length > 0) return arr;
+    }
+  } catch(e) {}
+  return [80, 443, 3000, 8080, 8000, 9000];
+}
+
+function saveRecentPort(port) {
+  const p = parseInt(port, 10);
+  if (!p || p < 1 || p > 65535) return;
+  let list = getRecentPorts();
+  list = [p, ...list.filter(x => x !== p)].slice(0, 8);
+  try {
+    localStorage.setItem('pantau_recent_tunnel_ports', JSON.stringify(list));
+  } catch(e) {}
+}
+
+function renderRecentPorts(tabId) {
+  const container = document.getElementById('recentPortsList_' + tabId);
+  if (!container) return;
+  const ports = getRecentPorts();
+  container.innerHTML = ports.map(p => `
+    <button class="btn btn-sm" onclick="event.stopPropagation(); openTunnelForPort('${tabId}', ${p})" style="padding: 2px 6px; font-size: 0.7rem; font-family: monospace; background: rgba(255,255,255,0.06); border: 1px solid var(--card-border);">
+      :${p}
+    </button>
+  `).join('');
+}
+
+function openCustomTunnelForTab(tabId) {
+  const input = document.getElementById('portInput_' + tabId);
+  if (!input) return;
+  const port = parseInt(input.value.trim(), 10);
+  if (!port || port < 1 || port > 65535) {
+    showToast('⚠️ Masukkan nomor port valid (1-65535)', 'warning', 2500);
+    return;
+  }
+  openTunnelForPort(tabId, port);
+}
+
+function openTunnelForPort(tabId, port) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const targetHostId = (tab.isSplit && tab.focusedPane === 'right') ? (tab.hostIDRight || tab.hostID) : tab.hostID;
+  saveRecentPort(port);
+  const url = location.origin + '/api/tunnel/' + targetHostId + '/' + port + '/';
+  window.open(url, '_blank');
+  const menu = document.getElementById('portsDropdownMenu_' + tabId);
+  if (menu) menu.style.display = 'none';
 }
 
 function openTerminalForHost(hostID, presetID, forceNew = false, customTitle = null, initialDir = null) {
@@ -9948,7 +10249,7 @@ window.addEventListener('click', (e) => {
 
   document.querySelectorAll('.terminal-dropdown-menu').forEach(m => {
     if (m.style.display === 'block') {
-      const wrap = m.closest('.terminal-pins-wrapper, .terminal-presets-wrapper');
+      const wrap = m.closest('.terminal-pins-wrapper, .terminal-presets-wrapper, .terminal-ports-wrapper');
       if (!wrap || !wrap.contains(e.target)) {
         m.style.display = 'none';
       }
