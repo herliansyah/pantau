@@ -211,6 +211,15 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - **Streamlined Terminal Toolbar & Direct Navigation**: Clean toolbar layout with host status badge, font zoom controls (`+`/`-`/`0`), 1-click context jump to Host File Manager (`📁 Files`), and split-pane controls (`⬛ Split`).
 - **Active Working Directory Tracking**: Real-time tracking of remote shell working directory via shell window titles and OSC 7 ANSI escape sequences.
 
+### 24. 🌐 Terminal Link Detection, Remote Browser Bridge & Web Port Tunneling
+- **Interactive Terminal Links**: Native link detection in `xterm.js` via `term.registerLinkProvider` without third-party vendor bloat. Supports `Ctrl+Click` (Linux/Windows) and `Cmd+Click` (macOS) to open public URLs directly in new browser tabs without interfering with terminal text selection.
+- **Remote Web Port Tunneling**: Agentless HTTP and WebSocket reverse proxy (`/api/tunnel/:hostId/:port/*`) streaming over OpenSSH RFC 4254 `direct-tcpip` channels (`golang.org/x/crypto/ssh` `DialContext`). Access remote private web applications (`localhost:port` or `127.0.0.1:port`) securely from your desktop browser without exposing public firewall ports.
+- **Zero-Handshake Connection Pooling**: Caches SSH tunnel transports per host with transparent auto-reconnect fallback, eliminating 100–300ms connection latency across sequential web assets (CSS, JS, images).
+- **Native WebSocket Hijacking**: Full-duplex bidirectional streaming supporting HTTP status `101 Switching Protocols` out of the box for modern development servers (Vite HMR, Next.js, Jupyter).
+- **Zero-Configuration Remote Browser Bridge**: Automated OSC 1337 (`OpenURL`) and OSC 777 escape sequence receiver routing CLI tool browser requests (`gh auth login`, `xdg-open`, Python `webbrowser`, AWS SSO, `npm login`) directly to the client's desktop browser without headless text-browser (`w3m`/`lynx`) traps.
+- **Silent Shell Environment Auto-Provisioning**: Non-intrusive provisioning of `/tmp/pantau-browser` and silent environment injection (`BROWSER`, `GH_BROWSER`) across login shells with zero console echo.
+- **Terminal Ports Dropdown & Action Modal**: Dedicated `🌐 Ports` toolbar menu in the terminal dock for manual port forwarding entry and persistent recent port history (`localStorage`), paired with an interactive confirmation modal on clicking remote localhost URLs in terminal output.
+
 ---
 
 ## 🚀 Quick Start

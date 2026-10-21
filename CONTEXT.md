@@ -145,6 +145,18 @@ _Avoid_: Layout style, display type, presentation format
 Lokasi direktori sistem operasi atau file inti pada Host Linux yang dibatasi secara permanen dari operasi manipulasi (tulis, ubah, unggah, dan hapus) melalui antarmuka manajemen file.
 _Avoid_: Blocked folder, blacklisted path, system lock
 
+**Remote Web Port Tunnel**:
+Reverse proxy HTTP dan WebSocket on-demand yang memanfaatkan channel OpenSSH RFC 4254 `direct-tcpip` untuk menjembatani akses browser klien ke service web internal pada Host target (`127.0.0.1:<port>`) secara *agentless*.
+_Avoid_: Port forwarding, ssh tunnel proxy, local forwarder
+
+**Terminal Link Provider**:
+Komponen pendeteksi URL interaktif pada xterm Pantau yang memvalidasi link URL (`Ctrl+Click` / `Cmd+Click`) dan membedakan rute URL publik ke tab browser baru atau URL loopback remote ke Remote Web Port Tunnel.
+_Avoid_: URL detector, link clicker, terminal hyperlinker
+
+**Remote Browser Bridge**:
+Mekanisme otomatisasi protokol escape sequence (OSC 1337 / OSC 777) dan penyediaan helper `$BROWSER` pada Host target yang memungkinkan perintah CLI remote (`gh auth login`, `xdg-open`, Python `webbrowser`, AWS SSO, dsb.) membuka browser desktop asli klien secara otomatis tanpa memicu text-browser headless (`w3m`/`lynx`).
+_Avoid_: Web launcher, remote browser opener, headless bridge
+
 **Terminal Preset**:
 Konfigurasi pintasan perintah terminal interaktif (nama label, perintah shell, target Host opsional, dan preferensi persistensi sesi) yang tersimpan di basis data Pantau untuk eksekusi instan melalui antarmuka web.
 _Avoid_: Terminal shortcut, terminal macro, saved command, quick command

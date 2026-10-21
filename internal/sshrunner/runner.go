@@ -2,6 +2,7 @@ package sshrunner
 
 import (
 	"bytes"
+	"context"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -55,6 +56,7 @@ type Runner interface {
 	PipeCommand(cmd string, in io.Reader, out io.Writer) error
 	SFTP() (*sftp.Client, error)
 	Terminal(in io.Reader, out io.Writer, cols, rows int, resizeChan <-chan [2]int) error
+	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
 	Close() error
 }
 
@@ -310,6 +312,10 @@ func (r *LiveSSHRunner) Terminal(in io.Reader, out io.Writer, cols, rows int, re
 	session.Stdout = out
 	session.Stderr = out
 
+	// ponytail: Attempt native SSH environment passing for seamless browser bridge
+	_ = session.Setenv("BROWSER", "/tmp/pantau-browser")
+	_ = session.Setenv("GH_BROWSER", "/tmp/pantau-browser")
+
 	if err := session.Shell(); err != nil {
 		return fmt.Errorf("start shell: %w", err)
 	}
@@ -324,6 +330,13 @@ func (r *LiveSSHRunner) Terminal(in io.Reader, out io.Writer, cols, rows int, re
 	return session.Wait()
 }
 
+func (r *LiveSSHRunner) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	if r.client == nil {
+		return nil, fmt.Errorf("ssh runner client is closed or not initialized")
+	}
+	return r.client.DialContext(ctx, network, addr)
+}
+
 func (r *LiveSSHRunner) Close() error {
 	if r.client != nil {
 		return r.client.Close()
@@ -333,12 +346,13 @@ func (r *LiveSSHRunner) Close() error {
 
 // MockRunner is the primary test seam for testing all Pantau inspections, terminal, and file logic without real SSH servers.
 type MockRunner struct {
-	mu           sync.Mutex
-	Handlers     map[string]func() (stdout, stderr string, exitCode int, err error)
-	DefaultExec  func(cmd string) (stdout, stderr string, exitCode int, err error)
-	ExecHistory  []string
-	Closed       bool
-	SFTPProvider func() (*sftp.Client, error)
+	mu              sync.Mutex
+	Handlers        map[string]func() (stdout, stderr string, exitCode int, err error)
+	DefaultExec     func(cmd string) (stdout, stderr string, exitCode int, err error)
+	ExecHistory     []string
+	Closed          bool
+	SFTPProvider    func() (*sftp.Client, error)
+	DialContextFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
 func NewMockRunner() *MockRunner {
@@ -429,6 +443,15 @@ func (m *MockRunner) Terminal(in io.Reader, out io.Writer, cols, rows int, resiz
 	_, _ = fmt.Fprintln(out, "Mock SSH Terminal Connected")
 	_, _ = io.Copy(out, in)
 	return nil
+}
+
+func (m *MockRunner) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	if m.DialContextFunc != nil {
+		return m.DialContextFunc(ctx, network, addr)
+	}
+	serverConn, clientConn := net.Pipe()
+	_ = serverConn.Close()
+	return clientConn, nil
 }
 
 func (m *MockRunner) Close() error {
