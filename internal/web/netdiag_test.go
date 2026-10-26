@@ -153,9 +153,12 @@ func TestNetDiagUIInIndexHTML(t *testing.T) {
 		t.Errorf("expected aligned 28px header row for Target Mode in renderNetDiagUI")
 	}
 
-	// 8. Verify modal-dialog-xl on netDiagModal
-	if !strings.Contains(body, `id="netDiagModal" class="modal">`+"\n"+`  <div class="modal-content modal-dialog-xl"`) {
-		t.Errorf("expected modal-dialog-xl on netDiagModal")
+	// 8. Verify modal-workspace on netDiagModal per ADR 0007 and Workspace Modal domain specification
+	if !strings.Contains(body, `id="netDiagModal" class="modal">`+"\n"+`  <div class="modal-content modal-workspace"`) {
+		t.Errorf("expected modal-workspace on netDiagModal")
+	}
+	if !strings.Contains(body, `.modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); z-index: 50; align-items: flex-start; justify-content: center; padding: clamp(24px, 5vh, 60px) 20px 20px 20px; overflow-y: auto; }`) {
+		t.Errorf("expected top-anchored alignment styling for .modal")
 	}
 
 	// 9. Verify nowrap on hop zone badge and raw pre

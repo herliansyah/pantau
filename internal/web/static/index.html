@@ -84,15 +84,15 @@ a.btn:hover { text-decoration: none; color: var(--text); }
 .progress-fill.warn { background: var(--warning); }
 .progress-fill.danger { background: var(--danger); }
 .score-badge { font-weight: 700; font-size: 1rem; color: #38bdf8; }
-.modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); z-index: 50; align-items: center; justify-content: center; padding: 20px; }
+.modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); z-index: 50; align-items: flex-start; justify-content: center; padding: clamp(24px, 5vh, 60px) 20px 20px 20px; overflow-y: auto; }
 .modal.open { display: flex; }
 .modal-content { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5); }
 .modal-workspace { width: 85vw; height: 84vh; max-width: 1500px; min-width: 760px; }
-.modal-dialog { width: 100%; max-width: 520px; max-height: 90vh; }
-.modal-dialog-md { width: 100%; max-width: 600px; max-height: 90vh; }
-.modal-dialog-lg { width: 100%; max-width: 740px; max-height: 90vh; }
-.modal-dialog-xl { width: 90vw; max-width: 980px; max-height: 88vh; }
-.modal-dialog-host { width: 100%; max-width: 800px; max-height: 92vh; }
+.modal-dialog { width: 100%; max-width: 520px; max-height: calc(100vh - clamp(24px, 5vh, 60px) - 30px); }
+.modal-dialog-md { width: 100%; max-width: 600px; max-height: calc(100vh - clamp(24px, 5vh, 60px) - 30px); }
+.modal-dialog-lg { width: 100%; max-width: 740px; max-height: calc(100vh - clamp(24px, 5vh, 60px) - 30px); }
+.modal-dialog-xl { width: 90vw; max-width: 980px; max-height: calc(100vh - clamp(24px, 5vh, 60px) - 30px); }
+.modal-dialog-host { width: 100%; max-width: 800px; max-height: calc(100vh - clamp(24px, 5vh, 60px) - 30px); }
 .host-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
 @media (max-width: 768px) {
   .host-form-grid { grid-template-columns: 1fr; gap: 12px; }
@@ -2426,9 +2426,9 @@ body.has-workspace-shelf .container {
   </div>
 </div>
 
-<!-- Network Diagnostics Modal (Action Dialog) -->
+<!-- Network Diagnostics Modal (Workspace Modal) -->
 <div id="netDiagModal" class="modal">
-  <div class="modal-content modal-dialog-xl" style="display: flex; flex-direction: column; max-height: 88vh;">
+  <div class="modal-content modal-workspace" style="display: flex; flex-direction: column;">
     <div class="modal-header">
       <div style="display: flex; align-items: center; gap: 8px;">
         <span style="font-size: 1.25rem;">📡</span>

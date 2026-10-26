@@ -110,11 +110,11 @@ _Avoid_: Cloud storage, backup destination, git sync
 
 
 **Workspace Modal**:
-Kontainer modal layar lebar berdimensi tetap (75vw × 80vh di desktop) untuk tugas interaktif observabilitas dan data (Host Detail, Editor, Transfer Queue) tanpa perubahan ukuran layout saat navigasi antar-tab.
+Kontainer modal layar lebar berdimensi tetap (85vw × 84vh di desktop) berposisi *top-anchored* untuk tugas interaktif observabilitas dan data (Host Detail, Editor, Transfer Queue, Network Diagnostic) tanpa perubahan posisi dan ukuran layout saat navigasi antar-tab atau peralihan sub-view.
 _Avoid_: Popup window, dynamic modal, fluid dialog
 
 **Action Dialog**:
-Kontainer modal terpusat berdimensi ringkas (lebar ~520px - 740px) untuk formulir input sekuensial, dialog pengaturan (Settings), atau konfirmasi aksi tunggal (Add Host, Direct Transfer, Restore Wizard).
+Kontainer modal berposisi *top-anchored* dengan lebar ringkas (~520px - 740px) untuk formulir input sekuensial, dialog pengaturan (Settings), atau konfirmasi aksi tunggal (Add Host, Direct Transfer, Restore Wizard) dengan batas atas konsisten agar tidak melompat secara vertikal saat validasi atau pemanjangan konten.
 _Avoid_: Small modal, mini popup, submodal
 
 **Documentation Modal**:
