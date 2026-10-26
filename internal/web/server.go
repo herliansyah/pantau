@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -116,12 +117,18 @@ func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) 
 		provisioner:    sshrunner.DefaultKeyProvisioner,
 		transferMgr:    transfer.NewManager(db, nil),
 		snapshotMgr:    snapshot.NewManager(db, nil),
-		netdiagService: netdiag.NewService(db, ins),
+		netdiagService: netdiag.NewService(db, ins, disp),
 		mux:            http.NewServeMux(),
 	}
 	s.prepareHTML(embeddedHTML)
 	s.routes()
 	return s
+}
+
+func (s *Server) StartAutoTriageScheduler(ctx context.Context) {
+	if s.netdiagService != nil {
+		go s.netdiagService.StartAutoTriageScheduler(ctx)
+	}
 }
 
 func (s *Server) SetNetdiagService(ns *netdiag.Service) {
@@ -234,10 +241,14 @@ func (s *Server) routes() {
 	// Live Event Stream (Activity Console)
 	s.mux.HandleFunc("/api/logs/stream", s.authMiddleware(s.handleLogsStream))
 
-	// Network Diagnostics (ADR Network Diagnostic)
+	// Network Diagnostics (ADR Network Diagnostic & ADR-0035 Branch Triage Matrix)
 	s.mux.HandleFunc("/api/netdiag/stream", s.authMiddleware(s.handleNetDiagStream))
 	s.mux.HandleFunc("/api/netdiag/presets", s.authMiddleware(s.handleProbeTargetPresets))
 	s.mux.HandleFunc("/api/netdiag/presets/", s.authMiddleware(s.handleProbeTargetPresetDetail))
+	s.mux.HandleFunc("/api/netdiag/triage", s.authMiddleware(s.handleNetDiagTriageStream))
+	s.mux.HandleFunc("/api/netdiag/triage/history", s.authMiddleware(s.handleTriageHistory))
+	s.mux.HandleFunc("/api/netdiag/triage/history/", s.authMiddleware(s.handleTriageHistory))
+	s.mux.HandleFunc("/api/netdiag/host-config/", s.authMiddleware(s.handleHostTriageConfig))
 }
 
 func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -1930,21 +1941,31 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		lastBackupTime, _ := s.db.GetSetting("last_backup_time")
 		lastBackupStatus, _ := s.db.GetSetting("last_backup_status")
 
+		autoTriageEnabled, _ := s.db.GetSetting("auto_triage_enabled")
+		autoTriageInterval, _ := s.db.GetSetting("auto_triage_interval_min")
+		if autoTriageInterval == "" {
+			autoTriageInterval = "10"
+		}
+		autoTriageHost, _ := s.db.GetSetting("auto_triage_default_host_id")
+
 		writeJSON(w, http.StatusOK, map[string]string{
-			"ssh_public_key":        pubKey,
-			"telegram_token":        tgToken,
-			"telegram_chat_id":      tgChat,
-			"webhook_url":           webhook,
-			"poll_interval_sec":     poll,
-			"github_backup_enabled": ghEnabled,
-			"github_repo":           ghRepo,
-			"github_token":          ghToken,
-			"github_branch":         ghBranch,
-			"github_file_path":      ghPath,
-			"snapshot_passphrase":   snapPass,
-			"backup_interval_hours": backupInterval,
-			"last_backup_time":      lastBackupTime,
-			"last_backup_status":    lastBackupStatus,
+			"ssh_public_key":              pubKey,
+			"telegram_token":              tgToken,
+			"telegram_chat_id":            tgChat,
+			"webhook_url":                 webhook,
+			"poll_interval_sec":           poll,
+			"github_backup_enabled":       ghEnabled,
+			"github_repo":                 ghRepo,
+			"github_token":                ghToken,
+			"github_branch":               ghBranch,
+			"github_file_path":            ghPath,
+			"snapshot_passphrase":         snapPass,
+			"backup_interval_hours":       backupInterval,
+			"last_backup_time":            lastBackupTime,
+			"last_backup_status":          lastBackupStatus,
+			"auto_triage_enabled":         autoTriageEnabled,
+			"auto_triage_interval_min":    autoTriageInterval,
+			"auto_triage_default_host_id": autoTriageHost,
 		})
 	case http.MethodPost:
 		var req map[string]string

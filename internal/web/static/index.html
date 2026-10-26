@@ -1909,6 +1909,38 @@ body.has-workspace-shelf .container {
             <button class="btn btn-primary btn-sm" onclick="savePollInterval()" style="width: auto; white-space: nowrap;" data-i18n="save_interval">Save Interval</button>
           </div>
         </div>
+
+        <!-- Background Auto-Triage Settings -->
+        <div class="card" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0;" data-i18n="autotriage_title">⚡ Background Auto-Triage Matrix</h4>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;">
+              <input type="checkbox" id="settingAutoTriageEnabled" style="width: 16px; height: 16px; cursor: pointer;" />
+              <span data-i18n="autotriage_enable">Enable</span>
+            </label>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;" data-i18n="autotriage_desc">
+            Periodic multi-layer evaluation (Host Health, L7 Loopback, DB MySQL/PG, Path SLA, PMTU) for enabled branch target presets. Alerts sent automatically via Telegram / Webhook on degradation or recovery.
+          </p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; align-items: end;">
+            <div>
+              <label style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-bottom: 6px;" data-i18n="autotriage_interval">Evaluation Interval (Minutes)</label>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <input type="number" id="settingAutoTriageInterval" min="1" max="1440" placeholder="10" value="10" style="width: 110px; height: 38px; padding: 6px 10px; font-size: 0.85rem; box-sizing: border-box;" />
+                <span style="font-size: 0.8rem; color: var(--text-muted);" data-i18n="autotriage_interval_unit">minutes (default: 10)</span>
+              </div>
+            </div>
+            <div>
+              <label style="font-size: 0.78rem; color: var(--text-muted); display: block; margin-bottom: 6px;" data-i18n="autotriage_default_host">Default Source Host</label>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <select id="settingAutoTriageDefaultHost" style="flex: 1; height: 38px; padding: 6px 10px; font-size: 0.85rem; line-height: 1.4; box-sizing: border-box;">
+                  <option value="0">Auto</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="saveAutoTriageSettings()" style="height: 38px; padding: 0 16px; white-space: nowrap; box-sizing: border-box;" data-i18n="save">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Security Tab -->
@@ -2456,9 +2488,79 @@ body.has-workspace-shelf .container {
         <input type="text" id="netDiagPresetCategoryInput" class="input" list="netDiagCategoryDatalist" placeholder="e.g. DC Cyber or Branch Bandung" data-i18n-placeholder="netdiag_preset_category_ph" style="width: 100%;" />
         <datalist id="netDiagCategoryDatalist"></datalist>
       </div>
+
+      <!-- Advanced Path & Link SLA Settings (Pure Target & Path) -->
+      <details style="margin-top: 8px; border: 1px dashed var(--card-border); border-radius: 6px; padding: 8px 12px; background: rgba(15, 23, 42, 0.3);">
+        <summary style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); cursor: pointer;" data-i18n="netdiag_preset_triage_opt">
+          ⚡ Path & Link SLA Settings (Optional)
+        </summary>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 10px;">
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-muted);" data-i18n="netdiag_preset_mtu">Baseline MTU</label>
+            <input type="number" id="netDiagPresetMtuInput" class="input" placeholder="1500" value="1500" style="width: 100%; font-family: monospace; font-size: 0.8rem;" />
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-muted);" data-i18n="netdiag_preset_latency">Max Latency (ms)</label>
+            <input type="number" step="0.1" id="netDiagPresetLatencyInput" class="input" placeholder="80" value="80" style="width: 100%; font-family: monospace; font-size: 0.8rem;" />
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-muted);" data-i18n="netdiag_preset_loss">Max Loss (%)</label>
+            <input type="number" step="0.1" id="netDiagPresetLossInput" class="input" placeholder="2.0" value="2.0" style="width: 100%; font-family: monospace; font-size: 0.8rem;" />
+          </div>
+          <div style="grid-column: 1 / -1; margin-top: 4px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.1);">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; color: #f8fafc;">
+              <input type="checkbox" id="netDiagPresetAutoTriageInput" style="width: 15px; height: 15px; cursor: pointer;" />
+              <span data-i18n="netdiag_preset_auto_triage">Enable Background Auto-Triage</span>
+            </label>
+            <div style="margin-top: 8px;">
+              <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 4px;" data-i18n="netdiag_preset_src_host">Custom Source Host (Optional Override)</label>
+              <select id="netDiagPresetSourceHostInput" style="width: 100%; height: 38px; padding: 6px 10px; font-size: 0.85rem; line-height: 1.4; box-sizing: border-box;">
+                <option value="0">Default</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </details>
       <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
         <button class="btn" onclick="closeModal('netDiagPresetFormModal')" data-i18n="cancel">Cancel</button>
         <button class="btn btn-primary" onclick="submitNetDiagPresetForm()" data-i18n="save_preset">Save Preset</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Host Triage Local App & Service Config Modal (Source Vantage) -->
+<div id="hostTriageAppModal" class="modal">
+  <div class="modal-content modal-dialog" style="max-width: 440px;">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 1.2rem;">🖥️</span>
+        <h3 id="hostTriageAppModalTitle" data-i18n="host_triage_cfg_title">Host App & DB Settings</h3>
+      </div>
+      <button class="btn btn-sm" onclick="closeModal('hostTriageAppModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="hostTriageAppHostId" value="" />
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 14px 0; line-height: 1.45;" data-i18n="host_triage_cfg_desc">
+        Konfigurasi aplikasi lokal dan layanan yang dievaluasi pada Host Sumber ini sebelum pengujian jaringan.
+      </p>
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label style="font-size: 0.8rem; font-weight: 600; color: #f8fafc; margin-bottom: 4px; display: block;" data-i18n="host_triage_app_endpoint">Local App Endpoint (L7)</label>
+        <input type="text" id="hostTriageAppEndpointInput" class="input" placeholder="e.g. / or /api/health (empty for auto-bypass)" style="width: 100%; font-family: monospace; font-size: 0.85rem;" />
+        <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 4px;" data-i18n="host_triage_app_hint">
+          Kosongkan untuk auto-bypass jika port 80 tertutup.
+        </small>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label style="font-size: 0.8rem; font-weight: 600; color: #f8fafc; margin-bottom: 4px; display: block;" data-i18n="host_triage_db_port">Local Service / DB Port</label>
+        <input type="number" id="hostTriageDbPortInput" class="input" placeholder="0 (Auto-Detect: 3306/5432)" style="width: 100%; font-family: monospace; font-size: 0.85rem;" />
+        <small style="color: var(--text-muted); font-size: 0.72rem; display: block; margin-top: 4px;" data-i18n="host_triage_db_hint">
+          0 untuk auto-deteksi (3306 MySQL / 5432 Postgres), atau isi port (misal 6379).
+        </small>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+        <button class="btn" onclick="closeModal('hostTriageAppModal')" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-primary" onclick="saveHostTriageConfig()" data-i18n="save">Save</button>
       </div>
     </div>
   </div>
@@ -3087,8 +3189,63 @@ const I18N = {
     "netdiag_preset_delete_confirm": "Delete this probe target preset?",
     "netdiag_preset_saved_toast": "Target preset saved successfully",
     "netdiag_preset_deleted_toast": "Target preset deleted",
+    "netdiag_tab_interactive": "Interactive Probes",
+    "netdiag_tab_triage": "Network Triage",
+    "triage_title": "Network Triage Matrix",
+    "triage_desc": "Multi-layer automated diagnosis to isolate whether performance bottlenecks stem from Host compute, local services, network path SLA, or PMTU fragmentation.",
+    "triage_select_branch": "Target Device / Gateway",
+    "triage_run_btn": "⚡ Run Network Triage",
+    "triage_running": "Diagnosing layers (Host, Route, Service, Path & MTU)...",
+    "triage_verdict_title": "Triage Verdict",
+    "triage_copy_ticket": "Copy Incident Ticket",
+    "triage_ticket_copied": "Incident ticket copied to clipboard!",
+    "triage_host_resources": "Host & Compute Health",
+    "triage_l7_app": "L7 Application Health",
+    "triage_route_info": "Route & Egress Interface",
+    "triage_path_mtu": "Path Reachability & MTU Sweep",
+    "triage_history_title": "Triage Incident History",
+    "triage_history_empty": "No past triage records found for this host.",
+    "triage_search_ph": "Search target / diagnosis...",
+    "triage_filter_all_verdicts": "All Verdicts",
+    "triage_page_showing": "Showing {start}-{end} of {total} records",
+    "triage_page_label": "Page {page} of {pages}",
+    "triage_no_filter_match": "No triage records match the current filter.",
+    "triage_th_time": "Time",
+    "triage_th_target": "Target Device / Host",
+    "triage_th_verdict": "Verdict",
+    "triage_th_diagnosis": "Diagnosis",
+    "triage_th_action": "Action",
+    "triage_custom_target": "Custom Target Manual...",
     "netdiag_target_host_select": "Select Target Host",
     "netdiag_target_ph": "e.g. 1.1.1.1 or google.com",
+    "autotriage_title": "Background Auto-Triage Matrix",
+    "autotriage_enable": "Enable",
+    "autotriage_desc": "Periodic multi-layer evaluation (Host Health, L7 Loopback, DB MySQL/PG, Path SLA, PMTU) for enabled branch target presets. Alerts sent automatically via Telegram / Webhook on degradation or recovery.",
+    "autotriage_interval": "Evaluation Interval (Minutes)",
+    "autotriage_interval_unit": "minutes (default: 10)",
+    "autotriage_default_host": "Default Source Host",
+    "autotriage_default_host_auto": "Auto (First Registered Host)",
+    "autotriage_saved": "Auto-triage settings saved successfully",
+    "autotriage_save_failed": "Failed to save auto-triage settings",
+    "netdiag_preset_triage_opt": "⚡ Path & Link SLA Settings (Optional)",
+    "netdiag_preset_mtu": "Baseline MTU",
+    "netdiag_preset_latency": "Max Latency (ms)",
+    "netdiag_preset_loss": "Max Loss (%)",
+    "host_triage_cfg_title": "Host App & DB Settings",
+    "host_triage_cfg_desc": "Configure local application and auxiliary service evaluated on this Source Host before network testing.",
+    "host_triage_app_endpoint": "Local App Endpoint (L7)",
+    "host_triage_app_hint": "Leave empty for auto-bypass if port 80 is closed.",
+    "host_triage_db_port": "Local Service / DB Port",
+    "host_triage_db_hint": "0 for auto-detect (3306 MySQL / 5432 Postgres), or specify port (e.g. 6379).",
+    "host_triage_saved": "Host App & DB settings saved successfully",
+    "triage_flow_title": "Triage Pipeline",
+    "triage_view_telemetry": "View Telemetry",
+    "netdiag_preset_auto_triage": "Enable Background Auto-Triage",
+    "netdiag_preset_src_host": "Custom Source Host (Optional Override)",
+    "netdiag_preset_src_host_default": "Default (Follow Global Settings)",
+    "triage_ticket_not_found": "Incident ticket data not found",
+    "triage_ticket_copy_failed": "Failed to copy ticket to clipboard",
+    "triage_record_deleted": "Record deleted",
     "netdiag_tool": "Diagnostic Tool",
     "netdiag_tool_ping": "Ping (ICMP)",
     "netdiag_tool_traceroute": "Traceroute (Path)",
@@ -3723,8 +3880,63 @@ const I18N = {
     "netdiag_preset_delete_confirm": "Hapus preset sasaran diagnostik ini?",
     "netdiag_preset_saved_toast": "Preset sasaran berhasil disimpan",
     "netdiag_preset_deleted_toast": "Preset sasaran berhasil dihapus",
+    "netdiag_tab_interactive": "Probe Interaktif",
+    "netdiag_tab_triage": "Network Triage",
+    "triage_title": "Network Triage Matrix",
+    "triage_desc": "Diagnosis otomatis multi-layer untuk mengisolasi seketika apakah kendala performa bersumber dari komputasi Host, layanan lokal, jalur SLA jaringan, atau fragmentasi PMTU.",
+    "triage_select_branch": "Target Perangkat / Gateway",
+    "triage_run_btn": "⚡ Jalankan Network Triage",
+    "triage_running": "Mendiagnosis lapisan (Host, Rute, Layanan, Jalur & MTU)...",
+    "triage_verdict_title": "Kesimpulan Triage (Verdict)",
+    "triage_copy_ticket": "Salin Tiket Insiden",
+    "triage_ticket_copied": "Tiket insiden berhasil disalin ke clipboard!",
+    "triage_host_resources": "Kesehatan Komputasi Host",
+    "triage_l7_app": "Kesehatan Aplikasi L7",
+    "triage_route_info": "Rute & Antarmuka Transmisi",
+    "triage_path_mtu": "Keterjangkauan Jalur & MTU Sweep",
+    "triage_history_title": "Riwayat Insiden Triage",
+    "triage_history_empty": "Belum ada riwayat triage untuk host ini.",
+    "triage_search_ph": "Cari target / diagnosa...",
+    "triage_filter_all_verdicts": "Semua Status / Verdict",
+    "triage_page_showing": "Menampilkan {start}-{end} dari {total} riwayat",
+    "triage_page_label": "Halaman {page} dari {pages}",
+    "triage_no_filter_match": "Tidak ada riwayat triage yang sesuai filter.",
+    "triage_th_time": "Waktu",
+    "triage_th_target": "Target Perangkat / Host",
+    "triage_th_verdict": "Verdict",
+    "triage_th_diagnosis": "Diagnosa",
+    "triage_th_action": "Aksi",
+    "triage_custom_target": "Target Manual Kustom...",
     "netdiag_target_host_select": "Pilih Host Tujuan",
     "netdiag_target_ph": "contoh: 1.1.1.1 atau google.com",
+    "autotriage_title": "Background Auto-Triage Matrix",
+    "autotriage_enable": "Aktifkan",
+    "autotriage_desc": "Evaluasi berkala multi-layer (Host Health, L7 Loopback, DB MySQL/PG, Path SLA, PMTU) untuk preset target cabang yang diaktifkan. Notifikasi dikirimkan otomatis via Telegram / Webhook saat terjadi gangguan atau pemulihan.",
+    "autotriage_interval": "Interval Evaluasi (Menit)",
+    "autotriage_interval_unit": "menit (default: 10)",
+    "autotriage_default_host": "Host Sumber Default",
+    "autotriage_default_host_auto": "Auto (Host Terdaftar Pertama)",
+    "autotriage_saved": "Pengaturan Auto-Triage berhasil disimpan",
+    "autotriage_save_failed": "Gagal menyimpan pengaturan Auto-Triage",
+    "netdiag_preset_triage_opt": "⚡ Pengaturan SLA & Jalur Target (Opsional)",
+    "netdiag_preset_mtu": "Baseline MTU",
+    "netdiag_preset_latency": "Batas Maksimal Latensi (ms)",
+    "netdiag_preset_loss": "Batas Maksimal Loss (%)",
+    "host_triage_cfg_title": "Pengaturan App & DB Host",
+    "host_triage_cfg_desc": "Konfigurasi aplikasi lokal dan layanan yang dievaluasi pada Host Sumber ini sebelum pengujian jaringan.",
+    "host_triage_app_endpoint": "Endpoint Aplikasi Lokal (L7)",
+    "host_triage_app_hint": "Kosongkan untuk auto-bypass jika port 80 tertutup.",
+    "host_triage_db_port": "Port Layanan / DB Lokal",
+    "host_triage_db_hint": "0 untuk auto-deteksi (3306 MySQL / 5432 Postgres), atau isi port (misal 6379).",
+    "host_triage_saved": "Pengaturan App & DB Host berhasil disimpan",
+    "triage_flow_title": "Alur Triage",
+    "triage_view_telemetry": "Lihat Telemetri",
+    "netdiag_preset_auto_triage": "Aktifkan Auto-Triage Otomatis di Background",
+    "netdiag_preset_src_host": "Host Sumber Khusus (Opsional, Override Global)",
+    "netdiag_preset_src_host_default": "Default (Ikuti Pengaturan Global)",
+    "triage_ticket_not_found": "Data tiket tidak ditemukan",
+    "triage_ticket_copy_failed": "Gagal menyalin tiket ke clipboard",
+    "triage_record_deleted": "Riwayat insiden dihapus",
     "netdiag_tool": "Perkakas Diagnostik",
     "netdiag_tool_ping": "Ping (ICMP)",
     "netdiag_tool_traceroute": "Traceroute (Rute)",
@@ -3845,6 +4057,26 @@ function setLanguage(lang) {
       el.title = t('view_changelog', 'View Changelog');
     }
   });
+
+  ['netdiag_modal', 'netdiag_tab'].forEach(cid => {
+    if (document.getElementById(`${cid}_triageHistoryTbody`)) {
+      loadTriageHistory(cid);
+    }
+    if (typeof lastTriageResult !== 'undefined' && lastTriageResult && document.getElementById(`${cid}_triageVerdictCard`)) {
+      renderTriageResult(cid, lastTriageResult);
+    }
+  });
+  if (document.getElementById('netDiagPresetManagerModal') && document.getElementById('netDiagPresetManagerModal').classList.contains('open')) {
+    renderNetDiagPresetManagerList();
+  }
+  const triageHostEl = document.getElementById('settingAutoTriageDefaultHost');
+  if (triageHostEl && triageHostEl.options && triageHostEl.options.length > 0) {
+    triageHostEl.options[0].text = t('autotriage_default_host_auto', 'Auto (First Registered Host)');
+  }
+  const srcHostEl = document.getElementById('netDiagPresetSourceHostInput');
+  if (srcHostEl && srcHostEl.options && srcHostEl.options.length > 0) {
+    srcHostEl.options[0].text = t('netdiag_preset_src_host_default', 'Default (Follow Global Settings)');
+  }
 }
 
 function toggleLanguage() {
@@ -4444,6 +4676,30 @@ async function savePollInterval() {
     }
   } catch (e) {
     showToast(t('save_failed', 'Failed to save settings') + ': ' + e.message, 'error');
+  }
+}
+
+async function saveAutoTriageSettings() {
+  const enabled = document.getElementById('settingAutoTriageEnabled')?.checked ? '1' : '0';
+  const interval = document.getElementById('settingAutoTriageInterval')?.value || '10';
+  const defHost = document.getElementById('settingAutoTriageDefaultHost')?.value || '0';
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        auto_triage_enabled: enabled,
+        auto_triage_interval_min: interval,
+        auto_triage_default_host_id: defHost,
+      })
+    });
+    if (res.ok) {
+      showToast(t('autotriage_saved', 'Pengaturan Auto-Triage berhasil disimpan'), 'success');
+    } else {
+      showToast(t('autotriage_save_failed', 'Gagal menyimpan pengaturan Auto-Triage'), 'error');
+    }
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
   }
 }
 
@@ -8079,26 +8335,32 @@ function applyTerminalFontSize() {
 }
 
 async function copyTextToClipboard(text) {
-  if (!text) return;
+  if (!text) return false;
   if (navigator.clipboard && navigator.clipboard.writeText) {
     try {
       await navigator.clipboard.writeText(text);
-      return;
+      return true;
     } catch (err) {}
   }
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.position = 'fixed';
-  ta.style.left = '-9999px';
-  ta.style.top = '-9999px';
-  ta.setAttribute('readonly', '');
-  document.body.appendChild(ta);
-  ta.focus();
-  ta.select();
   try {
-    document.execCommand('copy');
-  } catch (e) {}
-  document.body.removeChild(ta);
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '-9999px';
+    ta.style.opacity = '0';
+    ta.setAttribute('readonly', '');
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) {
+    console.error('Copy to clipboard failed:', e);
+    return false;
+  }
 }
 
 function flattenToSingleLine(text) {
@@ -9792,7 +10054,7 @@ function switchSettingsTab(tab) {
 
 function copyPubKey() {
   const el = document.getElementById('settingPubKey');
-  navigator.clipboard.writeText(el.value);
+  if (el) copyTextToClipboard(el.value);
   const btn = document.getElementById('btnCopyKey');
   if (btn) {
     const original = btn.innerText;
@@ -9972,6 +10234,19 @@ async function openSettingsModal(tab) {
   const pollEl = document.getElementById('settingPollInterval');
   if (pollEl) pollEl.value = (data.poll_interval_sec !== undefined && data.poll_interval_sec !== '') ? data.poll_interval_sec : '300';
 
+  const triageEnabledEl = document.getElementById('settingAutoTriageEnabled');
+  if (triageEnabledEl) triageEnabledEl.checked = data.auto_triage_enabled === '1' || data.auto_triage_enabled === 'true';
+  const triageIntervalEl = document.getElementById('settingAutoTriageInterval');
+  if (triageIntervalEl) triageIntervalEl.value = data.auto_triage_interval_min || '10';
+  const triageHostEl = document.getElementById('settingAutoTriageDefaultHost');
+  if (triageHostEl) {
+    const curVal = data.auto_triage_default_host_id || '0';
+    const autoLabel = t('autotriage_default_host_auto', 'Auto (First Registered Host)');
+    triageHostEl.innerHTML = `<option value="0">${escapeHtml(autoLabel)}</option>` +
+      (allRawHosts || []).map(h => `<option value="${h.id}">${escapeHtml(h.name)} (${escapeHtml(h.host)})</option>`).join('');
+    triageHostEl.value = curVal;
+  }
+
   document.getElementById('settingGhEnabled').checked = data.github_backup_enabled === '1';
   document.getElementById('settingGhRepo').value = data.github_repo || '';
   document.getElementById('settingGhToken').value = data.github_token || '';
@@ -10134,9 +10409,9 @@ async function disable2FA() {
 }
 
 function copy2FASecret() {
-  const secret = document.getElementById('setting2FASecretText').innerText;
+  const secret = document.getElementById('setting2FASecretText')?.innerText;
   if (secret) {
-    navigator.clipboard.writeText(secret).then(() => {
+    copyTextToClipboard(secret).then(() => {
       showToast(t('copied', 'Copied to clipboard'), 'success');
     });
   }
@@ -10145,7 +10420,7 @@ function copy2FASecret() {
 function copy2FARecoveryCodes() {
   if (!window.pending2FASetupData || !window.pending2FASetupData.recovery_codes) return;
   const text = window.pending2FASetupData.recovery_codes.join('\n');
-  navigator.clipboard.writeText(text).then(() => {
+  copyTextToClipboard(text).then(() => {
     showToast(t('copied', 'Copied to clipboard'), 'success');
   });
 }
@@ -11456,13 +11731,16 @@ document.addEventListener('click', (e) => {
 });
 
 // ==========================================
-// Network Diagnostics Module (ADR Network Diagnostic)
+// Network Diagnostics Module (ADR Network Diagnostic & ADR-0035 Branch Triage Matrix)
 // ==========================================
 let currentNetDiagSSE = null;
 let currentNetDiagHops = [];
 let currentNetDiagRawLines = [];
 let currentNetDiagTool = 'ping';
 let currentNetDiagTargetMode = 'inter_host';
+let currentNetDiagSubView = 'probes';
+let currentTriageSSE = null;
+let lastTriageResult = null;
 
 function openNetDiagModal(initialSourceHostId) {
   openModal('netDiagModal');
@@ -11470,6 +11748,7 @@ function openNetDiagModal(initialSourceHostId) {
   renderNetDiagUI(container, 'modal', initialSourceHostId || (currentHost ? currentHost.id : null), false);
   loadProbeTargetPresets().then(() => {
     populateNetDiagPresetDropdown('netdiag_modal');
+    populateTriageBranchDropdown('netdiag_modal');
   });
 }
 
@@ -11478,6 +11757,7 @@ function renderNetDiagTab(host) {
   renderNetDiagUI(container, 'tab', host ? host.id : null, true);
   loadProbeTargetPresets().then(() => {
     populateNetDiagPresetDropdown('netdiag_tab');
+    populateTriageBranchDropdown('netdiag_tab');
   });
 }
 
@@ -11487,6 +11767,10 @@ function renderNetDiagUI(container, contextPrefix, defaultSourceId, isSourceLock
   if (currentNetDiagSSE) {
     currentNetDiagSSE.close();
     currentNetDiagSSE = null;
+  }
+  if (currentTriageSSE) {
+    currentTriageSSE.close();
+    currentTriageSSE = null;
   }
   currentNetDiagHops = [];
   currentNetDiagRawLines = [];
@@ -11500,9 +11784,23 @@ function renderNetDiagUI(container, contextPrefix, defaultSourceId, isSourceLock
   }
 
   const cid = `netdiag_${contextPrefix}`;
+  const sourceHostObj = (allRawHosts || []).find(h => h.id === activeSourceId) || currentHost;
 
   container.innerHTML = `
     <div style="display: flex; flex-direction: column; gap: 14px;">
+      <!-- Sub-view Navigation Switcher -->
+      <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--card-border); padding-bottom: 10px;">
+        <button type="button" class="btn btn-sm ${currentNetDiagSubView === 'probes' ? 'active' : ''}" id="${cid}_btnSubViewProbes" onclick="setNetDiagSubView('${cid}', 'probes')" style="padding: 6px 14px; font-weight: 600; font-size: 0.82rem; border-radius: 6px; ${currentNetDiagSubView === 'probes' ? 'background: #2563eb; color: #fff;' : 'background: transparent; color: var(--text-muted);'}">
+          🎯 ${t('netdiag_tab_interactive', 'Interactive Probes')}
+        </button>
+        <button type="button" class="btn btn-sm ${currentNetDiagSubView === 'triage' ? 'active' : ''}" id="${cid}_btnSubViewTriage" onclick="setNetDiagSubView('${cid}', 'triage')" style="padding: 6px 14px; font-weight: 600; font-size: 0.82rem; border-radius: 6px; ${currentNetDiagSubView === 'triage' ? 'background: #2563eb; color: #fff;' : 'background: transparent; color: var(--text-muted);'}">
+          ⚡ ${t('netdiag_tab_triage', 'Network Triage')}
+        </button>
+      </div>
+
+      <!-- VIEW 1: Interactive Probes Container -->
+      <div id="${cid}_view_probes" style="${currentNetDiagSubView === 'probes' ? 'display: block;' : 'display: none;'}">
+        <div style="display: flex; flex-direction: column; gap: 14px;">
       <!-- Diagnostic Controls Header Card -->
       <div class="card" style="padding: 16px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 8px;">
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; align-items: start;">
@@ -11671,14 +11969,990 @@ function renderNetDiagUI(container, contextPrefix, defaultSourceId, isSourceLock
         <pre id="${cid}_rawPre" style="background: #091322; border: 1px solid var(--card-border); padding: 12px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; max-height: 220px; overflow: auto; color: #94a3b8; white-space: pre; line-height: 1.45;"></pre>
       </div>
     </div>
+  </div>
+
+  <!-- VIEW 2: Network Triage Matrix Container -->
+  <div id="${cid}_view_triage" style="${currentNetDiagSubView === 'triage' ? 'display: block;' : 'display: none;'}">
+    <div class="card" style="padding: 16px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 8px; margin-bottom: 14px;">
+      <div style="margin-bottom: 12px;">
+        <h4 style="margin: 0 0 4px 0; font-size: 0.95rem; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
+          <span>⚡</span> <span>${t('triage_title', 'Network Triage Matrix')}</span>
+        </h4>
+        <p style="margin: 0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;">
+          ${t('triage_desc', 'Diagnosis multi-layer otomatis untuk mengisolasi seketika apakah kendala web berasal dari kelebihan beban Host, aplikasi L7, atau jalur VPN/ISP cabang.')}
+        </p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; align-items: end;">
+        <!-- Source Host Selection -->
+        <div class="form-group" style="margin-bottom: 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin: 0;">
+              <span>🖥️</span> <span>${t('netdiag_source_host', 'Source Host')}</span>
+            </label>
+            <button type="button" class="btn btn-sm" onclick="openHostTriageAppModal('${cid}')" style="padding: 1px 6px; font-size: 0.7rem; color: #60a5fa; background: transparent; border: none;" title="${t('host_triage_cfg_title', 'Pengaturan App & DB Host')}">
+              ⚙️ App/DB
+            </button>
+          </div>
+          ${isSourceLocked ? `
+            <div style="height: 38px; box-sizing: border-box; padding: 0 12px; background: rgba(30, 41, 59, 0.5); border: 1px solid var(--card-border); border-radius: 6px; font-size: 0.88rem; display: flex; align-items: center; justify-content: space-between;">
+              <span style="font-weight: 600; color: #f8fafc;">🟢 ${escapeHtml(sourceHostObj ? sourceHostObj.name : 'Host')}</span>
+              <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-family: monospace;">${escapeHtml(sourceHostObj ? sourceHostObj.host : '-')}</span>
+            </div>
+            <input type="hidden" id="${cid}_triageSourceHost" value="${activeSourceId || ''}" />
+          ` : `
+            <select id="${cid}_triageSourceHost" class="input" style="height: 38px; width: 100%; box-sizing: border-box;" onchange="onTriageSourceChange('${cid}')">
+              ${availableSourceHosts.length === 0 ? `<option value="">-- No Online Hosts --</option>` : ''}
+              ${availableSourceHosts.map(h => `
+                <option value="${h.id}" ${h.id === activeSourceId ? 'selected' : ''}>
+                  🟢 ${escapeHtml(h.name)} (${escapeHtml(h.host)})
+                </option>
+              `).join('')}
+            </select>
+          `}
+        </div>
+
+        <!-- Target Branch Preset -->
+        <div class="form-group" style="margin-bottom: 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 6px; margin: 0;">
+              <span>🏢</span> <span>${t('triage_select_branch', 'Target Device / Gateway')}</span>
+            </label>
+            <button type="button" class="btn btn-sm" onclick="openNetDiagPresetManagerModal()" style="padding: 1px 6px; font-size: 0.7rem; color: #60a5fa; background: transparent; border: none;">
+              ⚙️ Manage
+            </button>
+          </div>
+          <select id="${cid}_triagePresetSelect" class="input" style="height: 38px; width: 100%; box-sizing: border-box;" onchange="onTriagePresetChange('${cid}')">
+            <!-- populated dynamically -->
+          </select>
+        </div>
+
+        <!-- Custom Target Inputs (Conditional) -->
+        <div id="${cid}_triageCustomBlock" style="display: none; grid-column: 1 / -1; background: rgba(30, 41, 59, 0.3); border: 1px dashed var(--card-border); border-radius: 6px; padding: 10px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted);">Target IP / Hostname</label>
+              <input type="text" id="${cid}_triageCustomTarget" class="input" placeholder="e.g. 192.168.10.5" style="width: 100%; font-family: monospace; font-size: 0.8rem;" oninput="updateTriagePreviewCustom('${cid}')" />
+            </div>
+            <div>
+              <label style="font-size: 0.75rem; color: var(--text-muted);">Baseline MTU</label>
+              <input type="number" id="${cid}_triageCustomMTU" class="input" placeholder="1500" value="1500" style="width: 100%; font-family: monospace; font-size: 0.8rem;" oninput="updateTriagePreviewCustom('${cid}')" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Run Button -->
+        <div style="display: flex; align-items: flex-end;">
+          <button class="btn btn-primary" id="${cid}_triageRunBtn" onclick="runBranchTriage('${cid}')" style="width: 100%; height: 38px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <span>${t('triage_run_btn', '⚡ Run Network Triage')}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Visual Pipeline Arrow Preview (Host App -> Target Link SLA) -->
+      <div id="${cid}_triagePresetPreview" style="margin-top: 12px; padding: 8px 12px; background: rgba(30, 41, 59, 0.35); border: 1px solid var(--card-border); border-radius: 6px; font-size: 0.78rem; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+        <span style="font-weight: 600; color: #94a3b8; display: flex; align-items: center; gap: 4px;">
+          <span>⚡</span> <span>${t('triage_flow_title', 'Alur Triage')}:</span>
+        </span>
+        <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 0.75rem;">
+          🖥️ Host App: <strong id="${cid}_prevApp" style="font-family: monospace;">Auto-Bypass</strong> | DB: <strong id="${cid}_prevDb" style="font-family: monospace;">Auto</strong>
+        </span>
+        <span style="color: #60a5fa; font-weight: 700; font-size: 0.95rem;">➔</span>
+        <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-size: 0.75rem;">
+          🌐 Target Link: MTU <strong id="${cid}_prevMtu" style="font-family: monospace;">1500</strong> | SLA: <strong id="${cid}_prevSLA" style="font-family: monospace;">< 80ms / 2%</strong>
+        </span>
+      </div>
+    </div>
+
+    <!-- Live Progress Banner -->
+    <div id="${cid}_triageProgress" style="display: none; padding: 12px 16px; border-radius: 8px; background: rgba(30, 41, 59, 0.6); border: 1px solid var(--card-border); margin-bottom: 14px;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="spinner" style="width: 16px; height: 16px; border-width: 2px;"></div>
+          <span id="${cid}_triageStageText" style="color: #60a5fa; font-weight: 600; font-size: 0.88rem;">${t('triage_running', 'Mendiagnosis lapisan (Host, Rute, L7, Jalur & MTU)...')}</span>
+        </div>
+        <button class="btn btn-sm btn-danger" onclick="abortBranchTriage('${cid}')" style="padding: 2px 8px; font-size: 0.75rem;">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Triage Verdict Card -->
+    <div id="${cid}_triageVerdictCard" style="display: none; padding: 16px 20px; border-radius: 8px; margin-bottom: 14px; border: 1px solid var(--card-border); background: rgba(15, 23, 42, 0.7);">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: flex-start; gap: 14px; flex: 1; min-width: 260px;">
+          <span id="${cid}_triageVerdictIcon" style="font-size: 2.2rem; line-height: 1;">⚡</span>
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;">
+              <h4 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: #f8fafc;">${t('triage_verdict_title', 'Kesimpulan Triage')}</h4>
+              <span id="${cid}_triageVerdictBadge" class="badge" style="font-size: 0.82rem; font-weight: 700; padding: 4px 10px;"></span>
+            </div>
+            <div id="${cid}_triageVerdictSummary" style="font-size: 0.9rem; line-height: 1.5; color: #cbd5e1;"></div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="copyBranchTriageTicket('${cid}')" style="display: flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; margin-left: auto; padding: 6px 14px; font-size: 0.78rem;" title="Copy formatted incident ticket to clipboard">
+          <span>📋</span> <span>${t('triage_copy_ticket', 'Copy Incident Ticket')}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 4 Telemetry Breakdown Cards Grid -->
+    <div id="${cid}_triageTelemetryGrid" style="display: none; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px;">
+      <!-- Host Compute -->
+      <div class="card" style="padding: 12px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 0.8rem; font-weight: 700; color: #f8fafc;">🖥️ Host & Compute</span>
+          <span id="${cid}_telHostBadge" class="badge"></span>
+        </div>
+        <div id="${cid}_telHostContent" style="font-size: 0.8rem; color: #94a3b8; line-height: 1.5;"></div>
+      </div>
+
+      <!-- L7 App -->
+      <div class="card" style="padding: 12px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 0.8rem; font-weight: 700; color: #f8fafc;">🌐 L7 Web Application</span>
+          <span id="${cid}_telL7Badge" class="badge"></span>
+        </div>
+        <div id="${cid}_telL7Content" style="font-size: 0.8rem; color: #94a3b8; line-height: 1.5;"></div>
+      </div>
+
+      <!-- Route -->
+      <div class="card" style="padding: 12px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 0.8rem; font-weight: 700; color: #f8fafc;">🛤️ Route & Interface</span>
+          <span id="${cid}_telRouteBadge" class="badge"></span>
+        </div>
+        <div id="${cid}_telRouteContent" style="font-size: 0.8rem; color: #94a3b8; line-height: 1.5;"></div>
+      </div>
+
+      <!-- Path & MTU -->
+      <div class="card" style="padding: 12px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 6px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <span style="font-size: 0.8rem; font-weight: 700; color: #f8fafc;">📡 Path & MTU Sweep</span>
+          <span id="${cid}_telPathBadge" class="badge"></span>
+        </div>
+        <div id="${cid}_telPathContent" style="font-size: 0.8rem; color: #94a3b8; line-height: 1.5;"></div>
+      </div>
+    </div>
+
+    <!-- Incident History Table with Clean Search, Filter & Pagination -->
+    <div style="margin-top: 14px;">
+      <!-- Title & Refresh Header Row -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h4 style="font-size: 0.88rem; font-weight: 700; color: #cbd5e1; margin: 0; display: flex; align-items: center; gap: 8px;">
+          <span>📜</span> <span>${t('triage_history_title', 'Riwayat Insiden Triage')}</span>
+          <span id="${cid}_triageHistoryCount" class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-size: 0.72rem;">0</span>
+        </h4>
+        <button class="btn btn-sm btn-secondary" onclick="loadTriageHistory('${cid}')" style="padding: 3px 10px; font-size: 0.75rem; height: 30px; display: flex; align-items: center; gap: 5px;">
+          <span>🔄</span> <span>Refresh</span>
+        </button>
+      </div>
+
+      <!-- Dedicated Toolbar Bar (Search Box & Filter Dropdown) -->
+      <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap;">
+        <!-- Search input using Pantau native .search-box -->
+        <div class="search-box" style="flex: 1; min-width: 220px; height: 34px; background: rgba(15, 23, 42, 0.6);">
+          <span style="color: var(--text-muted); font-size: 0.82rem;">🔍</span>
+          <input type="text" id="${cid}_triageSearchInput" placeholder="${t('triage_search_ph', 'Cari target / diagnosa...')}" style="width: 100%; font-size: 0.8rem; color: #f8fafc;" oninput="onTriageFilterChange('${cid}')" />
+          <button id="${cid}_triageSearchClear" class="btn btn-sm" style="display: none; padding: 0 4px; background: transparent; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.8rem;" onclick="clearTriageSearch('${cid}')">✕</button>
+        </div>
+
+        <!-- Verdict Filter dropdown with clean native dark styling -->
+        <div style="min-width: 180px;">
+          <select id="${cid}_triageVerdictFilter" style="height: 34px; padding: 0 10px; font-size: 0.8rem; border-radius: 6px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--card-border); color: #f8fafc; width: 100%; box-sizing: border-box; cursor: pointer;" onchange="onTriageFilterChange('${cid}')">
+            <option value="">${t('triage_filter_all_verdicts', 'Semua Status / Verdict')}</option>
+            <option value="HEALTHY">✅ Healthy</option>
+            <option value="HOST_SATURATED">🟣 Host Saturated</option>
+            <option value="APPLICATION_DEGRADED">🔴 App Degraded</option>
+            <option value="TRANSIT_PATH_DEGRADED">🟡 Transit Path Degraded</option>
+            <option value="BRANCH_GATEWAY_DOWN">❌ Gateway Down</option>
+            <option value="MTU_BLACKHOLE_DETECTED">⚠️ MTU Blackhole</option>
+            <option value="ICMP_FILTERED_TCP_HEALTHY">🔵 ICMP Filtered</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="overflow-x: auto; border: 1px solid var(--card-border); border-radius: 6px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem; background: rgba(15, 23, 42, 0.4);">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--card-border); color: var(--text-muted); text-align: left; background: rgba(30, 41, 59, 0.4);">
+              <th style="padding: 8px 10px; width: 140px;">${t('triage_th_time', 'Waktu')}</th>
+              <th style="padding: 8px 10px; width: 170px;">${t('triage_th_target', 'Target Device')}</th>
+              <th style="padding: 8px 10px; width: 150px; white-space: nowrap;">${t('triage_th_verdict', 'Verdict')}</th>
+              <th style="padding: 8px 10px;">${t('triage_th_diagnosis', 'Diagnosa')}</th>
+              <th style="padding: 8px 10px; width: 95px; text-align: right;">${t('triage_th_action', 'Aksi')}</th>
+            </tr>
+          </thead>
+          <tbody id="${cid}_triageHistoryTbody">
+            <tr><td colspan="5" style="padding: 12px; text-align: center; color: var(--text-muted);">Memuat riwayat...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination Footer (10 per page) -->
+      <div id="${cid}_triagePaginationBar" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding: 4px 6px; font-size: 0.75rem; color: var(--text-muted); flex-wrap: wrap; gap: 8px;">
+        <div id="${cid}_triagePageInfo">Menampilkan 0-0 dari 0</div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button class="btn btn-sm" id="${cid}_triagePrevBtn" onclick="changeTriagePage('${cid}', -1)" style="padding: 2px 8px; font-size: 0.72rem;" disabled>« Prev</button>
+          <span id="${cid}_triagePageCurrent" style="font-weight: 600; color: #f8fafc; padding: 0 4px;">1</span>
+          <button class="btn btn-sm" id="${cid}_triageNextBtn" onclick="changeTriagePage('${cid}', 1)" style="padding: 2px 8px; font-size: 0.72rem;" disabled>Next »</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
   `;
 
   populateNetDiagTargetHosts(cid);
   populateNetDiagPresetDropdown(cid);
+  populateTriageBranchDropdown(cid);
+  loadTriageHistory(cid);
+
   if (allProbeTargetPresets.length === 0) {
     loadProbeTargetPresets().then(() => {
       populateNetDiagPresetDropdown(cid);
+      populateTriageBranchDropdown(cid);
     });
+  }
+}
+
+function setNetDiagSubView(cid, view) {
+  currentNetDiagSubView = view;
+  const viewProbes = document.getElementById(`${cid}_view_probes`);
+  const viewTriage = document.getElementById(`${cid}_view_triage`);
+  const btnProbes = document.getElementById(`${cid}_btnSubViewProbes`);
+  const btnTriage = document.getElementById(`${cid}_btnSubViewTriage`);
+
+  if (view === 'triage') {
+    if (viewProbes) viewProbes.style.display = 'none';
+    if (viewTriage) viewTriage.style.display = 'block';
+    if (btnProbes) {
+      btnProbes.style.background = 'transparent';
+      btnProbes.style.color = 'var(--text-muted)';
+    }
+    if (btnTriage) {
+      btnTriage.style.background = '#2563eb';
+      btnTriage.style.color = '#fff';
+    }
+    const probeSrc = document.getElementById(`${cid}_sourceHost`);
+    const triageSrc = document.getElementById(`${cid}_triageSourceHost`);
+    if (probeSrc && triageSrc && probeSrc.tagName === 'SELECT' && triageSrc.tagName === 'SELECT' && probeSrc.value) {
+      triageSrc.value = probeSrc.value;
+    }
+    populateTriageBranchDropdown(cid);
+    loadTriageHistory(cid);
+  } else {
+    if (viewProbes) viewProbes.style.display = 'block';
+    if (viewTriage) viewTriage.style.display = 'none';
+    if (btnProbes) {
+      btnProbes.style.background = '#2563eb';
+      btnProbes.style.color = '#fff';
+    }
+    if (btnTriage) {
+      btnTriage.style.background = 'transparent';
+      btnTriage.style.color = 'var(--text-muted)';
+    }
+    const probeSrc = document.getElementById(`${cid}_sourceHost`);
+    const triageSrc = document.getElementById(`${cid}_triageSourceHost`);
+    if (probeSrc && triageSrc && probeSrc.tagName === 'SELECT' && triageSrc.tagName === 'SELECT' && triageSrc.value) {
+      probeSrc.value = triageSrc.value;
+    }
+  }
+}
+
+const _hostTriageConfigCache = new Map();
+
+async function getHostTriageConfig(hostId) {
+  if (!hostId) return { app_endpoint: '', db_port: 0 };
+  if (_hostTriageConfigCache.has(hostId)) {
+    return _hostTriageConfigCache.get(hostId);
+  }
+  try {
+    const res = await fetch(`/api/netdiag/host-config/${hostId}`);
+    if (res.ok) {
+      const data = await res.json();
+      _hostTriageConfigCache.set(hostId, data);
+      return data;
+    }
+  } catch (err) {
+    console.error('Failed to get host triage config:', err);
+  }
+  return { app_endpoint: '', db_port: 0 };
+}
+
+async function updateTriageHostAppPreview(cid) {
+  const triageSourceEl = document.getElementById(`${cid}_triageSourceHost`);
+  const probeSourceEl = document.getElementById(`${cid}_sourceHost`);
+  const sourceHostId = triageSourceEl ? parseInt(triageSourceEl.value, 10) : (probeSourceEl ? parseInt(probeSourceEl.value, 10) : (currentHost ? currentHost.id : 0));
+
+  const prevApp = document.getElementById(`${cid}_prevApp`);
+  const prevDb = document.getElementById(`${cid}_prevDb`);
+
+  if (!sourceHostId) {
+    if (prevApp) prevApp.innerText = 'Auto-Bypass';
+    if (prevDb) prevDb.innerText = 'Auto';
+    return;
+  }
+
+  const cfg = await getHostTriageConfig(sourceHostId);
+  if (prevApp) {
+    prevApp.innerText = cfg.app_endpoint ? cfg.app_endpoint : 'Auto-Bypass';
+  }
+  if (prevDb) {
+    prevDb.innerText = cfg.db_port > 0 ? `Port ${cfg.db_port}` : 'Auto';
+  }
+}
+
+async function openHostTriageAppModal(cid) {
+  const triageSourceEl = document.getElementById(`${cid}_triageSourceHost`);
+  const probeSourceEl = document.getElementById(`${cid}_sourceHost`);
+  const sourceHostId = triageSourceEl ? parseInt(triageSourceEl.value, 10) : (probeSourceEl ? parseInt(probeSourceEl.value, 10) : (currentHost ? currentHost.id : 0));
+
+  if (!sourceHostId) {
+    showToast(t('netdiag_select_host_req', 'Pilih host sumber terlebih dahulu'), 'warning');
+    return;
+  }
+
+  const hostObj = (allRawHosts || []).find(h => h.id === sourceHostId) || (currentHost && currentHost.id === sourceHostId ? currentHost : null);
+  const hostName = hostObj ? hostObj.name : `Host #${sourceHostId}`;
+
+  const titleEl = document.getElementById('hostTriageAppModalTitle');
+  if (titleEl) {
+    titleEl.innerText = `${t('host_triage_cfg_title', 'Host App & DB Settings')} — ${hostName}`;
+  }
+
+  const hidInput = document.getElementById('hostTriageAppHostId');
+  if (hidInput) hidInput.value = sourceHostId;
+
+  const cfg = await getHostTriageConfig(sourceHostId);
+  const epInput = document.getElementById('hostTriageAppEndpointInput');
+  const dbInput = document.getElementById('hostTriageDbPortInput');
+  if (epInput) epInput.value = cfg.app_endpoint || '';
+  if (dbInput) dbInput.value = cfg.db_port || 0;
+
+  openModal('hostTriageAppModal');
+}
+
+async function saveHostTriageConfig() {
+  const hidInput = document.getElementById('hostTriageAppHostId');
+  const hostId = hidInput ? parseInt(hidInput.value, 10) : 0;
+  if (!hostId) return;
+
+  const app_endpoint = document.getElementById('hostTriageAppEndpointInput')?.value.trim() || '';
+  const db_port = parseInt(document.getElementById('hostTriageDbPortInput')?.value, 10) || 0;
+
+  try {
+    const res = await fetch(`/api/netdiag/host-config/${hostId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ app_endpoint, db_port })
+    });
+    if (res.ok) {
+      const saved = await res.json();
+      _hostTriageConfigCache.set(hostId, saved);
+      closeModal('hostTriageAppModal');
+      showToast(t('host_triage_saved', 'Pengaturan App & DB Host berhasil disimpan'), 'success');
+
+      ['netdiag_modal', 'netdiag_tab'].forEach(prefix => {
+        updateTriageHostAppPreview(prefix);
+      });
+    } else {
+      showToast('Failed to save host triage settings', 'error');
+    }
+  } catch (err) {
+    console.error('Save host triage config error:', err);
+    showToast('Error saving settings: ' + err.message, 'error');
+  }
+}
+
+async function onTriageSourceChange(cid) {
+  loadTriageHistory(cid);
+  await updateTriageHostAppPreview(cid);
+}
+
+function populateTriageBranchDropdown(cid) {
+  const select = document.getElementById(`${cid}_triagePresetSelect`);
+  if (!select) return;
+
+  let html = `<option value="">-- ${t('triage_select_branch', 'Pilih Target Cabang / Preset')} --</option>`;
+  html += `<option value="__custom__">⚡ ${t('triage_custom_target', 'Custom Target Manual...')}</option>`;
+
+  const categories = Array.from(new Set((allProbeTargetPresets || []).map(p => p.category || 'General')));
+  categories.sort().forEach(cat => {
+    html += `<optgroup label="${escapeHtml(cat)}">`;
+    (allProbeTargetPresets || []).filter(p => (p.category || 'General') === cat).forEach(p => {
+      html += `<option value="${p.id}" data-target="${escapeHtml(p.target)}" data-mtu="${p.baseline_mtu || 1500}" data-lat="${p.max_latency_ms || 80}" data-loss="${p.max_loss_pct || 2}">
+        ${escapeHtml(p.name)} (${escapeHtml(p.target)})
+      </option>`;
+    });
+    html += `</optgroup>`;
+  });
+
+  select.innerHTML = html;
+  onTriagePresetChange(cid);
+  updateTriageHostAppPreview(cid);
+}
+
+function onTriagePresetChange(cid) {
+  const select = document.getElementById(`${cid}_triagePresetSelect`);
+  const customBlock = document.getElementById(`${cid}_triageCustomBlock`);
+  const prevMtu = document.getElementById(`${cid}_prevMtu`);
+  const prevSLA = document.getElementById(`${cid}_prevSLA`);
+  if (!select) return;
+
+  if (select.value === '__custom__') {
+    if (customBlock) customBlock.style.display = 'block';
+    updateTriagePreviewCustom(cid);
+  } else if (select.value) {
+    if (customBlock) customBlock.style.display = 'none';
+    const opt = select.options[select.selectedIndex];
+    if (opt) {
+      const mtu = opt.getAttribute('data-mtu') || '1500';
+      const lat = opt.getAttribute('data-lat') || '80';
+      const loss = opt.getAttribute('data-loss') || '2';
+
+      if (prevMtu) prevMtu.innerText = mtu;
+      if (prevSLA) prevSLA.innerText = `< ${lat}ms / ${loss}%`;
+    }
+  } else {
+    if (customBlock) customBlock.style.display = 'none';
+    if (prevMtu) prevMtu.innerText = '1500';
+    if (prevSLA) prevSLA.innerText = '< 80ms / 2%';
+  }
+}
+
+function updateTriagePreviewCustom(cid) {
+  const mtu = document.getElementById(`${cid}_triageCustomMTU`)?.value || '1500';
+  const prevMtu = document.getElementById(`${cid}_prevMtu`);
+  const prevSLA = document.getElementById(`${cid}_prevSLA`);
+
+  if (prevMtu) prevMtu.innerText = mtu;
+  if (prevSLA) prevSLA.innerText = '< 80ms / 2%';
+}
+
+async function runBranchTriage(cid) {
+  if (currentTriageSSE) {
+    currentTriageSSE.close();
+    currentTriageSSE = null;
+  }
+
+  const triageSourceEl = document.getElementById(`${cid}_triageSourceHost`);
+  const probeSourceEl = document.getElementById(`${cid}_sourceHost`);
+  const sourceHostId = triageSourceEl ? parseInt(triageSourceEl.value, 10) : (probeSourceEl ? parseInt(probeSourceEl.value, 10) : (currentHost ? currentHost.id : 0));
+  if (!sourceHostId) {
+    showToast('Source host is required', 'error');
+    return;
+  }
+
+  const hostCfg = await getHostTriageConfig(sourceHostId);
+  const appEndpoint = hostCfg.app_endpoint || '';
+  const dbPort = hostCfg.db_port || 0;
+
+  const presetSelect = document.getElementById(`${cid}_triagePresetSelect`);
+  let presetId = 0;
+  let target = '';
+  let targetName = '';
+  let baselineMTU = 1500;
+
+  if (presetSelect && presetSelect.value === '__custom__') {
+    target = document.getElementById(`${cid}_triageCustomTarget`)?.value.trim() || '';
+    targetName = target;
+    baselineMTU = parseInt(document.getElementById(`${cid}_triageCustomMTU`)?.value) || 1500;
+    if (!target) {
+      showToast('Target address is required', 'error');
+      return;
+    }
+  } else if (presetSelect && presetSelect.value) {
+    presetId = parseInt(presetSelect.value, 10);
+    const selectedOpt = presetSelect.options[presetSelect.selectedIndex];
+    target = selectedOpt.getAttribute('data-target') || '';
+    baselineMTU = parseInt(selectedOpt.getAttribute('data-mtu')) || 1500;
+    targetName = selectedOpt.text;
+  } else {
+    showToast('Please select a target branch preset or custom target', 'warning');
+    return;
+  }
+
+  const progressBanner = document.getElementById(`${cid}_triageProgress`);
+  const progressText = document.getElementById(`${cid}_triageStageText`);
+  const verdictCard = document.getElementById(`${cid}_triageVerdictCard`);
+  const telemetryGrid = document.getElementById(`${cid}_triageTelemetryGrid`);
+  const runBtn = document.getElementById(`${cid}_triageRunBtn`);
+
+  const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  if (progressBanner) progressBanner.style.display = 'flex';
+  if (progressText) progressText.innerText = t('triage_running', isID ? 'Mendiagnosis lapisan (Host, Rute, L7, Jalur & MTU)...' : 'Diagnosing layers (Host, Route, L7, Path & MTU)...');
+  if (verdictCard) verdictCard.style.display = 'none';
+  if (telemetryGrid) telemetryGrid.style.display = 'none';
+  if (runBtn) runBtn.disabled = true;
+
+  const url = `/api/netdiag/triage?source_host_id=${sourceHostId}&preset_id=${presetId}&target=${encodeURIComponent(target)}&target_name=${encodeURIComponent(targetName)}&baseline_mtu=${baselineMTU}&app_endpoint=${encodeURIComponent(appEndpoint)}&db_port=${dbPort}`;
+
+  currentTriageSSE = new EventSource(url);
+
+  currentTriageSSE.onmessage = (e) => {
+    try {
+      const evt = JSON.parse(e.data);
+      if (evt.type === 'stage' && progressText) {
+        const isCurrentID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+        const msg = isCurrentID ? (evt.message_id || evt.message) : (evt.message || evt.message_id);
+        progressText.innerText = msg || t('triage_running');
+      } else if (evt.type === 'result' && evt.result) {
+        lastTriageResult = evt.result;
+        renderTriageResult(cid, evt.result);
+        if (progressBanner) progressBanner.style.display = 'none';
+        if (runBtn) runBtn.disabled = false;
+        currentTriageSSE.close();
+        currentTriageSSE = null;
+        loadTriageHistory(cid);
+      } else if (evt.type === 'error') {
+        showToast(evt.message || 'Triage probe error', 'error');
+        if (progressBanner) progressBanner.style.display = 'none';
+        if (runBtn) runBtn.disabled = false;
+        currentTriageSSE.close();
+        currentTriageSSE = null;
+      }
+    } catch (err) {
+      console.error('Triage SSE parse error:', err);
+    }
+  };
+
+  currentTriageSSE.onerror = (err) => {
+    console.error('Triage SSE error:', err);
+    if (progressBanner) progressBanner.style.display = 'none';
+    if (runBtn) runBtn.disabled = false;
+    if (currentTriageSSE) {
+      currentTriageSSE.close();
+      currentTriageSSE = null;
+    }
+  };
+}
+
+function abortBranchTriage(cid) {
+  if (currentTriageSSE) {
+    currentTriageSSE.close();
+    currentTriageSSE = null;
+  }
+  const progressBanner = document.getElementById(`${cid}_triageProgress`);
+  const runBtn = document.getElementById(`${cid}_triageRunBtn`);
+  if (progressBanner) progressBanner.style.display = 'none';
+  if (runBtn) runBtn.disabled = false;
+}
+
+function formatTriageVerdictLabel(verdict, isID) {
+  if (!verdict) return 'UNKNOWN';
+  if (isID === undefined) {
+    isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  }
+  const labelsID = {
+    'HEALTHY': 'NORMAL',
+    'HOST_SATURATED': 'HOST OVERLOAD',
+    'APPLICATION_DEGRADED': 'APLIKASI TERDEGRADASI',
+    'TRANSIT_PATH_DEGRADED': 'JALUR TERDEGRADASI',
+    'BRANCH_GATEWAY_DOWN': 'GATEWAY CABANG DOWN',
+    'MTU_BLACKHOLE_DETECTED': 'MTU BLACKHOLE',
+    'ICMP_FILTERED_TCP_HEALTHY': 'ICMP DIBLOKIR (TCP NORMAL)',
+  };
+  const labelsEN = {
+    'HEALTHY': 'HEALTHY',
+    'HOST_SATURATED': 'HOST SATURATED',
+    'APPLICATION_DEGRADED': 'APPLICATION DEGRADED',
+    'TRANSIT_PATH_DEGRADED': 'TRANSIT PATH DEGRADED',
+    'BRANCH_GATEWAY_DOWN': 'BRANCH GATEWAY DOWN',
+    'MTU_BLACKHOLE_DETECTED': 'MTU BLACKHOLE',
+    'ICMP_FILTERED_TCP_HEALTHY': 'ICMP FILTERED (TCP HEALTHY)',
+  };
+  const map = isID ? labelsID : labelsEN;
+  return map[verdict] || verdict.replace(/_/g, ' ');
+}
+
+let _triageHistoryCache = new Map();
+
+async function copyTriageHistoryTicket(id) {
+  const item = _triageHistoryCache.get(id);
+  if (!item) {
+    showToast(t('triage_ticket_not_found', 'Data tiket tidak ditemukan'), 'warning');
+    return;
+  }
+  let ticket = item.ticket_snippet;
+  if (!ticket && item.details_json) {
+    try {
+      const details = JSON.parse(item.details_json);
+      ticket = details.ticket_snippet;
+    } catch (e) {}
+  }
+  if (!ticket) {
+    const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+    ticket = `🚨 *[PANTAU INCIDENT REPORT]*\n🎯 *Target*: ${item.target_name} (${item.target_address})\n📊 *Status*: ${formatTriageVerdictLabel(item.verdict, isID)}\n📝 *${isID ? 'Ringkasan' : 'Summary'}*: ${isID ? (item.summary_id || item.summary) : item.summary}`;
+  }
+  const ok = await copyTextToClipboard(ticket);
+  if (ok !== false) {
+    showToast(t('triage_ticket_copied', 'Tiket insiden berhasil disalin ke clipboard!'), 'success');
+  } else {
+    showToast(t('triage_ticket_copy_failed', 'Gagal menyalin tiket ke clipboard'), 'error');
+  }
+}
+
+function renderTriageResult(cid, res) {
+  const verdictCard = document.getElementById(`${cid}_triageVerdictCard`);
+  const verdictIcon = document.getElementById(`${cid}_triageVerdictIcon`);
+  const verdictBadge = document.getElementById(`${cid}_triageVerdictBadge`);
+  const verdictSummary = document.getElementById(`${cid}_triageVerdictSummary`);
+  const telemetryGrid = document.getElementById(`${cid}_triageTelemetryGrid`);
+
+  if (!verdictCard) return;
+
+  const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  let icon = '⚡';
+  let badgeColor = 'background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);';
+
+  switch (res.verdict) {
+    case 'HEALTHY':
+      icon = '✅';
+      badgeColor = 'background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4);';
+      break;
+    case 'HOST_SATURATED':
+      icon = '🟣';
+      badgeColor = 'background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4);';
+      break;
+    case 'APPLICATION_DEGRADED':
+      icon = '🔴';
+      badgeColor = 'background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4);';
+      break;
+    case 'TRANSIT_PATH_DEGRADED':
+      icon = '🟡';
+      badgeColor = 'background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4);';
+      break;
+    case 'BRANCH_GATEWAY_DOWN':
+      icon = '❌';
+      badgeColor = 'background: rgba(244, 63, 94, 0.2); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.4);';
+      break;
+    case 'MTU_BLACKHOLE_DETECTED':
+      icon = '⚠️';
+      badgeColor = 'background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.4);';
+      break;
+    case 'ICMP_FILTERED_TCP_HEALTHY':
+      icon = '🔵';
+      badgeColor = 'background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4);';
+      break;
+  }
+
+  verdictIcon.innerText = icon;
+  verdictBadge.setAttribute('style', `font-size: 0.82rem; font-weight: 700; padding: 4px 10px; border-radius: 4px; ${badgeColor}`);
+  verdictBadge.innerText = formatTriageVerdictLabel(res.verdict, isID);
+  verdictSummary.innerText = isID ? (res.summary_id || res.summary) : res.summary;
+  verdictCard.style.display = 'block';
+
+  // Telemetry Grid
+  if (telemetryGrid) {
+    telemetryGrid.style.display = 'grid';
+
+    // 1. Host
+    const hBadge = document.getElementById(`${cid}_telHostBadge`);
+    const hContent = document.getElementById(`${cid}_telHostContent`);
+    if (hBadge) {
+      if (res.host_resource) {
+        hBadge.className = 'badge ' + (res.host_resource.status === 'healthy' ? 'badge-success' : 'badge-danger');
+        hBadge.innerText = (res.host_resource.status || 'UNKNOWN').toUpperCase();
+      } else {
+        hBadge.className = 'badge badge-info';
+        hBadge.innerText = 'N/A';
+      }
+    }
+    if (hContent) {
+      if (res.host_resource) {
+        const cpu = (res.host_resource.cpu_load || 0).toFixed(2);
+        const ram = (res.host_resource.ram_used_pct || 0).toFixed(1);
+        const swap = (res.host_resource.swap_used_pct || 0).toFixed(1);
+        const socks = res.host_resource.active_connections || 0;
+        hContent.innerHTML = `
+          <div>CPU Load: <strong>${cpu}</strong> | Sockets: <strong>${socks}</strong></div>
+          <div>RAM: <strong>${ram}%</strong> | Swap: <strong>${swap}%</strong></div>
+        `;
+      } else {
+        hContent.innerHTML = `<div>Host telemetry: <strong>N/A</strong></div>`;
+      }
+    }
+
+    // 2. L7
+    const l7Badge = document.getElementById(`${cid}_telL7Badge`);
+    const l7Content = document.getElementById(`${cid}_telL7Content`);
+    if (l7Badge) {
+      if (res.l7_local) {
+        l7Badge.className = 'badge ' + (res.l7_local.status === 'healthy' ? 'badge-success' : (res.l7_local.status === 'degraded' ? 'badge-warning' : 'badge-danger'));
+        l7Badge.innerText = (res.l7_local.status || 'UNKNOWN').toUpperCase();
+      } else {
+        l7Badge.className = 'badge badge-info';
+        l7Badge.innerText = 'N/A';
+      }
+    }
+    if (l7Content) {
+      if (res.l7_local) {
+        const ttfb = (res.l7_local.ttfb_ms || 0).toFixed(1);
+        const total = (res.l7_local.total_ms || 0).toFixed(1);
+        let dbNote = '';
+        if (res.db_port) {
+          const dbSt = res.db_port.open ? `<span style="color: #34d399;">OPEN</span>` : `<span style="color: #f87171;">CLOSED</span>`;
+          dbNote = `<div>DB Port (${res.db_port.port}): <strong>${dbSt}</strong></div>`;
+        }
+        l7Content.innerHTML = `
+          <div>HTTP Code: <strong>${res.l7_local.http_code || 'Error'}</strong> | TTFB: <strong>${ttfb} ms</strong></div>
+          ${dbNote || `<div>Total: <strong>${total} ms</strong></div>`}
+        `;
+      } else {
+        l7Content.innerHTML = `<div>L7 probe: <strong>N/A</strong></div>`;
+      }
+    }
+
+    // 3. Route
+    const rBadge = document.getElementById(`${cid}_telRouteBadge`);
+    const rContent = document.getElementById(`${cid}_telRouteContent`);
+    if (rBadge) {
+      if (res.route) {
+        rBadge.className = 'badge badge-info';
+        rBadge.innerText = res.route.interface || 'DEFAULT';
+      } else {
+        rBadge.className = 'badge badge-info';
+        rBadge.innerText = 'N/A';
+      }
+    }
+    if (rContent) {
+      if (res.route) {
+        rContent.innerHTML = `
+          <div>Interface: <strong>${escapeHtml(res.route.interface || 'eth0')}</strong></div>
+          <div>MTU: <strong>${res.route.mtu || 1500}</strong> ${res.route.gateway ? `| GW: <strong>${escapeHtml(res.route.gateway)}</strong>` : ''}</div>
+        `;
+      } else {
+        rContent.innerHTML = `<div>Route: <strong>N/A</strong></div>`;
+      }
+    }
+
+    // 4. Path & MTU
+    const pBadge = document.getElementById(`${cid}_telPathBadge`);
+    const pContent = document.getElementById(`${cid}_telPathContent`);
+    if (pBadge) {
+      if (res.ping) {
+        pBadge.className = 'badge ' + (res.ping.status === 'healthy' ? 'badge-success' : (res.ping.status === 'degraded' ? 'badge-warning' : 'badge-danger'));
+        pBadge.innerText = (res.ping.status || 'UNKNOWN').toUpperCase();
+      } else {
+        pBadge.className = 'badge badge-info';
+        pBadge.innerText = 'N/A';
+      }
+    }
+    if (pContent) {
+      if (res.ping) {
+        const rtt = (res.ping.avg_ms || 0).toFixed(1);
+        const loss = (res.ping.packet_loss_pct || 0).toFixed(1);
+        const mtuNote = res.mtu ? (res.mtu.blackhole_detected ? `<div style="color: #fb923c; font-weight: 600;">⚠️ ${isID ? 'PMTU Blackhole Terdeteksi!' : 'PMTU Blackhole Detected!'}</div>` : `<div>MTU: Normal</div>`) : '';
+        pContent.innerHTML = `
+          <div>RTT: <strong>${rtt} ms</strong> | Loss: <strong>${loss}%</strong></div>
+          ${mtuNote}
+        `;
+      } else {
+        pContent.innerHTML = `<div>Path probe: <strong>N/A</strong></div>`;
+      }
+    }
+  }
+}
+
+async function copyBranchTriageTicket(cid) {
+  if (!lastTriageResult || !lastTriageResult.ticket_snippet) {
+    showToast('No triage ticket to copy', 'warning');
+    return;
+  }
+  const ok = await copyTextToClipboard(lastTriageResult.ticket_snippet);
+  if (ok !== false) {
+    showToast(t('triage_ticket_copied', 'Tiket insiden berhasil disalin ke clipboard!'), 'success');
+  } else {
+    showToast('Gagal menyalin tiket ke clipboard', 'error');
+  }
+}
+
+const _triageHistoryState = new Map(); // cid -> { logs: [], page: 1, pageSize: 10, search: '', verdict: '' }
+
+function getTriageHistoryState(cid) {
+  if (!_triageHistoryState.has(cid)) {
+    _triageHistoryState.set(cid, { logs: [], page: 1, pageSize: 10, search: '', verdict: '' });
+  }
+  return _triageHistoryState.get(cid);
+}
+
+async function loadTriageHistory(cid) {
+  const tbody = document.getElementById(`${cid}_triageHistoryTbody`);
+  if (!tbody) return;
+
+  const triageSourceEl = document.getElementById(`${cid}_triageSourceHost`);
+  const probeSourceEl = document.getElementById(`${cid}_sourceHost`);
+  const sourceHostId = triageSourceEl ? parseInt(triageSourceEl.value, 10) : (probeSourceEl ? parseInt(probeSourceEl.value, 10) : (currentHost ? currentHost.id : 0));
+
+  try {
+    const res = await fetch(`/api/netdiag/triage/history?host_id=${sourceHostId || 0}&limit=100`);
+    if (!res.ok) return;
+    const logs = await res.json() || [];
+
+    const state = getTriageHistoryState(cid);
+    state.logs = logs;
+    logs.forEach(l => _triageHistoryCache.set(l.id, l));
+
+    renderTriageHistoryTable(cid);
+  } catch (err) {
+    console.error('Load triage history error:', err);
+  }
+}
+
+function onTriageFilterChange(cid) {
+  const state = getTriageHistoryState(cid);
+  const searchInput = document.getElementById(`${cid}_triageSearchInput`);
+  const verdictSelect = document.getElementById(`${cid}_triageVerdictFilter`);
+  const clearBtn = document.getElementById(`${cid}_triageSearchClear`);
+
+  state.search = searchInput ? searchInput.value.trim().toLowerCase() : '';
+  state.verdict = verdictSelect ? verdictSelect.value : '';
+  state.page = 1;
+
+  if (clearBtn) {
+    clearBtn.style.display = state.search ? 'inline-block' : 'none';
+  }
+
+  renderTriageHistoryTable(cid);
+}
+
+function clearTriageSearch(cid) {
+  const searchInput = document.getElementById(`${cid}_triageSearchInput`);
+  if (searchInput) searchInput.value = '';
+  onTriageFilterChange(cid);
+}
+
+function changeTriagePage(cid, delta) {
+  const state = getTriageHistoryState(cid);
+  state.page += delta;
+  renderTriageHistoryTable(cid);
+}
+
+function renderTriageHistoryTable(cid) {
+  const tbody = document.getElementById(`${cid}_triageHistoryTbody`);
+  if (!tbody) return;
+
+  const state = getTriageHistoryState(cid);
+  const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+
+  let filtered = state.logs || [];
+  if (state.search) {
+    filtered = filtered.filter(l => {
+      const targetName = (l.target_name || '').toLowerCase();
+      const targetAddr = (l.target_address || '').toLowerCase();
+      const summary = (l.summary || '').toLowerCase();
+      const summaryID = (l.summary_id || '').toLowerCase();
+      return targetName.includes(state.search) || targetAddr.includes(state.search) || summary.includes(state.search) || summaryID.includes(state.search);
+    });
+  }
+  if (state.verdict) {
+    filtered = filtered.filter(l => l.verdict === state.verdict);
+  }
+
+  const countBadge = document.getElementById(`${cid}_triageHistoryCount`);
+  if (countBadge) countBadge.innerText = filtered.length;
+
+  if (filtered.length === 0) {
+    const emptyMsg = (state.search || state.verdict) ? t('triage_no_filter_match', 'Tidak ada riwayat triage yang sesuai filter.') : t('triage_history_empty', 'Belum ada riwayat triage untuk host ini.');
+    tbody.innerHTML = `<tr><td colspan="5" style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 0.8rem;">${escapeHtml(emptyMsg)}</td></tr>`;
+    updateTriagePaginationUI(cid, 0, 0, 0, 1, 1);
+    return;
+  }
+
+  const pageSize = state.pageSize || 10;
+  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+  if (state.page > totalPages) state.page = totalPages;
+  if (state.page < 1) state.page = 1;
+
+  const startIdx = (state.page - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, filtered.length);
+  const pageLogs = filtered.slice(startIdx, endIdx);
+
+  tbody.innerHTML = pageLogs.map(l => {
+    let badgeStyle = 'background: rgba(16, 185, 129, 0.15); color: #34d399;';
+    if (l.verdict === 'TRANSIT_PATH_DEGRADED' || l.verdict === 'MTU_BLACKHOLE_DETECTED') {
+      badgeStyle = 'background: rgba(245, 158, 11, 0.15); color: #fbbf24;';
+    } else if (l.verdict === 'APPLICATION_DEGRADED' || l.verdict === 'BRANCH_GATEWAY_DOWN') {
+      badgeStyle = 'background: rgba(239, 68, 68, 0.15); color: #f87171;';
+    } else if (l.verdict === 'HOST_SATURATED') {
+      badgeStyle = 'background: rgba(168, 85, 247, 0.15); color: #c084fc;';
+    }
+
+    const d = new Date(l.created_at);
+    const timeStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    return `
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <td style="padding: 8px 10px; color: var(--text-muted); font-size: 0.75rem; white-space: nowrap;">${timeStr}</td>
+        <td style="padding: 8px 10px; font-weight: 600; color: #f8fafc;">
+          ${escapeHtml(l.target_name)} <span style="font-family: monospace; font-size: 0.72rem; color: #60a5fa;">(${escapeHtml(l.target_address)})</span>
+        </td>
+        <td style="padding: 8px 10px; white-space: nowrap;">
+          <span class="badge" style="font-size: 0.72rem; white-space: nowrap; ${badgeStyle}">${escapeHtml(formatTriageVerdictLabel(l.verdict, isID))}</span>
+        </td>
+        <td style="padding: 8px 10px; color: #cbd5e1; font-size: 0.75rem;">
+          ${escapeHtml(isID ? (l.summary_id || l.summary) : l.summary)}
+        </td>
+        <td style="padding: 8px 10px; text-align: right; white-space: nowrap;">
+          <button class="btn btn-sm btn-icon btn-secondary" onclick="viewTriageHistoryDetail('${cid}', ${l.id})" title="${escapeHtml(t('triage_view_telemetry', 'Lihat Telemetri'))}" style="padding: 2px 6px; font-size: 0.75rem; margin-right: 4px;">🔍</button>
+          <button class="btn btn-sm btn-icon btn-secondary" onclick="copyTriageHistoryTicket(${l.id})" title="${escapeHtml(t('triage_copy_ticket', 'Salin Tiket Insiden'))}" style="padding: 2px 6px; font-size: 0.75rem; margin-right: 4px;">📋</button>
+          <button class="btn btn-sm btn-icon btn-danger" onclick="deleteTriageHistoryItem('${cid}', ${l.id})" title="${escapeHtml(t('delete', 'Delete'))}" style="padding: 2px 6px; font-size: 0.75rem;">🗑️</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  updateTriagePaginationUI(cid, startIdx + 1, endIdx, filtered.length, state.page, totalPages);
+}
+
+function updateTriagePaginationUI(cid, start, end, total, page, totalPages) {
+  const pageInfo = document.getElementById(`${cid}_triagePageInfo`);
+  const prevBtn = document.getElementById(`${cid}_triagePrevBtn`);
+  const nextBtn = document.getElementById(`${cid}_triageNextBtn`);
+  const curSpan = document.getElementById(`${cid}_triagePageCurrent`);
+
+  const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  if (pageInfo) {
+    if (total === 0) {
+      pageInfo.innerText = isID ? 'Menampilkan 0 dari 0 riwayat' : 'Showing 0 of 0 records';
+    } else {
+      pageInfo.innerText = isID ? `Menampilkan ${start}-${end} dari ${total} riwayat` : `Showing ${start}-${end} of ${total} records`;
+    }
+  }
+
+  if (curSpan) {
+    curSpan.innerText = isID ? `Hal ${page} / ${totalPages}` : `Page ${page} / ${totalPages}`;
+  }
+
+  if (prevBtn) prevBtn.disabled = (page <= 1);
+  if (nextBtn) nextBtn.disabled = (page >= totalPages || total === 0);
+}
+
+function viewTriageHistoryDetail(cid, id) {
+  const item = _triageHistoryCache.get(id);
+  if (!item) return;
+  try {
+    const details = typeof item.details_json === 'string' ? JSON.parse(item.details_json) : (item.details_json || {});
+    if (!details.verdict) details.verdict = item.verdict;
+    if (!details.summary) details.summary = item.summary;
+    if (!details.summary_id) details.summary_id = item.summary_id;
+    lastTriageResult = details;
+    renderTriageResult(cid, details);
+    const vCard = document.getElementById(`${cid}_triageVerdictCard`);
+    if (vCard) vCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (err) {
+    console.error('Failed to parse triage details:', err);
+  }
+}
+
+async function deleteTriageHistoryItem(cid, id) {
+  try {
+    const res = await fetch(`/api/netdiag/triage/history/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      showToast(t('triage_record_deleted', 'Record deleted'), 'success');
+      loadTriageHistory(cid);
+    }
+  } catch (err) {
+    console.error('Delete history error:', err);
   }
 }
 
@@ -11843,6 +13117,7 @@ function renderNetDiagPresetManagerList(filterText = '') {
           <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
             <td style="padding: 8px 10px; font-weight: 600; color: #f8fafc;">
               ${escapeHtml(p.name)}
+              ${p.auto_triage_enabled ? `<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 0.7rem; margin-left: 6px;" title="Auto-Triage Aktif">⚡ Auto</span>` : ''}
             </td>
             <td style="padding: 8px 10px;">
               <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-family: monospace; font-size: 0.78rem;">
@@ -11853,7 +13128,7 @@ function renderNetDiagPresetManagerList(filterText = '') {
               ${p.category ? `<span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #cbd5e1; font-size: 0.75rem;">${escapeHtml(p.category)}</span>` : '<span style="color: var(--text-muted);">-</span>'}
             </td>
             <td style="padding: 8px 10px; text-align: right; white-space: nowrap;">
-              <button class="btn btn-sm btn-icon" title="Edit" onclick="openCreateNetDiagPresetModal(${escapeHtml(JSON.stringify(p))})" style="padding: 2px 6px; font-size: 0.78rem; margin-right: 4px;">✏️</button>
+              <button class="btn btn-sm btn-icon" title="Edit" onclick="editNetDiagPresetById(${p.id})" style="padding: 2px 6px; font-size: 0.78rem; margin-right: 4px;">✏️</button>
               <button class="btn btn-sm btn-icon btn-danger" title="Delete" onclick="deleteNetDiagPreset(${p.id})" style="padding: 2px 6px; font-size: 0.78rem;">🗑️</button>
             </td>
           </tr>
@@ -11861,6 +13136,18 @@ function renderNetDiagPresetManagerList(filterText = '') {
       </tbody>
     </table>
   `;
+}
+
+function editNetDiagPresetById(id) {
+  const preset = (allProbeTargetPresets || []).find(p => p.id === id);
+  if (preset) {
+    openCreateNetDiagPresetModal(preset);
+  } else {
+    fetch(`/api/netdiag/presets/${id}`)
+      .then(res => res.json())
+      .then(p => openCreateNetDiagPresetModal(p))
+      .catch(err => showToast('Failed to load preset: ' + err.message, 'error'));
+  }
 }
 
 function openCreateNetDiagPresetModal(presetToEdit = null) {
@@ -11876,18 +13163,40 @@ function openCreateNetDiagPresetModal(presetToEdit = null) {
     datalist.innerHTML = categories.map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
   }
 
+  const mtuInput = document.getElementById('netDiagPresetMtuInput');
+  const latencyInput = document.getElementById('netDiagPresetLatencyInput');
+  const lossInput = document.getElementById('netDiagPresetLossInput');
+  const autoTriageInput = document.getElementById('netDiagPresetAutoTriageInput');
+  const sourceHostInput = document.getElementById('netDiagPresetSourceHostInput');
+
+  if (sourceHostInput) {
+    const defLabel = t('netdiag_preset_src_host_default', 'Default (Follow Global Settings)');
+    sourceHostInput.innerHTML = `<option value="0">${escapeHtml(defLabel)}</option>` +
+      (allRawHosts || []).map(h => `<option value="${h.id}">${escapeHtml(h.name)} (${escapeHtml(h.host)})</option>`).join('');
+  }
+
   if (presetToEdit && presetToEdit.id) {
     if (titleEl) titleEl.innerText = t('netdiag_preset_edit');
     if (idInput) idInput.value = presetToEdit.id;
     if (nameInput) nameInput.value = presetToEdit.name || '';
     if (targetInput) targetInput.value = presetToEdit.target || '';
     if (categoryInput) categoryInput.value = presetToEdit.category || '';
+    if (mtuInput) mtuInput.value = presetToEdit.baseline_mtu || 1500;
+    if (latencyInput) latencyInput.value = presetToEdit.max_latency_ms || 80;
+    if (lossInput) lossInput.value = presetToEdit.max_loss_pct || 2.0;
+    if (autoTriageInput) autoTriageInput.checked = !!presetToEdit.auto_triage_enabled;
+    if (sourceHostInput) sourceHostInput.value = presetToEdit.source_host_id || 0;
   } else {
     if (titleEl) titleEl.innerText = t('netdiag_preset_add');
     if (idInput) idInput.value = '';
     if (nameInput) nameInput.value = (presetToEdit && presetToEdit.name) ? presetToEdit.name : '';
     if (targetInput) targetInput.value = (presetToEdit && presetToEdit.target) ? presetToEdit.target : '';
     if (categoryInput) categoryInput.value = (presetToEdit && presetToEdit.category) ? presetToEdit.category : '';
+    if (mtuInput) mtuInput.value = 1500;
+    if (latencyInput) latencyInput.value = 80;
+    if (lossInput) lossInput.value = 2.0;
+    if (autoTriageInput) autoTriageInput.checked = false;
+    if (sourceHostInput) sourceHostInput.value = 0;
   }
 
   openModal('netDiagPresetFormModal');
@@ -11903,6 +13212,12 @@ async function submitNetDiagPresetForm() {
   const name = document.getElementById('netDiagPresetNameInput').value.trim();
   const target = document.getElementById('netDiagPresetTargetInput').value.trim();
   const category = document.getElementById('netDiagPresetCategoryInput').value.trim();
+  const baseline_mtu = parseInt(document.getElementById('netDiagPresetMtuInput')?.value) || 1500;
+  const max_latency_ms = parseFloat(document.getElementById('netDiagPresetLatencyInput')?.value) || 80.0;
+  const max_loss_pct = parseFloat(document.getElementById('netDiagPresetLossInput')?.value) || 2.0;
+  const auto_triage_enabled = document.getElementById('netDiagPresetAutoTriageInput')?.checked || false;
+  const srcHostVal = parseInt(document.getElementById('netDiagPresetSourceHostInput')?.value, 10) || 0;
+  const source_host_id = srcHostVal > 0 ? srcHostVal : null;
 
   if (!name) {
     showToast(t('netdiag_preset_name_req', 'Name is required'), 'error');
@@ -11913,7 +13228,7 @@ async function submitNetDiagPresetForm() {
     return;
   }
 
-  const payload = { name, target, category };
+  const payload = { name, target, category, baseline_mtu, max_latency_ms, max_loss_pct, auto_triage_enabled, source_host_id };
   try {
     let res;
     if (id) {
@@ -12432,7 +13747,7 @@ function toggleNetDiagRaw(cid) {
 function copyNetDiagRaw(cid) {
   const pre = document.getElementById(`${cid}_rawPre`);
   if (pre && pre.innerText) {
-    navigator.clipboard.writeText(pre.innerText).then(() => {
+    copyTextToClipboard(pre.innerText).then(() => {
       showToast(t('netdiag_raw_copied'), 'success');
     }).catch(() => {
       showToast('Failed to copy', 'error');

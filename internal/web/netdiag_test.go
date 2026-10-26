@@ -507,3 +507,136 @@ func TestProbeTargetPresetsAPIAndUI(t *testing.T) {
 		}
 	}
 }
+
+func TestBranchTriageMatrixAPIAndHistory(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-triage-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "pantau.db")
+	db, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	srv := &Server{db: db}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/netdiag/presets", srv.authMiddleware(srv.handleProbeTargetPresets))
+	mux.HandleFunc("/api/netdiag/presets/", srv.authMiddleware(srv.handleProbeTargetPresetDetail))
+	mux.HandleFunc("/api/netdiag/triage/history", srv.authMiddleware(srv.handleTriageHistory))
+	mux.HandleFunc("/api/netdiag/triage/history/", srv.authMiddleware(srv.handleTriageHistory))
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	sessionToken := "test_triage_session"
+	srv.sessions.Store(sessionToken, time.Now().Add(1*time.Hour))
+
+	authClient := func(req *http.Request) (*http.Response, error) {
+		req.AddCookie(&http.Cookie{Name: "pantau_session", Value: sessionToken})
+		return http.DefaultClient.Do(req)
+	}
+
+	// 1. Create a branch preset with app_endpoint, baseline_mtu, max_latency_ms, max_loss_pct
+	presetPayload := `{
+		"name": "Cabang Surabaya - Router Core",
+		"target": "10.20.1.1",
+		"category": "Jawa Timur",
+		"app_endpoint": ":8080/health",
+		"baseline_mtu": 1420,
+		"max_latency_ms": 65.0,
+		"max_loss_pct": 1.5
+	}`
+	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/api/netdiag/presets", strings.NewReader(presetPayload))
+	resp, err := authClient(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 Created, got %d", resp.StatusCode)
+	}
+	var created store.ProbeTargetPreset
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if created.AppEndpoint != ":8080/health" || created.BaselineMTU != 1420 || created.MaxLatencyMs != 65.0 {
+		t.Fatalf("unexpected preset attributes: %+v", created)
+	}
+
+	// Create dummy host for foreign key
+	hostID, err := db.CreateHost(&store.Host{
+		Name: "Host A",
+		Host: "10.10.1.5",
+		User: "root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 2. Insert test triage incident log into DB directly
+	logID, err := db.CreateTriageIncidentLog(&store.TriageIncidentLog{
+		SourceHostID:  hostID,
+		PresetID:      &created.ID,
+		TargetName:    created.Name,
+		TargetAddress: created.Target,
+		Verdict:       "TRANSIT_PATH_DEGRADED",
+		Summary:       "Transit VPN latency spike detected",
+		SummaryID:     "Terdeteksi lonjakan latensi pada rute VPN",
+		HostStatus:    "healthy",
+		AppStatus:     "healthy",
+		PathStatus:    "degraded",
+		MTUStatus:     "healthy",
+		DetailsJSON:   `{"verdict":"TRANSIT_PATH_DEGRADED"}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if logID <= 0 {
+		t.Fatalf("expected positive log ID, got %d", logID)
+	}
+
+	// 3. GET /api/netdiag/triage/history
+	req, _ = http.NewRequest(http.MethodGet, fmt.Sprintf("%s/api/netdiag/triage/history?host_id=%d", ts.URL, hostID), nil)
+	resp, err = authClient(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+	}
+	var logs []store.TriageIncidentLog
+	if err := json.NewDecoder(resp.Body).Decode(&logs); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if len(logs) == 0 || logs[0].Verdict != "TRANSIT_PATH_DEGRADED" {
+		t.Fatalf("expected at least 1 incident log with verdict TRANSIT_PATH_DEGRADED, got %+v", logs)
+	}
+
+	// 4. DELETE /api/netdiag/triage/history/{id}
+	req, _ = http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/netdiag/triage/history/%d", ts.URL, logID), nil)
+	resp, err = authClient(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// Verify deleted
+	remaining, err := db.ListTriageIncidentLogs(hostID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(remaining) != 0 {
+		t.Fatalf("expected 0 remaining incident logs, got %d", len(remaining))
+	}
+}
