@@ -429,3 +429,23 @@ _Avoid_: Preset finder, terminal filter, command search
 **Terminal Pinned Paths Dropdown**:
 Akses cepat berkas dan direktori tersemat (File Pin) langsung dari bilah alat terminal (`📌`) untuk navigasi `cd` cepat atau penyisipan path ke sesi shell.
 _Avoid_: Terminal bookmarks, pin menu, path picker
+
+**Triage Matrix**:
+Proses verifikasi diagnostik terorkestrasi multi-layer adaptif (Host resource, L7 HTTP, fragmentasi MTU, dan rute transit VPN/Public WAN) untuk mengisolasi titik kegagalan sistem antara server aplikasi dan jaringan cabang/klien eksternal.
+_Avoid_: Triage test, diagnostic checklist, troubleshooting wizard
+
+**Triage Verdict**:
+Klasifikasi kesimpulan akhir otomatis dari Triage Matrix yang menentukan akar masalah insiden secara deterministik (`HOST_SATURATED`, `APPLICATION_DEGRADED`, `TRANSIT_PATH_DEGRADED`, `BRANCH_GATEWAY_DOWN`, `MTU_BLACKHOLE_DETECTED`, `ICMP_FILTERED_TCP_HEALTHY`, atau `HEALTHY`).
+_Avoid_: Triage status, diagnostic result, incident verdict
+
+**L7 HTTP Probe**:
+Pengujian keterjangkauan dan kinerja lapisan aplikasi HTTP/HTTPS yang mengukur status respons, latensi sub-milidetik, dan Time To First Byte (TTFB) secara komparatif antara loopback lokal dan jaringan eksternal.
+_Avoid_: Web ping, http check, url probe
+
+**MTU Sweep Probe**:
+Pengujian integritas transmisi dan fragmentasi paket pada jalur terowongan VPN menggunakan paket bertingkat dengan bit Don't Fragment (DF) untuk mendeteksi Path MTU Blackhole.
+_Avoid_: MTU ping, fragmentation test, pmtu probe
+
+**Triage Incident Log**:
+Catatan historis ringkasan eksekusi Triage Matrix yang tersimpan di basis data Pantau sebagai bukti audit dan rekam jejak investigasi performa jaringan antar-cabang.
+_Avoid_: Triage history, incident report, diagnostic record
