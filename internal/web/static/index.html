@@ -2558,6 +2558,7 @@ const I18N = {
     "cancel": "Cancel",
     "save_host": "Save Host",
     "save_host_failed": "Failed to save host: ",
+    "err_duplicate_target": "Host with target '{target}' is already registered as '{name}'",
     "no_hosts": "No hosts configured yet. Click \"+ Add Host\" to begin.",
     "address": "Address:",
     "os": "OS:",
@@ -3174,6 +3175,7 @@ const I18N = {
     "cancel": "Batal",
     "save_host": "Simpan Host",
     "save_host_failed": "Gagal menyimpan host: ",
+    "err_duplicate_target": "Host dengan target '{target}' sudah terdaftar sebagai '{name}'",
     "no_hosts": "Belum ada host dikonfigurasi. Klik \"+ Tambah Host\" untuk memulai.",
     "address": "Alamat:",
     "os": "OS:",
@@ -5261,7 +5263,13 @@ async function saveHost() {
     let errMsg = txt;
     try {
       const errObj = JSON.parse(txt);
-      if (errObj.error) errMsg = errObj.error;
+      if (errObj.code === 'err_duplicate_target' && errObj.target && errObj.name) {
+        errMsg = t('err_duplicate_target', "Host with target '{target}' is already registered as '{name}'")
+          .replace('{target}', errObj.target)
+          .replace('{name}', errObj.name);
+      } else if (errObj.error) {
+        errMsg = (currentLang === 'id' && errObj.error_id) ? errObj.error_id : (errObj.error_en && currentLang === 'en' ? errObj.error_en : errObj.error);
+      }
     } catch(e) {}
     showToast(t('save_host_failed', 'Failed to save host: ') + errMsg, 'error');
   }

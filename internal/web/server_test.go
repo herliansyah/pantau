@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1970,6 +1971,140 @@ func TestHostCreate_ImmediateInspectionAndEnrichment(t *testing.T) {
 	_ = json.NewDecoder(w.Body).Decode(&hosts)
 	if len(hosts) != 1 || hosts[0].Name != "Immediate Host" {
 		t.Fatalf("unexpected hosts list: %+v", hosts)
+	}
+}
+
+func TestDuplicateHostPrevention(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-dup-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	srv := NewServer(db, nil, nil)
+	token := "dup_test_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{Name: "pantau_session", Value: token})
+	}
+
+	// 1. Create first host
+	body1, _ := json.Marshal(map[string]interface{}{
+		"name": "Web Primary",
+		"host": "192.168.1.50",
+		"port": 22,
+		"user": "root",
+	})
+	req1 := httptest.NewRequest(http.MethodPost, "/api/hosts", bytes.NewReader(body1))
+	authReq(req1)
+	w1 := httptest.NewRecorder()
+	srv.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created for host 1, got %d: %s", w1.Code, w1.Body.String())
+	}
+	var created1 store.Host
+	_ = json.NewDecoder(w1.Body).Decode(&created1)
+
+	// 2. Create second host on different port (allowed)
+	body2, _ := json.Marshal(map[string]interface{}{
+		"name": "Web Secondary",
+		"host": "192.168.1.50",
+		"port": 2222,
+		"user": "root",
+	})
+	req2 := httptest.NewRequest(http.MethodPost, "/api/hosts", bytes.NewReader(body2))
+	authReq(req2)
+	w2 := httptest.NewRecorder()
+	srv.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created for host 2 on diff port, got %d: %s", w2.Code, w2.Body.String())
+	}
+	var created2 store.Host
+	_ = json.NewDecoder(w2.Body).Decode(&created2)
+
+	// 3. Attempt to create duplicate host on 192.168.1.50:22 (should be rejected with 409 Conflict)
+	bodyDup, _ := json.Marshal(map[string]interface{}{
+		"name": "Web Clone",
+		"host": " 192.168.1.50 ",
+		"port": 22,
+		"user": "admin",
+	})
+	reqDup := httptest.NewRequest(http.MethodPost, "/api/hosts", bytes.NewReader(bodyDup))
+	authReq(reqDup)
+	wDup := httptest.NewRecorder()
+	srv.ServeHTTP(wDup, reqDup)
+	if wDup.Code != http.StatusConflict {
+		t.Fatalf("expected 409 Conflict for duplicate target, got %d: %s", wDup.Code, wDup.Body.String())
+	}
+	if !strings.Contains(wDup.Body.String(), "Web Primary") {
+		t.Fatalf("expected error message to mention 'Web Primary', got: %s", wDup.Body.String())
+	}
+	if !strings.Contains(wDup.Body.String(), "already registered as") {
+		t.Fatalf("expected default error in English, got: %s", wDup.Body.String())
+	}
+
+	// 3b. Test Indonesian localized duplicate error via Accept-Language header
+	reqDupID := httptest.NewRequest(http.MethodPost, "/api/hosts", bytes.NewReader(bodyDup))
+	authReq(reqDupID)
+	reqDupID.Header.Set("Accept-Language", "id-ID,id;q=0.9")
+	wDupID := httptest.NewRecorder()
+	srv.ServeHTTP(wDupID, reqDupID)
+	if wDupID.Code != http.StatusConflict {
+		t.Fatalf("expected 409 Conflict for Indonesian header, got %d", wDupID.Code)
+	}
+	if !strings.Contains(wDupID.Body.String(), "sudah terdaftar sebagai") {
+		t.Fatalf("expected Indonesian error message, got: %s", wDupID.Body.String())
+	}
+
+	// 4. Same display name but different IP is allowed
+	bodySameName, _ := json.Marshal(map[string]interface{}{
+		"name": "Web Primary",
+		"host": "192.168.1.51",
+		"port": 22,
+		"user": "root",
+	})
+	reqSameName := httptest.NewRequest(http.MethodPost, "/api/hosts", bytes.NewReader(bodySameName))
+	authReq(reqSameName)
+	wSameName := httptest.NewRecorder()
+	srv.ServeHTTP(wSameName, reqSameName)
+	if wSameName.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created for same name diff IP, got %d: %s", wSameName.Code, wSameName.Body.String())
+	}
+
+	// 5. PUT /api/hosts/{id} updating host 2 target to host 1's target (should fail with 409)
+	bodyPutConflict, _ := json.Marshal(map[string]interface{}{
+		"name": "Web Secondary",
+		"host": "192.168.1.50",
+		"port": 22,
+		"user": "root",
+	})
+	reqPutConflict := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/hosts/%d", created2.ID), bytes.NewReader(bodyPutConflict))
+	authReq(reqPutConflict)
+	wPutConflict := httptest.NewRecorder()
+	srv.ServeHTTP(wPutConflict, reqPutConflict)
+	if wPutConflict.Code != http.StatusConflict {
+		t.Fatalf("expected 409 Conflict when editing target to an existing one, got %d: %s", wPutConflict.Code, wPutConflict.Body.String())
+	}
+
+	// 6. PUT /api/hosts/{id} updating host 2 with its own target (should succeed)
+	bodyPutSelf, _ := json.Marshal(map[string]interface{}{
+		"name": "Web Secondary Renamed",
+		"host": "192.168.1.50",
+		"port": 2222,
+		"user": "root",
+	})
+	reqPutSelf := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/hosts/%d", created2.ID), bytes.NewReader(bodyPutSelf))
+	authReq(reqPutSelf)
+	wPutSelf := httptest.NewRecorder()
+	srv.ServeHTTP(wPutSelf, reqPutSelf)
+	if wPutSelf.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK when editing self, got %d: %s", wPutSelf.Code, wPutSelf.Body.String())
 	}
 }
 

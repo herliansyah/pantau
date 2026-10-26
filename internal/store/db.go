@@ -634,6 +634,24 @@ func (d *DB) GetHost(id int64) (*Host, error) {
 	return h, nil
 }
 
+func (d *DB) FindHostByTarget(host string, port int, excludeID int64) (*Host, error) {
+	query := hostSelectCols + `WHERE LOWER(TRIM(host)) = LOWER(TRIM(?)) AND port = ?`
+	args := []any{host, port}
+	if excludeID > 0 {
+		query += ` AND id != ?`
+		args = append(args, excludeID)
+	}
+	query += ` LIMIT 1`
+	h, err := scanHost(d.QueryRow(query, args...))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return h, nil
+}
+
 func (d *DB) CreateHost(h *Host) (int64, error) {
 	var maxOrder int
 	_ = d.QueryRow(`SELECT COALESCE(MAX(sort_order), 0) FROM hosts`).Scan(&maxOrder)

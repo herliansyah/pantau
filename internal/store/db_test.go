@@ -372,3 +372,50 @@ func TestFilePinsCRUD(t *testing.T) {
 	}
 }
 
+func TestFindHostByTarget(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-store-find-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	id1, err := db.CreateHost(&Host{Name: "Alpha", Host: "10.0.0.1", Port: 22, User: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2, err := db.CreateHost(&Host{Name: "Beta", Host: "10.0.0.1", Port: 2222, User: "admin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Exact match
+	found, err := db.FindHostByTarget("10.0.0.1", 22, 0)
+	if err != nil || found == nil || found.ID != id1 {
+		t.Fatalf("expected to find Alpha, got: %+v, err: %v", found, err)
+	}
+
+	// Case insensitive and trimmed match
+	found, err = db.FindHostByTarget(" 10.0.0.1 ", 2222, 0)
+	if err != nil || found == nil || found.ID != id2 {
+		t.Fatalf("expected to find Beta, got: %+v, err: %v", found, err)
+	}
+
+	// Exclude self ID
+	found, err = db.FindHostByTarget("10.0.0.1", 22, id1)
+	if err != nil || found != nil {
+		t.Fatalf("expected nil when excluding id1, got: %+v", found)
+	}
+
+	// Non-existing target
+	found, err = db.FindHostByTarget("10.0.0.2", 22, 0)
+	if err != nil || found != nil {
+		t.Fatalf("expected nil for non-existing target, got: %+v", found)
+	}
+}
+

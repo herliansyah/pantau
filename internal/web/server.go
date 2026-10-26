@@ -631,6 +631,27 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "password_updated"})
 }
 
+func (s *Server) resolveLang(r *http.Request) string {
+	if l := r.URL.Query().Get("lang"); l != "" {
+		if strings.HasPrefix(strings.ToLower(l), "id") {
+			return "id"
+		}
+		return "en"
+	}
+	if l := r.Header.Get("X-Pantau-Lang"); l != "" {
+		if strings.HasPrefix(strings.ToLower(l), "id") {
+			return "id"
+		}
+		return "en"
+	}
+	if al := r.Header.Get("Accept-Language"); al != "" {
+		if strings.HasPrefix(strings.ToLower(al), "id") {
+			return "id"
+		}
+	}
+	return "en"
+}
+
 func (s *Server) validateCommissionDate(commDate string, existingHost *store.Host) error {
 	commDate = strings.TrimSpace(commDate)
 	if commDate == "" {
@@ -678,7 +699,7 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 		}
 		h := req.Host
 		h.Name = strings.TrimSpace(h.Name)
-		h.Host = strings.TrimSpace(h.Host)
+		h.Host = strings.ToLower(strings.TrimSpace(h.Host))
 		h.User = strings.TrimSpace(h.User)
 		h.CommissionDate = strings.TrimSpace(h.CommissionDate)
 		if h.Name == "" || h.Host == "" {
@@ -694,6 +715,29 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 		}
 		if h.User == "" {
 			h.User = "root"
+		}
+
+		if dup, err := s.db.FindHostByTarget(h.Host, h.Port, 0); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		} else if dup != nil {
+			targetStr := fmt.Sprintf("%s:%d", h.Host, h.Port)
+			msgEN := fmt.Sprintf("Host with target '%s' is already registered as '%s'", targetStr, dup.Name)
+			msgID := fmt.Sprintf("Host dengan target '%s' sudah terdaftar sebagai '%s'", targetStr, dup.Name)
+			errVal := msgEN
+			if s.resolveLang(r) == "id" {
+				errVal = msgID
+			}
+			writeJSON(w, http.StatusConflict, map[string]interface{}{
+				"ok":       false,
+				"code":     "err_duplicate_target",
+				"target":   targetStr,
+				"name":     dup.Name,
+				"error":    errVal,
+				"error_en": msgEN,
+				"error_id": msgID,
+			})
+			return
 		}
 
 		// If one-time password provided, attempt key provisioning
@@ -973,17 +1017,52 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			}
 			h.ID = hostID
 			h.Name = strings.TrimSpace(h.Name)
-			h.Host = strings.TrimSpace(h.Host)
+			h.Host = strings.ToLower(strings.TrimSpace(h.Host))
 			h.User = strings.TrimSpace(h.User)
 			h.CommissionDate = strings.TrimSpace(h.CommissionDate)
+			if h.Port <= 0 {
+				h.Port = 22
+			}
+			if h.User == "" {
+				h.User = "root"
+			}
 
 			existing, _ := s.db.GetHost(hostID)
 			if existing == nil {
 				http.Error(w, "host not found", http.StatusNotFound)
 				return
 			}
+			if h.Host == "" {
+				h.Host = existing.Host
+			}
+			if h.Name == "" {
+				h.Name = existing.Name
+			}
 			if err := s.validateCommissionDate(h.CommissionDate, existing); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			if dup, err := s.db.FindHostByTarget(h.Host, h.Port, hostID); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			} else if dup != nil {
+				targetStr := fmt.Sprintf("%s:%d", h.Host, h.Port)
+				msgEN := fmt.Sprintf("Host with target '%s' is already registered as '%s'", targetStr, dup.Name)
+				msgID := fmt.Sprintf("Host dengan target '%s' sudah terdaftar sebagai '%s'", targetStr, dup.Name)
+				errVal := msgEN
+				if s.resolveLang(r) == "id" {
+					errVal = msgID
+				}
+				writeJSON(w, http.StatusConflict, map[string]interface{}{
+					"ok":       false,
+					"code":     "err_duplicate_target",
+					"target":   targetStr,
+					"name":     dup.Name,
+					"error":    errVal,
+					"error_en": msgEN,
+					"error_id": msgID,
+				})
 				return
 			}
 
