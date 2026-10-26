@@ -128,7 +128,7 @@ func TestInspectHost_TimeoutAbortsRunner(t *testing.T) {
 	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
 		for i := 0; i < 20; i++ {
 			time.Sleep(10 * time.Millisecond)
-			if mockRunner.Closed {
+			if mockRunner.IsClosed() {
 				return "", "", -1, errors.New("use of closed network connection")
 			}
 		}

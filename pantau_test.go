@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -500,9 +501,16 @@ func TestTicket07_AlertDispatcher(t *testing.T) {
 	env := setupTestEnv(t)
 
 	// Configure fake webhook
-	var receivedWebhookPayload map[string]interface{}
+	var (
+		payloadMu              sync.Mutex
+		receivedWebhookPayload map[string]interface{}
+	)
 	webhookServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_ = json.NewDecoder(r.Body).Decode(&receivedWebhookPayload)
+		var p map[string]interface{}
+		_ = json.NewDecoder(r.Body).Decode(&p)
+		payloadMu.Lock()
+		receivedWebhookPayload = p
+		payloadMu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer webhookServer.Close()
@@ -516,6 +524,8 @@ func TestTicket07_AlertDispatcher(t *testing.T) {
 	// Allow brief async dispatch
 	time.Sleep(100 * time.Millisecond)
 
+	payloadMu.Lock()
+	defer payloadMu.Unlock()
 	if receivedWebhookPayload == nil || receivedWebhookPayload["event"] != "drift_alert" {
 		t.Fatalf("webhook payload not received or invalid: %+v", receivedWebhookPayload)
 	}
@@ -1533,8 +1543,8 @@ func TestEmbeddedDocumentationEndpoint(t *testing.T) {
 		t.Fatalf("expected 200 OK for changelog, got %d", resChangelog.StatusCode)
 	}
 	bodyChangelog, _ := io.ReadAll(resChangelog.Body)
-	if !strings.Contains(string(bodyChangelog), "Changelog") || !strings.Contains(string(bodyChangelog), "0.25.0") {
-		t.Errorf("expected embedded CHANGELOG.md to contain 'Changelog' and '0.25.0', got %q", string(bodyChangelog))
+	if !strings.Contains(string(bodyChangelog), "Changelog") || !strings.Contains(string(bodyChangelog), "0.26.0") {
+		t.Errorf("expected embedded CHANGELOG.md to contain 'Changelog' and '0.26.0', got %q", string(bodyChangelog))
 	}
 }
 

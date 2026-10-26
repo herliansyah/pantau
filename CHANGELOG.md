@@ -5,13 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.26.0] - 2026-10-26
 ### Added
 - Pre-flight SSH Connection Testing: ad-hoc connection test endpoint `POST /api/hosts/test-connection` and `⚡ Test Connection` button in the host registration modal verifying host address, SSH port, authentication (one-time password or private key), and remote architecture (`uname -srm; uptime`) prior to saving.
 - Immediate Asynchronous Initial Inspection: automated dispatch of single-host background inspection immediately upon host creation via `POST /api/hosts`, eliminating the 30-second delay previously caused by the periodic worker sweep ticker.
 - Realtime Onboarding Fast-Poll Engine: client-side reactive polling loop (`scheduleFastPollIfNeeded`) executing at 1.5-second intervals until the newly registered host completes its initial inspection, auto-deactivating immediately once Actual State metrics arrive.
 - Transparent "Initial Sync" Card & Detail States: distinct loading indicators and informative status messages for newly registered hosts (`last_inspected == nil`) on both Grid and List views, eliminating the previous confusion of static 0% metrics.
 - Synchronized Docker & Overview Empty States: intelligent detection of in-progress initial sync in Host Detail tabs (Overview, Docker, Services), preventing false "No containers found" empty states while discovery is actively running.
+- Network Diagnostic Probe Target Presets: domain entity to save unmanaged routers and remote endpoints (`internal/store`), backed by SQLite with seed defaults, snapshot export/import, and REST API endpoints (`/api/netdiag/presets`) with IPv4/IPv6 and FQDN validation. Features a 3-way target selector, optgroup preset dropdown, preset manager modal, and quick bookmarking in the web UI.
+- Automated Network Triage Matrix: diagnostic triage pipeline executing host self-checks, route discovery, and MTU sweep tests with deterministic verdict classification across 7 status categories (`HEALTHY`, `HIGH_LATENCY`, `LOCAL_GATEWAY_DOWN`, `UPSTREAM_DROP`, `DESTINATION_UNREACHABLE`, `MTU_BLACK_HOLE`, `DNS_FAILURE`), background auto-triage scheduler, triage notification alerts, and SQLite incident storage.
+- Markdown Incident Ticket Generator: one-click copy and export of comprehensive incident triage reports formatted in Markdown for ticketing systems and escalation channels.
+- Architectural Decision Record: [ADR-0035](docs/adr/0035-automated-network-triage-matrix-and-hybrid-network-observability.md).
+
+### Changed
+- Network Diagnostics Workspace Modal: promoted netdiag dialog to a standardized workspace modal (85vw × 84vh) with fixed top-anchored alignment, eliminating cumulative layout shifts (CLS), and internal scrolling across probe and triage views.
+- Host Modal Layout: refactored host modal into a 2-column layout with 3-tier vertical credential fields.
+
+### Fixed
+- Duplicate Host Registration Prevention: reject host creation and updates with duplicate IP/domain and port combinations with a 409 Conflict, providing bilingual error feedback (EN/ID).
+- Network Diagnostics Hop & Latency Wrapping: enforce `white-space: nowrap` on hop badges, status, latency, and DNS IP tags, truncate long FQDN hostnames with tooltip titles, and preserve raw terminal output formatting.
 
 ## [0.25.0] - 2026-10-21
 ### Added

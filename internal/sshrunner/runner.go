@@ -486,6 +486,12 @@ func (m *MockRunner) Close() error {
 	return nil
 }
 
+func (m *MockRunner) IsClosed() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.Closed
+}
+
 // RunnerFactory lets components create real or mock runners.
 type RunnerFactory func(host string, port int, user, key string) (Runner, error)
 
