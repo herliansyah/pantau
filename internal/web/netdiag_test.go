@@ -110,6 +110,11 @@ func TestNetDiagUIInIndexHTML(t *testing.T) {
 	if !strings.Contains(body, `"netdiag_title": "Diagnostik Jaringan"`) {
 		t.Errorf("expected ID netdiag_title translation")
 	}
+	for _, key := range []string{"netdiag_hop", "netdiag_host_ip", "netdiag_latency", "netdiag_zone"} {
+		if !strings.Contains(body, `"`+key+`":`) {
+			t.Errorf("expected translation key %s in translations", key)
+		}
+	}
 
 	// 5. Check JS functions
 	for _, fn := range []string{
@@ -145,6 +150,19 @@ func TestNetDiagUIInIndexHTML(t *testing.T) {
 	}
 	if !strings.Contains(body, `height: 28px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;`) {
 		t.Errorf("expected aligned 28px header row for Target Mode in renderNetDiagUI")
+	}
+
+	// 8. Verify modal-dialog-xl on netDiagModal
+	if !strings.Contains(body, `id="netDiagModal" class="modal">`+"\n"+`  <div class="modal-content modal-dialog-xl"`) {
+		t.Errorf("expected modal-dialog-xl on netDiagModal")
+	}
+
+	// 9. Verify nowrap on hop zone badge and raw pre
+	if !strings.Contains(body, `white-space: nowrap;">🏠 ${t('netdiag_zone_private')}`) {
+		t.Errorf("expected nowrap on netdiag zone badge")
+	}
+	if !strings.Contains(body, `overflow: auto; color: #94a3b8; white-space: pre; line-height: 1.45;`) {
+		t.Errorf("expected white-space: pre on raw CLI pre block")
 	}
 }
 
