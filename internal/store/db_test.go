@@ -419,3 +419,52 @@ func TestFindHostByTarget(t *testing.T) {
 	}
 }
 
+func TestTriageIncidentLogPruning(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-triage-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&Host{Name: "Node1", Host: "10.0.0.10", Port: 22, User: "root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceHostID := hostID
+	// Insert 105 logs for source host
+	for i := 1; i <= 105; i++ {
+		_, err := db.CreateTriageIncidentLog(&TriageIncidentLog{
+			SourceHostID:  sourceHostID,
+			TargetName:    fmt.Sprintf("Target-%d", i),
+			TargetAddress: "192.168.1.1",
+			Verdict:       "HEALTHY",
+			Summary:       fmt.Sprintf("Summary %d", i),
+		})
+		if err != nil {
+			t.Fatalf("insert %d failed: %v", i, err)
+		}
+	}
+
+	// Should only retain 100 logs
+	logs, err := db.ListTriageIncidentLogs(sourceHostID, 200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(logs) != 100 {
+		t.Fatalf("expected 100 logs after pruning, got %d", len(logs))
+	}
+	// The oldest remaining should be Target-6 (1 to 5 deleted)
+	if logs[len(logs)-1].TargetName != "Target-6" {
+		t.Fatalf("expected oldest log to be Target-6, got %s", logs[len(logs)-1].TargetName)
+	}
+	if logs[0].TargetName != "Target-105" {
+		t.Fatalf("expected newest log to be Target-105, got %s", logs[0].TargetName)
+	}
+}
+

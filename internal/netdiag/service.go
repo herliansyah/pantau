@@ -8,12 +8,14 @@ import (
 	"io"
 	"net"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"pantau/internal/inspector"
 	"pantau/internal/logger"
+	"pantau/internal/notify"
 	"pantau/internal/store"
 )
 
@@ -22,16 +24,27 @@ var (
 	ErrBusy          = errors.New("a diagnostic probe is already in progress for this host")
 )
 
-type Service struct {
-	db        *store.DB
-	inspector *inspector.Inspector
-	inFlight  sync.Map // sourceHostID -> struct{}{}
+type TargetState struct {
+	LastVerdict       TriageVerdict
+	LastAlertTime     time.Time
+	IncidentStartTime time.Time
 }
 
-func NewService(db *store.DB, ins *inspector.Inspector) *Service {
+type Service struct {
+	db           *store.DB
+	inspector    *inspector.Inspector
+	dispatcher   *notify.Dispatcher
+	inFlight     sync.Map // sourceHostID -> struct{}{}
+	stateMu      sync.Mutex
+	targetStates map[int64]*TargetState // presetID -> TargetState
+}
+
+func NewService(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) *Service {
 	return &Service{
-		db:        db,
-		inspector: ins,
+		db:           db,
+		inspector:    ins,
+		dispatcher:   disp,
+		targetStates: make(map[int64]*TargetState),
 	}
 }
 
@@ -285,4 +298,150 @@ func IsPrivateIP(ip net.IP) bool {
 		}
 	}
 	return false
+}
+
+// StartAutoTriageScheduler runs the periodic background auto-triage loop.
+// ponytail: Background goroutine checks due presets and handles state-change alerts + reminder dampening.
+func (s *Service) StartAutoTriageScheduler(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.runAutoTriageCycle(ctx)
+		}
+	}
+}
+
+func (s *Service) runAutoTriageCycle(ctx context.Context) {
+	enabledStr, _ := s.db.GetSetting("auto_triage_enabled")
+	if enabledStr != "1" && enabledStr != "true" {
+		return
+	}
+
+	intervalMin := 10
+	if intStr, _ := s.db.GetSetting("auto_triage_interval_min"); intStr != "" {
+		if v, err := strconv.Atoi(intStr); err == nil && v > 0 {
+			intervalMin = v
+		}
+	}
+	intervalDuration := time.Duration(intervalMin) * time.Minute
+
+	// 1. Fetch presets with auto_triage_enabled = true
+	presets, err := s.db.ListProbeTargetPresets()
+	if err != nil {
+		return
+	}
+
+	// 2. Fetch default source host id from settings
+	var defaultHostID int64
+	if defStr, _ := s.db.GetSetting("auto_triage_default_host_id"); defStr != "" {
+		defaultHostID, _ = strconv.ParseInt(defStr, 10, 64)
+	}
+
+	hosts, _ := s.db.ListHosts()
+	var fallbackHostID int64
+	for _, h := range hosts {
+		if !strings.EqualFold(h.Status, "down") {
+			fallbackHostID = h.ID
+			break
+		}
+	}
+
+	for _, p := range presets {
+		if !p.AutoTriageEnabled {
+			continue
+		}
+
+		// Determine source host
+		sourceHostID := defaultHostID
+		if p.SourceHostID != nil && *p.SourceHostID > 0 {
+			sourceHostID = *p.SourceHostID
+		}
+		if sourceHostID <= 0 {
+			sourceHostID = fallbackHostID
+		}
+		if sourceHostID <= 0 {
+			continue
+		}
+
+		s.stateMu.Lock()
+		state := s.targetStates[p.ID]
+		if state == nil {
+			state = &TargetState{}
+			s.targetStates[p.ID] = state
+		}
+		timeSinceAlert := time.Since(state.LastAlertTime)
+		s.stateMu.Unlock()
+
+		// Check interval: don't run more frequently than intervalDuration unless state is unknown
+		if state.LastVerdict != "" && time.Since(state.LastAlertTime) < intervalDuration && state.LastVerdict == VerdictHealthy {
+			continue
+		}
+
+		// Execute triage
+		req := TriageRequest{
+			SourceHostID:  sourceHostID,
+			PresetID:      p.ID,
+			TargetAddress: p.Target,
+			TargetName:    p.Name,
+			AppEndpoint:   p.AppEndpoint,
+			BaselineMTU:   p.BaselineMTU,
+			MaxLatencyMs:  p.MaxLatencyMs,
+			MaxLossPct:    p.MaxLossPct,
+			DBPort:        p.DBPort,
+		}
+
+		result, err := s.ExecuteTriage(ctx, req, nil)
+		if err != nil || result == nil {
+			continue
+		}
+
+		s.stateMu.Lock()
+		prevVerdict := state.LastVerdict
+		state.LastVerdict = result.Verdict
+
+		if result.Verdict != VerdictHealthy {
+			// Incident condition!
+			if prevVerdict == VerdictHealthy || prevVerdict == "" {
+				// State change from Healthy -> Degraded: Send immediate alert!
+				state.IncidentStartTime = time.Now()
+				state.LastAlertTime = time.Now()
+				if s.dispatcher != nil {
+					s.dispatcher.SendTriageAlert(result.TicketSnippet, false)
+				}
+			} else if timeSinceAlert >= 60*time.Minute {
+				// Still degraded after 60 min: Send reminder!
+				state.LastAlertTime = time.Now()
+				durationStr := time.Since(state.IncidentStartTime).Round(time.Minute).String()
+				reminderTicket := fmt.Sprintf("⚠️ *[REMINDER INSIDEN MASIH AKTIF]*\n⏱️ *Durasi Gangguan*: %s\n\n%s", durationStr, result.TicketSnippet)
+				if s.dispatcher != nil {
+					s.dispatcher.SendTriageAlert(reminderTicket, false)
+				}
+			}
+		} else {
+			// Healthy condition!
+			if prevVerdict != "" && prevVerdict != VerdictHealthy {
+				// Recovered from degradation!
+				durationStr := time.Since(state.IncidentStartTime).Round(time.Minute).String()
+				var pingAvg float64
+				var pingLoss float64
+				if result.Ping != nil {
+					pingAvg = result.Ping.AvgMs
+					pingLoss = result.Ping.PacketLossPct
+				}
+				recoveryMsg := fmt.Sprintf("✅ *[PULIH: %s]*\nJalur & layanan menuju %s (%s) telah kembali NORMAL.\n⏱️ *Durasi Gangguan*: %s\n📡 *Status*: Latensi %.1f ms | Loss %.1f%% | Baseline MTU %d\n_Dihasilkan otomatis oleh Pantau Auto-Triage._",
+					p.Name, p.Name, p.Target, durationStr, pingAvg, pingLoss, p.BaselineMTU)
+				if s.dispatcher != nil {
+					s.dispatcher.SendTriageAlert(recoveryMsg, true)
+				}
+				state.IncidentStartTime = time.Time{}
+			}
+			state.LastAlertTime = time.Now()
+		}
+		s.stateMu.Unlock()
+	}
 }
