@@ -110,11 +110,11 @@ _Avoid_: Cloud storage, backup destination, git sync
 
 
 **Workspace Modal**:
-Kontainer modal layar lebar berdimensi tetap (75vw × 80vh di desktop) untuk tugas interaktif observabilitas dan data (Host Detail, Editor, Transfer Queue) tanpa perubahan ukuran layout saat navigasi antar-tab.
+Kontainer modal layar lebar berdimensi tetap (85vw × 84vh di desktop) berposisi *top-anchored* untuk tugas interaktif observabilitas dan data (Host Detail, Editor, Transfer Queue, Network Diagnostic) tanpa perubahan posisi dan ukuran layout saat navigasi antar-tab atau peralihan sub-view.
 _Avoid_: Popup window, dynamic modal, fluid dialog
 
 **Action Dialog**:
-Kontainer modal terpusat berdimensi ringkas (lebar ~520px - 740px) untuk formulir input sekuensial, dialog pengaturan (Settings), atau konfirmasi aksi tunggal (Add Host, Direct Transfer, Restore Wizard).
+Kontainer modal berposisi *top-anchored* dengan lebar ringkas (~520px - 740px) untuk formulir input sekuensial, dialog pengaturan (Settings), atau konfirmasi aksi tunggal (Add Host, Direct Transfer, Restore Wizard) dengan batas atas konsisten agar tidak melompat secara vertikal saat validasi atau pemanjangan konten.
 _Avoid_: Small modal, mini popup, submodal
 
 **Documentation Modal**:
@@ -393,6 +393,11 @@ _Avoid_: Network job, probe command, test runner
 Sasaran tujuan pengujian jaringan yang dapat berupa Host terkelola lain dalam inventaris Pantau (*Inter-Host*) atau alamat IP/FQDN eksternal publik (*External Target*).
 _Avoid_: Destination, remote endpoint, probe address
 
+**Probe Target Preset**:
+Entitas preset sasaran pengujian jaringan tersimpan yang memetakan label nama perangkat (seperti router, switch, atau gateway cabang) dan kategori lokasi ke alamat IP atau FQDN spesifik untuk pengujian berulang tanpa perlu mengetik ulang alamat.
+_Avoid_: IP Bookmark, Saved IP, Target Favorite, Router Preset
+
+
 **Hop Analysis**:
 Hasil interpretasi heuristik terhadap rantai hop perutean traceroute yang secara otomatis mengklasifikasikan gateway privat, mendeteksi titik putus firewall, dan menyoroti lonjakan latensi tanpa interpretasi manual.
 _Avoid_: Traceroute summary, route report, hop parser
@@ -424,3 +429,23 @@ _Avoid_: Preset finder, terminal filter, command search
 **Terminal Pinned Paths Dropdown**:
 Akses cepat berkas dan direktori tersemat (File Pin) langsung dari bilah alat terminal (`📌`) untuk navigasi `cd` cepat atau penyisipan path ke sesi shell.
 _Avoid_: Terminal bookmarks, pin menu, path picker
+
+**Triage Matrix**:
+Proses verifikasi diagnostik terorkestrasi multi-layer adaptif (Host resource, L7 HTTP, fragmentasi MTU, dan rute transit VPN/Public WAN) untuk mengisolasi titik kegagalan sistem antara server aplikasi dan jaringan cabang/klien eksternal.
+_Avoid_: Triage test, diagnostic checklist, troubleshooting wizard
+
+**Triage Verdict**:
+Klasifikasi kesimpulan akhir otomatis dari Triage Matrix yang menentukan akar masalah insiden secara deterministik (`HOST_SATURATED`, `APPLICATION_DEGRADED`, `TRANSIT_PATH_DEGRADED`, `BRANCH_GATEWAY_DOWN`, `MTU_BLACKHOLE_DETECTED`, `ICMP_FILTERED_TCP_HEALTHY`, atau `HEALTHY`).
+_Avoid_: Triage status, diagnostic result, incident verdict
+
+**L7 HTTP Probe**:
+Pengujian keterjangkauan dan kinerja lapisan aplikasi HTTP/HTTPS yang mengukur status respons, latensi sub-milidetik, dan Time To First Byte (TTFB) secara komparatif antara loopback lokal dan jaringan eksternal.
+_Avoid_: Web ping, http check, url probe
+
+**MTU Sweep Probe**:
+Pengujian integritas transmisi dan fragmentasi paket pada jalur terowongan VPN menggunakan paket bertingkat dengan bit Don't Fragment (DF) untuk mendeteksi Path MTU Blackhole.
+_Avoid_: MTU ping, fragmentation test, pmtu probe
+
+**Triage Incident Log**:
+Catatan historis ringkasan eksekusi Triage Matrix yang tersimpan di basis data Pantau sebagai bukti audit dan rekam jejak investigasi performa jaringan antar-cabang.
+_Avoid_: Triage history, incident report, diagnostic record

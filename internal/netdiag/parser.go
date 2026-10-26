@@ -358,3 +358,135 @@ func ParseDNSOutput(output string, target string) *DNSStats {
 	}
 	return stats
 }
+
+var (
+	routeDevRegex = regexp.MustCompile(`\bdev\s+([a-zA-Z0-9_.-]+)`)
+	routeViaRegex = regexp.MustCompile(`\bvia\s+([0-9a-fA-F.:]+)`)
+	routeMtuRegex = regexp.MustCompile(`\bmtu\s+(\d+)`)
+)
+
+// ParseRouteGetOutput parses the output of `ip route get <target>`.
+func ParseRouteGetOutput(output string, target string) *RouteInfo {
+	info := &RouteInfo{
+		TargetAddress: target,
+		MTU:           1500,
+	}
+
+	cleanOutput := strings.ReplaceAll(output, "\\\n", " ")
+	cleanOutput = strings.ReplaceAll(cleanOutput, "\n", " ")
+
+	if m := routeDevRegex.FindStringSubmatch(cleanOutput); len(m) > 1 {
+		info.Interface = m[1]
+	}
+	if m := routeViaRegex.FindStringSubmatch(cleanOutput); len(m) > 1 {
+		info.Gateway = m[1]
+	}
+	if m := routeMtuRegex.FindStringSubmatch(cleanOutput); len(m) > 1 {
+		if mtuVal, err := strconv.Atoi(m[1]); err == nil && mtuVal > 0 {
+			info.MTU = mtuVal
+		}
+	}
+
+	ip := net.ParseIP(target)
+	info.IsPrivate = IsPrivateIP(ip)
+
+	if info.Interface != "" {
+		gwText := ""
+		if info.Gateway != "" {
+			gwText = fmt.Sprintf(" via %s", info.Gateway)
+		}
+		info.Summary = fmt.Sprintf("Routed via interface %s%s (MTU %d)", info.Interface, gwText, info.MTU)
+	} else {
+		info.Summary = fmt.Sprintf("Default system route to %s", target)
+	}
+
+	return info
+}
+
+// ParseCurlL7Output parses curl output formatted as: http_code|time_namelookup|time_connect|time_starttransfer|time_total
+func ParseCurlL7Output(output string, endpoint string, vantage string) *L7ProbeStats {
+	stats := &L7ProbeStats{
+		Endpoint: endpoint,
+		Vantage:  vantage,
+		Status:   "down",
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	var targetLine string
+	for i := len(lines) - 1; i >= 0; i-- {
+		l := strings.TrimSpace(lines[i])
+		if strings.Contains(l, "|") {
+			targetLine = l
+			break
+		}
+	}
+
+	if targetLine == "" {
+		stats.Summary = "HTTP probe failed: no response from server or connection refused."
+		stats.SummaryID = "Uji HTTP gagal: tidak ada respons dari server atau koneksi ditolak."
+		return stats
+	}
+
+	parts := strings.Split(targetLine, "|")
+	if len(parts) >= 5 {
+		code, _ := strconv.Atoi(strings.TrimSpace(parts[0]))
+		dnsSec, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+		connSec, _ := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
+		ttfbSec, _ := strconv.ParseFloat(strings.TrimSpace(parts[3]), 64)
+		totalSec, _ := strconv.ParseFloat(strings.TrimSpace(parts[4]), 64)
+
+		stats.HTTPCode = code
+		stats.DNSMs = dnsSec * 1000.0
+		stats.ConnectMs = connSec * 1000.0
+		stats.TTFBMs = ttfbSec * 1000.0
+		stats.TotalMs = totalSec * 1000.0
+
+		if code >= 200 && code < 400 {
+			if stats.TTFBMs > 2500.0 {
+				stats.Status = "degraded"
+				stats.Summary = fmt.Sprintf("HTTP %d OK, but slow TTFB (%.1f ms). Application response degraded.", code, stats.TTFBMs)
+				stats.SummaryID = fmt.Sprintf("HTTP %d OK, namun TTFB lambat (%.1f ms). Kinerja aplikasi terdegradasi.", code, stats.TTFBMs)
+			} else {
+				stats.Status = "healthy"
+				stats.Summary = fmt.Sprintf("HTTP %d OK, TTFB %.1f ms, Total %.1f ms.", code, stats.TTFBMs, stats.TotalMs)
+				stats.SummaryID = fmt.Sprintf("HTTP %d OK, TTFB %.1f ms, Total %.1f ms.", code, stats.TTFBMs, stats.TotalMs)
+			}
+		} else if code >= 400 && code < 500 {
+			stats.Status = "degraded"
+			stats.Summary = fmt.Sprintf("HTTP %d Client Error (TTFB %.1f ms). Endpoint path may be invalid.", code, stats.TTFBMs)
+			stats.SummaryID = fmt.Sprintf("HTTP %d Client Error (TTFB %.1f ms). Path endpoint mungkin tidak valid.", code, stats.TTFBMs)
+		} else if code >= 500 {
+			stats.Status = "degraded"
+			stats.Summary = fmt.Sprintf("HTTP %d Server Error (Internal / Bad Gateway). Application is throwing errors.", code)
+			stats.SummaryID = fmt.Sprintf("HTTP %d Server Error (Internal / Bad Gateway). Aplikasi mengalami error internal.", code)
+		} else {
+			stats.Status = "down"
+			stats.Summary = "HTTP probe failed: server returned status 0 (connection refused/timeout)."
+			stats.SummaryID = "Uji HTTP gagal: server mengembalikan status 0 (koneksi ditolak/timeout)."
+		}
+	} else {
+		stats.Summary = "Malformed curl output."
+		stats.SummaryID = "Format output curl tidak valid."
+	}
+
+	return stats
+}
+
+// ParseMTUPingSuccess returns true if an MTU test ping passed with Don't Fragment flag.
+func ParseMTUPingSuccess(output string) bool {
+	lower := strings.ToLower(output)
+	if strings.Contains(lower, "frag needed") ||
+		strings.Contains(lower, "too long") ||
+		strings.Contains(lower, "oversized") ||
+		strings.Contains(lower, "100% packet loss") ||
+		strings.Contains(lower, "100.0% packet loss") {
+		return false
+	}
+	// Verify at least 1 packet received
+	m := pingStatsRegex.FindStringSubmatch(output)
+	if len(m) >= 3 {
+		rcv, _ := strconv.Atoi(m[2])
+		return rcv > 0
+	}
+	return false
+}

@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"database/sql"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -46,6 +47,7 @@ type Host struct {
 	LifecycleNotes    string     `json:"lifecycle_notes"`
 	LifecycleBreakdown string    `json:"lifecycle_breakdown"`
 	LastInspected     *time.Time `json:"last_inspected"`
+	IsInspecting      bool       `json:"is_inspecting"`
 	CreatedAt         time.Time  `json:"created_at"`
 
 	// Network & Security Observability
@@ -349,6 +351,38 @@ func (d *DB) migrate() error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
+	CREATE TABLE IF NOT EXISTS probe_target_presets (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		target TEXT NOT NULL,
+		category TEXT NOT NULL DEFAULT '',
+		sort_order INTEGER DEFAULT 0,
+		app_endpoint TEXT NOT NULL DEFAULT '/',
+		baseline_mtu INTEGER NOT NULL DEFAULT 1500,
+		max_latency_ms REAL NOT NULL DEFAULT 80.0,
+		max_loss_pct REAL NOT NULL DEFAULT 2.0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	CREATE TABLE IF NOT EXISTS triage_incident_logs (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		source_host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+		preset_id INTEGER REFERENCES probe_target_presets(id) ON DELETE SET NULL,
+		target_name TEXT NOT NULL,
+		target_address TEXT NOT NULL,
+		verdict TEXT NOT NULL,
+		summary TEXT NOT NULL,
+		summary_id TEXT NOT NULL,
+		host_status TEXT NOT NULL,
+		app_status TEXT NOT NULL,
+		path_status TEXT NOT NULL,
+		mtu_status TEXT NOT NULL,
+		details_json TEXT NOT NULL DEFAULT '{}',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_triage_logs_host ON triage_incident_logs(source_host_id, id DESC);
+	CREATE INDEX IF NOT EXISTS idx_triage_logs_created ON triage_incident_logs(created_at DESC);
+
 	CREATE TABLE IF NOT EXISTS inspection_runs (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
@@ -409,6 +443,14 @@ func (d *DB) migrate() error {
 	_ = d.alterAddColumn("hosts", "top_cpu_processes", "TEXT DEFAULT ''")
 	_ = d.alterAddColumn("hosts", "top_ram_processes", "TEXT DEFAULT ''")
 	_ = d.alterAddColumn("hosts", "top_swap_processes", "TEXT DEFAULT ''")
+
+	_ = d.alterAddColumn("probe_target_presets", "app_endpoint", "TEXT DEFAULT '/'")
+	_ = d.alterAddColumn("probe_target_presets", "baseline_mtu", "INTEGER DEFAULT 1500")
+	_ = d.alterAddColumn("probe_target_presets", "max_latency_ms", "REAL DEFAULT 80.0")
+	_ = d.alterAddColumn("probe_target_presets", "max_loss_pct", "REAL DEFAULT 2.0")
+	_ = d.alterAddColumn("probe_target_presets", "db_port", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("probe_target_presets", "auto_triage_enabled", "INTEGER DEFAULT 0")
+	_ = d.alterAddColumn("probe_target_presets", "source_host_id", "INTEGER NULL")
 
 	return nil
 }
@@ -493,6 +535,25 @@ func (d *DB) initDefaults() error {
 		}
 		for _, p := range defaultPresets {
 			_, _ = d.Exec("INSERT INTO terminal_presets(name, command, sort_order, use_tmux) VALUES (?, ?, ?, 0)", p.name, p.command, p.sort)
+		}
+	}
+
+	// 4. Ensure default probe target presets exist
+	var targetPresetCount int
+	_ = d.QueryRow("SELECT COUNT(*) FROM probe_target_presets").Scan(&targetPresetCount)
+	if targetPresetCount == 0 {
+		defaultTargetPresets := []struct {
+			name     string
+			target   string
+			category string
+			sort     int
+		}{
+			{"Cloudflare DNS", "1.1.1.1", "Publik / DNS", 1},
+			{"Google DNS", "8.8.8.8", "Publik / DNS", 2},
+			{"Google Web", "google.com", "Publik / DNS", 3},
+		}
+		for _, p := range defaultTargetPresets {
+			_, _ = d.Exec("INSERT INTO probe_target_presets(name, target, category, sort_order) VALUES (?, ?, ?, ?)", p.name, p.target, p.category, p.sort)
 		}
 	}
 
@@ -624,6 +685,24 @@ func (d *DB) ListHosts() ([]Host, error) {
 
 func (d *DB) GetHost(id int64) (*Host, error) {
 	h, err := scanHost(d.QueryRow(hostSelectCols+`WHERE id = ?`, id))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return h, nil
+}
+
+func (d *DB) FindHostByTarget(host string, port int, excludeID int64) (*Host, error) {
+	query := hostSelectCols + `WHERE LOWER(TRIM(host)) = LOWER(TRIM(?)) AND port = ?`
+	args := []any{host, port}
+	if excludeID > 0 {
+		query += ` AND id != ?`
+		args = append(args, excludeID)
+	}
+	query += ` LIMIT 1`
+	h, err := scanHost(d.QueryRow(query, args...))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -1057,14 +1136,248 @@ func (d *DB) DeleteTerminalPreset(id int64) error {
 	return err
 }
 
+// ProbeTargetPreset represents a saved network diagnostic probe target.
+type ProbeTargetPreset struct {
+	ID                int64     `json:"id"`
+	Name              string    `json:"name"`
+	Target            string    `json:"target"`
+	Category          string    `json:"category"`
+	SortOrder         int       `json:"sort_order"`
+	AppEndpoint       string    `json:"app_endpoint"`
+	BaselineMTU       int       `json:"baseline_mtu"`
+	MaxLatencyMs      float64   `json:"max_latency_ms"`
+	MaxLossPct        float64   `json:"max_loss_pct"`
+	DBPort            int       `json:"db_port"`
+	AutoTriageEnabled bool      `json:"auto_triage_enabled"`
+	SourceHostID      *int64    `json:"source_host_id"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
+func (d *DB) ListProbeTargetPresets() ([]ProbeTargetPreset, error) {
+	rows, err := d.Query(`SELECT id, name, target, category, sort_order,
+		COALESCE(app_endpoint, '/'), COALESCE(baseline_mtu, 1500), COALESCE(max_latency_ms, 80.0), COALESCE(max_loss_pct, 2.0), COALESCE(db_port, 0),
+		COALESCE(auto_triage_enabled, 0), source_host_id, created_at
+		FROM probe_target_presets ORDER BY CASE WHEN category = '' THEN 1 ELSE 0 END, category ASC, sort_order ASC, name ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []ProbeTargetPreset
+	for rows.Next() {
+		var p ProbeTargetPreset
+		var autoTriageInt int
+		var srcHostID sql.NullInt64
+		if err := rows.Scan(&p.ID, &p.Name, &p.Target, &p.Category, &p.SortOrder,
+			&p.AppEndpoint, &p.BaselineMTU, &p.MaxLatencyMs, &p.MaxLossPct, &p.DBPort,
+			&autoTriageInt, &srcHostID, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		p.AutoTriageEnabled = autoTriageInt == 1
+		if srcHostID.Valid {
+			hid := srcHostID.Int64
+			p.SourceHostID = &hid
+		}
+		list = append(list, p)
+	}
+	if list == nil {
+		list = []ProbeTargetPreset{}
+	}
+	return list, nil
+}
+
+func (d *DB) GetProbeTargetPreset(id int64) (*ProbeTargetPreset, error) {
+	var p ProbeTargetPreset
+	var autoTriageInt int
+	var srcHostID sql.NullInt64
+	err := d.QueryRow(`SELECT id, name, target, category, sort_order,
+		COALESCE(app_endpoint, '/'), COALESCE(baseline_mtu, 1500), COALESCE(max_latency_ms, 80.0), COALESCE(max_loss_pct, 2.0), COALESCE(db_port, 0),
+		COALESCE(auto_triage_enabled, 0), source_host_id, created_at
+		FROM probe_target_presets WHERE id = ?`, id).
+		Scan(&p.ID, &p.Name, &p.Target, &p.Category, &p.SortOrder,
+			&p.AppEndpoint, &p.BaselineMTU, &p.MaxLatencyMs, &p.MaxLossPct, &p.DBPort,
+			&autoTriageInt, &srcHostID, &p.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	p.AutoTriageEnabled = autoTriageInt == 1
+	if srcHostID.Valid {
+		hid := srcHostID.Int64
+		p.SourceHostID = &hid
+	}
+	return &p, nil
+}
+
+func (d *DB) CreateProbeTargetPreset(p *ProbeTargetPreset) (int64, error) {
+	if p.AppEndpoint == "" {
+		p.AppEndpoint = "/"
+	}
+	if p.BaselineMTU <= 0 {
+		p.BaselineMTU = 1420
+	}
+	if p.MaxLatencyMs <= 0 {
+		p.MaxLatencyMs = 80.0
+	}
+	if p.MaxLossPct <= 0 {
+		p.MaxLossPct = 2.0
+	}
+	autoTriageInt := 0
+	if p.AutoTriageEnabled {
+		autoTriageInt = 1
+	}
+	var srcHostVal interface{} = nil
+	if p.SourceHostID != nil && *p.SourceHostID > 0 {
+		srcHostVal = *p.SourceHostID
+	}
+	res, err := d.Exec(`INSERT INTO probe_target_presets
+		(name, target, category, sort_order, app_endpoint, baseline_mtu, max_latency_ms, max_loss_pct, db_port, auto_triage_enabled, source_host_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.Name, p.Target, p.Category, p.SortOrder, p.AppEndpoint, p.BaselineMTU, p.MaxLatencyMs, p.MaxLossPct, p.DBPort, autoTriageInt, srcHostVal)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func (d *DB) UpdateProbeTargetPreset(p *ProbeTargetPreset) error {
+	if p.AppEndpoint == "" {
+		p.AppEndpoint = "/"
+	}
+	if p.BaselineMTU <= 0 {
+		p.BaselineMTU = 1420
+	}
+	if p.MaxLatencyMs <= 0 {
+		p.MaxLatencyMs = 80.0
+	}
+	if p.MaxLossPct <= 0 {
+		p.MaxLossPct = 2.0
+	}
+	autoTriageInt := 0
+	if p.AutoTriageEnabled {
+		autoTriageInt = 1
+	}
+	var srcHostVal interface{} = nil
+	if p.SourceHostID != nil && *p.SourceHostID > 0 {
+		srcHostVal = *p.SourceHostID
+	}
+	_, err := d.Exec(`UPDATE probe_target_presets
+		SET name = ?, target = ?, category = ?, sort_order = ?, app_endpoint = ?, baseline_mtu = ?, max_latency_ms = ?, max_loss_pct = ?, db_port = ?, auto_triage_enabled = ?, source_host_id = ?
+		WHERE id = ?`,
+		p.Name, p.Target, p.Category, p.SortOrder, p.AppEndpoint, p.BaselineMTU, p.MaxLatencyMs, p.MaxLossPct, p.DBPort, autoTriageInt, srcHostVal, p.ID)
+	return err
+}
+
+func (d *DB) DeleteProbeTargetPreset(id int64) error {
+	_, err := d.Exec(`DELETE FROM probe_target_presets WHERE id = ?`, id)
+	return err
+}
+
+// TriageIncidentLog captures a recorded triage evaluation between a host and target.
+type TriageIncidentLog struct {
+	ID            int64     `json:"id"`
+	SourceHostID  int64     `json:"source_host_id"`
+	PresetID      *int64    `json:"preset_id,omitempty"`
+	TargetName    string    `json:"target_name"`
+	TargetAddress string    `json:"target_address"`
+	Verdict       string    `json:"verdict"`
+	Summary       string    `json:"summary"`
+	SummaryID     string    `json:"summary_id"`
+	HostStatus    string    `json:"host_status"`
+	AppStatus     string    `json:"app_status"`
+	PathStatus    string    `json:"path_status"`
+	MTUStatus     string    `json:"mtu_status"`
+	DetailsJSON   string    `json:"details_json"`
+	TicketSnippet string    `json:"ticket_snippet,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+func (d *DB) CreateTriageIncidentLog(log *TriageIncidentLog) (int64, error) {
+	if log.DetailsJSON == "" {
+		log.DetailsJSON = "{}"
+	}
+	res, err := d.Exec(`INSERT INTO triage_incident_logs
+		(source_host_id, preset_id, target_name, target_address, verdict, summary, summary_id, host_status, app_status, path_status, mtu_status, details_json)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		log.SourceHostID, log.PresetID, log.TargetName, log.TargetAddress, log.Verdict, log.Summary, log.SummaryID,
+		log.HostStatus, log.AppStatus, log.PathStatus, log.MTUStatus, log.DetailsJSON)
+	if err != nil {
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	// ponytail: Rolling buffer keeps latest 100 triage incident logs per source host to prevent unbounded database growth.
+	if log.SourceHostID > 0 {
+		_, _ = d.Exec(`DELETE FROM triage_incident_logs
+			WHERE source_host_id = ? AND id NOT IN (
+				SELECT id FROM triage_incident_logs WHERE source_host_id = ? ORDER BY id DESC LIMIT 100
+			)`, log.SourceHostID, log.SourceHostID)
+	}
+
+	return id, nil
+}
+
+func (d *DB) ListTriageIncidentLogs(sourceHostID int64, limit int) ([]TriageIncidentLog, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	var rows *sql.Rows
+	var err error
+	if sourceHostID > 0 {
+		rows, err = d.Query(`SELECT id, source_host_id, preset_id, target_name, target_address, verdict, summary, summary_id,
+			host_status, app_status, path_status, mtu_status, details_json, created_at
+			FROM triage_incident_logs WHERE source_host_id = ? ORDER BY id DESC LIMIT ?`, sourceHostID, limit)
+	} else {
+		rows, err = d.Query(`SELECT id, source_host_id, preset_id, target_name, target_address, verdict, summary, summary_id,
+			host_status, app_status, path_status, mtu_status, details_json, created_at
+			FROM triage_incident_logs ORDER BY id DESC LIMIT ?`, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []TriageIncidentLog
+	for rows.Next() {
+		var l TriageIncidentLog
+		if err := rows.Scan(&l.ID, &l.SourceHostID, &l.PresetID, &l.TargetName, &l.TargetAddress, &l.Verdict, &l.Summary, &l.SummaryID,
+			&l.HostStatus, &l.AppStatus, &l.PathStatus, &l.MTUStatus, &l.DetailsJSON, &l.CreatedAt); err != nil {
+			return nil, err
+		}
+		if l.DetailsJSON != "" && l.DetailsJSON != "{}" {
+			var snip struct {
+				TicketSnippet string `json:"ticket_snippet"`
+			}
+			if err := json.Unmarshal([]byte(l.DetailsJSON), &snip); err == nil {
+				l.TicketSnippet = snip.TicketSnippet
+			}
+		}
+		logs = append(logs, l)
+	}
+	if logs == nil {
+		logs = []TriageIncidentLog{}
+	}
+	return logs, nil
+}
+
+func (d *DB) DeleteTriageIncidentLog(id int64) error {
+	_, err := d.Exec(`DELETE FROM triage_incident_logs WHERE id = ?`, id)
+	return err
+}
+
 // SnapshotPayload holds the sanitized system configuration for backup and restore.
 type SnapshotPayload struct {
-	Version         int               `json:"version"`
-	CreatedAt       time.Time         `json:"created_at"`
-	Settings        map[string]string `json:"settings"`
-	Hosts           []Host            `json:"hosts"`
-	DesiredRules    []DesiredRule     `json:"desired_rules"`
-	TerminalPresets []TerminalPreset  `json:"terminal_presets,omitempty"`
+	Version            int                 `json:"version"`
+	CreatedAt          time.Time           `json:"created_at"`
+	Settings           map[string]string   `json:"settings"`
+	Hosts              []Host              `json:"hosts"`
+	DesiredRules       []DesiredRule       `json:"desired_rules"`
+	TerminalPresets    []TerminalPreset    `json:"terminal_presets,omitempty"`
+	ProbeTargetPresets []ProbeTargetPreset `json:"probe_target_presets,omitempty"`
 }
 
 func (d *DB) IsFresh() (bool, error) {
@@ -1147,13 +1460,38 @@ func (d *DB) ExportSnapshot() (*SnapshotPayload, error) {
 		}
 	}
 
+	var allProbePresets []ProbeTargetPreset
+	probeRows, err := d.Query(`SELECT id, name, target, category, sort_order,
+		COALESCE(app_endpoint, '/'), COALESCE(baseline_mtu, 1500), COALESCE(max_latency_ms, 80.0), COALESCE(max_loss_pct, 2.0), COALESCE(db_port, 0),
+		COALESCE(auto_triage_enabled, 0), source_host_id, created_at
+		FROM probe_target_presets ORDER BY sort_order ASC, id ASC`)
+	if err == nil {
+		defer probeRows.Close()
+		for probeRows.Next() {
+			var p ProbeTargetPreset
+			var autoTriageInt int
+			var srcHostID sql.NullInt64
+			if err := probeRows.Scan(&p.ID, &p.Name, &p.Target, &p.Category, &p.SortOrder,
+				&p.AppEndpoint, &p.BaselineMTU, &p.MaxLatencyMs, &p.MaxLossPct, &p.DBPort,
+				&autoTriageInt, &srcHostID, &p.CreatedAt); err == nil {
+				p.AutoTriageEnabled = autoTriageInt == 1
+				if srcHostID.Valid {
+					hid := srcHostID.Int64
+					p.SourceHostID = &hid
+				}
+				allProbePresets = append(allProbePresets, p)
+			}
+		}
+	}
+
 	return &SnapshotPayload{
-		Version:         1,
-		CreatedAt:       time.Now().UTC(),
-		Settings:        settings,
-		Hosts:           hosts,
-		DesiredRules:    allRules,
-		TerminalPresets: allPresets,
+		Version:            1,
+		CreatedAt:          time.Now().UTC(),
+		Settings:           settings,
+		Hosts:              hosts,
+		DesiredRules:       allRules,
+		TerminalPresets:    allPresets,
+		ProbeTargetPresets: allProbePresets,
 	}, nil
 }
 
@@ -1167,7 +1505,7 @@ func (d *DB) ImportSnapshot(payload *SnapshotPayload) error {
 	}
 	defer tx.Rollback()
 
-	tables := []string{"alerts", "incidents", "actual_items", "desired_rules", "hosts", "terminal_presets"}
+	tables := []string{"alerts", "incidents", "actual_items", "desired_rules", "hosts", "terminal_presets", "probe_target_presets"}
 	for _, t := range tables {
 		if _, err := tx.Exec("DELETE FROM " + t); err != nil {
 			return fmt.Errorf("clear %s: %w", t, err)
@@ -1224,6 +1562,36 @@ func (d *DB) ImportSnapshot(payload *SnapshotPayload) error {
 		}
 		_, _ = tx.Exec(`INSERT INTO terminal_presets (id, host_id, name, command, sort_order, use_tmux) VALUES (?, ?, ?, ?, ?, ?)`,
 			p.ID, hid, p.Name, p.Command, p.SortOrder, useTmuxInt)
+	}
+
+	for _, p := range payload.ProbeTargetPresets {
+		appEp := p.AppEndpoint
+		if appEp == "" {
+			appEp = "/"
+		}
+		mtu := p.BaselineMTU
+		if mtu <= 0 {
+			mtu = 1420
+		}
+		maxLat := p.MaxLatencyMs
+		if maxLat <= 0 {
+			maxLat = 80.0
+		}
+		maxLoss := p.MaxLossPct
+		if maxLoss <= 0 {
+			maxLoss = 2.0
+		}
+		autoTriageInt := 0
+		if p.AutoTriageEnabled {
+			autoTriageInt = 1
+		}
+		var srcHostVal interface{} = nil
+		if p.SourceHostID != nil && *p.SourceHostID > 0 {
+			srcHostVal = *p.SourceHostID
+		}
+		_, _ = tx.Exec(`INSERT INTO probe_target_presets (id, name, target, category, sort_order, app_endpoint, baseline_mtu, max_latency_ms, max_loss_pct, db_port, auto_triage_enabled, source_host_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			p.ID, p.Name, p.Target, p.Category, p.SortOrder, appEp, mtu, maxLat, maxLoss, p.DBPort, autoTriageInt, srcHostVal)
 	}
 
 	for k, v := range payload.Settings {

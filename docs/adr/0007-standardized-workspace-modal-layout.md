@@ -18,3 +18,13 @@ Untuk mendukung alur kerja di mana sebuah Action Dialog (misal form penambahan p
    - Jika terdapat modal di dalam stack, `Escape` hanya akan menutup modal teratas (*top-most active dialog*) dan memunculkan kembali interaksi pada modal di bawahnya.
    - Jika stack modal telah kosong, `Escape` baru akan mengaktifkan pintasan terminal dock (seperti minimize dock saat maximized per ADR 0011).
 
+## Addendum: Top-Anchored Modal Alignment dan Promosi Network Diagnostic ke Workspace Modal
+
+Untuk mengeliminasi pergeseran vertikal (*vertical layout jump*) yang dialami saat membuka dialog berbeda ukuran atau berganti sub-view (seperti *Interactive Probes* berukuran ringkas versus *Network Triage Matrix* berukuran tinggi):
+
+1. **Top-Anchored Alignment Konsisten (`.modal`)**:
+   Kontainer modal beralih dari pemusatan otomatis (`align-items: center`) menjadi penjangkaran atas (`align-items: flex-start; justify-content: center; padding: clamp(24px, 5vh, 60px) 20px 20px 20px; overflow-y: auto;`). Seluruh modal (Action Dialog dan Workspace Modal) memiliki batas atas yang seragam dan stabil dari puncak layar. Saat isi formulir memanjang atau validasi kesalahan muncul, batas atas dan header dialog tetap tenang tanpa melompat.
+
+2. **Promosi Network Diagnostic (`#netDiagModal`) ke Workspace Modal**:
+   Network Diagnostic dipromosikan dari kelas dialog elastis (`.modal-dialog-xl`) menjadi kelas **Workspace Modal** (`.modal-workspace`), mengunci dimensi ke `85vw × 84vh` dengan internal scrolling pada `.modal-body`. Pergantian antara sub-view Probes dan Triage Matrix berjalan mulus tanpa mengubah koordinat tepi atas atau dimensi kontainer.
+

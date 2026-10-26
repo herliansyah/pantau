@@ -42,6 +42,45 @@ func (d *Dispatcher) SendAlert(host *store.Host, rule *store.DesiredRule, summar
 	}
 }
 
+func (d *Dispatcher) SendTriageAlert(ticket string, isRecovery bool) {
+	tgToken, _ := d.db.GetSetting("telegram_token")
+	tgChatID, _ := d.db.GetSetting("telegram_chat_id")
+	webhookURL, _ := d.db.GetSetting("webhook_url")
+
+	if tgToken != "" && tgChatID != "" {
+		go d.sendTelegramDirect(tgToken, tgChatID, ticket)
+	}
+
+	if webhookURL != "" {
+		go d.sendTriageWebhook(webhookURL, ticket, isRecovery)
+	}
+}
+
+func (d *Dispatcher) sendTelegramDirect(token, chatID, text string) {
+	endpoint := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
+	payload := map[string]interface{}{
+		"chat_id": chatID,
+		"text":    text,
+	}
+	body, _ := json.Marshal(payload)
+	_, _ = d.httpClient.Post(endpoint, "application/json", bytes.NewReader(body))
+}
+
+func (d *Dispatcher) sendTriageWebhook(url, ticket string, isRecovery bool) {
+	evt := "triage_incident"
+	if isRecovery {
+		evt = "triage_recovery"
+	}
+	payload := map[string]interface{}{
+		"event":          evt,
+		"timestamp":      time.Now().UTC().Format(time.RFC3339),
+		"ticket_snippet": ticket,
+		"is_recovery":    isRecovery,
+	}
+	body, _ := json.Marshal(payload)
+	_, _ = d.httpClient.Post(url, "application/json", bytes.NewReader(body))
+}
+
 func (d *Dispatcher) sendTelegram(token, chatID, hostName, summary, rootCause string) {
 	// Trim root cause to fit in Telegram 4096 char limit
 	excerpt := strings.TrimSpace(rootCause)

@@ -317,6 +317,7 @@ func main() {
 	server.SetSnapshotManager(snapshotMgr)
 	server.SetUpdaterManager(updaterMgr)
 	server.SetDocsFS(embeddedDocs)
+	server.StartAutoTriageScheduler(ctx)
 	listener, port, err := listenPort(port, portExplicit)
 	if err != nil {
 		logger.Error("system", "", "Failed to bind port: "+err.Error())

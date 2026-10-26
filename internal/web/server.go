@@ -3,6 +3,7 @@ package web
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -116,12 +117,18 @@ func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) 
 		provisioner:    sshrunner.DefaultKeyProvisioner,
 		transferMgr:    transfer.NewManager(db, nil),
 		snapshotMgr:    snapshot.NewManager(db, nil),
-		netdiagService: netdiag.NewService(db, ins),
+		netdiagService: netdiag.NewService(db, ins, disp),
 		mux:            http.NewServeMux(),
 	}
 	s.prepareHTML(embeddedHTML)
 	s.routes()
 	return s
+}
+
+func (s *Server) StartAutoTriageScheduler(ctx context.Context) {
+	if s.netdiagService != nil {
+		go s.netdiagService.StartAutoTriageScheduler(ctx)
+	}
 }
 
 func (s *Server) SetNetdiagService(ns *netdiag.Service) {
@@ -234,8 +241,14 @@ func (s *Server) routes() {
 	// Live Event Stream (Activity Console)
 	s.mux.HandleFunc("/api/logs/stream", s.authMiddleware(s.handleLogsStream))
 
-	// Network Diagnostics (ADR Network Diagnostic)
+	// Network Diagnostics (ADR Network Diagnostic & ADR-0035 Branch Triage Matrix)
 	s.mux.HandleFunc("/api/netdiag/stream", s.authMiddleware(s.handleNetDiagStream))
+	s.mux.HandleFunc("/api/netdiag/presets", s.authMiddleware(s.handleProbeTargetPresets))
+	s.mux.HandleFunc("/api/netdiag/presets/", s.authMiddleware(s.handleProbeTargetPresetDetail))
+	s.mux.HandleFunc("/api/netdiag/triage", s.authMiddleware(s.handleNetDiagTriageStream))
+	s.mux.HandleFunc("/api/netdiag/triage/history", s.authMiddleware(s.handleTriageHistory))
+	s.mux.HandleFunc("/api/netdiag/triage/history/", s.authMiddleware(s.handleTriageHistory))
+	s.mux.HandleFunc("/api/netdiag/host-config/", s.authMiddleware(s.handleHostTriageConfig))
 }
 
 func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -631,6 +644,27 @@ func (s *Server) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "password_updated"})
 }
 
+func (s *Server) resolveLang(r *http.Request) string {
+	if l := r.URL.Query().Get("lang"); l != "" {
+		if strings.HasPrefix(strings.ToLower(l), "id") {
+			return "id"
+		}
+		return "en"
+	}
+	if l := r.Header.Get("X-Pantau-Lang"); l != "" {
+		if strings.HasPrefix(strings.ToLower(l), "id") {
+			return "id"
+		}
+		return "en"
+	}
+	if al := r.Header.Get("Accept-Language"); al != "" {
+		if strings.HasPrefix(strings.ToLower(al), "id") {
+			return "id"
+		}
+	}
+	return "en"
+}
+
 func (s *Server) validateCommissionDate(commDate string, existingHost *store.Host) error {
 	commDate = strings.TrimSpace(commDate)
 	if commDate == "" {
@@ -661,6 +695,11 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		if s.inspector != nil {
+			for i := range hosts {
+				hosts[i].IsInspecting = s.inspector.IsInspecting(hosts[i].ID)
+			}
+		}
 		writeJSON(w, http.StatusOK, hosts)
 	case http.MethodPost:
 		var req struct {
@@ -673,7 +712,7 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 		}
 		h := req.Host
 		h.Name = strings.TrimSpace(h.Name)
-		h.Host = strings.TrimSpace(h.Host)
+		h.Host = strings.ToLower(strings.TrimSpace(h.Host))
 		h.User = strings.TrimSpace(h.User)
 		h.CommissionDate = strings.TrimSpace(h.CommissionDate)
 		if h.Name == "" || h.Host == "" {
@@ -689,6 +728,29 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 		}
 		if h.User == "" {
 			h.User = "root"
+		}
+
+		if dup, err := s.db.FindHostByTarget(h.Host, h.Port, 0); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		} else if dup != nil {
+			targetStr := fmt.Sprintf("%s:%d", h.Host, h.Port)
+			msgEN := fmt.Sprintf("Host with target '%s' is already registered as '%s'", targetStr, dup.Name)
+			msgID := fmt.Sprintf("Host dengan target '%s' sudah terdaftar sebagai '%s'", targetStr, dup.Name)
+			errVal := msgEN
+			if s.resolveLang(r) == "id" {
+				errVal = msgID
+			}
+			writeJSON(w, http.StatusConflict, map[string]interface{}{
+				"ok":       false,
+				"code":     "err_duplicate_target",
+				"target":   targetStr,
+				"name":     dup.Name,
+				"error":    errVal,
+				"error_en": msgEN,
+				"error_id": msgID,
+			})
+			return
 		}
 
 		// If one-time password provided, attempt key provisioning
@@ -714,6 +776,12 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.ID = id
+		if s.inspector != nil {
+			h.IsInspecting = true
+			go func(newID int64) {
+				_ = s.inspector.InspectHost(newID)
+			}(id)
+		}
 		writeJSON(w, http.StatusCreated, h)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -727,6 +795,87 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "host id required", http.StatusBadRequest)
 		return
 	}
+	if parts[0] == "test-connection" {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			HostID    int64  `json:"host_id"`
+			Host      string `json:"host"`
+			Port      int    `json:"port"`
+			User      string `json:"user"`
+			Password  string `json:"password"`
+			CustomKey string `json:"custom_key"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		req.Host = strings.TrimSpace(req.Host)
+		req.User = strings.TrimSpace(req.User)
+		if req.Host == "" {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "error": "host address is required"})
+			return
+		}
+		if req.Port <= 0 {
+			req.Port = 22
+		}
+		if req.User == "" {
+			req.User = "root"
+		}
+
+		var runner sshrunner.Runner
+		authMethod := "key"
+		if strings.TrimSpace(req.Password) != "" {
+			authMethod = "password"
+			r, err := sshrunner.ConnectWithPassword(req.Host, req.Port, req.User, req.Password, 6*time.Second)
+			if err != nil {
+				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "error": err.Error(), "auth_method": authMethod})
+				return
+			}
+			runner = r
+		} else {
+			key := strings.TrimSpace(req.CustomKey)
+			if key == "" && req.HostID > 0 {
+				existing, _ := s.db.GetHost(req.HostID)
+				if existing != nil && strings.TrimSpace(existing.CustomKey) != "" {
+					key = strings.TrimSpace(existing.CustomKey)
+				}
+			}
+			var err error
+			if s.inspector != nil {
+				runner, err = s.inspector.GetRunner(req.Host, req.Port, req.User, key)
+			} else {
+				if key == "" {
+					key, _ = s.db.GetSetting("ssh_private_key")
+				}
+				runner, err = sshrunner.Connect(req.Host, req.Port, req.User, key, 6*time.Second)
+			}
+			if err != nil {
+				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "error": err.Error(), "auth_method": authMethod})
+				return
+			}
+		}
+		defer runner.Close()
+
+		stdout, stderr, exitCode, err := runner.ExecTimeout("uname -srm; uptime", 5*time.Second)
+		if err != nil || exitCode != 0 {
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"ok":          false,
+				"error":       fmt.Sprintf("exit %d: %s %s", exitCode, stdout, stderr),
+				"auth_method": authMethod,
+			})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"ok":          true,
+			"output":      strings.TrimSpace(stdout),
+			"auth_method": authMethod,
+		})
+		return
+	}
+
 	if parts[0] == "reorder" {
 		if r.Method != http.MethodPut && r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -859,6 +1008,9 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "host not found", http.StatusNotFound)
 				return
 			}
+			if s.inspector != nil {
+				host.IsInspecting = s.inspector.IsInspecting(host.ID)
+			}
 			rules, _ := s.db.ListDesiredRules(hostID)
 			items, _ := s.db.ListActualItems(hostID)
 			incidents, _ := s.db.ListIncidents(hostID, 20)
@@ -878,17 +1030,52 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			}
 			h.ID = hostID
 			h.Name = strings.TrimSpace(h.Name)
-			h.Host = strings.TrimSpace(h.Host)
+			h.Host = strings.ToLower(strings.TrimSpace(h.Host))
 			h.User = strings.TrimSpace(h.User)
 			h.CommissionDate = strings.TrimSpace(h.CommissionDate)
+			if h.Port <= 0 {
+				h.Port = 22
+			}
+			if h.User == "" {
+				h.User = "root"
+			}
 
 			existing, _ := s.db.GetHost(hostID)
 			if existing == nil {
 				http.Error(w, "host not found", http.StatusNotFound)
 				return
 			}
+			if h.Host == "" {
+				h.Host = existing.Host
+			}
+			if h.Name == "" {
+				h.Name = existing.Name
+			}
 			if err := s.validateCommissionDate(h.CommissionDate, existing); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			if dup, err := s.db.FindHostByTarget(h.Host, h.Port, hostID); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			} else if dup != nil {
+				targetStr := fmt.Sprintf("%s:%d", h.Host, h.Port)
+				msgEN := fmt.Sprintf("Host with target '%s' is already registered as '%s'", targetStr, dup.Name)
+				msgID := fmt.Sprintf("Host dengan target '%s' sudah terdaftar sebagai '%s'", targetStr, dup.Name)
+				errVal := msgEN
+				if s.resolveLang(r) == "id" {
+					errVal = msgID
+				}
+				writeJSON(w, http.StatusConflict, map[string]interface{}{
+					"ok":       false,
+					"code":     "err_duplicate_target",
+					"target":   targetStr,
+					"name":     dup.Name,
+					"error":    errVal,
+					"error_en": msgEN,
+					"error_id": msgID,
+				})
 				return
 			}
 
@@ -1754,21 +1941,31 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		lastBackupTime, _ := s.db.GetSetting("last_backup_time")
 		lastBackupStatus, _ := s.db.GetSetting("last_backup_status")
 
+		autoTriageEnabled, _ := s.db.GetSetting("auto_triage_enabled")
+		autoTriageInterval, _ := s.db.GetSetting("auto_triage_interval_min")
+		if autoTriageInterval == "" {
+			autoTriageInterval = "10"
+		}
+		autoTriageHost, _ := s.db.GetSetting("auto_triage_default_host_id")
+
 		writeJSON(w, http.StatusOK, map[string]string{
-			"ssh_public_key":        pubKey,
-			"telegram_token":        tgToken,
-			"telegram_chat_id":      tgChat,
-			"webhook_url":           webhook,
-			"poll_interval_sec":     poll,
-			"github_backup_enabled": ghEnabled,
-			"github_repo":           ghRepo,
-			"github_token":          ghToken,
-			"github_branch":         ghBranch,
-			"github_file_path":      ghPath,
-			"snapshot_passphrase":   snapPass,
-			"backup_interval_hours": backupInterval,
-			"last_backup_time":      lastBackupTime,
-			"last_backup_status":    lastBackupStatus,
+			"ssh_public_key":              pubKey,
+			"telegram_token":              tgToken,
+			"telegram_chat_id":            tgChat,
+			"webhook_url":                 webhook,
+			"poll_interval_sec":           poll,
+			"github_backup_enabled":       ghEnabled,
+			"github_repo":                 ghRepo,
+			"github_token":                ghToken,
+			"github_branch":               ghBranch,
+			"github_file_path":            ghPath,
+			"snapshot_passphrase":         snapPass,
+			"backup_interval_hours":       backupInterval,
+			"last_backup_time":            lastBackupTime,
+			"last_backup_status":          lastBackupStatus,
+			"auto_triage_enabled":         autoTriageEnabled,
+			"auto_triage_interval_min":    autoTriageInterval,
+			"auto_triage_default_host_id": autoTriageHost,
 		})
 	case http.MethodPost:
 		var req map[string]string

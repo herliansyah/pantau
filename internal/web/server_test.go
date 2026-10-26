@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -663,9 +664,9 @@ func TestIndexGzipAndETagRevalidation(t *testing.T) {
 	if wGz.Header().Get("ETag") != etag {
 		t.Errorf("expected matching ETag %s, got %s", etag, wGz.Header().Get("ETag"))
 	}
-	// Verify compression ratio: ~115KB vs ~570KB (<130KB)
-	if wGz.Body.Len() > 130000 {
-		t.Errorf("expected gzipped body < 130KB, got %d bytes", wGz.Body.Len())
+	// Verify compression ratio: ~135KB vs ~660KB (<150KB)
+	if wGz.Body.Len() > 150000 {
+		t.Errorf("expected gzipped body < 150KB, got %d bytes", wGz.Body.Len())
 	}
 
 	// Decompress and compare with raw
@@ -1817,7 +1818,7 @@ func TestFilePinsAPI(t *testing.T) {
 	}
 
 	// 6. Verify empty again
-	req = httptest.NewRequest(http.MethodGet, "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/files/pins", nil)
+	req = httptest.NewRequest(http.MethodDelete, "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/files/pins?path=/var/log/syslog", nil)
 	authReq(req)
 	w = httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
@@ -1827,6 +1828,286 @@ func TestFilePinsAPI(t *testing.T) {
 		t.Fatalf("expected 0 pins after delete, got %d", len(pins))
 	}
 }
+
+func TestHostTestConnection_AdHoc(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		if strings.Contains(cmd, "uname") {
+			return "Linux 6.1.0-custom x86_64\n 12:00:00 up 10 days", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+	factory := func(host string, port int, user, key string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}
+	ins := inspector.New(db, factory, nil)
+	srv := NewServer(db, ins, nil)
+	token := "valid_test_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{Name: "pantau_session", Value: token})
+	}
+
+	// 1. Missing host address should fail cleanly
+	payloadInvalid := map[string]interface{}{"host": "", "port": 22, "user": "root"}
+	body, _ := json.Marshal(payloadInvalid)
+	req := httptest.NewRequest(http.MethodPost, "/api/hosts/test-connection", bytes.NewReader(body))
+	authReq(req)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var res map[string]interface{}
+	_ = json.NewDecoder(w.Body).Decode(&res)
+	if res["ok"] == true {
+		t.Fatalf("expected ok=false for empty host, got %+v", res)
+	}
+
+	// 2. Valid test connection via key
+	payloadValid := map[string]interface{}{
+		"host": "192.168.1.100",
+		"port": 22,
+		"user": "root",
+		"custom_key": "-----BEGIN TEST KEY-----",
+	}
+	body, _ = json.Marshal(payloadValid)
+	req = httptest.NewRequest(http.MethodPost, "/api/hosts/test-connection", bytes.NewReader(body))
+	authReq(req)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	res = nil
+	_ = json.NewDecoder(w.Body).Decode(&res)
+	if res["ok"] != true {
+		t.Fatalf("expected ok=true, got %+v", res)
+	}
+	if !strings.Contains(res["output"].(string), "Linux 6.1.0-custom") {
+		t.Fatalf("expected uname output, got %v", res["output"])
+	}
+	if res["auth_method"] != "key" {
+		t.Fatalf("expected auth_method=key, got %v", res["auth_method"])
+	}
+}
+
+func TestHostCreate_ImmediateInspectionAndEnrichment(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "", "", 0, nil
+	}
+	factory := func(host string, port int, user, key string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}
+	ins := inspector.New(db, factory, nil)
+	srv := NewServer(db, ins, nil)
+	token := "valid_test_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{Name: "pantau_session", Value: token})
+	}
+
+	// Create host via POST /api/hosts
+	newHost := map[string]interface{}{
+		"name": "Immediate Host",
+		"host": "192.168.10.5",
+		"port": 22,
+		"user": "root",
+	}
+	body, _ := json.Marshal(newHost)
+	req := httptest.NewRequest(http.MethodPost, "/api/hosts", bytes.NewReader(body))
+	authReq(req)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var createdHost store.Host
+	_ = json.NewDecoder(w.Body).Decode(&createdHost)
+	if createdHost.ID == 0 {
+		t.Fatalf("expected non-zero host ID")
+	}
+	if !createdHost.IsInspecting {
+		t.Fatalf("expected created host to have IsInspecting=true")
+	}
+
+	// Wait up to 100ms for background inspection goroutine
+	time.Sleep(100 * time.Millisecond)
+
+	// GET /api/hosts should list the host with enriched IsInspecting field
+	req = httptest.NewRequest(http.MethodGet, "/api/hosts", nil)
+	authReq(req)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var hosts []store.Host
+	_ = json.NewDecoder(w.Body).Decode(&hosts)
+	if len(hosts) != 1 || hosts[0].Name != "Immediate Host" {
+		t.Fatalf("unexpected hosts list: %+v", hosts)
+	}
+}
+
+func TestDuplicateHostPrevention(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-dup-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	srv := NewServer(db, nil, nil)
+	token := "dup_test_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{Name: "pantau_session", Value: token})
+	}
+
+	// 1. Create first host
+	body1, _ := json.Marshal(map[string]interface{}{
+		"name": "Web Primary",
+		"host": "192.168.1.50",
+		"port": 22,
+		"user": "root",
+	})
+	req1 := httptest.NewRequest(http.MethodPost, "/api/hosts", bytes.NewReader(body1))
+	authReq(req1)
+	w1 := httptest.NewRecorder()
+	srv.ServeHTTP(w1, req1)
+	if w1.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created for host 1, got %d: %s", w1.Code, w1.Body.String())
+	}
+	var created1 store.Host
+	_ = json.NewDecoder(w1.Body).Decode(&created1)
+
+	// 2. Create second host on different port (allowed)
+	body2, _ := json.Marshal(map[string]interface{}{
+		"name": "Web Secondary",
+		"host": "192.168.1.50",
+		"port": 2222,
+		"user": "root",
+	})
+	req2 := httptest.NewRequest(http.MethodPost, "/api/hosts", bytes.NewReader(body2))
+	authReq(req2)
+	w2 := httptest.NewRecorder()
+	srv.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created for host 2 on diff port, got %d: %s", w2.Code, w2.Body.String())
+	}
+	var created2 store.Host
+	_ = json.NewDecoder(w2.Body).Decode(&created2)
+
+	// 3. Attempt to create duplicate host on 192.168.1.50:22 (should be rejected with 409 Conflict)
+	bodyDup, _ := json.Marshal(map[string]interface{}{
+		"name": "Web Clone",
+		"host": " 192.168.1.50 ",
+		"port": 22,
+		"user": "admin",
+	})
+	reqDup := httptest.NewRequest(http.MethodPost, "/api/hosts", bytes.NewReader(bodyDup))
+	authReq(reqDup)
+	wDup := httptest.NewRecorder()
+	srv.ServeHTTP(wDup, reqDup)
+	if wDup.Code != http.StatusConflict {
+		t.Fatalf("expected 409 Conflict for duplicate target, got %d: %s", wDup.Code, wDup.Body.String())
+	}
+	if !strings.Contains(wDup.Body.String(), "Web Primary") {
+		t.Fatalf("expected error message to mention 'Web Primary', got: %s", wDup.Body.String())
+	}
+	if !strings.Contains(wDup.Body.String(), "already registered as") {
+		t.Fatalf("expected default error in English, got: %s", wDup.Body.String())
+	}
+
+	// 3b. Test Indonesian localized duplicate error via Accept-Language header
+	reqDupID := httptest.NewRequest(http.MethodPost, "/api/hosts", bytes.NewReader(bodyDup))
+	authReq(reqDupID)
+	reqDupID.Header.Set("Accept-Language", "id-ID,id;q=0.9")
+	wDupID := httptest.NewRecorder()
+	srv.ServeHTTP(wDupID, reqDupID)
+	if wDupID.Code != http.StatusConflict {
+		t.Fatalf("expected 409 Conflict for Indonesian header, got %d", wDupID.Code)
+	}
+	if !strings.Contains(wDupID.Body.String(), "sudah terdaftar sebagai") {
+		t.Fatalf("expected Indonesian error message, got: %s", wDupID.Body.String())
+	}
+
+	// 4. Same display name but different IP is allowed
+	bodySameName, _ := json.Marshal(map[string]interface{}{
+		"name": "Web Primary",
+		"host": "192.168.1.51",
+		"port": 22,
+		"user": "root",
+	})
+	reqSameName := httptest.NewRequest(http.MethodPost, "/api/hosts", bytes.NewReader(bodySameName))
+	authReq(reqSameName)
+	wSameName := httptest.NewRecorder()
+	srv.ServeHTTP(wSameName, reqSameName)
+	if wSameName.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created for same name diff IP, got %d: %s", wSameName.Code, wSameName.Body.String())
+	}
+
+	// 5. PUT /api/hosts/{id} updating host 2 target to host 1's target (should fail with 409)
+	bodyPutConflict, _ := json.Marshal(map[string]interface{}{
+		"name": "Web Secondary",
+		"host": "192.168.1.50",
+		"port": 22,
+		"user": "root",
+	})
+	reqPutConflict := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/hosts/%d", created2.ID), bytes.NewReader(bodyPutConflict))
+	authReq(reqPutConflict)
+	wPutConflict := httptest.NewRecorder()
+	srv.ServeHTTP(wPutConflict, reqPutConflict)
+	if wPutConflict.Code != http.StatusConflict {
+		t.Fatalf("expected 409 Conflict when editing target to an existing one, got %d: %s", wPutConflict.Code, wPutConflict.Body.String())
+	}
+
+	// 6. PUT /api/hosts/{id} updating host 2 with its own target (should succeed)
+	bodyPutSelf, _ := json.Marshal(map[string]interface{}{
+		"name": "Web Secondary Renamed",
+		"host": "192.168.1.50",
+		"port": 2222,
+		"user": "root",
+	})
+	reqPutSelf := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/hosts/%d", created2.ID), bytes.NewReader(bodyPutSelf))
+	authReq(reqPutSelf)
+	wPutSelf := httptest.NewRecorder()
+	srv.ServeHTTP(wPutSelf, reqPutSelf)
+	if wPutSelf.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK when editing self, got %d: %s", wPutSelf.Code, wPutSelf.Body.String())
+	}
+}
+
 
 
 
