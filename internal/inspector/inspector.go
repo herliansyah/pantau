@@ -76,6 +76,18 @@ func (ins *Inspector) GetRunnerForHost(h *store.Host) (sshrunner.Runner, error) 
 	return ins.factory(h.Host, h.Port, h.User, key)
 }
 
+// GetRunner instantiates an SSH runner for ad-hoc host target specs.
+func (ins *Inspector) GetRunner(host string, port int, user, key string) (sshrunner.Runner, error) {
+	if strings.TrimSpace(key) == "" {
+		globalKey, err := ins.db.GetSetting("ssh_private_key")
+		if err != nil {
+			return nil, fmt.Errorf("get global ssh key: %w", err)
+		}
+		key = globalKey
+	}
+	return ins.factory(host, port, user, key)
+}
+
 // InspectHost performs a full health check, metrics scrape, and drift detection on a single host.
 func (ins *Inspector) InspectHost(hostID int64) error {
 	return ins.InspectHostWithTimeout(hostID, 45*time.Second)

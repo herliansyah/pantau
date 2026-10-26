@@ -661,6 +661,11 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		if s.inspector != nil {
+			for i := range hosts {
+				hosts[i].IsInspecting = s.inspector.IsInspecting(hosts[i].ID)
+			}
+		}
 		writeJSON(w, http.StatusOK, hosts)
 	case http.MethodPost:
 		var req struct {
@@ -714,6 +719,12 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.ID = id
+		if s.inspector != nil {
+			h.IsInspecting = true
+			go func(newID int64) {
+				_ = s.inspector.InspectHost(newID)
+			}(id)
+		}
 		writeJSON(w, http.StatusCreated, h)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -727,6 +738,87 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "host id required", http.StatusBadRequest)
 		return
 	}
+	if parts[0] == "test-connection" {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		var req struct {
+			HostID    int64  `json:"host_id"`
+			Host      string `json:"host"`
+			Port      int    `json:"port"`
+			User      string `json:"user"`
+			Password  string `json:"password"`
+			CustomKey string `json:"custom_key"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		req.Host = strings.TrimSpace(req.Host)
+		req.User = strings.TrimSpace(req.User)
+		if req.Host == "" {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "error": "host address is required"})
+			return
+		}
+		if req.Port <= 0 {
+			req.Port = 22
+		}
+		if req.User == "" {
+			req.User = "root"
+		}
+
+		var runner sshrunner.Runner
+		authMethod := "key"
+		if strings.TrimSpace(req.Password) != "" {
+			authMethod = "password"
+			r, err := sshrunner.ConnectWithPassword(req.Host, req.Port, req.User, req.Password, 6*time.Second)
+			if err != nil {
+				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "error": err.Error(), "auth_method": authMethod})
+				return
+			}
+			runner = r
+		} else {
+			key := strings.TrimSpace(req.CustomKey)
+			if key == "" && req.HostID > 0 {
+				existing, _ := s.db.GetHost(req.HostID)
+				if existing != nil && strings.TrimSpace(existing.CustomKey) != "" {
+					key = strings.TrimSpace(existing.CustomKey)
+				}
+			}
+			var err error
+			if s.inspector != nil {
+				runner, err = s.inspector.GetRunner(req.Host, req.Port, req.User, key)
+			} else {
+				if key == "" {
+					key, _ = s.db.GetSetting("ssh_private_key")
+				}
+				runner, err = sshrunner.Connect(req.Host, req.Port, req.User, key, 6*time.Second)
+			}
+			if err != nil {
+				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "error": err.Error(), "auth_method": authMethod})
+				return
+			}
+		}
+		defer runner.Close()
+
+		stdout, stderr, exitCode, err := runner.ExecTimeout("uname -srm; uptime", 5*time.Second)
+		if err != nil || exitCode != 0 {
+			writeJSON(w, http.StatusOK, map[string]interface{}{
+				"ok":          false,
+				"error":       fmt.Sprintf("exit %d: %s %s", exitCode, stdout, stderr),
+				"auth_method": authMethod,
+			})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"ok":          true,
+			"output":      strings.TrimSpace(stdout),
+			"auth_method": authMethod,
+		})
+		return
+	}
+
 	if parts[0] == "reorder" {
 		if r.Method != http.MethodPut && r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -858,6 +950,9 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			if err != nil || host == nil {
 				http.Error(w, "host not found", http.StatusNotFound)
 				return
+			}
+			if s.inspector != nil {
+				host.IsInspecting = s.inspector.IsInspecting(host.ID)
 			}
 			rules, _ := s.db.ListDesiredRules(hostID)
 			items, _ := s.db.ListActualItems(hostID)

@@ -46,6 +46,7 @@ type Host struct {
 	LifecycleNotes    string     `json:"lifecycle_notes"`
 	LifecycleBreakdown string    `json:"lifecycle_breakdown"`
 	LastInspected     *time.Time `json:"last_inspected"`
+	IsInspecting      bool       `json:"is_inspecting"`
 	CreatedAt         time.Time  `json:"created_at"`
 
 	// Network & Security Observability

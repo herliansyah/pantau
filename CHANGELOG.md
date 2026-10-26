@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Added
+- Pre-flight SSH Connection Testing: ad-hoc connection test endpoint `POST /api/hosts/test-connection` and `⚡ Test Connection` button in the host registration modal verifying host address, SSH port, authentication (one-time password or private key), and remote architecture (`uname -srm; uptime`) prior to saving.
+- Immediate Asynchronous Initial Inspection: automated dispatch of single-host background inspection immediately upon host creation via `POST /api/hosts`, eliminating the 30-second delay previously caused by the periodic worker sweep ticker.
+- Realtime Onboarding Fast-Poll Engine: client-side reactive polling loop (`scheduleFastPollIfNeeded`) executing at 1.5-second intervals until the newly registered host completes its initial inspection, auto-deactivating immediately once Actual State metrics arrive.
+- Transparent "Initial Sync" Card & Detail States: distinct loading indicators and informative status messages for newly registered hosts (`last_inspected == nil`) on both Grid and List views, eliminating the previous confusion of static 0% metrics.
+- Synchronized Docker & Overview Empty States: intelligent detection of in-progress initial sync in Host Detail tabs (Overview, Docker, Services), preventing false "No containers found" empty states while discovery is actively running.
+
 ## [0.25.0] - 2026-10-21
 ### Added
 - Interactive Terminal Link Detection: native `term.registerLinkProvider` integration in xterm.js matching RFC 3986 URLs and remote loopback addresses, with `Ctrl+Click` (Linux/Windows) and `Cmd+Click` (macOS) interaction to prevent accidental terminal text selection conflicts.

@@ -91,6 +91,11 @@ a.btn:hover { text-decoration: none; color: var(--text); }
 .modal-dialog { width: 100%; max-width: 520px; max-height: 90vh; }
 .modal-dialog-md { width: 100%; max-width: 600px; max-height: 90vh; }
 .modal-dialog-lg { width: 100%; max-width: 740px; max-height: 90vh; }
+.modal-dialog-host { width: 100%; max-width: 800px; max-height: 92vh; }
+.host-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 768px) {
+  .host-form-grid { grid-template-columns: 1fr; gap: 12px; }
+}
 .modal.workspace-maximized-wrapper { padding: 0 !important; }
 .modal-content.workspace-maximized {
   position: fixed !important;
@@ -121,7 +126,7 @@ a.btn:hover { text-decoration: none; color: var(--text); }
 .compare-takeaway-card { background: #0f172a; border: 1px solid var(--card-border); border-radius: 8px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
 @media (max-width: 768px) {
   .modal { padding: 0; }
-  .modal-workspace, .modal-dialog, .modal-dialog-md, .modal-dialog-lg { width: 100vw; height: 100vh; max-width: 100vw; min-width: 100vw; border-radius: 0; border: none; }
+  .modal-workspace, .modal-dialog, .modal-dialog-md, .modal-dialog-lg, .modal-dialog-host { width: 100vw; height: 100vh; max-width: 100vw; min-width: 100vw; border-radius: 0; border: none; }
   header { padding: 0 12px; height: 52px; }
   footer { padding: 0 12px; height: 32px; font-size: 0.7rem; }
   .container { padding-top: 66px; padding-bottom: 46px; padding-left: 12px; padding-right: 12px; }
@@ -1559,56 +1564,81 @@ body.has-workspace-shelf .container {
 
 <!-- Add/Edit Host Modal -->
 <div id="hostModal" class="modal">
-  <div class="modal-content modal-dialog">
+  <div class="modal-content modal-dialog-host">
     <div class="modal-header">
       <h3 id="hostModalTitle" data-i18n="add_host_title">Add Host</h3>
       <button class="btn btn-sm" onclick="closeModal('hostModal')">✕</button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body" style="padding: 16px 20px;">
       <input type="hidden" id="editHostId" />
-      <div class="form-group">
-        <label data-i18n="display_name">Display Name</label>
-        <input type="text" id="hostName" placeholder="e.g. Production Web" data-i18n-placeholder="display_name_ph" />
-      </div>
-      <div class="form-group">
-        <label data-i18n="addr_ip">Hostname or IP</label>
-        <input type="text" id="hostAddr" placeholder="192.168.1.100 or vps.domain.com" data-i18n-placeholder="addr_ip_ph" />
-      </div>
-      <div class="form-group">
-        <label data-i18n="host_group">Host Group</label>
-        <input type="text" id="hostGroup" list="groupSuggestions" placeholder="e.g. Server Utama, Testing, DB Cluster" data-i18n-placeholder="host_group_ph" />
-        <datalist id="groupSuggestions"></datalist>
-      </div>
-      <div style="display: flex; gap: 12px;">
-        <div class="form-group" style="flex: 1;">
-          <label data-i18n="ssh_port">SSH Port</label>
-          <input type="number" id="hostPort" value="22" />
+      <div class="host-form-grid">
+        <!-- Left Column: SSH Connection & Credentials -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="form-group">
+            <label data-i18n="display_name">Display Name</label>
+            <input type="text" id="hostName" placeholder="e.g. Production Web" data-i18n-placeholder="display_name_ph" />
+          </div>
+          <div class="form-group">
+            <label data-i18n="addr_ip">Hostname or IP</label>
+            <input type="text" id="hostAddr" placeholder="192.168.1.100 or vps.domain.com" data-i18n-placeholder="addr_ip_ph" />
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <div class="form-group" style="flex: 1;">
+              <label data-i18n="ssh_port">SSH Port</label>
+              <input type="number" id="hostPort" value="22" />
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label data-i18n="ssh_user">SSH User</label>
+              <input type="text" id="hostUser" value="root" />
+            </div>
+          </div>
+          <div class="form-group" id="passGroup">
+            <label style="display: block; margin-bottom: 2px;" data-i18n="ssh_pass">SSH Password</label>
+            <small style="display: block; color: var(--text-muted); font-size: 0.72rem; margin-bottom: 6px;" data-i18n="ssh_pass_hint">One-time password to inject Pantau SSH key (never saved).</small>
+            <input type="password" id="hostPassword" placeholder="e.g. root password (never stored in database)" data-i18n-placeholder="ssh_pass_ph" />
+          </div>
+          <div class="form-group">
+            <label style="display: block; margin-bottom: 2px;" data-i18n="custom_key_label">Custom SSH Private Key</label>
+            <small style="display: block; color: var(--text-muted); font-size: 0.72rem; margin-bottom: 6px;" data-i18n="custom_key_hint">Optional: leave blank to use Pantau's global SSH key.</small>
+            <textarea id="hostCustomKey" rows="2" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" data-i18n-placeholder="custom_key_ph"></textarea>
+          </div>
         </div>
-        <div class="form-group" style="flex: 1;">
-          <label data-i18n="ssh_user">SSH User</label>
-          <input type="text" id="hostUser" value="root" />
+
+        <!-- Right Column: Metadata & Live Test Result Panel -->
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="form-group">
+            <label data-i18n="host_group">Host Group</label>
+            <input type="text" id="hostGroup" list="groupSuggestions" placeholder="e.g. Server Utama, Testing, DB Cluster" data-i18n-placeholder="host_group_ph" />
+            <datalist id="groupSuggestions"></datalist>
+          </div>
+          <div class="form-group">
+            <label data-i18n="commission_date_label">Hardware Commission Date</label>
+            <input type="date" id="hostCommissionDate" />
+          </div>
+          <div class="form-group">
+            <label data-i18n="host_note">Host Note</label>
+            <textarea id="hostNote" rows="2" placeholder="e.g. Primary DB server, maintenance every Sunday" data-i18n-placeholder="host_note_ph"></textarea>
+          </div>
+          <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
+            <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span data-i18n="test_status_label">Connection Test Status</span>
+              <span style="font-size: 0.7rem; color: var(--text-muted);">Realtime SSH</span>
+            </label>
+            <div id="hostModalTestResult" style="flex: 1; min-height: 85px; max-height: 110px; padding: 10px 12px; border-radius: 6px; font-size: 0.8rem; background: rgba(15, 23, 42, 0.4); border: 1px dashed rgba(51, 65, 85, 0.7); display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; color: var(--text-muted); overflow-y: auto;">
+              <div style="font-size: 1.1rem; margin-bottom: 2px;">⚡</div>
+              <div style="font-size: 0.76rem;" data-i18n="test_hint_empty">Click 'Test Connection' to verify SSH access & remote OS specs.</div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="form-group" id="passGroup">
-        <label data-i18n="ssh_pass">SSH Password (One-Time: auto-injects Pantau public key)</label>
-        <input type="password" id="hostPassword" placeholder="e.g. root password (never stored in database)" data-i18n-placeholder="ssh_pass_ph" />
-      </div>
-      <div class="form-group">
-        <label data-i18n="custom_key">Custom SSH Private Key (Optional, leave blank to use global key)</label>
-        <textarea id="hostCustomKey" rows="2" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" data-i18n-placeholder="custom_key_ph"></textarea>
-      </div>
-      <div class="form-group">
-        <label data-i18n="commission_date_label">Hardware Commission Date (Optional for New Old Stock)</label>
-        <input type="date" id="hostCommissionDate" />
-        <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 2px;" data-i18n="commission_date_hint">Overrides BIOS age if hardware was commissioned recently despite older motherboard BIOS date.</small>
-      </div>
-      <div class="form-group">
-        <label data-i18n="host_note">Host Note (Optional context / guide)</label>
-        <textarea id="hostNote" rows="2" placeholder="e.g. Primary DB server, maintenance every Sunday" data-i18n-placeholder="host_note_ph"></textarea>
-      </div>
-      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+    </div>
+    <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-top: 1px solid var(--card-border); background: rgba(15, 23, 42, 0.2);">
+      <button type="button" class="btn" id="btnTestHostModal" onclick="testConnectionInModal()" style="display: inline-flex; align-items: center; gap: 6px;">
+        <span>⚡</span> <span data-i18n="test_connection">Test Connection</span>
+      </button>
+      <div style="display: flex; gap: 10px;">
         <button class="btn" onclick="closeModal('hostModal')" data-i18n="cancel">Cancel</button>
-        <button class="btn btn-primary" onclick="saveHost()" data-i18n="save_host">Save Host</button>
+        <button class="btn btn-primary" id="btnSaveHostModal" onclick="saveHost()" data-i18n="save_host">Save Host</button>
       </div>
     </div>
   </div>
@@ -2514,8 +2544,15 @@ const I18N = {
     "addr_ip_ph": "192.168.1.100 or vps.domain.com",
     "ssh_port": "SSH Port",
     "ssh_user": "SSH User",
-    "ssh_pass": "SSH Password (One-Time: auto-injects Pantau public key)",
-    "ssh_pass_ph": "e.g. root password (never stored in database)",
+    "ssh_pass": "SSH Password",
+    "ssh_pass_hint": "One-time password to inject Pantau SSH key (never saved).",
+    "ssh_pass_ph": "e.g. root password (never stored in DB)",
+    "custom_key_label": "Custom SSH Private Key",
+    "custom_key_hint": "Optional: leave blank to use Pantau's global SSH key.",
+    "optional_badge": "Optional",
+    "inject_key_badge": "1x Inject Key",
+    "test_status_label": "Connection Test Status",
+    "test_hint_empty": "Click 'Test Connection' to verify SSH access & remote OS specs.",
     "custom_key": "Custom SSH Private Key (Optional, leave blank to use global key)",
     "custom_key_ph": "-----BEGIN OPENSSH PRIVATE KEY-----",
     "cancel": "Cancel",
@@ -2576,6 +2613,19 @@ const I18N = {
     "btn_inject_key": "Inject Key",
     "more_actions": "More Actions",
     "test_connection": "Test Connection",
+    "host_created_inspecting": "Host saved successfully! Starting initial inspection...",
+    "initial_sync_title": "Collecting Initial System Metrics...",
+    "initial_sync_desc": "Connecting via SSH to scrape OS, CPU, RAM, disk, and containers.",
+    "initial_sync_detail_hint": "Pantau is currently running its first agentless inspection on this host. System specs, resource usage, and containers will appear here automatically in a few seconds.",
+    "docker_sync_title": "Docker Discovery in Progress...",
+    "docker_sync_desc": "Checking Docker daemon and container status via SSH. This view will update automatically.",
+    "services_sync_title": "Services Discovery in Progress...",
+    "services_sync_desc": "Scanning system services and actual states via SSH. This view will update automatically.",
+    "status_initializing": "Initializing",
+    "connecting_to": "Connecting to",
+    "host_addr_required": "Hostname or IP is required to test connection.",
+    "auth_via_pass_note": "Password OK - Pantau key will be injected on save",
+    "auth_via_key_note": "SSH Key authenticated",
     "delete_host": "Delete Host",
     "inject_key_title": "Key Provisioning",
     "inject_key_desc": "One-time temporary root password to inject Pantau's SSH public key into authorized_keys. Password is never saved.",
@@ -3110,8 +3160,15 @@ const I18N = {
     "addr_ip_ph": "192.168.1.100 atau vps.domain.com",
     "ssh_port": "Port SSH",
     "ssh_user": "User SSH",
-    "ssh_pass": "Password SSH (Satu Kali: auto-inject public key Pantau)",
-    "ssh_pass_ph": "contoh: password root (tidak pernah disimpan di database)",
+    "ssh_pass": "Password SSH",
+    "ssh_pass_hint": "Satu kali untuk injeksi kunci SSH Pantau (tidak disimpan).",
+    "ssh_pass_ph": "contoh: password root (tidak disimpan di DB)",
+    "custom_key_label": "Custom SSH Private Key",
+    "custom_key_hint": "Opsional: kosongkan untuk menggunakan kunci global Pantau.",
+    "optional_badge": "Opsional",
+    "inject_key_badge": "1x Inject Key",
+    "test_status_label": "Status Uji Koneksi",
+    "test_hint_empty": "Klik 'Uji Koneksi SSH' untuk memverifikasi akses & remote OS.",
     "custom_key": "Custom SSH Private Key (Opsional, kosongkan untuk gunakan kunci global)",
     "custom_key_ph": "-----BEGIN OPENSSH PRIVATE KEY-----",
     "cancel": "Batal",
@@ -3172,6 +3229,19 @@ const I18N = {
     "btn_inject_key": "Inject Key",
     "more_actions": "Aksi Lainnya",
     "test_connection": "Uji Koneksi SSH",
+    "host_created_inspecting": "Host berhasil disimpan! Memulai inspeksi data awal...",
+    "initial_sync_title": "Sedang Mengumpulkan Data Sistem Awal...",
+    "initial_sync_desc": "Menghubungkan via SSH untuk mengambil info OS, CPU, RAM, disk, dan kontainer.",
+    "initial_sync_detail_hint": "Pantau sedang menjalankan inspeksi agentless pertama pada host ini. Spesifikasi, penggunaan resource, dan kontainer akan muncul otomatis dalam beberapa detik.",
+    "docker_sync_title": "Pemeriksaan Docker Sedang Berjalan...",
+    "docker_sync_desc": "Sedang memeriksa status daemon Docker dan kontainer via SSH. Halaman ini akan diperbarui otomatis.",
+    "services_sync_title": "Pemeriksaan Layanan Sedang Berjalan...",
+    "services_sync_desc": "Sedang memindai layanan sistem via SSH. Halaman ini akan diperbarui otomatis.",
+    "status_initializing": "Menginisialisasi",
+    "connecting_to": "Menghubungkan ke",
+    "host_addr_required": "Alamat Host atau IP wajib diisi untuk uji koneksi.",
+    "auth_via_pass_note": "Password Valid - Kunci SSH Pantau akan diinjeksikan saat simpan",
+    "auth_via_key_note": "Terotentikasi via SSH Key",
     "delete_host": "Hapus Host",
     "inject_key_title": "Key Provisioning",
     "inject_key_desc": "Password sementara satu kali untuk injeksi public key Pantau ke authorized_keys. Password tidak pernah disimpan.",
@@ -4451,22 +4521,19 @@ function renderGridView(grid, isManualSort) {
       }
 
       const recency = formatRelativeTime(h.last_inspected);
+      const isInitial = !h.last_inspected;
+      const statusBadge = isInitial 
+        ? `<span class="badge badge-unknown" style="display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;"><span class="spinning" style="font-size:0.7rem;">🔄</span> ${t('status_initializing', 'Initializing')}</span>`
+        : `<span class="badge badge-${h.status}">${h.status}</span>`;
 
-      card.innerHTML = `
-        <div class="card-title">
-          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            ${isManualSort ? `<span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span>` : ''}
-            <span style="font-weight: 600;">${escapeHtml(h.name)}</span>
-            ${h.group_name ? `<span class="badge" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8;">📁 ${escapeHtml(h.group_name)}</span>` : ''}
-          </div>
-          <div style="display: inline-flex; align-items: center; gap: 6px;">
-            <span class="badge badge-${h.status}">${h.status}</span>
-            <button class="btn-inspect-quick" id="inspectBtn-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
-            </button>
-          </div>
+      const cardBodyHtml = isInitial ? `
+        <div class="stat-row"><span>${t('address')}</span> <span>${h.host}:${h.port} (${h.user})</span></div>
+        <div style="margin: 12px 0 10px 0; padding: 18px 12px; background: rgba(56, 189, 248, 0.06); border: 1px dashed rgba(56, 189, 248, 0.35); border-radius: 8px; text-align: center;">
+          <div style="font-size: 1.5rem; margin-bottom: 6px; display: inline-block; animation: spin 2.5s linear infinite;">⏳</div>
+          <div style="font-size: 0.88rem; font-weight: 600; color: #38bdf8;">${t('initial_sync_title', 'Collecting Initial System Metrics...')}</div>
+          <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">${t('initial_sync_desc', 'Connecting via SSH to scrape OS, CPU, RAM, disk, and containers.')}</div>
         </div>
-        ${noteHtml}
+      ` : `
         <div class="stat-row"><span>${t('address')}</span> <span>${h.host}:${h.port} (${h.user})</span></div>
         <div class="stat-row"><span>${t('os')}</span> <span>${escapeHtml(h.os_info || 'Unknown')}</span></div>
         <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(h.uptime || '-')}</span></div>
@@ -4527,6 +4594,24 @@ function renderGridView(grid, isManualSort) {
             </div>
           </div>
         </div>
+      `;
+
+      card.innerHTML = `
+        <div class="card-title">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            ${isManualSort ? `<span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span>` : ''}
+            <span style="font-weight: 600;">${escapeHtml(h.name)}</span>
+            ${h.group_name ? `<span class="badge" style="font-size: 0.68rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8;">📁 ${escapeHtml(h.group_name)}</span>` : ''}
+          </div>
+          <div style="display: inline-flex; align-items: center; gap: 6px;">
+            ${statusBadge}
+            <button class="btn-inspect-quick ${h.is_inspecting ? 'spinning' : ''}" id="inspectBtn-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            </button>
+          </div>
+        </div>
+        ${noteHtml}
+        ${cardBodyHtml}
         `;
         const hostTabsCount = terminalTabs.filter(t => t.hostID === h.id).length;
         const hasActiveSession = workspaceSessions.some(s => s.hostId === h.id);
@@ -4663,6 +4748,10 @@ function renderListView(listContainer, isManualSort) {
       `;
 
       const recency = formatRelativeTime(h.last_inspected);
+      const isInitial = !h.last_inspected;
+      const statusBadge = isInitial 
+        ? `<span class="badge badge-unknown" style="display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;"><span class="spinning" style="font-size:0.7rem;">🔄</span> ${t('status_initializing', 'Initializing')}</span>`
+        : `<span class="badge badge-${h.status}">${h.status}</span>`;
       const hostTabsCount = terminalTabs.filter(t => t.hostID === h.id).length;
       const hasActiveSession = workspaceSessions.some(s => s.hostId === h.id);
 
@@ -4670,8 +4759,8 @@ function renderListView(listContainer, isManualSort) {
         ${isManualSort ? `<td style="text-align: center;"><span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span></td>` : ''}
         <td>
           <div style="display: inline-flex; align-items: center; gap: 6px;">
-            <span class="badge badge-${h.status}">${h.status}</span>
-            <button class="btn-inspect-quick" id="inspectBtnList-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
+            ${statusBadge}
+            <button class="btn-inspect-quick ${h.is_inspecting ? 'spinning' : ''}" id="inspectBtnList-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
             </button>
           </div>
@@ -4683,22 +4772,28 @@ function renderListView(listContainer, isManualSort) {
           </div>
         </td>
         <td>${h.host}:${h.port} <span style="color: var(--text-muted); font-size: 0.8rem;">(${h.user})</span></td>
-        <td style="color: var(--text-muted);">${escapeHtml(h.os_info || '-')}</td>
+        <td style="color: var(--text-muted);">${isInitial ? '<span style="color: #38bdf8; font-style: italic;">' + t('status_initializing', 'Initializing...') + '</span>' : escapeHtml(h.os_info || '-')}</td>
         <td title="${recency.title}" style="font-size: 0.8rem; white-space: nowrap; ${recency.isStale ? 'color: #fbbf24; font-weight: 600;' : 'color: var(--text-muted);'}">
-          ${recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : ''}🕒 ${recency.relative}${h.last_duration_ms > 0 ? `<div style="font-size: 0.72rem; color: #34d399; font-weight: 600;">${h.last_duration_ms}ms</div>` : ''}
+          ${isInitial ? '<span style="color: var(--text-muted);">🕒 -</span>' : (recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : '') + '🕒 ' + recency.relative + (h.last_duration_ms > 0 ? `<div style="font-size: 0.72rem; color: #34d399; font-weight: 600;">${h.last_duration_ms}ms</div>` : '')}
         </td>
-        <td><span class="score-badge" style="color: ${scoreColor}; font-size: 0.9rem;">${h.lifecycle_score}</span></td>
+        <td><span class="score-badge" style="color: ${scoreColor}; font-size: 0.9rem;">${isInitial ? '-' : h.lifecycle_score}</span></td>
         <td title="${formatBytes(h.ram_used_bytes || 0)} / ${formatBytes(h.ram_total_bytes || 0)}">
-          <div style="font-size: 0.8rem; margin-bottom: 2px;">${ramPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.ram_total_bytes || 0)})</span></div>
-          <div class="progress" style="height: 4px;"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
+          ${isInitial ? '<div style="font-size: 0.78rem; color: var(--text-muted);">⏳ Syncing...</div>' : `
+            <div style="font-size: 0.8rem; margin-bottom: 2px;">${ramPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.ram_total_bytes || 0)})</span></div>
+            <div class="progress" style="height: 4px;"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
+          `}
         </td>
         <td title="${formatBytes(h.disk_used_bytes || 0)} / ${formatBytes(h.disk_total_bytes || 0)}">
-          <div style="font-size: 0.8rem; margin-bottom: 2px;">${diskPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.disk_total_bytes || 0)})</span></div>
-          <div class="progress" style="height: 4px;"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
+          ${isInitial ? '<div style="font-size: 0.78rem; color: var(--text-muted);">⏳ Syncing...</div>' : `
+            <div style="font-size: 0.8rem; margin-bottom: 2px;">${diskPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.disk_total_bytes || 0)})</span></div>
+            <div class="progress" style="height: 4px;"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
+          `}
         </td>
         <td style="font-size: 0.78rem; font-family: monospace;">
-          <div title="Network Traffic: ⬇️ In / ⬆️ Out" style="color: #38bdf8;">⬇️ ${formatBytes(h.net_rx_speed_bps)}/s ⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
-          <div title="Disk I/O: 📖 Read / ✍️ Write" style="color: #c084fc; margin-top: 2px;">📖 ${formatBytes(h.disk_read_speed_bps)}/s ✍️ ${formatBytes(h.disk_write_speed_bps)}/s</div>
+          ${isInitial ? '<span style="color: var(--text-muted); font-size: 0.78rem;">⏳ Syncing...</span>' : `
+            <div title="Network Traffic: ⬇️ In / ⬆️ Out" style="color: #38bdf8;">⬇️ ${formatBytes(h.net_rx_speed_bps)}/s ⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
+            <div title="Disk I/O: 📖 Read / ✍️ Write" style="color: #c084fc; margin-top: 2px;">📖 ${formatBytes(h.disk_read_speed_bps)}/s ✍️ ${formatBytes(h.disk_write_speed_bps)}/s</div>
+          `}
         </td>
         <td>${noteHtml}</td>
         <td style="text-align: right;">
@@ -4770,6 +4865,7 @@ async function loadHosts() {
     setEngineStatus(true);
     updateFooterMetrics();
     renderHosts();
+    scheduleFastPollIfNeeded();
     if (!window._tabsRestoredOnce) {
       window._tabsRestoredOnce = true;
       restoreSavedTerminalTabs();
@@ -4777,6 +4873,65 @@ async function loadHosts() {
   } catch(e) {
     setEngineStatus(false);
   }
+}
+
+let fastPollTimer = null;
+let fastPollAttempts = 0;
+const MAX_FAST_POLL_ATTEMPTS = 20;
+
+function scheduleFastPollIfNeeded() {
+  if (fastPollTimer) return;
+  const hasInFlightOrNew = (allRawHosts || []).some(h => !h.last_inspected || h.is_inspecting);
+  if (!hasInFlightOrNew) {
+    fastPollAttempts = 0;
+    return;
+  }
+  runFastPoll();
+}
+
+async function runFastPoll() {
+  fastPollTimer = null;
+  const hasInFlightOrNew = (allRawHosts || []).some(h => !h.last_inspected || h.is_inspecting);
+  if (!hasInFlightOrNew || fastPollAttempts >= MAX_FAST_POLL_ATTEMPTS) {
+    fastPollAttempts = 0;
+    return;
+  }
+  fastPollAttempts++;
+  fastPollTimer = setTimeout(async () => {
+    try {
+      const res = await fetch('/api/hosts');
+      if (res.ok) {
+        allRawHosts = await res.json() || [];
+        updateGroupSuggestions();
+        updateFooterMetrics();
+        renderHosts();
+        if (currentDetailHostId && window.detailData && window.detailData.host) {
+          const activeH = allRawHosts.find(h => h.id === currentDetailHostId);
+          if (activeH && (!window.detailData.host.last_inspected || window.detailData.host.is_inspecting || activeH.last_inspected)) {
+            refreshActiveHostDetailQuietly(currentDetailHostId);
+          }
+        }
+      }
+    } catch(e) {}
+    fastPollTimer = null;
+    runFastPoll();
+  }, 1500);
+}
+
+async function refreshActiveHostDetailQuietly(id) {
+  try {
+    const res = await fetch('/api/hosts/' + id);
+    if (!res.ok) return;
+    const data = await res.json();
+    window.detailData = data;
+    currentHost = data.host;
+    const badge = document.getElementById('detailHostBadge');
+    if (badge) {
+      badge.className = 'badge badge-' + currentHost.status;
+      badge.innerText = currentHost.status;
+    }
+    switchTab(currentTab);
+  } catch(e) {}
 }
 
 let alertOverlayOpen = false;
@@ -4903,6 +5058,20 @@ document.addEventListener('click', function(e) {
   }
 });
 
+function resetHostModalTestResult() {
+  const resBox = document.getElementById('hostModalTestResult');
+  if (resBox) {
+    resBox.style.display = 'flex';
+    resBox.style.background = 'rgba(15, 23, 42, 0.4)';
+    resBox.style.border = '1px dashed rgba(51, 65, 85, 0.7)';
+    resBox.style.color = 'var(--text-muted)';
+    resBox.innerHTML = `
+      <div style="font-size: 1.1rem; margin-bottom: 2px;">⚡</div>
+      <div style="font-size: 0.76rem;">${escapeHtml(t('test_hint_empty', "Click 'Test Connection' to verify SSH access & remote OS specs."))}</div>
+    `;
+  }
+}
+
 function openAddHostModal() {
   document.getElementById('hostModalTitle').innerText = t('add_host_title');
   document.getElementById('editHostId').value = '';
@@ -4915,8 +5084,9 @@ function openAddHostModal() {
   document.getElementById('hostCommissionDate').value = '';
   document.getElementById('hostNote').value = '';
   document.getElementById('hostGroup').value = '';
+  resetHostModalTestResult();
   updateGroupSuggestions();
-  document.getElementById('passGroup').style.display = 'flex';
+  document.getElementById('passGroup').style.display = 'block';
   openModal('hostModal');
 }
 
@@ -4935,8 +5105,97 @@ function openEditHostModal(hostId) {
   document.getElementById('hostCommissionDate').value = h.commission_date || '';
   document.getElementById('hostNote').value = h.notes || '';
   document.getElementById('passGroup').style.display = 'none';
+  resetHostModalTestResult();
   updateGroupSuggestions();
   openModal('hostModal');
+}
+
+async function testConnectionInModal() {
+  const host = (document.getElementById('hostAddr')?.value || '').trim();
+  const port = parseInt(document.getElementById('hostPort')?.value) || 22;
+  const user = (document.getElementById('hostUser')?.value || '').trim() || 'root';
+  const password = document.getElementById('hostPassword')?.value || '';
+  const custom_key = document.getElementById('hostCustomKey')?.value || '';
+  const host_id = parseInt(document.getElementById('editHostId')?.value) || 0;
+
+  const btn = document.getElementById('btnTestHostModal');
+  const resBox = document.getElementById('hostModalTestResult');
+  if (!host) {
+    if (resBox) {
+      resBox.style.display = 'block';
+      resBox.style.background = 'rgba(239, 68, 68, 0.15)';
+      resBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+      resBox.style.color = '#f87171';
+      resBox.innerHTML = '⚠️ ' + escapeHtml(t('host_addr_required', 'Hostname or IP is required to test connection.'));
+    }
+    return;
+  }
+
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinning" style="display:inline-block;">🔄</span> <span>${escapeHtml(t('testing_ssh', 'Testing SSH connection...'))}</span>`;
+  }
+  if (resBox) {
+    resBox.style.display = 'flex';
+    resBox.style.background = 'rgba(56, 189, 248, 0.08)';
+    resBox.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+    resBox.style.color = '#38bdf8';
+    resBox.innerHTML = `
+      <div class="spinning" style="font-size: 1.2rem; margin-bottom: 4px;">🔄</div>
+      <div style="font-size: 0.78rem;">${escapeHtml(t('connecting_to', 'Connecting to'))} ${escapeHtml(user)}@${escapeHtml(host)}:${port}...</div>
+    `;
+  }
+
+  try {
+    const res = await fetch('/api/hosts/test-connection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, port, user, password, custom_key, host_id })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (resBox) {
+        resBox.style.display = 'block';
+        resBox.style.background = 'rgba(52, 211, 153, 0.1)';
+        resBox.style.border = '1px solid rgba(52, 211, 153, 0.4)';
+        resBox.style.color = '#34d399';
+        resBox.style.overflowY = 'auto';
+        const methodNote = data.auth_method === 'password'
+          ? ` <span style="font-size:0.72rem; color:#a7f3d0;">(${t('auth_via_pass_note', 'Password OK - Pantau key will be injected on save')})</span>`
+          : ` <span style="font-size:0.72rem; color:#a7f3d0;">(${t('auth_via_key_note', 'SSH Key authenticated')})</span>`;
+        resBox.innerHTML = `
+          <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 4px;">✅ ${escapeHtml(t('ssh_test_success', 'SSH Connection Success:'))}${methodNote}</div>
+          <div style="color:var(--text, #e2e8f0); font-family:monospace; font-size:0.75rem; white-space:pre-wrap; line-height:1.3;">${escapeHtml(data.output || 'Authenticated')}</div>
+        `;
+      }
+    } else {
+      if (resBox) {
+        resBox.style.display = 'block';
+        resBox.style.background = 'rgba(239, 68, 68, 0.12)';
+        resBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+        resBox.style.color = '#f87171';
+        resBox.style.overflowY = 'auto';
+        resBox.innerHTML = `
+          <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 4px;">❌ ${escapeHtml(t('ssh_test_failed', 'SSH Test Failed:'))}</div>
+          <div style="font-size:0.75rem; line-height: 1.3; word-break: break-all;">${escapeHtml(data.error || 'Connection failed')}</div>
+        `;
+      }
+    }
+  } catch(e) {
+    if (resBox) {
+      resBox.style.display = 'block';
+      resBox.style.background = 'rgba(239, 68, 68, 0.15)';
+      resBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+      resBox.style.color = '#f87171';
+      resBox.innerHTML = `❌ <strong>${escapeHtml(t('ssh_test_failed', 'SSH Test Failed:'))}</strong><br><span style="font-size:0.8rem;">${escapeHtml(e.message)}</span>`;
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  }
 }
 
 function updateGroupSuggestions() {
@@ -4987,8 +5246,13 @@ async function saveHost() {
   });
   if (res.ok) {
     closeModal('hostModal');
-    showToast(t('save_host_success', 'Host saved successfully'), 'success');
-    loadHosts();
+    if (!id) {
+      showToast(t('host_created_inspecting', 'Host saved successfully! Starting initial inspection...'), 'info', 5000);
+    } else {
+      showToast(t('save_host_success', 'Host saved successfully'), 'success');
+    }
+    await loadHosts();
+    scheduleFastPollIfNeeded();
     if (id && currentDetailHostId === parseInt(id)) {
       openHostDetail(id);
     }
@@ -5274,6 +5538,7 @@ async function openHostDetail(id) {
   if (!res.ok) return;
   const data = await res.json();
   currentHost = data.host;
+  currentDetailHostId = parseInt(id);
   window.detailData = data;
   document.getElementById('detailHostName').innerText = currentHost.name + ' (' + currentHost.host + ')';
   const badge = document.getElementById('detailHostBadge');
@@ -5283,6 +5548,9 @@ async function openHostDetail(id) {
   applyHostDetailMaximizeState();
   const targetTab = getHostActiveTab(currentHost.id);
   switchTab(targetTab);
+  if (!currentHost.last_inspected || currentHost.is_inspecting) {
+    scheduleFastPollIfNeeded();
+  }
 }
 
 async function openHostTerminal(hostID, presetID) {
@@ -5355,6 +5623,13 @@ function switchTab(tab, presetID) {
     const detailRecency = formatRelativeTime(d.host.last_inspected);
 
     content.innerHTML = `
+      ${!d.host.last_inspected ? `
+        <div style="margin-bottom: 14px; padding: 18px 20px; background: rgba(56, 189, 248, 0.08); border: 1px dashed rgba(56, 189, 248, 0.4); border-radius: 8px; text-align: center;">
+          <div style="font-size: 1.6rem; margin-bottom: 6px; display: inline-block; animation: spin 2.5s linear infinite;">⏳</div>
+          <div style="font-size: 0.95rem; font-weight: 600; color: #38bdf8;">${t('initial_sync_title', 'Collecting Initial System Metrics...')}</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">${t('initial_sync_detail_hint', 'Pantau is currently running its first agentless inspection on this host. System specs, resource usage, and containers will appear here automatically in a few seconds.')}</div>
+        </div>
+      ` : ''}
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
         <div class="card">
           <h4>${t('sys_info')}</h4>
@@ -5675,13 +5950,21 @@ function switchTab(tab, presetID) {
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-shrink: 0;">
         <h4>${t('docker_containers')}</h4>
       </div>
-      ${containers.length === 0 ? `
-        <div class="empty-state">
-          <div class="empty-state-icon">🐳</div>
-          <div class="empty-state-title">${t('no_containers_title')}</div>
-          <div class="empty-state-desc">${t('no_containers_desc')}</div>
-        </div>
-      ` : `
+      ${containers.length === 0 ? (
+        (!d.host.last_inspected || d.host.is_inspecting) ? `
+          <div class="empty-state" style="padding: 40px 20px;">
+            <div class="empty-state-icon" style="animation: spin 2.5s linear infinite; display: inline-block;">⏳</div>
+            <div class="empty-state-title" style="color: #38bdf8;">${t('docker_sync_title', 'Docker Discovery in Progress...')}</div>
+            <div class="empty-state-desc">${t('docker_sync_desc', 'Checking Docker daemon and container status via SSH. This view will update automatically.')}</div>
+          </div>
+        ` : `
+          <div class="empty-state">
+            <div class="empty-state-icon">🐳</div>
+            <div class="empty-state-title">${t('no_containers_title')}</div>
+            <div class="empty-state-desc">${t('no_containers_desc')}</div>
+          </div>
+        `
+      ) : `
         <table>
           <thead>
             <tr><th>${t('container_name')}</th><th>${t('status')}</th><th>${t('action')}</th></tr>
@@ -10214,6 +10497,7 @@ function closeModal(id) {
     return;
   }
   if (id === 'hostDetailModal') {
+    currentDetailHostId = null;
     if (currentHost) {
       workspaceSessions = workspaceSessions.filter(s => !(s.type === 'host' && s.hostId === currentHost.id));
       renderWorkspaceShelf();

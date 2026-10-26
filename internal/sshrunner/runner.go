@@ -118,6 +118,31 @@ func Connect(host string, port int, user, privateKeyPEM string, timeout time.Dur
 	return &LiveSSHRunner{client: client}, nil
 }
 
+// ConnectWithPassword creates a LiveSSHRunner authenticated using username and password.
+func ConnectWithPassword(host string, port int, user, password string, timeout time.Duration) (*LiveSSHRunner, error) {
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+
+	config := &ssh.ClientConfig{
+		User: user,
+		Auth: []ssh.AuthMethod{
+			ssh.Password(password),
+		},
+		HostKeyCallback: TOFUHostKeyCallback(),
+		Timeout:         timeout,
+	}
+	configureLegacyCompatibleSSH(config)
+
+	addr := fmt.Sprintf("%s:%d", host, port)
+	client, err := ssh.Dial("tcp", addr, config)
+	if err != nil {
+		return nil, fmt.Errorf("ssh password authentication failed: %w", err)
+	}
+
+	return &LiveSSHRunner{client: client}, nil
+}
+
 // configureLegacyCompatibleSSH applies a comprehensive set of key exchanges, ciphers, and host key algorithms
 // so Pantau can seamlessly connect to both modern servers and legacy servers (CentOS 5/6, Debian 7) without per-host flags.
 // ponytail: Universal legacy-compatible cryptographic profile.

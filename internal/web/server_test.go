@@ -1817,7 +1817,7 @@ func TestFilePinsAPI(t *testing.T) {
 	}
 
 	// 6. Verify empty again
-	req = httptest.NewRequest(http.MethodGet, "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/files/pins", nil)
+	req = httptest.NewRequest(http.MethodDelete, "/api/hosts/"+strconv.FormatInt(hostID, 10)+"/files/pins?path=/var/log/syslog", nil)
 	authReq(req)
 	w = httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
@@ -1827,6 +1827,152 @@ func TestFilePinsAPI(t *testing.T) {
 		t.Fatalf("expected 0 pins after delete, got %d", len(pins))
 	}
 }
+
+func TestHostTestConnection_AdHoc(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		if strings.Contains(cmd, "uname") {
+			return "Linux 6.1.0-custom x86_64\n 12:00:00 up 10 days", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+	factory := func(host string, port int, user, key string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}
+	ins := inspector.New(db, factory, nil)
+	srv := NewServer(db, ins, nil)
+	token := "valid_test_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{Name: "pantau_session", Value: token})
+	}
+
+	// 1. Missing host address should fail cleanly
+	payloadInvalid := map[string]interface{}{"host": "", "port": 22, "user": "root"}
+	body, _ := json.Marshal(payloadInvalid)
+	req := httptest.NewRequest(http.MethodPost, "/api/hosts/test-connection", bytes.NewReader(body))
+	authReq(req)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var res map[string]interface{}
+	_ = json.NewDecoder(w.Body).Decode(&res)
+	if res["ok"] == true {
+		t.Fatalf("expected ok=false for empty host, got %+v", res)
+	}
+
+	// 2. Valid test connection via key
+	payloadValid := map[string]interface{}{
+		"host": "192.168.1.100",
+		"port": 22,
+		"user": "root",
+		"custom_key": "-----BEGIN TEST KEY-----",
+	}
+	body, _ = json.Marshal(payloadValid)
+	req = httptest.NewRequest(http.MethodPost, "/api/hosts/test-connection", bytes.NewReader(body))
+	authReq(req)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	res = nil
+	_ = json.NewDecoder(w.Body).Decode(&res)
+	if res["ok"] != true {
+		t.Fatalf("expected ok=true, got %+v", res)
+	}
+	if !strings.Contains(res["output"].(string), "Linux 6.1.0-custom") {
+		t.Fatalf("expected uname output, got %v", res["output"])
+	}
+	if res["auth_method"] != "key" {
+		t.Fatalf("expected auth_method=key, got %v", res["auth_method"])
+	}
+}
+
+func TestHostCreate_ImmediateInspectionAndEnrichment(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "", "", 0, nil
+	}
+	factory := func(host string, port int, user, key string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}
+	ins := inspector.New(db, factory, nil)
+	srv := NewServer(db, ins, nil)
+	token := "valid_test_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authReq := func(req *http.Request) {
+		req.AddCookie(&http.Cookie{Name: "pantau_session", Value: token})
+	}
+
+	// Create host via POST /api/hosts
+	newHost := map[string]interface{}{
+		"name": "Immediate Host",
+		"host": "192.168.10.5",
+		"port": 22,
+		"user": "root",
+	}
+	body, _ := json.Marshal(newHost)
+	req := httptest.NewRequest(http.MethodPost, "/api/hosts", bytes.NewReader(body))
+	authReq(req)
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+	var createdHost store.Host
+	_ = json.NewDecoder(w.Body).Decode(&createdHost)
+	if createdHost.ID == 0 {
+		t.Fatalf("expected non-zero host ID")
+	}
+	if !createdHost.IsInspecting {
+		t.Fatalf("expected created host to have IsInspecting=true")
+	}
+
+	// Wait up to 100ms for background inspection goroutine
+	time.Sleep(100 * time.Millisecond)
+
+	// GET /api/hosts should list the host with enriched IsInspecting field
+	req = httptest.NewRequest(http.MethodGet, "/api/hosts", nil)
+	authReq(req)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var hosts []store.Host
+	_ = json.NewDecoder(w.Body).Decode(&hosts)
+	if len(hosts) != 1 || hosts[0].Name != "Immediate Host" {
+		t.Fatalf("unexpected hosts list: %+v", hosts)
+	}
+}
+
 
 
 
