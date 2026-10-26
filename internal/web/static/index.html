@@ -2410,6 +2410,60 @@ body.has-workspace-shelf .container {
   </div>
 </div>
 
+<!-- Network Diagnostics Preset Manager Modal -->
+<div id="netDiagPresetManagerModal" class="modal">
+  <div class="modal-content modal-dialog-lg" style="display: flex; flex-direction: column; max-height: 85vh;">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span>🎯</span>
+        <h3 data-i18n="netdiag_preset_manage">Manage Presets</h3>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-primary btn-sm" onclick="openCreateNetDiagPresetModal()">➕ <span data-i18n="netdiag_preset_add">Add Preset</span></button>
+        <button class="btn btn-sm" onclick="closeModal('netDiagPresetManagerModal')">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow: hidden;">
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <input type="text" id="netDiagPresetSearchInput" class="input" style="flex: 1; height: 34px;" placeholder="Search preset by name, IP, or location..." data-i18n-placeholder="netdiag_preset_search_ph" oninput="filterNetDiagPresetsList()" />
+      </div>
+      <div id="netDiagPresetListContainer" style="max-height: 55vh; overflow-y: auto;">
+        <!-- List populated dynamically -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Network Diagnostics Preset Form Modal -->
+<div id="netDiagPresetFormModal" class="modal">
+  <div class="modal-content modal-dialog" style="max-width: 480px;">
+    <div class="modal-header">
+      <h3 id="netDiagPresetFormTitle" data-i18n="netdiag_preset_add">Add Preset</h3>
+      <button class="btn btn-sm" onclick="closeModal('netDiagPresetFormModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editNetDiagPresetId" />
+      <div class="form-group">
+        <label data-i18n="netdiag_preset_name">Device / Preset Name</label>
+        <input type="text" id="netDiagPresetNameInput" class="input" placeholder="e.g. Core Router DC Cyber" style="width: 100%;" />
+      </div>
+      <div class="form-group">
+        <label data-i18n="netdiag_preset_target">Target IP / FQDN</label>
+        <input type="text" id="netDiagPresetTargetInput" class="input" placeholder="e.g. 192.168.1.1 or router.corp.net" style="width: 100%; font-family: monospace;" />
+      </div>
+      <div class="form-group">
+        <label data-i18n="netdiag_preset_category">Location / Category</label>
+        <input type="text" id="netDiagPresetCategoryInput" class="input" list="netDiagCategoryDatalist" placeholder="e.g. DC Cyber or Branch Bandung" data-i18n-placeholder="netdiag_preset_category_ph" style="width: 100%;" />
+        <datalist id="netDiagCategoryDatalist"></datalist>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+        <button class="btn" onclick="closeModal('netDiagPresetFormModal')" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-primary" onclick="submitNetDiagPresetForm()" data-i18n="save_preset">Save Preset</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Host Comparison Modal (Workspace Modal layout 75vw x 80vh) -->
 <div id="hostCompareModal" class="modal">
   <div class="modal-content modal-workspace" style="display: flex; flex-direction: column;">
@@ -3017,7 +3071,22 @@ const I18N = {
     "netdiag_source_host": "Source Host",
     "netdiag_target_mode": "Probe Target",
     "netdiag_target_inter_host": "Inter-Host",
+    "netdiag_target_preset": "Saved Presets",
     "netdiag_target_custom": "Internet / Custom Target",
+    "netdiag_preset_select": "Select Target Preset",
+    "netdiag_preset_manage": "Manage Presets",
+    "netdiag_preset_add": "Add Preset",
+    "netdiag_preset_edit": "Edit Preset",
+    "netdiag_preset_save_quick": "Save to Preset",
+    "netdiag_preset_name": "Device / Preset Name",
+    "netdiag_preset_target": "Target IP / FQDN",
+    "netdiag_preset_category": "Location / Category",
+    "netdiag_preset_category_ph": "e.g. DC Cyber or Branch Bandung",
+    "netdiag_preset_empty": "No saved presets found",
+    "netdiag_preset_search_ph": "Search preset by name, IP, or location...",
+    "netdiag_preset_delete_confirm": "Delete this probe target preset?",
+    "netdiag_preset_saved_toast": "Target preset saved successfully",
+    "netdiag_preset_deleted_toast": "Target preset deleted",
     "netdiag_target_host_select": "Select Target Host",
     "netdiag_target_ph": "e.g. 1.1.1.1 or google.com",
     "netdiag_tool": "Diagnostic Tool",
@@ -3638,7 +3707,22 @@ const I18N = {
     "netdiag_source_host": "Host Sumber",
     "netdiag_target_mode": "Target Probe",
     "netdiag_target_inter_host": "Antar-Host",
+    "netdiag_target_preset": "Preset Sasaran",
     "netdiag_target_custom": "Internet / Target Kustom",
+    "netdiag_preset_select": "Pilih Preset Sasaran",
+    "netdiag_preset_manage": "Kelola Preset",
+    "netdiag_preset_add": "Tambah Preset",
+    "netdiag_preset_edit": "Edit Preset",
+    "netdiag_preset_save_quick": "Simpan ke Preset",
+    "netdiag_preset_name": "Nama Perangkat / Preset",
+    "netdiag_preset_target": "Alamat IP / FQDN",
+    "netdiag_preset_category": "Lokasi / Kategori",
+    "netdiag_preset_category_ph": "contoh: DC Cyber atau Cabang Bandung",
+    "netdiag_preset_empty": "Belum ada preset tersimpan",
+    "netdiag_preset_search_ph": "Cari preset berdasarkan nama, IP, atau lokasi...",
+    "netdiag_preset_delete_confirm": "Hapus preset sasaran diagnostik ini?",
+    "netdiag_preset_saved_toast": "Preset sasaran berhasil disimpan",
+    "netdiag_preset_deleted_toast": "Preset sasaran berhasil dihapus",
     "netdiag_target_host_select": "Pilih Host Tujuan",
     "netdiag_target_ph": "contoh: 1.1.1.1 atau google.com",
     "netdiag_tool": "Perkakas Diagnostik",
@@ -11384,11 +11468,17 @@ function openNetDiagModal(initialSourceHostId) {
   openModal('netDiagModal');
   const container = document.getElementById('netDiagModalBody');
   renderNetDiagUI(container, 'modal', initialSourceHostId || (currentHost ? currentHost.id : null), false);
+  loadProbeTargetPresets().then(() => {
+    populateNetDiagPresetDropdown('netdiag_modal');
+  });
 }
 
 function renderNetDiagTab(host) {
   const container = document.getElementById('tabContent');
   renderNetDiagUI(container, 'tab', host ? host.id : null, true);
+  loadProbeTargetPresets().then(() => {
+    populateNetDiagPresetDropdown('netdiag_tab');
+  });
 }
 
 function renderNetDiagUI(container, contextPrefix, defaultSourceId, isSourceLocked) {
@@ -11451,6 +11541,9 @@ function renderNetDiagUI(container, contextPrefix, defaultSourceId, isSourceLock
                 <button type="button" class="btn btn-sm ${currentNetDiagTargetMode === 'inter_host' ? 'active' : ''}" id="${cid}_targetModeInter" onclick="setNetDiagTargetMode('${cid}', 'inter_host')" style="padding: 2px 8px; font-size: 0.72rem; ${currentNetDiagTargetMode === 'inter_host' ? 'background: #2563eb; color: #fff;' : 'background: transparent; color: var(--text-muted);'}">
                   ${t('netdiag_target_inter_host')}
                 </button>
+                <button type="button" class="btn btn-sm ${currentNetDiagTargetMode === 'preset' ? 'active' : ''}" id="${cid}_targetModePreset" onclick="setNetDiagTargetMode('${cid}', 'preset')" style="padding: 2px 8px; font-size: 0.72rem; ${currentNetDiagTargetMode === 'preset' ? 'background: #2563eb; color: #fff;' : 'background: transparent; color: var(--text-muted);'}">
+                  ${t('netdiag_target_preset')}
+                </button>
                 <button type="button" class="btn btn-sm ${currentNetDiagTargetMode === 'custom' ? 'active' : ''}" id="${cid}_targetModeCustom" onclick="setNetDiagTargetMode('${cid}', 'custom')" style="padding: 2px 8px; font-size: 0.72rem; ${currentNetDiagTargetMode === 'custom' ? 'background: #2563eb; color: #fff;' : 'background: transparent; color: var(--text-muted);'}">
                   ${t('netdiag_target_custom')}
                 </button>
@@ -11464,13 +11557,25 @@ function renderNetDiagUI(container, contextPrefix, defaultSourceId, isSourceLock
               </select>
             </div>
 
-            <!-- Custom / Internet Target Input & Presets -->
+            <!-- Preset Target Selector -->
+            <div id="${cid}_presetTargetContainer" style="${currentNetDiagTargetMode === 'preset' ? 'display: block;' : 'display: none;'}">
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <select id="${cid}_targetPreset" class="input" style="height: 38px; box-sizing: border-box; flex: 1;">
+                  <!-- Populated by populateNetDiagPresetDropdown -->
+                </select>
+                <button type="button" class="btn btn-secondary btn-sm" style="height: 38px; padding: 0 10px; white-space: nowrap; display: flex; align-items: center; gap: 4px;" onclick="openNetDiagPresetManagerModal('${cid}')" title="${t('netdiag_preset_manage')}">
+                  <span>⚙️</span> <span style="font-size: 0.75rem;">${t('netdiag_preset_manage')}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Custom / Internet Target Input & Quick Bookmark -->
             <div id="${cid}_customTargetContainer" style="${currentNetDiagTargetMode === 'custom' ? 'display: block;' : 'display: none;'}">
-              <input type="text" id="${cid}_targetCustomInput" class="input" style="height: 38px; box-sizing: border-box; width: 100%; margin-bottom: 6px; font-family: monospace;" value="1.1.1.1" placeholder="${t('netdiag_target_ph')}" />
-              <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-                <button type="button" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.72rem; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25); color: #93c5fd;" onclick="setNetDiagPresetTarget('${cid}', '1.1.1.1')">1.1.1.1 (Cloudflare)</button>
-                <button type="button" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.72rem; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25); color: #93c5fd;" onclick="setNetDiagPresetTarget('${cid}', '8.8.8.8')">8.8.8.8 (Google)</button>
-                <button type="button" class="btn btn-sm" style="padding: 2px 6px; font-size: 0.72rem; background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25); color: #93c5fd;" onclick="setNetDiagPresetTarget('${cid}', 'google.com')">google.com</button>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <input type="text" id="${cid}_targetCustomInput" class="input" style="height: 38px; box-sizing: border-box; flex: 1; font-family: monospace;" value="1.1.1.1" placeholder="${t('netdiag_target_ph')}" />
+                <button type="button" class="btn btn-secondary btn-sm" style="height: 38px; padding: 0 10px; white-space: nowrap; display: flex; align-items: center; gap: 4px;" onclick="quickBookmarkNetDiagTarget('${cid}')" title="${t('netdiag_preset_save_quick')}">
+                  <span>⭐</span> <span style="font-size: 0.75rem;">${t('netdiag_preset_save_quick')}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -11569,6 +11674,56 @@ function renderNetDiagUI(container, contextPrefix, defaultSourceId, isSourceLock
   `;
 
   populateNetDiagTargetHosts(cid);
+  populateNetDiagPresetDropdown(cid);
+  if (allProbeTargetPresets.length === 0) {
+    loadProbeTargetPresets().then(() => {
+      populateNetDiagPresetDropdown(cid);
+    });
+  }
+}
+
+let allProbeTargetPresets = [];
+let activeNetDiagCid = null;
+
+async function loadProbeTargetPresets() {
+  try {
+    const res = await fetch('/api/netdiag/presets');
+    if (res.ok) {
+      allProbeTargetPresets = await res.json();
+      return allProbeTargetPresets;
+    }
+  } catch (err) {
+    console.error('Failed to load probe target presets:', err);
+  }
+  return [];
+}
+
+function populateNetDiagPresetDropdown(cid) {
+  const select = document.getElementById(`${cid}_targetPreset`);
+  if (!select) return;
+
+  if (!allProbeTargetPresets || allProbeTargetPresets.length === 0) {
+    select.innerHTML = `<option value="" disabled selected>${t('netdiag_preset_empty')}</option>`;
+    return;
+  }
+
+  // Group presets by category
+  const grouped = {};
+  allProbeTargetPresets.forEach(p => {
+    const cat = p.category && p.category.trim() ? p.category.trim() : (t('common_general', 'General'));
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(p);
+  });
+
+  let html = '';
+  Object.keys(grouped).sort().forEach(cat => {
+    html += `<optgroup label="${escapeHtml(cat)}">`;
+    grouped[cat].forEach(p => {
+      html += `<option value="${escapeHtml(p.target)}" data-name="${escapeHtml(p.name)}">${escapeHtml(p.name)} (${escapeHtml(p.target)})</option>`;
+    });
+    html += `</optgroup>`;
+  });
+  select.innerHTML = html;
 }
 
 function onNetDiagSourceChange(cid) {
@@ -11600,26 +11755,225 @@ function populateNetDiagTargetHosts(cid) {
 function setNetDiagTargetMode(cid, mode) {
   currentNetDiagTargetMode = mode;
   const btnInter = document.getElementById(`${cid}_targetModeInter`);
+  const btnPreset = document.getElementById(`${cid}_targetModePreset`);
   const btnCustom = document.getElementById(`${cid}_targetModeCustom`);
   const interContainer = document.getElementById(`${cid}_interHostContainer`);
+  const presetContainer = document.getElementById(`${cid}_presetTargetContainer`);
   const customContainer = document.getElementById(`${cid}_customTargetContainer`);
 
   if (!btnInter || !btnCustom) return;
 
-  if (mode === 'inter_host') {
-    btnInter.style.background = '#2563eb';
-    btnInter.style.color = '#fff';
-    btnCustom.style.background = 'transparent';
-    btnCustom.style.color = 'var(--text-muted)';
-    if (interContainer) interContainer.style.display = 'block';
-    if (customContainer) customContainer.style.display = 'none';
+  const allBtns = [
+    { el: btnInter, isMatch: mode === 'inter_host' },
+    { el: btnPreset, isMatch: mode === 'preset' },
+    { el: btnCustom, isMatch: mode === 'custom' }
+  ];
+
+  allBtns.forEach(b => {
+    if (!b.el) return;
+    if (b.isMatch) {
+      b.el.style.background = '#2563eb';
+      b.el.style.color = '#fff';
+    } else {
+      b.el.style.background = 'transparent';
+      b.el.style.color = 'var(--text-muted)';
+    }
+  });
+
+  if (interContainer) interContainer.style.display = (mode === 'inter_host') ? 'block' : 'none';
+  if (presetContainer) presetContainer.style.display = (mode === 'preset') ? 'block' : 'none';
+  if (customContainer) customContainer.style.display = (mode === 'custom') ? 'block' : 'none';
+}
+
+function quickBookmarkNetDiagTarget(cid) {
+  activeNetDiagCid = cid;
+  const customInput = document.getElementById(`${cid}_targetCustomInput`);
+  const targetVal = customInput ? customInput.value.trim() : '';
+  openCreateNetDiagPresetModal({ target: targetVal });
+}
+
+function openNetDiagPresetManagerModal(cid) {
+  if (cid) activeNetDiagCid = cid;
+  openModal('netDiagPresetManagerModal');
+  const searchInput = document.getElementById('netDiagPresetSearchInput');
+  if (searchInput) searchInput.value = '';
+  renderNetDiagPresetManagerList();
+}
+
+function filterNetDiagPresetsList() {
+  const searchInput = document.getElementById('netDiagPresetSearchInput');
+  const query = searchInput ? searchInput.value.trim() : '';
+  renderNetDiagPresetManagerList(query);
+}
+
+function renderNetDiagPresetManagerList(filterText = '') {
+  const container = document.getElementById('netDiagPresetListContainer');
+  if (!container) return;
+
+  const q = (filterText || '').toLowerCase();
+  const filtered = (allProbeTargetPresets || []).filter(p => {
+    if (!q) return true;
+    return (p.name && p.name.toLowerCase().includes(q)) ||
+           (p.target && p.target.toLowerCase().includes(q)) ||
+           (p.category && p.category.toLowerCase().includes(q));
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 0.9rem;">
+        <span style="font-size: 1.5rem; display: block; margin-bottom: 6px;">🎯</span>
+        ${t('netdiag_preset_empty')}
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+      <thead>
+        <tr style="border-bottom: 1px solid var(--card-border); text-align: left; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase;">
+          <th style="padding: 8px 10px;">${t('netdiag_preset_name')}</th>
+          <th style="padding: 8px 10px;">${t('netdiag_preset_target')}</th>
+          <th style="padding: 8px 10px;">${t('netdiag_preset_category')}</th>
+          <th style="padding: 8px 10px; width: 100px; text-align: right;">Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map(p => `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 8px 10px; font-weight: 600; color: #f8fafc;">
+              ${escapeHtml(p.name)}
+            </td>
+            <td style="padding: 8px 10px;">
+              <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-family: monospace; font-size: 0.78rem;">
+                ${escapeHtml(p.target)}
+              </span>
+            </td>
+            <td style="padding: 8px 10px;">
+              ${p.category ? `<span class="badge" style="background: rgba(148, 163, 184, 0.15); color: #cbd5e1; font-size: 0.75rem;">${escapeHtml(p.category)}</span>` : '<span style="color: var(--text-muted);">-</span>'}
+            </td>
+            <td style="padding: 8px 10px; text-align: right; white-space: nowrap;">
+              <button class="btn btn-sm btn-icon" title="Edit" onclick="openCreateNetDiagPresetModal(${escapeHtml(JSON.stringify(p))})" style="padding: 2px 6px; font-size: 0.78rem; margin-right: 4px;">✏️</button>
+              <button class="btn btn-sm btn-icon btn-danger" title="Delete" onclick="deleteNetDiagPreset(${p.id})" style="padding: 2px 6px; font-size: 0.78rem;">🗑️</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function openCreateNetDiagPresetModal(presetToEdit = null) {
+  const titleEl = document.getElementById('netDiagPresetFormTitle');
+  const idInput = document.getElementById('editNetDiagPresetId');
+  const nameInput = document.getElementById('netDiagPresetNameInput');
+  const targetInput = document.getElementById('netDiagPresetTargetInput');
+  const categoryInput = document.getElementById('netDiagPresetCategoryInput');
+  const datalist = document.getElementById('netDiagCategoryDatalist');
+
+  if (datalist) {
+    const categories = Array.from(new Set((allProbeTargetPresets || []).map(p => p.category).filter(Boolean)));
+    datalist.innerHTML = categories.map(c => `<option value="${escapeHtml(c)}"></option>`).join('');
+  }
+
+  if (presetToEdit && presetToEdit.id) {
+    if (titleEl) titleEl.innerText = t('netdiag_preset_edit');
+    if (idInput) idInput.value = presetToEdit.id;
+    if (nameInput) nameInput.value = presetToEdit.name || '';
+    if (targetInput) targetInput.value = presetToEdit.target || '';
+    if (categoryInput) categoryInput.value = presetToEdit.category || '';
   } else {
-    btnCustom.style.background = '#2563eb';
-    btnCustom.style.color = '#fff';
-    btnInter.style.background = 'transparent';
-    btnInter.style.color = 'var(--text-muted)';
-    if (customContainer) customContainer.style.display = 'block';
-    if (interContainer) interContainer.style.display = 'none';
+    if (titleEl) titleEl.innerText = t('netdiag_preset_add');
+    if (idInput) idInput.value = '';
+    if (nameInput) nameInput.value = (presetToEdit && presetToEdit.name) ? presetToEdit.name : '';
+    if (targetInput) targetInput.value = (presetToEdit && presetToEdit.target) ? presetToEdit.target : '';
+    if (categoryInput) categoryInput.value = (presetToEdit && presetToEdit.category) ? presetToEdit.category : '';
+  }
+
+  openModal('netDiagPresetFormModal');
+  if (nameInput && !nameInput.value) {
+    nameInput.focus();
+  } else if (targetInput && !targetInput.value) {
+    targetInput.focus();
+  }
+}
+
+async function submitNetDiagPresetForm() {
+  const id = document.getElementById('editNetDiagPresetId').value;
+  const name = document.getElementById('netDiagPresetNameInput').value.trim();
+  const target = document.getElementById('netDiagPresetTargetInput').value.trim();
+  const category = document.getElementById('netDiagPresetCategoryInput').value.trim();
+
+  if (!name) {
+    showToast(t('netdiag_preset_name_req', 'Name is required'), 'error');
+    return;
+  }
+  if (!target) {
+    showToast(t('netdiag_preset_target_req', 'Target IP / hostname is required'), 'error');
+    return;
+  }
+
+  const payload = { name, target, category };
+  try {
+    let res;
+    if (id) {
+      res = await fetch(`/api/netdiag/presets/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      res = await fetch('/api/netdiag/presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      showToast(errData.error || 'Failed to save preset', 'error');
+      return;
+    }
+
+    closeModal('netDiagPresetFormModal');
+    showToast(t('netdiag_preset_saved_toast'), 'success');
+
+    await loadProbeTargetPresets();
+    renderNetDiagPresetManagerList();
+
+    // Refresh active netdiag dropdowns
+    ['netdiag_modal', 'netdiag_tab'].forEach(prefix => {
+      populateNetDiagPresetDropdown(prefix);
+      // Select the newly added/edited preset target
+      const sel = document.getElementById(`${prefix}_targetPreset`);
+      if (sel) sel.value = target;
+    });
+
+  } catch (err) {
+    console.error('Save preset error:', err);
+    showToast('Failed to save preset: ' + err.message, 'error');
+  }
+}
+
+async function deleteNetDiagPreset(id) {
+  if (!await showConfirm({ message: t('netdiag_preset_delete_confirm', 'Delete this probe target preset?'), confirmText: t('delete', 'Delete') })) return;
+
+  try {
+    const res = await fetch(`/api/netdiag/presets/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      showToast('Failed to delete preset', 'error');
+      return;
+    }
+    showToast(t('netdiag_preset_deleted_toast'), 'success');
+    await loadProbeTargetPresets();
+    renderNetDiagPresetManagerList();
+    ['netdiag_modal', 'netdiag_tab'].forEach(prefix => {
+      populateNetDiagPresetDropdown(prefix);
+    });
+  } catch (err) {
+    console.error('Delete preset error:', err);
+    showToast('Failed to delete preset: ' + err.message, 'error');
   }
 }
 
@@ -11664,6 +12018,13 @@ function runNetDiag(cid) {
     targetHostId = targetSelect ? parseInt(targetSelect.value, 10) : 0;
     if (!targetHostId) {
       showToast('Please select a target host', 'error');
+      return;
+    }
+  } else if (currentNetDiagTargetMode === 'preset') {
+    const presetSelect = document.getElementById(`${cid}_targetPreset`);
+    targetAddress = presetSelect ? presetSelect.value.trim() : '';
+    if (!targetAddress) {
+      showToast('Please select a target preset', 'error');
       return;
     }
   } else {

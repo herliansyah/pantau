@@ -350,6 +350,15 @@ func (d *DB) migrate() error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 
+	CREATE TABLE IF NOT EXISTS probe_target_presets (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		target TEXT NOT NULL,
+		category TEXT NOT NULL DEFAULT '',
+		sort_order INTEGER DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
 	CREATE TABLE IF NOT EXISTS inspection_runs (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
@@ -494,6 +503,25 @@ func (d *DB) initDefaults() error {
 		}
 		for _, p := range defaultPresets {
 			_, _ = d.Exec("INSERT INTO terminal_presets(name, command, sort_order, use_tmux) VALUES (?, ?, ?, 0)", p.name, p.command, p.sort)
+		}
+	}
+
+	// 4. Ensure default probe target presets exist
+	var targetPresetCount int
+	_ = d.QueryRow("SELECT COUNT(*) FROM probe_target_presets").Scan(&targetPresetCount)
+	if targetPresetCount == 0 {
+		defaultTargetPresets := []struct {
+			name     string
+			target   string
+			category string
+			sort     int
+		}{
+			{"Cloudflare DNS", "1.1.1.1", "Publik / DNS", 1},
+			{"Google DNS", "8.8.8.8", "Publik / DNS", 2},
+			{"Google Web", "google.com", "Publik / DNS", 3},
+		}
+		for _, p := range defaultTargetPresets {
+			_, _ = d.Exec("INSERT INTO probe_target_presets(name, target, category, sort_order) VALUES (?, ?, ?, ?)", p.name, p.target, p.category, p.sort)
 		}
 	}
 
@@ -1076,14 +1104,78 @@ func (d *DB) DeleteTerminalPreset(id int64) error {
 	return err
 }
 
+// ProbeTargetPreset represents a saved network diagnostic probe target.
+type ProbeTargetPreset struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	Target    string    `json:"target"`
+	Category  string    `json:"category"`
+	SortOrder int       `json:"sort_order"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (d *DB) ListProbeTargetPresets() ([]ProbeTargetPreset, error) {
+	rows, err := d.Query(`SELECT id, name, target, category, sort_order, created_at FROM probe_target_presets ORDER BY CASE WHEN category = '' THEN 1 ELSE 0 END, category ASC, sort_order ASC, name ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []ProbeTargetPreset
+	for rows.Next() {
+		var p ProbeTargetPreset
+		if err := rows.Scan(&p.ID, &p.Name, &p.Target, &p.Category, &p.SortOrder, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, p)
+	}
+	if list == nil {
+		list = []ProbeTargetPreset{}
+	}
+	return list, nil
+}
+
+func (d *DB) GetProbeTargetPreset(id int64) (*ProbeTargetPreset, error) {
+	var p ProbeTargetPreset
+	err := d.QueryRow(`SELECT id, name, target, category, sort_order, created_at FROM probe_target_presets WHERE id = ?`, id).
+		Scan(&p.ID, &p.Name, &p.Target, &p.Category, &p.SortOrder, &p.CreatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (d *DB) CreateProbeTargetPreset(p *ProbeTargetPreset) (int64, error) {
+	res, err := d.Exec(`INSERT INTO probe_target_presets (name, target, category, sort_order) VALUES (?, ?, ?, ?)`,
+		p.Name, p.Target, p.Category, p.SortOrder)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func (d *DB) UpdateProbeTargetPreset(p *ProbeTargetPreset) error {
+	_, err := d.Exec(`UPDATE probe_target_presets SET name = ?, target = ?, category = ?, sort_order = ? WHERE id = ?`,
+		p.Name, p.Target, p.Category, p.SortOrder, p.ID)
+	return err
+}
+
+func (d *DB) DeleteProbeTargetPreset(id int64) error {
+	_, err := d.Exec(`DELETE FROM probe_target_presets WHERE id = ?`, id)
+	return err
+}
+
 // SnapshotPayload holds the sanitized system configuration for backup and restore.
 type SnapshotPayload struct {
-	Version         int               `json:"version"`
-	CreatedAt       time.Time         `json:"created_at"`
-	Settings        map[string]string `json:"settings"`
-	Hosts           []Host            `json:"hosts"`
-	DesiredRules    []DesiredRule     `json:"desired_rules"`
-	TerminalPresets []TerminalPreset  `json:"terminal_presets,omitempty"`
+	Version            int                 `json:"version"`
+	CreatedAt          time.Time           `json:"created_at"`
+	Settings           map[string]string   `json:"settings"`
+	Hosts              []Host              `json:"hosts"`
+	DesiredRules       []DesiredRule       `json:"desired_rules"`
+	TerminalPresets    []TerminalPreset    `json:"terminal_presets,omitempty"`
+	ProbeTargetPresets []ProbeTargetPreset `json:"probe_target_presets,omitempty"`
 }
 
 func (d *DB) IsFresh() (bool, error) {
@@ -1166,13 +1258,26 @@ func (d *DB) ExportSnapshot() (*SnapshotPayload, error) {
 		}
 	}
 
+	var allProbePresets []ProbeTargetPreset
+	probeRows, err := d.Query("SELECT id, name, target, category, sort_order, created_at FROM probe_target_presets ORDER BY sort_order ASC, id ASC")
+	if err == nil {
+		defer probeRows.Close()
+		for probeRows.Next() {
+			var p ProbeTargetPreset
+			if err := probeRows.Scan(&p.ID, &p.Name, &p.Target, &p.Category, &p.SortOrder, &p.CreatedAt); err == nil {
+				allProbePresets = append(allProbePresets, p)
+			}
+		}
+	}
+
 	return &SnapshotPayload{
-		Version:         1,
-		CreatedAt:       time.Now().UTC(),
-		Settings:        settings,
-		Hosts:           hosts,
-		DesiredRules:    allRules,
-		TerminalPresets: allPresets,
+		Version:            1,
+		CreatedAt:          time.Now().UTC(),
+		Settings:           settings,
+		Hosts:              hosts,
+		DesiredRules:       allRules,
+		TerminalPresets:    allPresets,
+		ProbeTargetPresets: allProbePresets,
 	}, nil
 }
 
@@ -1186,7 +1291,7 @@ func (d *DB) ImportSnapshot(payload *SnapshotPayload) error {
 	}
 	defer tx.Rollback()
 
-	tables := []string{"alerts", "incidents", "actual_items", "desired_rules", "hosts", "terminal_presets"}
+	tables := []string{"alerts", "incidents", "actual_items", "desired_rules", "hosts", "terminal_presets", "probe_target_presets"}
 	for _, t := range tables {
 		if _, err := tx.Exec("DELETE FROM " + t); err != nil {
 			return fmt.Errorf("clear %s: %w", t, err)
@@ -1243,6 +1348,11 @@ func (d *DB) ImportSnapshot(payload *SnapshotPayload) error {
 		}
 		_, _ = tx.Exec(`INSERT INTO terminal_presets (id, host_id, name, command, sort_order, use_tmux) VALUES (?, ?, ?, ?, ?, ?)`,
 			p.ID, hid, p.Name, p.Command, p.SortOrder, useTmuxInt)
+	}
+
+	for _, p := range payload.ProbeTargetPresets {
+		_, _ = tx.Exec(`INSERT INTO probe_target_presets (id, name, target, category, sort_order) VALUES (?, ?, ?, ?, ?)`,
+			p.ID, p.Name, p.Target, p.Category, p.SortOrder)
 	}
 
 	for k, v := range payload.Settings {

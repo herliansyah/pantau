@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -358,5 +359,151 @@ Resume: pmtu 1500 hops 3 back 3`, "", 0, nil
 	}, nil)
 	if err == nil || !strings.Contains(err.Error(), "offline and cannot be probed") {
 		t.Fatalf("expected offline target rejection, got: %v", err)
+	}
+}
+
+func TestProbeTargetPresetsAPIAndUI(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-netdiag-presets-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	dbPath := filepath.Join(tmpDir, "pantau.db")
+	db, err := store.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	srv := &Server{db: db}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/netdiag/presets", srv.authMiddleware(srv.handleProbeTargetPresets))
+	mux.HandleFunc("/api/netdiag/presets/", srv.authMiddleware(srv.handleProbeTargetPresetDetail))
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	sessionToken := "test_netdiag_preset_session"
+	srv.sessions.Store(sessionToken, time.Now().Add(1*time.Hour))
+
+	authClient := func(req *http.Request) (*http.Response, error) {
+		req.AddCookie(&http.Cookie{
+			Name:  "pantau_session",
+			Value: sessionToken,
+		})
+		return http.DefaultClient.Do(req)
+	}
+
+	// 1. GET /api/netdiag/presets - Should have default seed presets
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/netdiag/presets", nil)
+	resp, err := authClient(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	var presets []store.ProbeTargetPreset
+	if err := json.NewDecoder(resp.Body).Decode(&presets); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if len(presets) < 3 {
+		t.Fatalf("expected at least 3 seed presets, got %d", len(presets))
+	}
+	var foundCloudflare bool
+	for _, p := range presets {
+		if p.Target == "1.1.1.1" && p.Name == "Cloudflare DNS" {
+			foundCloudflare = true
+		}
+	}
+	if !foundCloudflare {
+		t.Errorf("expected seed preset for Cloudflare DNS")
+	}
+
+	// 2. POST /api/netdiag/presets - Validation failure on invalid target
+	badPayload := `{"name":"Invalid Router","target":"http://192.168.1.1:8080"}`
+	req, _ = http.NewRequest(http.MethodPost, ts.URL+"/api/netdiag/presets", strings.NewReader(badPayload))
+	resp, err = authClient(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for URL scheme in target, got %d", resp.StatusCode)
+	}
+
+	// 3. POST /api/netdiag/presets - Create valid router preset
+	validPayload := `{"name":"Router Core Gedung Cyber","target":"10.200.1.1","category":"DC Cyber"}`
+	req, _ = http.NewRequest(http.MethodPost, ts.URL+"/api/netdiag/presets", strings.NewReader(validPayload))
+	resp, err = authClient(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 Created, got %d", resp.StatusCode)
+	}
+	var created store.ProbeTargetPreset
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if created.ID == 0 || created.Name != "Router Core Gedung Cyber" || created.Target != "10.200.1.1" || created.Category != "DC Cyber" {
+		t.Fatalf("unexpected created preset: %+v", created)
+	}
+
+	// 4. PUT /api/netdiag/presets/{id} - Update preset
+	updatePayload := `{"name":"Router Core Gedung Cyber (Updated)","target":"10.200.1.254","category":"DC Cyber Production"}`
+	req, _ = http.NewRequest(http.MethodPut, fmt.Sprintf("%s/api/netdiag/presets/%d", ts.URL, created.ID), strings.NewReader(updatePayload))
+	resp, err = authClient(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+	}
+	var updated store.ProbeTargetPreset
+	if err := json.NewDecoder(resp.Body).Decode(&updated); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if updated.Name != "Router Core Gedung Cyber (Updated)" || updated.Target != "10.200.1.254" {
+		t.Fatalf("unexpected updated preset: %+v", updated)
+	}
+
+	// 5. DELETE /api/netdiag/presets/{id} - Delete preset
+	req, _ = http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/netdiag/presets/%d", ts.URL, created.ID), nil)
+	resp, err = authClient(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", resp.StatusCode)
+	}
+
+	// 6. Verify UI markup and i18n in index.html
+	indexPath := filepath.Join("..", "web", "static", "index.html")
+	indexBytes, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexContent := string(indexBytes)
+
+	requiredUIStrings := []string{
+		`"netdiag_target_preset": "Saved Presets"`,
+		`"netdiag_target_preset": "Preset Sasaran"`,
+		`id="netDiagPresetManagerModal"`,
+		`id="netDiagPresetFormModal"`,
+		`openNetDiagPresetManagerModal`,
+		`quickBookmarkNetDiagTarget`,
+	}
+	for _, s := range requiredUIStrings {
+		if !strings.Contains(indexContent, s) {
+			t.Errorf("expected index.html to contain: %s", s)
+		}
 	}
 }

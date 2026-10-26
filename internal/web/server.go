@@ -236,6 +236,8 @@ func (s *Server) routes() {
 
 	// Network Diagnostics (ADR Network Diagnostic)
 	s.mux.HandleFunc("/api/netdiag/stream", s.authMiddleware(s.handleNetDiagStream))
+	s.mux.HandleFunc("/api/netdiag/presets", s.authMiddleware(s.handleProbeTargetPresets))
+	s.mux.HandleFunc("/api/netdiag/presets/", s.authMiddleware(s.handleProbeTargetPresetDetail))
 }
 
 func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {

@@ -393,6 +393,11 @@ _Avoid_: Network job, probe command, test runner
 Sasaran tujuan pengujian jaringan yang dapat berupa Host terkelola lain dalam inventaris Pantau (*Inter-Host*) atau alamat IP/FQDN eksternal publik (*External Target*).
 _Avoid_: Destination, remote endpoint, probe address
 
+**Probe Target Preset**:
+Entitas preset sasaran pengujian jaringan tersimpan yang memetakan label nama perangkat (seperti router, switch, atau gateway cabang) dan kategori lokasi ke alamat IP atau FQDN spesifik untuk pengujian berulang tanpa perlu mengetik ulang alamat.
+_Avoid_: IP Bookmark, Saved IP, Target Favorite, Router Preset
+
+
 **Hop Analysis**:
 Hasil interpretasi heuristik terhadap rantai hop perutean traceroute yang secara otomatis mengklasifikasikan gateway privat, mendeteksi titik putus firewall, dan menyoroti lonjakan latensi tanpa interpretasi manual.
 _Avoid_: Traceroute summary, route report, hop parser
