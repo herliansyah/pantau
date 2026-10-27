@@ -449,3 +449,19 @@ _Avoid_: MTU ping, fragmentation test, pmtu probe
 **Triage Incident Log**:
 Catatan historis ringkasan eksekusi Triage Matrix yang tersimpan di basis data Pantau sebagai bukti audit dan rekam jejak investigasi performa jaringan antar-cabang.
 _Avoid_: Triage history, incident report, diagnostic record
+
+**Native Terminal Bridge**:
+Mekanisme peluncuran sesi terminal eksternal (OS native) langsung dari antarmuka Pantau menuju Host target tanpa memerlukan login ulang manual.
+_Avoid_: External terminal opener, native terminal shortcut, desktop ssh launcher
+
+**Ephemeral Key Injector**:
+Proses pembuatan dan penyuntikan pasangan kunci SSH publik sementara berumur pendek (TTL 5 menit) ke berkas `~/.ssh/authorized_keys` pada Host target melalui sesi SSH aktif untuk memfasilitasi autentikasi otomatis native terminal.
+_Avoid_: Temp key generator, ssh key bypass, auto keygen
+
+**Launcher Script Generator**:
+Penyedia berkas skrip eksekusi terminal sekali pakai (`.cmd` / `.sh` / `.command`) berbatas waktu untuk memicu native terminal pada komputer klien saat Pantau diakses melalui peramban jarak jauh (remote web).
+_Avoid_: Script downloader, ssh batch file, terminal trigger script
+
+**Native Terminal Launcher Config**:
+Konfigurasi preferensi aplikasi terminal native pengguna di pengaturan Pantau (deteksi otomatis default OS Windows/Linux/macOS dengan dukungan custom template command).
+_Avoid_: Terminal app setting, custom terminal runner

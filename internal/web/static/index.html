@@ -1515,6 +1515,108 @@ body.has-workspace-shelf .container {
   </div>
 </div>
 
+<!-- Native Terminal Launcher Modal (Remote Web) -->
+<div id="nativeTerminalModal" class="modal">
+  <div class="modal-content modal-dialog" style="max-width: 520px;">
+    <div class="modal-header">
+      <h3 style="display: flex; align-items: center; gap: 8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m6 10 3 2-3 2"/><path d="M12 14h4"/></svg>
+        <span>Native Terminal</span>
+      </h3>
+      <button class="btn btn-sm" onclick="closeModal('nativeTerminalModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 12px; line-height: 1.5;" data-i18n="native_term_intro">
+        Kredensial sementara telah disiapkan untuk Host <strong id="nativeTermHostName" style="color: var(--text);"></strong>. Kunci SSH otomatis dibersihkan setelah sesi digunakan.
+      </p>
+
+      <!-- Tab Selection -->
+      <div style="display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--card-border); padding-bottom: 8px;">
+        <button id="tabBtnNativeProtocol" class="btn btn-sm btn-primary" onclick="switchNativeTerminalTab('protocol')" data-i18n="native_term_tab_protocol">⚡ Buka Langsung (1-Klik)</button>
+        <button id="tabBtnNativeCmd" class="btn btn-sm" onclick="switchNativeTerminalTab('cmd')" data-i18n="native_term_tab_cmd">📋 Salin Perintah</button>
+        <button id="tabBtnNativeScript" class="btn btn-sm" onclick="switchNativeTerminalTab('script')" data-i18n="native_term_tab_script">📁 Unduh Skrip</button>
+      </div>
+
+      <!-- Tab 1: Protocol 1-Click Launch -->
+      <div id="nativeTabProtocolContent" style="display: flex; flex-direction: column; gap: 12px;">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;" data-i18n="native_term_proto_desc">
+          Buka sesi SSH langsung di terminal komputer Anda tanpa mengunduh berkas atau salin manual:
+        </p>
+        <button class="btn btn-primary" onclick="launchNativeProtocol()" style="display: flex; align-items: center; justify-content: center; gap: 10px; padding: 12px 16px; font-weight: 600; font-size: 0.95rem;">
+          <span id="nativeProtocolBtnText">⚡ Buka Terminal Sekarang</span>
+        </button>
+
+        <!-- Setup Instruction for pantau:// Protocol -->
+        <div style="background: rgba(0,0,0,0.25); border: 1px solid var(--card-border); border-radius: 8px; padding: 10px 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+            <div style="display: flex; gap: 4px;">
+              <button id="protoSetupOsWin" class="btn btn-sm btn-primary" style="padding: 2px 8px; font-size: 0.72rem;" onclick="switchProtoSetupOS('win')">🪟 Windows</button>
+              <button id="protoSetupOsMac" class="btn btn-sm" style="padding: 2px 8px; font-size: 0.72rem;" onclick="switchProtoSetupOS('mac')">🍎 macOS</button>
+              <button id="protoSetupOsLinux" class="btn btn-sm" style="padding: 2px 8px; font-size: 0.72rem;" onclick="switchProtoSetupOS('linux')">🐧 Linux</button>
+            </div>
+            <button class="btn btn-sm" style="padding: 2px 8px; font-size: 0.72rem;" onclick="copyProtocolSetupScript()" data-i18n="native_term_copy_setup">Salin Setup</button>
+          </div>
+          <p id="protoSetupDesc" style="font-size: 0.74rem; color: var(--text-muted); margin: 0 0 6px 0; line-height: 1.4;"></p>
+          <code id="protocolSetupCmd" style="font-family: monospace; font-size: 0.7rem; word-break: break-all; color: #38bdf8; display: block; background: rgba(0,0,0,0.3); padding: 8px 10px; border-radius: 4px; max-height: 70px; overflow-y: auto;"></code>
+        </div>
+      </div>
+
+      <!-- Tab 2: Copy Command -->
+      <div id="nativeTabCmdContent" style="display: none; flex-direction: column; gap: 8px;">
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;" data-i18n="native_term_cmd_desc">
+          Salin dan tempel perintah streaming sekali pakai berikut ke terminal lokal Anda:
+        </p>
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); border-radius: 6px; padding: 8px 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-size: 0.72rem; color: var(--text-muted);">Windows (PowerShell):</span>
+            <button class="btn btn-sm" style="padding: 1px 6px; font-size: 0.72rem;" onclick="copyNativeCmd('win')" data-i18n="native_term_copy_btn">Salin</button>
+          </div>
+          <code id="nativeCmdWin" style="font-family: monospace; font-size: 0.78rem; word-break: break-all; color: #38bdf8; display: block;"></code>
+        </div>
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--card-border); border-radius: 6px; padding: 8px 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-size: 0.72rem; color: var(--text-muted);">Linux / macOS:</span>
+            <button class="btn btn-sm" style="padding: 1px 6px; font-size: 0.72rem;" onclick="copyNativeCmd('unix')" data-i18n="native_term_copy_btn">Salin</button>
+          </div>
+          <code id="nativeCmdUnix" style="font-family: monospace; font-size: 0.78rem; word-break: break-all; color: #34d399; display: block;"></code>
+        </div>
+      </div>
+
+      <!-- Tab 3: Download Script -->
+      <div id="nativeTabScriptContent" style="display: none; flex-direction: column; gap: 12px;">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0;" data-i18n="native_term_script_desc">
+          Pilih sistem operasi komputer Anda untuk mengunduh skrip peluncur native:
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <button class="btn btn-primary" onclick="downloadNativeTerminalScript('windows')" style="display: flex; align-items: center; justify-content: flex-start; gap: 10px; padding: 10px 14px; font-weight: 500;">
+            <span style="font-size: 1.25rem;">🪟</span>
+            <div style="text-align: left;">
+              <div style="font-weight: 600;" data-i18n="native_term_dl_win_title">Unduh Skrip Windows (.cmd)</div>
+              <div style="font-size: 0.74rem; opacity: 0.85; font-weight: normal;" data-i18n="native_term_dl_win_sub">Klik ganda berkas untuk langsung membuka sesi SSH</div>
+            </div>
+          </button>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm" onclick="downloadNativeTerminalScript('macos')" style="flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 10px;">
+              🍎 macOS (.command)
+            </button>
+            <button class="btn btn-sm" onclick="downloadNativeTerminalScript('linux')" style="flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 10px;">
+              🐧 Linux (.sh)
+            </button>
+          </div>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); background: rgba(255,255,255,0.03); border: 1px dashed var(--card-border); border-radius: 6px; padding: 6px 10px; line-height: 1.4;" data-i18n="native_term_av_note">
+          💡 <strong>Info Windows:</strong> Jika antivirus (seperti McAfee / Norton) memblokir unduhan berkas <code>.cmd</code>, gunakan tab <strong>⚡ Buka Langsung (1-Klik)</strong> atau <strong>📋 Salin Perintah</strong> untuk eksekusi langsung di memori tanpa unduh berkas.
+        </div>
+      </div>
+
+      <div style="margin-top: 14px; display: flex; justify-content: space-between; align-items: center;">
+        <span id="nativeTicketCountdown" style="font-size: 0.75rem; color: var(--text-muted);">⏱️ Tiket berlaku 60 detik</span>
+        <button class="btn btn-sm" onclick="closeModal('nativeTerminalModal')" data-i18n="native_term_close">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Add Desired State Rule Modal (Action Dialog) -->
 <div id="ruleModal" class="modal">
   <div class="modal-content modal-dialog" style="max-width: 480px;">
@@ -1950,6 +2052,33 @@ body.has-workspace-shelf .container {
                 </select>
                 <button class="btn btn-primary btn-sm" onclick="saveAutoTriageSettings()" style="height: 38px; padding: 0 16px; white-space: nowrap; box-sizing: border-box;" data-i18n="save">Save</button>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Native Terminal Launcher Settings -->
+        <div class="card" style="padding: 16px;">
+          <h4 style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m6 10 3 2-3 2"/><path d="M12 14h4"/></svg> <span data-i18n="native_term_settings_title">Native Terminal Launcher</span></h4>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;" data-i18n="native_term_settings_desc">
+            Konfigurasi aplikasi emulator terminal native bawaan sistem operasi yang diluncurkan dari Pantau (Windows Terminal, GNOME Terminal, iTerm2, Alacritty, dll).
+          </p>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.85rem;">
+                <input type="radio" name="termLauncherMode" value="auto" id="termModeAuto" checked onchange="onTermLauncherModeChange()" />
+                <span data-i18n="native_term_settings_auto">Auto-Detect OS (Windows Terminal / GNOME / iTerm2)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.85rem;">
+                <input type="radio" name="termLauncherMode" value="custom" id="termModeCustom" onchange="onTermLauncherModeChange()" />
+                <span data-i18n="native_term_settings_custom">Custom Template</span>
+              </label>
+            </div>
+            <div id="termTemplateWrapper" style="display: none; flex-direction: column; gap: 6px;">
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="settingTermTemplate" placeholder="alacritty -e %cmd%" style="flex: 1; height: 38px; padding: 6px 10px; font-size: 0.85rem; font-family: monospace;" />
+                <button class="btn btn-primary btn-sm" onclick="saveTerminalLauncherSettings()" style="height: 38px; padding: 0 16px;" data-i18n="native_term_settings_save">Simpan</button>
+              </div>
+              <span style="font-size: 0.75rem; color: var(--text-muted);" data-i18n="native_term_settings_hint">Gunakan <code>%cmd%</code> sebagai placeholder perintah SSH. Contoh: <code>alacritty -e %cmd%</code> atau <code>wezterm start -- %cmd%</code>.</span>
             </div>
           </div>
         </div>
@@ -2839,6 +2968,31 @@ const I18N = {
     "font_size_decrease": "Decrease font size",
     "font_size_increase": "Increase font size",
     "btn_terminal": "Terminal",
+    "open_native_terminal": "Native Terminal",
+    "native_term_intro": "Temporary credentials have been prepared for Host <strong id=\"nativeTermHostName\" style=\"color: var(--text);\"></strong>. SSH key will be automatically removed after the session.",
+    "native_term_tab_protocol": "⚡ Direct Launch (1-Click)",
+    "native_term_tab_cmd": "📋 Copy Command",
+    "native_term_tab_script": "📁 Download Script",
+    "native_term_proto_desc": "Launch SSH session directly in your computer's terminal without downloading files or manual copying:",
+    "native_term_btn_now": "⚡ Launch Terminal Now",
+    "native_term_btn_now_win": "⚡ Launch Terminal / PowerShell Now",
+    "native_term_copy_setup": "Copy Setup",
+    "native_term_cmd_desc": "Copy and paste the following single-use streaming command into your local terminal:",
+    "native_term_copy_btn": "Copy",
+    "native_term_script_desc": "Select your operating system to download the native launcher script:",
+    "native_term_dl_win_title": "Download Windows Script (.cmd)",
+    "native_term_dl_win_sub": "Double-click file to immediately open SSH session",
+    "native_term_av_note": "💡 <strong>Windows Note:</strong> If an antivirus (e.g. McAfee / Norton) blocks downloaded <code>.cmd</code> files, use the <strong>⚡ Direct Launch (1-Click)</strong> or <strong>📋 Copy Command</strong> tab for in-memory execution without saving files.",
+    "native_term_ticket_countdown": "⏱️ Ticket valid for {sec}s",
+    "native_term_ticket_expired": "⚠️ Ticket expired. Close and reopen.",
+    "native_term_ticket_used": "✅ Ticket redeemed.",
+    "native_term_close": "Close",
+    "native_term_settings_title": "Native Terminal Launcher",
+    "native_term_settings_desc": "Configure native OS terminal emulator applications launched from Pantau (Windows Terminal, GNOME Terminal, iTerm2, Alacritty, etc).",
+    "native_term_settings_auto": "Auto-Detect OS (Windows Terminal / GNOME / iTerm2)",
+    "native_term_settings_custom": "Custom Template",
+    "native_term_settings_save": "Save",
+    "native_term_settings_hint": "Use <code>%cmd%</code> as the SSH command placeholder. Example: <code>alacritty -e %cmd%</code> or <code>wezterm start -- %cmd%</code>.",
     "terminal_dock_title": "Terminal Dock",
     "maximize_terminal": "Maximize",
     "minimize_terminal": "Restore",
@@ -3531,6 +3685,31 @@ const I18N = {
     "font_size_decrease": "Kecilkan ukuran font",
     "font_size_increase": "Besarkan ukuran font",
     "btn_terminal": "Terminal",
+    "open_native_terminal": "Native Terminal",
+    "native_term_intro": "Kredensial sementara telah disiapkan untuk Host <strong id=\"nativeTermHostName\" style=\"color: var(--text);\"></strong>. Kunci SSH otomatis dibersihkan setelah sesi digunakan.",
+    "native_term_tab_protocol": "⚡ Buka Langsung (1-Klik)",
+    "native_term_tab_cmd": "📋 Salin Perintah",
+    "native_term_tab_script": "📁 Unduh Skrip",
+    "native_term_proto_desc": "Buka sesi SSH langsung di terminal komputer Anda tanpa mengunduh berkas atau salin manual:",
+    "native_term_btn_now": "⚡ Buka Terminal Sekarang",
+    "native_term_btn_now_win": "⚡ Buka Terminal / PowerShell Sekarang",
+    "native_term_copy_setup": "Salin Setup",
+    "native_term_cmd_desc": "Salin dan tempel perintah streaming sekali pakai berikut ke terminal lokal Anda:",
+    "native_term_copy_btn": "Salin",
+    "native_term_script_desc": "Pilih sistem operasi komputer Anda untuk mengunduh skrip peluncur native:",
+    "native_term_dl_win_title": "Unduh Skrip Windows (.cmd)",
+    "native_term_dl_win_sub": "Klik ganda berkas untuk langsung membuka sesi SSH",
+    "native_term_av_note": "💡 <strong>Info Windows:</strong> Jika antivirus (seperti McAfee / Norton) memblokir unduhan berkas <code>.cmd</code>, gunakan tab <strong>⚡ Buka Langsung (1-Klik)</strong> atau <strong>📋 Salin Perintah</strong> untuk eksekusi langsung di memori tanpa unduh berkas.",
+    "native_term_ticket_countdown": "⏱️ Tiket berlaku {sec} detik",
+    "native_term_ticket_expired": "⚠️ Tiket kedaluwarsa. Tutup dan buka kembali.",
+    "native_term_ticket_used": "✅ Tiket telah digunakan.",
+    "native_term_close": "Tutup",
+    "native_term_settings_title": "Native Terminal Launcher",
+    "native_term_settings_desc": "Konfigurasi aplikasi emulator terminal native bawaan sistem operasi yang diluncurkan dari Pantau (Windows Terminal, GNOME Terminal, iTerm2, Alacritty, dll).",
+    "native_term_settings_auto": "Deteksi Otomatis OS (Windows Terminal / GNOME / iTerm2)",
+    "native_term_settings_custom": "Template Kustom",
+    "native_term_settings_save": "Simpan",
+    "native_term_settings_hint": "Gunakan <code>%cmd%</code> sebagai placeholder perintah SSH. Contoh: <code>alacritty -e %cmd%</code> atau <code>wezterm start -- %cmd%</code>.",
     "terminal_dock_title": "Terminal Dock",
     "maximize_terminal": "Layar Penuh",
     "minimize_terminal": "Pulihkan",
@@ -4091,6 +4270,21 @@ function setLanguage(lang) {
   if (srcHostEl && srcHostEl.options && srcHostEl.options.length > 0) {
     srcHostEl.options[0].text = t('netdiag_preset_src_host_default', 'Default (Follow Global Settings)');
   }
+  if (typeof switchProtoSetupOS === 'function' && typeof currentProtoOS !== 'undefined') {
+    switchProtoSetupOS(currentProtoOS);
+  }
+  if (typeof currentNativeTicket !== 'undefined' && currentNativeTicket && document.getElementById('nativeTermHostName')) {
+    document.getElementById('nativeTermHostName').textContent = currentNativeTicket.host_name || '';
+  }
+  const btnProtoText = document.getElementById('nativeProtocolBtnText');
+  if (btnProtoText) {
+    const ua = navigator.userAgent || '';
+    const isWin = !/macintosh|mac os x|linux/i.test(ua);
+    btnProtoText.textContent = isWin ? t('native_term_btn_now_win', '⚡ Buka Terminal / PowerShell Sekarang') : t('native_term_btn_now', '⚡ Buka Terminal Sekarang');
+  }
+  document.querySelectorAll('.lbl-native-term').forEach(el => {
+    el.textContent = t('open_native_terminal', 'Native Terminal');
+  });
 }
 
 function toggleLanguage() {
@@ -4995,6 +5189,7 @@ function renderGridView(grid, isManualSort) {
               <button class="dropdown-item" onclick="openEditHostModal(${h.id})">✏️ <span>${t('edit_host', 'Edit Host')}</span></button>
               <button class="dropdown-item" onclick="testHostSSH(${h.id})">⚡ <span>${t('test_connection', 'Test Connection')}</span></button>
               <button class="dropdown-item" onclick="openInjectKeyModal(${h.id}, '${escapeHtml(h.name)}')">🔑 <span>${t('btn_inject_key', 'Inject Key')}</span></button>
+              <button class="dropdown-item" onclick="openNativeTerminalForHost(${h.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m6 10 3 2-3 2"/><path d="M12 14h4"/></svg> <span>${t('open_native_terminal', 'Native Terminal')}</span></button>
               <div class="dropdown-divider"></div>
               <button class="dropdown-item danger" onclick="deleteHost(${h.id})">🗑️ <span>${t('delete_host', 'Delete Host')}</span></button>
             </div>
@@ -5164,6 +5359,7 @@ function renderListView(listContainer, isManualSort) {
                 <button class="dropdown-item" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))">📝 <span>${t('edit_host_note_title', 'Edit Note')}</span></button>
                 <button class="dropdown-item" onclick="testHostSSH(${h.id})">⚡ <span>${t('test_connection', 'Test Connection')}</span></button>
                 <button class="dropdown-item" onclick="openInjectKeyModal(${h.id}, '${escapeHtml(h.name)}')">🔑 <span>${t('btn_inject_key', 'Inject Key')}</span></button>
+                <button class="dropdown-item" onclick="openNativeTerminalForHost(${h.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m6 10 3 2-3 2"/><path d="M12 14h4"/></svg> <span>${t('open_native_terminal', 'Native Terminal')}</span></button>
                 <div class="dropdown-divider"></div>
                 <button class="dropdown-item danger" onclick="deleteHost(${h.id})">🗑️ <span>${t('delete_host', 'Delete Host')}</span></button>
               </div>
@@ -8285,6 +8481,10 @@ function createTabWorkspaceDOM(tab) {
           </button>
           <button class="btn btn-sm" onclick="clearTabActiveTerminal('${tab.id}')" title="Clear screen" style="padding: 3px 8px; font-size: 0.72rem;">🧹 Clear</button>
           <button class="btn btn-sm" onclick="reconnectTabTerminal('${tab.id}')" title="Reconnect SSH" style="padding: 3px 8px; font-size: 0.72rem;">🔄 Reconnect</button>
+          <button class="btn btn-sm" onclick="openNativeTerminalForHost('${tab.hostID}')" title="${t('open_native_terminal', 'Native Terminal')}" style="padding: 3px 8px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 5px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m6 10 3 2-3 2"/><path d="M12 14h4"/></svg>
+            <span class="lbl-native-term">${t('open_native_terminal', 'Native Terminal')}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -10288,6 +10488,17 @@ async function openSettingsModal(tab) {
   }
   document.getElementById('backupStatusText').innerText = statusText;
 
+  const localMode = localStorage.getItem('pantau_term_mode') || data.terminal_launcher_mode || 'auto';
+  const localTemplate = localStorage.getItem('pantau_term_template') || data.terminal_launcher_template || '';
+  if (document.getElementById('termModeCustom')) {
+    document.getElementById('termModeCustom').checked = (localMode === 'custom');
+    document.getElementById('termModeAuto').checked = (localMode !== 'custom');
+  }
+  if (document.getElementById('settingTermTemplate')) {
+    document.getElementById('settingTermTemplate').value = localTemplate;
+  }
+  toggleTermTemplateInput();
+
   openModal('settingsModal');
   switchSettingsTab(currentSettingsTab || 'general');
   load2FASettings();
@@ -10885,6 +11096,10 @@ function openModal(id) {
 }
 
 function closeModal(id) {
+  if (id === 'nativeTerminalModal' && nativeTicketTimer) {
+    clearInterval(nativeTicketTimer);
+    nativeTicketTimer = null;
+  }
   if (id === 'transfersListModal' && transferPollInterval) {
     clearInterval(transferPollInterval);
     transferPollInterval = null;
@@ -14333,6 +14548,300 @@ function renderHostCompareView() {
 
   html += `</div>`;
   container.innerHTML = html;
+}
+
+/* ponytail: Native Terminal Bridge UI logic & auto-adaptive Local vs Remote Web launcher */
+let currentNativeTicket = null;
+let nativeTicketTimer = null;
+
+function isLocalAccess() {
+  const h = window.location.hostname;
+  return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '[::1]';
+}
+
+function openActiveTerminalInNative() {
+  if (typeof activeTerminalTabId === 'undefined' || !activeTerminalTabId) {
+    showToast('Tidak ada tab terminal aktif', 'warning');
+    return;
+  }
+  const tab = terminalTabs.find(t => t.id === activeTerminalTabId);
+  if (!tab || !tab.hostID) {
+    showToast('Pilih sesi terminal yang terhubung ke Host terlebih dahulu', 'warning');
+    return;
+  }
+  openNativeTerminalForHost(tab.hostID);
+}
+
+async function openNativeTerminalForHost(hostId) {
+  if (!hostId) return;
+
+  // 1. If Localhost: launch directly via OS process
+  if (isLocalAccess()) {
+    showToast('Meluncurkan terminal native di desktop...', 'info');
+    try {
+      const res = await fetch('/api/terminal/native-open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host_id: hostId })
+      });
+      let data = {};
+      try { data = await res.json(); } catch (_) {}
+      if (!res.ok) throw new Error(data.error || data.message || 'Gagal meluncurkan terminal');
+      showToast('✅ Terminal native berhasil dibuka di desktop.', 'success');
+      return;
+    } catch (e) {
+      showToast(e.message, 'warning');
+      // If launching local desktop process failed (e.g. headless server, SSH port forwarding, or no GUI emulator),
+      // seamlessly fall through to Remote Web modal so user is not blocked!
+    }
+  }
+
+  // 2. If Remote Web: request single-use ticket & open launcher modal
+  showToast('Menyiapkan kredensial sementara...', 'info');
+  try {
+    const res = await fetch('/api/terminal/native-ticket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host_id: hostId })
+    });
+    let data = {};
+    try { data = await res.json(); } catch (_) {}
+    if (!res.ok) throw new Error(data.error || 'Gagal menyiapkan tiket terminal');
+
+    currentNativeTicket = data;
+    document.getElementById('nativeTermHostName').textContent = data.host_name || ('Host #' + hostId);
+    document.getElementById('nativeCmdUnix').textContent = data.command_unix || '';
+    document.getElementById('nativeCmdWin').textContent = data.command_win || '';
+
+    const ua = navigator.userAgent || '';
+    let clientOS = 'win';
+    if (/macintosh|mac os x/i.test(ua)) clientOS = 'mac';
+    else if (/linux/i.test(ua)) clientOS = 'linux';
+
+    const btnText = document.getElementById('nativeProtocolBtnText');
+    if (btnText) {
+      if (clientOS === 'win') btnText.textContent = t('native_term_btn_now_win', '⚡ Buka Terminal / PowerShell Sekarang');
+      else btnText.textContent = t('native_term_btn_now', '⚡ Buka Terminal Sekarang');
+    }
+    switchProtoSetupOS(clientOS);
+    switchNativeTerminalTab('protocol');
+
+    // Start 60s countdown
+    let remaining = data.expires_in || 60;
+    if (nativeTicketTimer) clearInterval(nativeTicketTimer);
+    const countdownEl = document.getElementById('nativeTicketCountdown');
+    countdownEl.textContent = t('native_term_ticket_countdown', '⏱️ Tiket berlaku {sec} detik').replace('{sec}', remaining);
+    nativeTicketTimer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(nativeTicketTimer);
+        countdownEl.textContent = t('native_term_ticket_expired', '⚠️ Tiket kedaluwarsa. Tutup dan buka kembali.');
+      } else {
+        countdownEl.textContent = t('native_term_ticket_countdown', '⏱️ Tiket berlaku {sec} detik').replace('{sec}', remaining);
+      }
+    }, 1000);
+
+    openModal('nativeTerminalModal');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+function switchNativeTerminalTab(tab) {
+  const btnProto = document.getElementById('tabBtnNativeProtocol');
+  const btnScript = document.getElementById('tabBtnNativeScript');
+  const btnCmd = document.getElementById('tabBtnNativeCmd');
+  const protoContent = document.getElementById('nativeTabProtocolContent');
+  const scriptContent = document.getElementById('nativeTabScriptContent');
+  const cmdContent = document.getElementById('nativeTabCmdContent');
+
+  if (btnProto) btnProto.classList.remove('btn-primary');
+  if (btnScript) btnScript.classList.remove('btn-primary');
+  if (btnCmd) btnCmd.classList.remove('btn-primary');
+  if (protoContent) protoContent.style.display = 'none';
+  if (scriptContent) scriptContent.style.display = 'none';
+  if (cmdContent) cmdContent.style.display = 'none';
+
+  if (tab === 'protocol') {
+    if (btnProto) btnProto.classList.add('btn-primary');
+    if (protoContent) protoContent.style.display = 'flex';
+  } else if (tab === 'cmd') {
+    if (btnCmd) btnCmd.classList.add('btn-primary');
+    if (cmdContent) cmdContent.style.display = 'flex';
+  } else {
+    if (btnScript) btnScript.classList.add('btn-primary');
+    if (scriptContent) scriptContent.style.display = 'flex';
+  }
+}
+
+let currentProtoOS = 'win';
+const protoSetupCommands = {
+  win: {
+    desc_id: 'Jalankan baris ini <strong>sekali saja</strong> di PowerShell komputer Anda agar Windows mengenali protokol <code>pantau://</code>:',
+    desc_en: 'Run this command <strong>once</strong> in your computer\'s PowerShell so Windows recognizes the <code>pantau://</code> protocol:',
+    cmd: `New-Item -Path "HKCU:\\Software\\Classes\\pantau\\shell\\open\\command" -Force | Out-Null; Set-ItemProperty -Path "HKCU:\\Software\\Classes\\pantau" -Name "URL Protocol" -Value ""; Set-ItemProperty -Path "HKCU:\\Software\\Classes\\pantau\\shell\\open\\command" -Name "(default)" -Value 'powershell.exe -NoExit -ExecutionPolicy Bypass -Command "irm (''http://'' + ''%1''.Substring(9).TrimEnd(''/'')) | iex"'; Write-Host "✅ Protokol pantau:// siap digunakan!" -ForegroundColor Green`
+  },
+  mac: {
+    desc_id: 'Jalankan perintah ini <strong>sekali saja</strong> di Terminal Mac Anda agar macOS mengenali protokol <code>pantau://</code>:',
+    desc_en: 'Run this command <strong>once</strong> in your Mac\'s Terminal so macOS recognizes the <code>pantau://</code> protocol:',
+    cmd: `mkdir -p ~/Applications/Pantau.app/Contents/MacOS; printf '#!/usr/bin/env bash\\nu=$(echo "$1" | sed -E "s|^pantau://(https?)/|\\\\1://|; s|^pantau://|http://|" | sed "s|/$||")\\nosascript -e "tell application \\\\"Terminal\\\\" to do script \\\\"curl -sSL $u | bash; exec \\$SHELL\\\\"" -e "tell application \\\\"Terminal\\\\" to activate"\\n' > ~/Applications/Pantau.app/Contents/MacOS/launcher; chmod +x ~/Applications/Pantau.app/Contents/MacOS/launcher; printf '<?xml version="1.0" encoding="UTF-8"?>\\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>com.pantau.launcher</string><key>CFBundleExecutable</key><string>launcher</string><key>CFBundleURLTypes</key><array><dict><key>CFBundleURLName</key><string>Pantau</string><key>CFBundleURLSchemes</key><array><string>pantau</string></array></dict></array></dict></plist>' > ~/Applications/Pantau.app/Contents/Info.plist; /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f ~/Applications/Pantau.app; echo "✅ Protokol pantau:// siap digunakan!"`
+  },
+  linux: {
+    desc_id: 'Jalankan perintah ini <strong>sekali saja</strong> di Terminal Linux Anda (tanpa sudo) agar sistem mengenali protokol <code>pantau://</code>:',
+    desc_en: 'Run this command <strong>once</strong> in your Linux Terminal (without sudo) so your system recognizes the <code>pantau://</code> protocol:',
+    cmd: `mkdir -p ~/.local/share/applications; printf '[Desktop Entry]\\nName=Pantau Terminal\\nExec=sh -c "u=\\$(echo \\\\"%u\\\\" | sed -E \\\\"s|^pantau://(https?)/|\\\\\\\\1://|; s|^pantau://|http://|\\\\" | sed \\\\"s|/\\$||\\\\"); x-terminal-emulator -e bash -c \\\\"curl -sSL \\$u | bash\\\\" || gnome-terminal -- bash -c \\\\"curl -sSL \\$u | bash\\\\""\\nType=Application\\nTerminal=false\\nMimeType=x-scheme-handler/pantau;\\n' > ~/.local/share/applications/pantau.desktop; xdg-mime default pantau.desktop x-scheme-handler/pantau; echo "✅ Protokol pantau:// siap digunakan!"`
+  }
+};
+
+function switchProtoSetupOS(os) {
+  currentProtoOS = os || currentProtoOS || 'win';
+  const btnWin = document.getElementById('protoSetupOsWin');
+  const btnMac = document.getElementById('protoSetupOsMac');
+  const btnLinux = document.getElementById('protoSetupOsLinux');
+  const desc = document.getElementById('protoSetupDesc');
+  const code = document.getElementById('protocolSetupCmd');
+  if (!desc || !code) return;
+
+  if (btnWin) btnWin.classList.remove('btn-primary');
+  if (btnMac) btnMac.classList.remove('btn-primary');
+  if (btnLinux) btnLinux.classList.remove('btn-primary');
+
+  const conf = protoSetupCommands[currentProtoOS] || protoSetupCommands.win;
+  if (currentProtoOS === 'mac') {
+    if (btnMac) btnMac.classList.add('btn-primary');
+  } else if (currentProtoOS === 'linux') {
+    if (btnLinux) btnLinux.classList.add('btn-primary');
+  } else {
+    if (btnWin) btnWin.classList.add('btn-primary');
+  }
+
+  const descText = currentLang === 'id' ? conf.desc_id : conf.desc_en;
+  desc.innerHTML = descText;
+  code.textContent = conf.cmd;
+}
+
+function launchNativeProtocol() {
+  if (!currentNativeTicket || !currentNativeTicket.protocol_url) {
+    showToast('Tiket tidak tersedia. Buka kembali modal jika perlu.', 'warning');
+    return;
+  }
+  const url = currentNativeTicket.protocol_url;
+  window.location.href = url;
+  showToast('Meminta sistem membuka terminal...', 'info');
+}
+
+function copyProtocolSetupScript() {
+  const el = document.getElementById('protocolSetupCmd');
+  if (!el || !el.textContent) return;
+  copyTextToClipboard(el.textContent).then((ok) => {
+    if (ok !== false) {
+      showToast('Perintah setup protokol berhasil disalin!', 'success');
+    } else {
+      showToast('Gagal menyalin perintah setup', 'error');
+    }
+  });
+}
+
+async function downloadNativeTerminalScript(osName) {
+  if (!currentNativeTicket || !currentNativeTicket.ticket) {
+    showToast('Tiket tidak tersedia atau sudah digunakan. Buka kembali modal jika perlu.', 'warning');
+    return;
+  }
+  const token = currentNativeTicket.ticket;
+  currentNativeTicket = null;
+  if (nativeTicketTimer) clearInterval(nativeTicketTimer);
+  const countdownEl = document.getElementById('nativeTicketCountdown');
+  if (countdownEl) countdownEl.textContent = t('native_term_ticket_used', '✅ Tiket telah digunakan.');
+
+  const url = `/api/terminal/native-download?ticket=${encodeURIComponent(token)}&os=${encodeURIComponent(osName)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err || 'Gagal mengunduh berkas peluncur');
+    }
+    let filename = `pantau-launcher.${osName === 'windows' ? 'cmd' : (osName === 'macos' ? 'command' : 'sh')}`;
+    const disp = res.headers.get('Content-Disposition');
+    if (disp) {
+      const m = disp.match(/filename="?([^"]+)"?/);
+      if (m && m[1]) filename = m[1];
+    }
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(blobUrl);
+    showToast('Skrip peluncur berhasil diunduh! Klik berkas untuk membuka terminal.', 'success');
+  } catch (err) {
+    showToast(err.message || 'Gagal mengunduh skrip', 'error');
+  }
+}
+
+function copyNativeCmd(type) {
+  const id = type === 'win' ? 'nativeCmdWin' : 'nativeCmdUnix';
+  const el = document.getElementById(id);
+  if (!el || !el.textContent) return;
+  copyTextToClipboard(el.textContent).then((ok) => {
+    if (ok !== false) {
+      showToast('Perintah disalin ke clipboard!', 'success');
+    } else {
+      showToast('Gagal menyalin perintah', 'error');
+    }
+  }).catch(() => {
+    showToast('Gagal menyalin perintah', 'error');
+  });
+}
+
+function toggleTermTemplateInput() {
+  const isCustom = document.getElementById('termModeCustom')?.checked;
+  const wrap = document.getElementById('termTemplateWrapper');
+  if (wrap) wrap.style.display = isCustom ? 'flex' : 'none';
+}
+
+function onTermLauncherModeChange() {
+  toggleTermTemplateInput();
+  if (document.getElementById('termModeAuto')?.checked) {
+    saveTerminalLauncherSettings();
+  }
+}
+
+async function saveTerminalLauncherSettings() {
+  const mode = document.getElementById('termModeCustom')?.checked ? 'custom' : 'auto';
+  const template = document.getElementById('settingTermTemplate')?.value.trim() || '';
+
+  if (mode === 'custom') {
+    if (!template.includes('%cmd%')) {
+      showToast('Template harus mengandung placeholder %cmd%', 'error');
+      return;
+    }
+  }
+
+  // Save to client localStorage for local device override
+  localStorage.setItem('pantau_term_mode', mode);
+  localStorage.setItem('pantau_term_template', template);
+
+  // Save to server
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        terminal_launcher_mode: mode,
+        terminal_launcher_template: template
+      })
+    });
+    if (!res.ok) {
+      const errTxt = await res.text();
+      throw new Error(errTxt || 'Gagal menyimpan pengaturan terminal');
+    }
+    showToast('Pengaturan terminal launcher berhasil disimpan', 'success');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
 }
 
 setLanguage(currentLang);
