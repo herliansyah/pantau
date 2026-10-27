@@ -1318,6 +1318,7 @@ body.has-workspace-shelf .container {
         </span>
         <select id="groupFilterSelect" onchange="onSearchFilterChange()" style="width: auto;">
           <option value="all" data-i18n="filter_all_groups">All Groups</option>
+          <option value="none" data-i18n="filter_no_grouping">No Grouping</option>
         </select>
         <select id="statusFilterSelect" onchange="onSearchFilterChange()" style="width: auto;">
           <option value="all" data-i18n="filter_all">All Status</option>
@@ -3120,6 +3121,7 @@ const I18N = {
     "file_deleted": "File deleted successfully",
     "file_saved": "File saved successfully",
     "filter_all_groups": "All Groups",
+    "filter_no_grouping": "No Grouping",
     "filter_ungrouped": "Ungrouped",
     "filter_all": "All Status",
     "filter_healthy": "Healthy",
@@ -3785,6 +3787,7 @@ const I18N = {
     "search_terminal_host_ph": "Cari host atau IP...",
     "no_matching_hosts_short": "Tidak ada host yang cocok",
     "filter_all_groups": "Semua Group",
+    "filter_no_grouping": "Tanpa Grouping",
     "filter_ungrouped": "Tanpa Group",
     "filter_all": "Semua Status",
     "filter_healthy": "Healthy",
@@ -4439,7 +4442,7 @@ function getFilteredAndSortedHosts() {
 
   let list = [...allRawHosts];
 
-  if (groupVal && groupVal !== 'all') {
+  if (groupVal && groupVal !== 'all' && groupVal !== 'none') {
     if (groupVal === '__ungrouped__') {
       list = list.filter(h => !(h.group_name || '').trim());
     } else {
@@ -4762,8 +4765,10 @@ function renderGridView(grid, isManualSort) {
     return;
   }
 
-  const groups = groupHosts(displayHosts);
-  const showDividers = groups.length > 1 || (groups.length === 1 && !groups[0].isUngrouped);
+  const groupVal = document.getElementById('groupFilterSelect')?.value || 'all';
+  const isNoGrouping = groupVal === 'none';
+  const groups = isNoGrouping ? [{ name: '', hosts: displayHosts, isUngrouped: true }] : groupHosts(displayHosts);
+  const showDividers = !isNoGrouping && (groups.length > 1 || (groups.length === 1 && !groups[0].isUngrouped));
 
   groups.forEach(grp => {
     if (showDividers) {
@@ -5025,8 +5030,10 @@ function renderListView(listContainer, isManualSort) {
   `;
   const tbody = table.querySelector('tbody');
 
-  const groups = groupHosts(displayHosts);
-  const showDividers = groups.length > 1 || (groups.length === 1 && !groups[0].isUngrouped);
+  const groupVal = document.getElementById('groupFilterSelect')?.value || 'all';
+  const isNoGrouping = groupVal === 'none';
+  const groups = isNoGrouping ? [{ name: '', hosts: displayHosts, isUngrouped: true }] : groupHosts(displayHosts);
+  const showDividers = !isNoGrouping && (groups.length > 1 || (groups.length === 1 && !groups[0].isUngrouped));
 
   groups.forEach(grp => {
     if (showDividers) {
@@ -5551,6 +5558,7 @@ function updateGroupSuggestions() {
   if (groupSelect) {
     const currentVal = groupSelect.value || 'all';
     let options = `<option value="all" data-i18n="filter_all_groups">${t('filter_all_groups', 'All Groups')}</option>`;
+    options += `<option value="none" data-i18n="filter_no_grouping">${t('filter_no_grouping', 'No Grouping')}</option>`;
     groups.forEach(g => {
       options += `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`;
     });
@@ -5558,7 +5566,7 @@ function updateGroupSuggestions() {
       options += `<option value="__ungrouped__" data-i18n="filter_ungrouped">${t('filter_ungrouped', 'Ungrouped')}</option>`;
     }
     groupSelect.innerHTML = options;
-    if (groups.includes(currentVal) || (currentVal === '__ungrouped__' && hasUngrouped)) {
+    if (currentVal === 'none' || groups.includes(currentVal) || (currentVal === '__ungrouped__' && hasUngrouped)) {
       groupSelect.value = currentVal;
     } else {
       groupSelect.value = 'all';

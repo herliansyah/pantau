@@ -1,4 +1,5 @@
 pantau
+pantau-bin
 data/
 *.db
 *.db-wal
