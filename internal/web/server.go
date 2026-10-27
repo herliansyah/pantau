@@ -91,6 +91,8 @@ type Server struct {
 	htmlETag          string
 	docsFS            fs.FS
 	tunnelRunners     sync.Map // hostID -> *tunnelRunnerEntry
+	hostKeyMutexes    sync.Map // hostID -> *sync.Mutex
+	nativeTickets     sync.Map // token -> *NativeTicket
 	inspectAllMu      sync.Mutex
 	inspectAllActive  bool
 	lastInspectAll    time.Time
@@ -225,6 +227,12 @@ func (s *Server) routes() {
 	// SSH Direct-TCPIP Reverse Proxy Tunnel
 	s.mux.HandleFunc("/api/tunnel/", s.authMiddleware(s.handleTunnel))
 
+	// Native Terminal Bridge
+	s.mux.HandleFunc("/api/terminal/native-open", s.authMiddleware(s.handleNativeTerminalOpen))
+	s.mux.HandleFunc("/api/terminal/native-ticket", s.authMiddleware(s.handleNativeTerminalTicket))
+	s.mux.HandleFunc("/api/terminal/native-download", s.handleNativeTerminalDownload)
+	s.mux.HandleFunc("/api/terminal/native-run", s.handleNativeTerminalRun)
+
 	// Snapshots & GitHub Backup
 	s.mux.HandleFunc("/api/snapshot/status", s.handleSnapshotStatus)
 	s.mux.HandleFunc("/api/snapshot/bootstrap/start-fresh", s.handleSnapshotStartFresh)
@@ -259,7 +267,8 @@ func (s *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		exp, ok := s.sessions.Load(cookie.Value)
-		if !ok || time.Now().After(exp.(time.Time)) {
+		expTime, isTime := exp.(time.Time)
+		if !ok || !isTime || time.Now().After(expTime) {
 			s.sessions.Delete(cookie.Value)
 			http.Error(w, `{"error":"session_expired"}`, http.StatusUnauthorized)
 			return
@@ -603,8 +612,10 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("pantau_session")
 	authenticated := false
 	if err == nil && cookie.Value != "" {
-		if exp, ok := s.sessions.Load(cookie.Value); ok && time.Now().Before(exp.(time.Time)) {
-			authenticated = true
+		if exp, ok := s.sessions.Load(cookie.Value); ok {
+			if expTime, isTime := exp.(time.Time); isTime && time.Now().Before(expTime) {
+				authenticated = true
+			}
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"authenticated": authenticated})
@@ -1959,6 +1970,12 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		autoTriageHost, _ := s.db.GetSetting("auto_triage_default_host_id")
 
+		termMode, _ := s.db.GetSetting("terminal_launcher_mode")
+		if termMode == "" {
+			termMode = "auto"
+		}
+		termTemplate, _ := s.db.GetSetting("terminal_launcher_template")
+
 		writeJSON(w, http.StatusOK, map[string]string{
 			"ssh_public_key":              pubKey,
 			"telegram_token":              tgToken,
@@ -1977,12 +1994,20 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			"auto_triage_enabled":         autoTriageEnabled,
 			"auto_triage_interval_min":    autoTriageInterval,
 			"auto_triage_default_host_id": autoTriageHost,
+			"terminal_launcher_mode":      termMode,
+			"terminal_launcher_template":  termTemplate,
 		})
 	case http.MethodPost:
 		var req map[string]string
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
+		}
+		if req["terminal_launcher_mode"] == "custom" && req["terminal_launcher_template"] != "" {
+			if err := validateTerminalTemplate(req["terminal_launcher_template"]); err != nil {
+				http.Error(w, fmt.Sprintf("invalid terminal template: %v", err), http.StatusBadRequest)
+				return
+			}
 		}
 		for k, v := range req {
 			if k != "ssh_public_key" && k != "ssh_private_key" && k != "admin_password_hash" {
@@ -2554,7 +2579,8 @@ func (s *Server) checkAuthOrFresh(r *http.Request) bool {
 		return false
 	}
 	exp, ok := s.sessions.Load(cookie.Value)
-	if !ok || time.Now().After(exp.(time.Time)) {
+	expTime, isTime := exp.(time.Time)
+	if !ok || !isTime || time.Now().After(expTime) {
 		return false
 	}
 	return true

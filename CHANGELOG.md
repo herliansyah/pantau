@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Added
+- Native Terminal Bridge: feature to launch OS native terminal emulators (Windows Terminal, GNOME Terminal, iTerm2, Alacritty, etc.) connected to monitored Linux hosts without re-entering passwords.
+  - Ephemeral RSA 2048-bit SSH Keypair Injection: in-memory key generation without touching Pantau server disk, universal compatibility with legacy OpenSSH 5.3+ (CentOS 6) and modern servers, atomic append to `~/.ssh/authorized_keys` with unique comment metadata, and two-tier auto-cleanup (proactive Go timer and reactive sweep via POSIX `awk`).
+  - Remote Web Launcher Script & Command Generator: single-use download token (burn-after-read, 60s TTL) serving self-extracting `.cmd` (Windows with user-profile key isolation) and `.command` / `.sh` (macOS/Linux with `trap` cleanup), plus streaming one-click command modal.
+  - Custom URL Protocol (`pantau://`): seamless 1-click terminal launch directly from browser without downloading files or manual copy-pasting, executing in-memory via PowerShell/bash to pass antivirus heuristics.
+  - OS Terminal Detection & Interactive Shell Retention: automatic cascade detection across Windows, macOS, and Linux with interactive shell chaining (`exec bash`, `cmd /k`, `powershell -NoExit`) so terminal windows remain open and interactive if SSH fails or disconnects.
+  - Process Detachment: non-blocking detached process spawning in Go (`Setpgid` on POSIX, `CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS` on Windows).
+  - Terminal Settings & Custom Template: support for power-user terminal command templates (e.g. `alacritty -e %cmd%`) with pre-flight binary lookpath and command injection prevention.
+  - UI Integrations: Native Terminal button on Terminal Toolbar and "Native Terminal" dropdown item on Host Cards (Grid and List views).
+
 ## [0.27.0] - 2026-10-27
 ### Added
 - Flat Host View Option ("No Grouping"): explicit filter option to display all registered hosts in a flat list or card grid without group headers.
