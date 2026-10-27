@@ -2291,6 +2291,36 @@ func TestHostListDropdownPositioning(t *testing.T) {
 	if !strings.Contains(html, "open-down") || !strings.Contains(html, "open-up") {
 		t.Errorf("expected toggleDropdown to toggle open-down and open-up")
 	}
+
+	// Verify host action buttons (view, terminal, and 3-dots more actions) share equal heights
+	if !strings.Contains(html, ".btn-sm.btn-icon { min-width: 24px; height: 24px;") {
+		t.Errorf("expected .btn-sm.btn-icon to define compact 24px height matching view and terminal buttons")
+	}
+	if !strings.Contains(html, ".btn-host-view, .btn-host-terminal { height: 24px; }") {
+		t.Errorf("expected .btn-host-view and .btn-host-terminal to enforce 24px height")
+	}
+	if !strings.Contains(html, ".dropdown { position: relative; display: inline-flex; }") {
+		t.Errorf("expected .dropdown to use inline-flex for aligned button embedding")
+	}
+
+	// Verify terminal action button does not widen when badges are active (fixed width & absolute badge indicator)
+	if !strings.Contains(html, ".btn-host-terminal { position: relative; width: 26px; min-width: 26px; padding: 0;") {
+		t.Errorf("expected .btn-host-terminal to have fixed width and relative positioning")
+	}
+	if !strings.Contains(html, ".btn-host-terminal .host-terminal-badge { position: absolute;") {
+		t.Errorf("expected .host-terminal-badge to have absolute positioning to avoid button widening")
+	}
+
+	// Verify header icon buttons and badges maintain fixed dimensions
+	if !strings.Contains(html, ".btn-icon { position: relative;") {
+		t.Errorf("expected .btn-icon to use relative positioning for badge overlays")
+	}
+	if !strings.Contains(html, ".header-btn-badge { position: absolute;") {
+		t.Errorf("expected .header-btn-badge to use absolute positioning")
+	}
+	if !strings.Contains(html, `id="activeTerminalBadge" class="badge badge-healthy header-btn-badge"`) {
+		t.Errorf("expected activeTerminalBadge to include header-btn-badge class")
+	}
 }
 
 

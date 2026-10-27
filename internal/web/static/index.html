@@ -47,12 +47,18 @@ a.btn:hover { text-decoration: none; color: var(--text); }
 .btn-success { background: var(--success); }
 .btn-warning { background: var(--warning); color: #000; }
 .btn-sm { padding: 4px 8px; font-size: 0.75rem; }
-.btn-icon { min-width: 32px; height: 32px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.btn-icon { position: relative; min-width: 32px; height: 32px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; }
+.btn-sm.btn-icon { min-width: 24px; height: 24px; padding: 0 4px; font-size: 0.85rem; line-height: 1; }
+.btn-icon .header-btn-badge, .header-btn-badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 3px; font-size: 0.68rem; font-weight: 700; line-height: 16px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; background: #34d399 !important; color: #064e3b !important; box-shadow: 0 0 0 1.5px var(--card-bg); pointer-events: none; text-align: center; }
+.btn-host-view, .btn-host-terminal { height: 24px; }
+.host-list-table .btn-inspect-quick { width: 24px; min-width: 24px; height: 24px; border-radius: 6px; }
+.btn-host-terminal { position: relative; width: 26px; min-width: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.btn-host-terminal .host-terminal-badge { position: absolute; top: -4px; right: -5px; min-width: 14px; height: 14px; padding: 0 3px; font-size: 0.65rem; font-weight: 700; line-height: 14px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; background: #34d399 !important; color: #064e3b !important; box-shadow: 0 0 0 1.5px var(--card-bg); pointer-events: none; text-align: center; }
 .btn-inspect-quick { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--card-border); color: var(--text-muted); border-radius: 4px; cursor: pointer; transition: all 0.15s; }
 .btn-inspect-quick:hover { color: #60a5fa; border-color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .spinning { animation: spin 0.8s linear infinite; pointer-events: none; opacity: 0.7; transform-origin: center; display: inline-block; }
-.dropdown { position: relative; display: inline-block; }
+.dropdown { position: relative; display: inline-flex; }
 .dropdown-menu { display: none; position: absolute; right: 0; bottom: 100%; margin-bottom: 6px; background: #1e293b; border: 1px solid var(--card-border); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); min-width: 180px; z-index: 60; padding: 4px; }
 .dropdown.open { z-index: 70; }
 .dropdown.open .dropdown-menu { display: block; }
@@ -1272,10 +1278,10 @@ body.has-workspace-shelf .container {
     <div style="display: flex; gap: 8px; align-items: center;">
       <div class="header-cluster">
         <button class="btn btn-icon" id="btnHeaderNetDiag" onclick="openNetDiagModal()" title="Network Diagnostics" data-i18n-title="netdiag_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></button>
-        <button class="btn btn-icon" onclick="openTransfersModal()" title="Cross-Host Transfers" data-i18n-title="transfers_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 6h18"/><path d="m7 22-4-4 4-4"/><path d="M21 18H3"/></svg><span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
+        <button class="btn btn-icon" onclick="openTransfersModal()" title="Cross-Host Transfers" data-i18n-title="transfers_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 6h18"/><path d="m7 22-4-4 4-4"/><path d="M21 18H3"/></svg><span id="activeTransferBadge" class="badge badge-healthy header-btn-badge" style="display: none;">0</span></button>
         <button class="btn btn-icon" onclick="openGlobalNotesModal()" title="Global Notes" data-i18n-title="global_notes_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>
         <button class="btn btn-icon" id="btnHeaderBookmarks" onclick="openGlobalPinsModal()" title="Global Bookmarks" data-i18n-title="global_pins_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg></button>
-        <button class="btn btn-icon" id="btnHeaderTerminal" onclick="toggleTerminalDock()" title="Terminal Dock" data-i18n-title="terminal_dock_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span id="activeTerminalBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
+        <button class="btn btn-icon" id="btnHeaderTerminal" onclick="toggleTerminalDock()" title="Terminal Dock" data-i18n-title="terminal_dock_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span id="activeTerminalBadge" class="badge badge-healthy header-btn-badge" style="display: none;">0</span></button>
         <button class="btn btn-icon" id="btnHeaderCompare" onclick="openHostCompareModal()" title="Host Comparison" data-i18n-title="compare_hosts_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg></button>
       </div>
       <div class="header-divider"></div>
@@ -4982,7 +4988,7 @@ function renderGridView(grid, isManualSort) {
             ${t('btn_view')}
             <span class="badge host-session-badge" style="${hasActiveSession ? '' : 'display: none;'} font-size: 0.68rem; padding: 1px 4px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);" title="${t('active_session_badge')}">📂</span>
           </button>
-          <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}" style="display: inline-flex; align-items: center; gap: 4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'} margin-left: 2px; font-size: 0.72rem; padding: 1px 5px;">${hostTabsCount}</span></button>
+          <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'}">${hostTabsCount}</span></button>
           <div class="dropdown" style="margin-left: auto;">
             <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, ${h.id})" title="${t('more_actions', 'More Actions')}">⋮</button>
             <div class="dropdown-menu" id="dropdown-${h.id}">
@@ -5108,14 +5114,7 @@ function renderListView(listContainer, isManualSort) {
 
       tr.innerHTML = `
         ${isManualSort ? `<td style="text-align: center;"><span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span></td>` : ''}
-        <td style="white-space: nowrap;">
-          <div style="display: inline-flex; align-items: center; gap: 6px;">
-            ${statusBadge}
-            <button class="btn-inspect-quick ${h.is_inspecting ? 'spinning' : ''}" id="inspectBtnList-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
-            </button>
-          </div>
-        </td>
+        <td style="white-space: nowrap;">${statusBadge}</td>
         <td>
           <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
             <b style="font-size: 0.95rem; color: var(--text);">${escapeHtml(h.name)}</b>
@@ -5154,7 +5153,10 @@ function renderListView(listContainer, isManualSort) {
               ${t('btn_view')}
               <span class="badge host-session-badge" style="${hasActiveSession ? '' : 'display: none;'} font-size: 0.68rem; padding: 1px 4px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);" title="${t('active_session_badge')}">📂</span>
             </button>
-            <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}" style="display: inline-flex; align-items: center; gap: 4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'} margin-left: 2px; font-size: 0.72rem; padding: 1px 5px;">${hostTabsCount}</span></button>
+            <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'}">${hostTabsCount}</span></button>
+            <button class="btn btn-sm btn-icon btn-inspect-quick ${h.is_inspecting ? 'spinning' : ''}" id="inspectBtnList-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            </button>
             <div class="dropdown">
               <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, 'list-${h.id}')" title="${t('more_actions', 'More Actions')}">⋮</button>
               <div class="dropdown-menu" id="dropdown-list-${h.id}">
@@ -9583,7 +9585,7 @@ function updateTerminalSessionIndicators() {
     const total = terminalTabs.length;
     if (total > 0) {
       headerBadge.innerText = total;
-      headerBadge.style.display = 'inline-block';
+      headerBadge.style.display = 'inline-flex';
     } else {
       headerBadge.style.display = 'none';
     }
@@ -9595,7 +9597,7 @@ function updateTerminalSessionIndicators() {
       const count = terminalTabs.filter(t => t.hostID === hid).length;
       if (count > 0) {
         badge.innerText = count;
-        badge.style.display = 'inline-block';
+        badge.style.display = 'inline-flex';
       } else {
         badge.style.display = 'none';
       }
@@ -10805,7 +10807,7 @@ async function loadTransfers() {
     if (badge) {
       if (activeJobs.length > 0) {
         badge.innerText = activeJobs.length;
-        badge.style.display = 'inline-block';
+        badge.style.display = 'inline-flex';
       } else {
         badge.style.display = 'none';
       }
