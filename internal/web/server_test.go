@@ -2268,6 +2268,32 @@ func TestWSDockerLogs_ClosesRunnerOnDisconnect(t *testing.T) {
 	}
 }
 
+func TestHostListDropdownPositioning(t *testing.T) {
+	html := string(embeddedHTML)
+
+	// Verify dropdown styles in table view default to opening downwards to avoid colliding with fixed header
+	if !strings.Contains(html, ".host-list-table .dropdown-menu { bottom: auto; top: 100%; margin-top: 6px; margin-bottom: 0; }") {
+		t.Errorf("expected .host-list-table .dropdown-menu to open downwards by default")
+	}
+
+	// Verify open-down and open-up classes exist
+	if !strings.Contains(html, ".dropdown.open.open-down .dropdown-menu") {
+		t.Errorf("expected .dropdown.open.open-down .dropdown-menu class")
+	}
+	if !strings.Contains(html, ".dropdown.open.open-up .dropdown-menu") {
+		t.Errorf("expected .dropdown.open.open-up .dropdown-menu class")
+	}
+
+	// Verify toggleDropdown contains smart collision handling
+	if !strings.Contains(html, "spaceAbove") || !strings.Contains(html, "spaceBelow") {
+		t.Errorf("expected toggleDropdown to calculate spaceAbove and spaceBelow")
+	}
+	if !strings.Contains(html, "open-down") || !strings.Contains(html, "open-up") {
+		t.Errorf("expected toggleDropdown to toggle open-down and open-up")
+	}
+}
+
+
 
 
 
