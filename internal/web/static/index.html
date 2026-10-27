@@ -450,9 +450,10 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 .sortable-th .sort-arrow { font-size: 0.75rem; color: #38bdf8; margin-left: 2px; }
 .host-list-view { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; overflow-x: auto; }
 .host-list-table { width: 100%; border-collapse: collapse; }
-.host-list-table th { background: rgba(15, 23, 42, 0.6); padding: 12px 14px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
-.host-list-table td { padding: 12px 14px; border-bottom: 1px solid var(--card-border); font-size: 0.85rem; vertical-align: middle; }
+.host-list-table th { background: rgba(15, 23, 42, 0.6); padding: 10px 14px; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+.host-list-table td { padding: 10px 14px; border-bottom: 1px solid var(--card-border); font-size: 0.85rem; vertical-align: middle; }
 .host-list-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+.host-group-header-row td { background: rgba(15, 23, 42, 0.45); padding: 8px 14px; font-weight: 600; }
 .host-note-badge { background: rgba(56, 189, 248, 0.08); border: 1px dashed rgba(56, 189, 248, 0.3); color: #93c5fd; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; line-height: 1.35; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; cursor: pointer; transition: all 0.15s; }
 .host-note-badge:hover { border-color: #60a5fa; background: rgba(56, 189, 248, 0.15); color: #bfdbfe; }
 .drag-handle { cursor: grab; color: var(--text-muted); user-select: none; font-size: 1rem; padding: 2px 4px; border-radius: 4px; }
@@ -5004,23 +5005,20 @@ function renderListView(listContainer, isManualSort) {
     return;
   }
 
+  // ponytail: intentionally streamlined to 7-8 columns to prevent horizontal wrapping and cognitive overload. Detailed I/O metrics belong in host detail modal.
   const table = document.createElement('table');
   table.className = 'host-list-table';
   table.innerHTML = `
     <thead>
       <tr>
         ${isManualSort ? '<th style="width: 36px;"></th>' : ''}
-        <th style="width: 90px;">${t('col_status')}</th>
+        <th style="width: 90px; white-space: nowrap;">${t('col_status')}</th>
         <th>${t('col_name')}</th>
-        <th>${t('col_address')}</th>
-        <th>${t('col_os')}</th>
-        <th style="width: 110px;">${t('col_last_inspected', 'Inspected')}</th>
-        <th style="width: 75px;">${t('col_score')}</th>
-        <th style="width: 120px;">${t('col_ram')}</th>
-        <th style="width: 120px;">${t('col_disk')}</th>
-        <th style="width: 130px;">${t('col_traffic')}</th>
-        <th>${t('col_notes')}</th>
-        <th style="text-align: right; width: 220px;">${t('col_actions')}</th>
+        <th style="width: 75px; text-align: center; white-space: nowrap;">${t('col_score')}</th>
+        <th style="width: 130px; white-space: nowrap;">${t('col_ram')}</th>
+        <th style="width: 130px; white-space: nowrap;">${t('col_disk')}</th>
+        <th style="width: 120px; white-space: nowrap;">${t('col_last_inspected', 'Inspected')}</th>
+        <th style="text-align: right; width: 180px; white-space: nowrap;">${t('col_actions')}</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -5035,7 +5033,7 @@ function renderListView(listContainer, isManualSort) {
       const headerRow = document.createElement('tr');
       headerRow.className = 'host-group-header-row';
       headerRow.innerHTML = `
-        <td colspan="${isManualSort ? 12 : 11}">
+        <td colspan="${isManualSort ? 8 : 7}">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span>📁 ${escapeHtml(grp.name)}</span>
             <span class="badge" style="font-size: 0.75rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8;">${grp.hosts.length}</span>
@@ -5089,15 +5087,6 @@ function renderListView(listContainer, isManualSort) {
       else if (h.lifecycle_score < 80) scoreColor = '#fbbf24';
 
       const noteSnippet = (h.notes || '').trim();
-      const noteHtml = `
-        <div class="host-note-badge" style="display: inline-flex;" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))" title="${t('edit_host_note_title')}">
-          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">
-            ${noteSnippet ? escapeHtml(noteSnippet) : '<span style="color: var(--text-muted); font-style: italic;">' + t('no_note_set') + '</span>'}
-          </span>
-          <span style="font-size: 0.7rem; opacity: 0.75;">✏️</span>
-        </div>
-      `;
-
       const recency = formatRelativeTime(h.last_inspected);
       const isInitial = !h.last_inspected;
       const statusBadge = isInitial 
@@ -5108,7 +5097,7 @@ function renderListView(listContainer, isManualSort) {
 
       tr.innerHTML = `
         ${isManualSort ? `<td style="text-align: center;"><span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span></td>` : ''}
-        <td>
+        <td style="white-space: nowrap;">
           <div style="display: inline-flex; align-items: center; gap: 6px;">
             ${statusBadge}
             <button class="btn-inspect-quick ${h.is_inspecting ? 'spinning' : ''}" id="inspectBtnList-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
@@ -5117,37 +5106,38 @@ function renderListView(listContainer, isManualSort) {
           </div>
         </td>
         <td>
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <b>${escapeHtml(h.name)}</b>
-            ${h.group_name ? `<span class="badge" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8;">📁 ${escapeHtml(h.group_name)}</span>` : ''}
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <b style="font-size: 0.95rem; color: var(--text);">${escapeHtml(h.name)}</b>
+            ${noteSnippet ? `
+              <span class="host-note-badge" style="display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; font-size: 0.72rem; cursor: pointer; border-radius: 4px;" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))" title="${escapeHtml(noteSnippet)}">
+                <span>📝</span>
+                <span style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(noteSnippet)}</span>
+              </span>
+            ` : ''}
+            ${(!showDividers && h.group_name) ? `<span class="badge" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8;">📁 ${escapeHtml(h.group_name)}</span>` : ''}
+          </div>
+          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 3px; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <span>${escapeHtml(h.host)}:${h.port} <span style="opacity: 0.75;">(${escapeHtml(h.user)})</span></span>
+            ${h.os_info ? `<span style="opacity: 0.4;">•</span><span style="overflow: hidden; text-overflow: ellipsis;">${escapeHtml(h.os_info)}</span>` : ''}
           </div>
         </td>
-        <td>${h.host}:${h.port} <span style="color: var(--text-muted); font-size: 0.8rem;">(${h.user})</span></td>
-        <td style="color: var(--text-muted);">${isInitial ? '<span style="color: #38bdf8; font-style: italic;">' + t('status_initializing', 'Initializing...') + '</span>' : escapeHtml(h.os_info || '-')}</td>
-        <td title="${recency.title}" style="font-size: 0.8rem; white-space: nowrap; ${recency.isStale ? 'color: #fbbf24; font-weight: 600;' : 'color: var(--text-muted);'}">
-          ${isInitial ? '<span style="color: var(--text-muted);">🕒 -</span>' : (recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : '') + '🕒 ' + recency.relative + (h.last_duration_ms > 0 ? `<div style="font-size: 0.72rem; color: #34d399; font-weight: 600;">${h.last_duration_ms}ms</div>` : '')}
-        </td>
-        <td><span class="score-badge" style="color: ${scoreColor}; font-size: 0.9rem;">${isInitial ? '-' : h.lifecycle_score}</span></td>
-        <td title="${formatBytes(h.ram_used_bytes || 0)} / ${formatBytes(h.ram_total_bytes || 0)}">
+        <td style="text-align: center; white-space: nowrap;"><span class="score-badge" style="color: ${scoreColor}; font-size: 0.9rem;">${isInitial ? '-' : h.lifecycle_score}</span></td>
+        <td style="white-space: nowrap;" title="${formatBytes(h.ram_used_bytes || 0)} / ${formatBytes(h.ram_total_bytes || 0)}">
           ${isInitial ? '<div style="font-size: 0.78rem; color: var(--text-muted);">⏳ Syncing...</div>' : `
             <div style="font-size: 0.8rem; margin-bottom: 2px;">${ramPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.ram_total_bytes || 0)})</span></div>
             <div class="progress" style="height: 4px;"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
           `}
         </td>
-        <td title="${formatBytes(h.disk_used_bytes || 0)} / ${formatBytes(h.disk_total_bytes || 0)}">
+        <td style="white-space: nowrap;" title="${formatBytes(h.disk_used_bytes || 0)} / ${formatBytes(h.disk_total_bytes || 0)}">
           ${isInitial ? '<div style="font-size: 0.78rem; color: var(--text-muted);">⏳ Syncing...</div>' : `
             <div style="font-size: 0.8rem; margin-bottom: 2px;">${diskPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.disk_total_bytes || 0)})</span></div>
             <div class="progress" style="height: 4px;"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
           `}
         </td>
-        <td style="font-size: 0.78rem; font-family: monospace;">
-          ${isInitial ? '<span style="color: var(--text-muted); font-size: 0.78rem;">⏳ Syncing...</span>' : `
-            <div title="Network Traffic: ⬇️ In / ⬆️ Out" style="color: #38bdf8;">⬇️ ${formatBytes(h.net_rx_speed_bps)}/s ⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
-            <div title="Disk I/O: 📖 Read / ✍️ Write" style="color: #c084fc; margin-top: 2px;">📖 ${formatBytes(h.disk_read_speed_bps)}/s ✍️ ${formatBytes(h.disk_write_speed_bps)}/s</div>
-          `}
+        <td title="${recency.title}" style="font-size: 0.8rem; white-space: nowrap; ${recency.isStale ? 'color: #fbbf24; font-weight: 600;' : 'color: var(--text-muted);'}">
+          ${isInitial ? '<span style="color: var(--text-muted);">🕒 -</span>' : (recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : '') + '🕒 ' + recency.relative + (h.last_duration_ms > 0 ? `<div style="font-size: 0.72rem; color: #34d399; font-weight: 600;">${h.last_duration_ms}ms</div>` : '')}
         </td>
-        <td>${noteHtml}</td>
-        <td style="text-align: right;">
+        <td style="text-align: right; white-space: nowrap;">
           <div style="display: inline-flex; gap: 4px; align-items: center;">
             <button class="btn btn-primary btn-sm btn-host-view" data-host-id="${h.id}" onclick="openHostDetail(${h.id})" style="display: inline-flex; align-items: center; gap: 4px;">
               ${t('btn_view')}
@@ -5158,6 +5148,7 @@ function renderListView(listContainer, isManualSort) {
               <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, 'list-${h.id}')" title="${t('more_actions', 'More Actions')}">⋮</button>
               <div class="dropdown-menu" id="dropdown-list-${h.id}">
                 <button class="dropdown-item" onclick="openEditHostModal(${h.id})">✏️ <span>${t('edit_host', 'Edit Host')}</span></button>
+                <button class="dropdown-item" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))">📝 <span>${t('edit_host_note_title', 'Edit Note')}</span></button>
                 <button class="dropdown-item" onclick="testHostSSH(${h.id})">⚡ <span>${t('test_connection', 'Test Connection')}</span></button>
                 <button class="dropdown-item" onclick="openInjectKeyModal(${h.id}, '${escapeHtml(h.name)}')">🔑 <span>${t('btn_inject_key', 'Inject Key')}</span></button>
                 <div class="dropdown-divider"></div>
