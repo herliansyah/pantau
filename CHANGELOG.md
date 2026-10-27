@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0] - 2026-10-27
+### Added
+- Flat Host View Option ("No Grouping"): explicit filter option to display all registered hosts in a flat list or card grid without group headers.
+
+### Changed
+- Streamlined Host List View: optimized table width from 12 columns to 7–8 columns for higher scannability and reduced visual clutter; merged host address and OS info into a two-line cell, displayed operational notes as inline badges with direct edit access, removed redundant traffic throughput columns, and enforced `white-space: nowrap` on metric columns.
+- Terminal Button Badges & Action Ergonomics: applied fixed dimensions and corner overlay counter badges to terminal buttons across headers and cards, standardized high-contrast badge colors, and relocated manual host refresh trigger to the action menu.
+
+### Fixed
+- Remote SSH Process & Tunnel Connection Leaks: immediate SSH runner abortion upon WebSocket disconnection for interactive terminals and container log streaming to terminate orphaned remote processes (e.g. `top`, `tail`, `docker logs`), added background idle reaper for remote port tunnels, and handled cancellation during directory streaming downloads.
+- Action Dropdown Menu Header Clipping: added dynamic viewport collision detection for host list action dropdowns to toggle opening upward or downward, preventing menu items from clipping behind the fixed header and toolbar.
+
 ## [0.26.0] - 2026-10-26
 ### Added
 - Pre-flight SSH Connection Testing: ad-hoc connection test endpoint `POST /api/hosts/test-connection` and `⚡ Test Connection` button in the host registration modal verifying host address, SSH port, authentication (one-time password or private key), and remote architecture (`uname -srm; uptime`) prior to saving.
