@@ -47,14 +47,23 @@ a.btn:hover { text-decoration: none; color: var(--text); }
 .btn-success { background: var(--success); }
 .btn-warning { background: var(--warning); color: #000; }
 .btn-sm { padding: 4px 8px; font-size: 0.75rem; }
-.btn-icon { min-width: 32px; height: 32px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.btn-icon { position: relative; min-width: 32px; height: 32px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; }
+.btn-sm.btn-icon { min-width: 24px; height: 24px; padding: 0 4px; font-size: 0.85rem; line-height: 1; }
+.btn-icon .header-btn-badge, .header-btn-badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 3px; font-size: 0.68rem; font-weight: 700; line-height: 16px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; background: #34d399 !important; color: #064e3b !important; box-shadow: 0 0 0 1.5px var(--card-bg); pointer-events: none; text-align: center; }
+.btn-host-view, .btn-host-terminal { height: 24px; }
+.host-list-table .btn-inspect-quick { width: 24px; min-width: 24px; height: 24px; border-radius: 6px; }
+.btn-host-terminal { position: relative; width: 26px; min-width: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.btn-host-terminal .host-terminal-badge { position: absolute; top: -4px; right: -5px; min-width: 14px; height: 14px; padding: 0 3px; font-size: 0.65rem; font-weight: 700; line-height: 14px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; background: #34d399 !important; color: #064e3b !important; box-shadow: 0 0 0 1.5px var(--card-bg); pointer-events: none; text-align: center; }
 .btn-inspect-quick { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--card-border); color: var(--text-muted); border-radius: 4px; cursor: pointer; transition: all 0.15s; }
 .btn-inspect-quick:hover { color: #60a5fa; border-color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .spinning { animation: spin 0.8s linear infinite; pointer-events: none; opacity: 0.7; transform-origin: center; display: inline-block; }
-.dropdown { position: relative; display: inline-block; }
+.dropdown { position: relative; display: inline-flex; }
 .dropdown-menu { display: none; position: absolute; right: 0; bottom: 100%; margin-bottom: 6px; background: #1e293b; border: 1px solid var(--card-border); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); min-width: 180px; z-index: 60; padding: 4px; }
+.dropdown.open { z-index: 70; }
 .dropdown.open .dropdown-menu { display: block; }
+.dropdown.open.open-down .dropdown-menu { bottom: auto; top: 100%; margin-top: 6px; margin-bottom: 0; }
+.dropdown.open.open-up .dropdown-menu { bottom: 100%; top: auto; margin-bottom: 6px; margin-top: 0; }
 .dropdown-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; font-size: 0.8rem; color: var(--text); background: none; border: none; border-radius: 4px; text-align: left; cursor: pointer; transition: background 0.15s; font-family: inherit; }
 .dropdown-item:hover { background: rgba(255,255,255,0.08); color: #fff; }
 .dropdown-item.danger { color: #f87171; }
@@ -448,11 +457,13 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 .sortable-th { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 4px; transition: color 0.15s ease; }
 .sortable-th:hover { color: #38bdf8; }
 .sortable-th .sort-arrow { font-size: 0.75rem; color: #38bdf8; margin-left: 2px; }
-.host-list-view { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; overflow-x: auto; }
+.host-list-view { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; overflow-x: auto; min-height: 260px; }
 .host-list-table { width: 100%; border-collapse: collapse; }
-.host-list-table th { background: rgba(15, 23, 42, 0.6); padding: 12px 14px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
-.host-list-table td { padding: 12px 14px; border-bottom: 1px solid var(--card-border); font-size: 0.85rem; vertical-align: middle; }
+.host-list-table .dropdown-menu { bottom: auto; top: 100%; margin-top: 6px; margin-bottom: 0; }
+.host-list-table th { background: rgba(15, 23, 42, 0.6); padding: 10px 14px; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+.host-list-table td { padding: 10px 14px; border-bottom: 1px solid var(--card-border); font-size: 0.85rem; vertical-align: middle; }
 .host-list-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+.host-group-header-row td { background: rgba(15, 23, 42, 0.45); padding: 8px 14px; font-weight: 600; }
 .host-note-badge { background: rgba(56, 189, 248, 0.08); border: 1px dashed rgba(56, 189, 248, 0.3); color: #93c5fd; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; line-height: 1.35; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; cursor: pointer; transition: all 0.15s; }
 .host-note-badge:hover { border-color: #60a5fa; background: rgba(56, 189, 248, 0.15); color: #bfdbfe; }
 .drag-handle { cursor: grab; color: var(--text-muted); user-select: none; font-size: 1rem; padding: 2px 4px; border-radius: 4px; }
@@ -1267,10 +1278,10 @@ body.has-workspace-shelf .container {
     <div style="display: flex; gap: 8px; align-items: center;">
       <div class="header-cluster">
         <button class="btn btn-icon" id="btnHeaderNetDiag" onclick="openNetDiagModal()" title="Network Diagnostics" data-i18n-title="netdiag_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></button>
-        <button class="btn btn-icon" onclick="openTransfersModal()" title="Cross-Host Transfers" data-i18n-title="transfers_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 6h18"/><path d="m7 22-4-4 4-4"/><path d="M21 18H3"/></svg><span id="activeTransferBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
+        <button class="btn btn-icon" onclick="openTransfersModal()" title="Cross-Host Transfers" data-i18n-title="transfers_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m17 2 4 4-4 4"/><path d="M3 6h18"/><path d="m7 22-4-4 4-4"/><path d="M21 18H3"/></svg><span id="activeTransferBadge" class="badge badge-healthy header-btn-badge" style="display: none;">0</span></button>
         <button class="btn btn-icon" onclick="openGlobalNotesModal()" title="Global Notes" data-i18n-title="global_notes_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></button>
         <button class="btn btn-icon" id="btnHeaderBookmarks" onclick="openGlobalPinsModal()" title="Global Bookmarks" data-i18n-title="global_pins_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg></button>
-        <button class="btn btn-icon" id="btnHeaderTerminal" onclick="toggleTerminalDock()" title="Terminal Dock" data-i18n-title="terminal_dock_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span id="activeTerminalBadge" class="badge badge-healthy" style="display: none; margin-left: 2px;">0</span></button>
+        <button class="btn btn-icon" id="btnHeaderTerminal" onclick="toggleTerminalDock()" title="Terminal Dock" data-i18n-title="terminal_dock_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span id="activeTerminalBadge" class="badge badge-healthy header-btn-badge" style="display: none;">0</span></button>
         <button class="btn btn-icon" id="btnHeaderCompare" onclick="openHostCompareModal()" title="Host Comparison" data-i18n-title="compare_hosts_title"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg></button>
       </div>
       <div class="header-divider"></div>
@@ -1317,6 +1328,7 @@ body.has-workspace-shelf .container {
         </span>
         <select id="groupFilterSelect" onchange="onSearchFilterChange()" style="width: auto;">
           <option value="all" data-i18n="filter_all_groups">All Groups</option>
+          <option value="none" data-i18n="filter_no_grouping">No Grouping</option>
         </select>
         <select id="statusFilterSelect" onchange="onSearchFilterChange()" style="width: auto;">
           <option value="all" data-i18n="filter_all">All Status</option>
@@ -3119,6 +3131,7 @@ const I18N = {
     "file_deleted": "File deleted successfully",
     "file_saved": "File saved successfully",
     "filter_all_groups": "All Groups",
+    "filter_no_grouping": "No Grouping",
     "filter_ungrouped": "Ungrouped",
     "filter_all": "All Status",
     "filter_healthy": "Healthy",
@@ -3784,6 +3797,7 @@ const I18N = {
     "search_terminal_host_ph": "Cari host atau IP...",
     "no_matching_hosts_short": "Tidak ada host yang cocok",
     "filter_all_groups": "Semua Group",
+    "filter_no_grouping": "Tanpa Grouping",
     "filter_ungrouped": "Tanpa Group",
     "filter_all": "Semua Status",
     "filter_healthy": "Healthy",
@@ -4438,7 +4452,7 @@ function getFilteredAndSortedHosts() {
 
   let list = [...allRawHosts];
 
-  if (groupVal && groupVal !== 'all') {
+  if (groupVal && groupVal !== 'all' && groupVal !== 'none') {
     if (groupVal === '__ungrouped__') {
       list = list.filter(h => !(h.group_name || '').trim());
     } else {
@@ -4761,8 +4775,10 @@ function renderGridView(grid, isManualSort) {
     return;
   }
 
-  const groups = groupHosts(displayHosts);
-  const showDividers = groups.length > 1 || (groups.length === 1 && !groups[0].isUngrouped);
+  const groupVal = document.getElementById('groupFilterSelect')?.value || 'all';
+  const isNoGrouping = groupVal === 'none';
+  const groups = isNoGrouping ? [{ name: '', hosts: displayHosts, isUngrouped: true }] : groupHosts(displayHosts);
+  const showDividers = !isNoGrouping && (groups.length > 1 || (groups.length === 1 && !groups[0].isUngrouped));
 
   groups.forEach(grp => {
     if (showDividers) {
@@ -4972,7 +4988,7 @@ function renderGridView(grid, isManualSort) {
             ${t('btn_view')}
             <span class="badge host-session-badge" style="${hasActiveSession ? '' : 'display: none;'} font-size: 0.68rem; padding: 1px 4px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);" title="${t('active_session_badge')}">📂</span>
           </button>
-          <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}" style="display: inline-flex; align-items: center; gap: 4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'} margin-left: 2px; font-size: 0.72rem; padding: 1px 5px;">${hostTabsCount}</span></button>
+          <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'}">${hostTabsCount}</span></button>
           <div class="dropdown" style="margin-left: auto;">
             <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, ${h.id})" title="${t('more_actions', 'More Actions')}">⋮</button>
             <div class="dropdown-menu" id="dropdown-${h.id}">
@@ -5004,38 +5020,37 @@ function renderListView(listContainer, isManualSort) {
     return;
   }
 
+  // ponytail: intentionally streamlined to 7-8 columns to prevent horizontal wrapping and cognitive overload. Detailed I/O metrics belong in host detail modal.
   const table = document.createElement('table');
   table.className = 'host-list-table';
   table.innerHTML = `
     <thead>
       <tr>
         ${isManualSort ? '<th style="width: 36px;"></th>' : ''}
-        <th style="width: 90px;">${t('col_status')}</th>
+        <th style="width: 90px; white-space: nowrap;">${t('col_status')}</th>
         <th>${t('col_name')}</th>
-        <th>${t('col_address')}</th>
-        <th>${t('col_os')}</th>
-        <th style="width: 110px;">${t('col_last_inspected', 'Inspected')}</th>
-        <th style="width: 75px;">${t('col_score')}</th>
-        <th style="width: 120px;">${t('col_ram')}</th>
-        <th style="width: 120px;">${t('col_disk')}</th>
-        <th style="width: 130px;">${t('col_traffic')}</th>
-        <th>${t('col_notes')}</th>
-        <th style="text-align: right; width: 220px;">${t('col_actions')}</th>
+        <th style="width: 75px; text-align: center; white-space: nowrap;">${t('col_score')}</th>
+        <th style="width: 130px; white-space: nowrap;">${t('col_ram')}</th>
+        <th style="width: 130px; white-space: nowrap;">${t('col_disk')}</th>
+        <th style="width: 120px; white-space: nowrap;">${t('col_last_inspected', 'Inspected')}</th>
+        <th style="text-align: right; width: 180px; white-space: nowrap;">${t('col_actions')}</th>
       </tr>
     </thead>
     <tbody></tbody>
   `;
   const tbody = table.querySelector('tbody');
 
-  const groups = groupHosts(displayHosts);
-  const showDividers = groups.length > 1 || (groups.length === 1 && !groups[0].isUngrouped);
+  const groupVal = document.getElementById('groupFilterSelect')?.value || 'all';
+  const isNoGrouping = groupVal === 'none';
+  const groups = isNoGrouping ? [{ name: '', hosts: displayHosts, isUngrouped: true }] : groupHosts(displayHosts);
+  const showDividers = !isNoGrouping && (groups.length > 1 || (groups.length === 1 && !groups[0].isUngrouped));
 
   groups.forEach(grp => {
     if (showDividers) {
       const headerRow = document.createElement('tr');
       headerRow.className = 'host-group-header-row';
       headerRow.innerHTML = `
-        <td colspan="${isManualSort ? 12 : 11}">
+        <td colspan="${isManualSort ? 8 : 7}">
           <div style="display: flex; align-items: center; gap: 8px;">
             <span>📁 ${escapeHtml(grp.name)}</span>
             <span class="badge" style="font-size: 0.75rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8;">${grp.hosts.length}</span>
@@ -5089,15 +5104,6 @@ function renderListView(listContainer, isManualSort) {
       else if (h.lifecycle_score < 80) scoreColor = '#fbbf24';
 
       const noteSnippet = (h.notes || '').trim();
-      const noteHtml = `
-        <div class="host-note-badge" style="display: inline-flex;" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))" title="${t('edit_host_note_title')}">
-          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px;">
-            ${noteSnippet ? escapeHtml(noteSnippet) : '<span style="color: var(--text-muted); font-style: italic;">' + t('no_note_set') + '</span>'}
-          </span>
-          <span style="font-size: 0.7rem; opacity: 0.75;">✏️</span>
-        </div>
-      `;
-
       const recency = formatRelativeTime(h.last_inspected);
       const isInitial = !h.last_inspected;
       const statusBadge = isInitial 
@@ -5108,56 +5114,54 @@ function renderListView(listContainer, isManualSort) {
 
       tr.innerHTML = `
         ${isManualSort ? `<td style="text-align: center;"><span class="drag-handle" title="${t('drag_handle_title')}">⋮⋮</span></td>` : ''}
+        <td style="white-space: nowrap;">${statusBadge}</td>
         <td>
-          <div style="display: inline-flex; align-items: center; gap: 6px;">
-            ${statusBadge}
-            <button class="btn-inspect-quick ${h.is_inspecting ? 'spinning' : ''}" id="inspectBtnList-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
-            </button>
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <b style="font-size: 0.95rem; color: var(--text);">${escapeHtml(h.name)}</b>
+            ${noteSnippet ? `
+              <span class="host-note-badge" style="display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; font-size: 0.72rem; cursor: pointer; border-radius: 4px;" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))" title="${escapeHtml(noteSnippet)}">
+                <span>📝</span>
+                <span style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(noteSnippet)}</span>
+              </span>
+            ` : ''}
+            ${(!showDividers && h.group_name) ? `<span class="badge" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8;">📁 ${escapeHtml(h.group_name)}</span>` : ''}
+          </div>
+          <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 3px; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <span>${escapeHtml(h.host)}:${h.port} <span style="opacity: 0.75;">(${escapeHtml(h.user)})</span></span>
+            ${h.os_info ? `<span style="opacity: 0.4;">•</span><span style="overflow: hidden; text-overflow: ellipsis;">${escapeHtml(h.os_info)}</span>` : ''}
           </div>
         </td>
-        <td>
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <b>${escapeHtml(h.name)}</b>
-            ${h.group_name ? `<span class="badge" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8;">📁 ${escapeHtml(h.group_name)}</span>` : ''}
-          </div>
-        </td>
-        <td>${h.host}:${h.port} <span style="color: var(--text-muted); font-size: 0.8rem;">(${h.user})</span></td>
-        <td style="color: var(--text-muted);">${isInitial ? '<span style="color: #38bdf8; font-style: italic;">' + t('status_initializing', 'Initializing...') + '</span>' : escapeHtml(h.os_info || '-')}</td>
-        <td title="${recency.title}" style="font-size: 0.8rem; white-space: nowrap; ${recency.isStale ? 'color: #fbbf24; font-weight: 600;' : 'color: var(--text-muted);'}">
-          ${isInitial ? '<span style="color: var(--text-muted);">🕒 -</span>' : (recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : '') + '🕒 ' + recency.relative + (h.last_duration_ms > 0 ? `<div style="font-size: 0.72rem; color: #34d399; font-weight: 600;">${h.last_duration_ms}ms</div>` : '')}
-        </td>
-        <td><span class="score-badge" style="color: ${scoreColor}; font-size: 0.9rem;">${isInitial ? '-' : h.lifecycle_score}</span></td>
-        <td title="${formatBytes(h.ram_used_bytes || 0)} / ${formatBytes(h.ram_total_bytes || 0)}">
+        <td style="text-align: center; white-space: nowrap;"><span class="score-badge" style="color: ${scoreColor}; font-size: 0.9rem;">${isInitial ? '-' : h.lifecycle_score}</span></td>
+        <td style="white-space: nowrap;" title="${formatBytes(h.ram_used_bytes || 0)} / ${formatBytes(h.ram_total_bytes || 0)}">
           ${isInitial ? '<div style="font-size: 0.78rem; color: var(--text-muted);">⏳ Syncing...</div>' : `
             <div style="font-size: 0.8rem; margin-bottom: 2px;">${ramPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.ram_total_bytes || 0)})</span></div>
             <div class="progress" style="height: 4px;"><div class="progress-fill ${ramPct > 90 ? 'danger' : ''}" style="width: ${ramPct}%"></div></div>
           `}
         </td>
-        <td title="${formatBytes(h.disk_used_bytes || 0)} / ${formatBytes(h.disk_total_bytes || 0)}">
+        <td style="white-space: nowrap;" title="${formatBytes(h.disk_used_bytes || 0)} / ${formatBytes(h.disk_total_bytes || 0)}">
           ${isInitial ? '<div style="font-size: 0.78rem; color: var(--text-muted);">⏳ Syncing...</div>' : `
             <div style="font-size: 0.8rem; margin-bottom: 2px;">${diskPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.disk_total_bytes || 0)})</span></div>
             <div class="progress" style="height: 4px;"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
           `}
         </td>
-        <td style="font-size: 0.78rem; font-family: monospace;">
-          ${isInitial ? '<span style="color: var(--text-muted); font-size: 0.78rem;">⏳ Syncing...</span>' : `
-            <div title="Network Traffic: ⬇️ In / ⬆️ Out" style="color: #38bdf8;">⬇️ ${formatBytes(h.net_rx_speed_bps)}/s ⬆️ ${formatBytes(h.net_tx_speed_bps)}/s</div>
-            <div title="Disk I/O: 📖 Read / ✍️ Write" style="color: #c084fc; margin-top: 2px;">📖 ${formatBytes(h.disk_read_speed_bps)}/s ✍️ ${formatBytes(h.disk_write_speed_bps)}/s</div>
-          `}
+        <td title="${recency.title}" style="font-size: 0.8rem; white-space: nowrap; ${recency.isStale ? 'color: #fbbf24; font-weight: 600;' : 'color: var(--text-muted);'}">
+          ${isInitial ? '<span style="color: var(--text-muted);">🕒 -</span>' : (recency.isStale ? '<span title="' + t('stale_data', 'Stale Data (>10m)') + '">⚠️</span> ' : '') + '🕒 ' + recency.relative + (h.last_duration_ms > 0 ? `<div style="font-size: 0.72rem; color: #34d399; font-weight: 600;">${h.last_duration_ms}ms</div>` : '')}
         </td>
-        <td>${noteHtml}</td>
-        <td style="text-align: right;">
+        <td style="text-align: right; white-space: nowrap;">
           <div style="display: inline-flex; gap: 4px; align-items: center;">
             <button class="btn btn-primary btn-sm btn-host-view" data-host-id="${h.id}" onclick="openHostDetail(${h.id})" style="display: inline-flex; align-items: center; gap: 4px;">
               ${t('btn_view')}
               <span class="badge host-session-badge" style="${hasActiveSession ? '' : 'display: none;'} font-size: 0.68rem; padding: 1px 4px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);" title="${t('active_session_badge')}">📂</span>
             </button>
-            <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}" style="display: inline-flex; align-items: center; gap: 4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'} margin-left: 2px; font-size: 0.72rem; padding: 1px 5px;">${hostTabsCount}</span></button>
+            <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'}">${hostTabsCount}</span></button>
+            <button class="btn btn-sm btn-icon btn-inspect-quick ${h.is_inspecting ? 'spinning' : ''}" id="inspectBtnList-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+            </button>
             <div class="dropdown">
               <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, 'list-${h.id}')" title="${t('more_actions', 'More Actions')}">⋮</button>
               <div class="dropdown-menu" id="dropdown-list-${h.id}">
                 <button class="dropdown-item" onclick="openEditHostModal(${h.id})">✏️ <span>${t('edit_host', 'Edit Host')}</span></button>
+                <button class="dropdown-item" onclick="openEditNoteModal(${h.id}, decodeURIComponent('${encodeURIComponent(h.notes || '')}'), decodeURIComponent('${encodeURIComponent(h.name || '')}'))">📝 <span>${t('edit_host_note_title', 'Edit Note')}</span></button>
                 <button class="dropdown-item" onclick="testHostSSH(${h.id})">⚡ <span>${t('test_connection', 'Test Connection')}</span></button>
                 <button class="dropdown-item" onclick="openInjectKeyModal(${h.id}, '${escapeHtml(h.name)}')">🔑 <span>${t('btn_inject_key', 'Inject Key')}</span></button>
                 <div class="dropdown-divider"></div>
@@ -5560,6 +5564,7 @@ function updateGroupSuggestions() {
   if (groupSelect) {
     const currentVal = groupSelect.value || 'all';
     let options = `<option value="all" data-i18n="filter_all_groups">${t('filter_all_groups', 'All Groups')}</option>`;
+    options += `<option value="none" data-i18n="filter_no_grouping">${t('filter_no_grouping', 'No Grouping')}</option>`;
     groups.forEach(g => {
       options += `<option value="${escapeHtml(g)}">${escapeHtml(g)}</option>`;
     });
@@ -5567,7 +5572,7 @@ function updateGroupSuggestions() {
       options += `<option value="__ungrouped__" data-i18n="filter_ungrouped">${t('filter_ungrouped', 'Ungrouped')}</option>`;
     }
     groupSelect.innerHTML = options;
-    if (groups.includes(currentVal) || (currentVal === '__ungrouped__' && hasUngrouped)) {
+    if (currentVal === 'none' || groups.includes(currentVal) || (currentVal === '__ungrouped__' && hasUngrouped)) {
       groupSelect.value = currentVal;
     } else {
       groupSelect.value = 'all';
@@ -5690,18 +5695,38 @@ function showToast(message, type = 'info', duration = 4000) {
   }, duration);
 }
 
+// ponytail: smart dropdown positioning flips open-down / open-up to prevent clipping by fixed header (56px) or viewport bottom
 function toggleDropdown(e, id) {
   if (e) e.stopPropagation();
   const menu = document.getElementById('dropdown-' + id);
   const isOpen = menu && menu.parentElement.classList.contains('open');
   closeAllDropdowns();
   if (menu && !isOpen) {
-    menu.parentElement.classList.add('open');
+    const parent = menu.parentElement;
+    parent.classList.add('open');
+    const rect = parent.getBoundingClientRect();
+    const menuHeight = menu.offsetHeight || 200;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top - 60; // 60px accounts for top fixed header (56px) + margin
+    const inTable = !!parent.closest('.host-list-table');
+    const shouldOpenDown = inTable
+      ? (spaceBelow >= menuHeight || spaceBelow >= spaceAbove)
+      : (spaceAbove < menuHeight && spaceBelow >= spaceAbove);
+
+    if (shouldOpenDown) {
+      parent.classList.add('open-down');
+      parent.classList.remove('open-up');
+    } else {
+      parent.classList.add('open-up');
+      parent.classList.remove('open-down');
+    }
   }
 }
 
 function closeAllDropdowns() {
-  document.querySelectorAll('.dropdown.open').forEach(el => el.classList.remove('open'));
+  document.querySelectorAll('.dropdown.open').forEach(el => {
+    el.classList.remove('open', 'open-down', 'open-up');
+  });
 }
 window.addEventListener('click', closeAllDropdowns);
 
@@ -9560,7 +9585,7 @@ function updateTerminalSessionIndicators() {
     const total = terminalTabs.length;
     if (total > 0) {
       headerBadge.innerText = total;
-      headerBadge.style.display = 'inline-block';
+      headerBadge.style.display = 'inline-flex';
     } else {
       headerBadge.style.display = 'none';
     }
@@ -9572,7 +9597,7 @@ function updateTerminalSessionIndicators() {
       const count = terminalTabs.filter(t => t.hostID === hid).length;
       if (count > 0) {
         badge.innerText = count;
-        badge.style.display = 'inline-block';
+        badge.style.display = 'inline-flex';
       } else {
         badge.style.display = 'none';
       }
@@ -10782,7 +10807,7 @@ async function loadTransfers() {
     if (badge) {
       if (activeJobs.length > 0) {
         badge.innerText = activeJobs.length;
-        badge.style.display = 'inline-block';
+        badge.style.display = 'inline-flex';
       } else {
         badge.style.display = 'none';
       }
