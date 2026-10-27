@@ -111,6 +111,57 @@ func (s *Server) evictTunnelRunner(hostID int64) {
 	}
 }
 
+// ReapIdleTunnelRunners scans and evicts tunnel runners that have been idle longer than maxIdle.
+// ponytail: Automatically reaps abandoned SSH tunnel connections to avoid leaking sshd sessions on target hosts.
+func (s *Server) ReapIdleTunnelRunners(maxIdle time.Duration) int {
+	reaped := 0
+	s.tunnelRunners.Range(func(key, val interface{}) bool {
+		hostID := key.(int64)
+		entry := val.(*tunnelRunnerEntry)
+		entry.mu.Lock()
+		if time.Since(entry.lastUsed) >= maxIdle {
+			s.tunnelRunners.Delete(hostID)
+			if entry.transport != nil {
+				entry.transport.CloseIdleConnections()
+			}
+			if entry.runner != nil {
+				_ = entry.runner.Close()
+			}
+			reaped++
+		}
+		entry.mu.Unlock()
+		return true
+	})
+	return reaped
+}
+
+// StartTunnelReaper launches a background worker that periodically purges idle tunnel connections.
+func (s *Server) StartTunnelReaper(ctx context.Context, checkInterval, maxIdle time.Duration) {
+	if checkInterval <= 0 {
+		checkInterval = 30 * time.Second
+	}
+	if maxIdle <= 0 {
+		maxIdle = 3 * time.Minute
+	}
+	go func() {
+		ticker := time.NewTicker(checkInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				// On server shutdown, evict all remaining tunnel runners
+				s.tunnelRunners.Range(func(key, _ interface{}) bool {
+					s.evictTunnelRunner(key.(int64))
+					return true
+				})
+				return
+			case <-ticker.C:
+				s.ReapIdleTunnelRunners(maxIdle)
+			}
+		}
+	}()
+}
+
 // handleTunnel proxies HTTP and WebSocket traffic to remote host localhost ports via SSH direct-tcpip.
 // Format: /api/tunnel/:hostId/:port/*
 func (s *Server) handleTunnel(w http.ResponseWriter, r *http.Request) {

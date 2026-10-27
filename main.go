@@ -318,6 +318,7 @@ func main() {
 	server.SetUpdaterManager(updaterMgr)
 	server.SetDocsFS(embeddedDocs)
 	server.StartAutoTriageScheduler(ctx)
+	server.StartTunnelReaper(ctx, 30*time.Second, 3*time.Minute)
 	listener, port, err := listenPort(port, portExplicit)
 	if err != nil {
 		logger.Error("system", "", "Failed to bind port: "+err.Error())
