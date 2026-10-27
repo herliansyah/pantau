@@ -378,6 +378,8 @@ type MockRunner struct {
 	Closed          bool
 	SFTPProvider    func() (*sftp.Client, error)
 	DialContextFunc func(ctx context.Context, network, addr string) (net.Conn, error)
+	StreamFunc      func(cmd string, out io.Writer) error
+	TerminalFunc    func(in io.Reader, out io.Writer, cols, rows int, resizeChan <-chan [2]int) error
 }
 
 func NewMockRunner() *MockRunner {
@@ -434,6 +436,9 @@ func (m *MockRunner) ExecTimeout(cmd string, timeout time.Duration) (stdout, std
 }
 
 func (m *MockRunner) Stream(cmd string, out io.Writer) error {
+	if m.StreamFunc != nil {
+		return m.StreamFunc(cmd, out)
+	}
 	stdout, _, _, _ := m.Exec(cmd)
 	_, _ = io.WriteString(out, stdout)
 	return nil
@@ -465,6 +470,9 @@ func (m *MockRunner) SFTP() (*sftp.Client, error) {
 }
 
 func (m *MockRunner) Terminal(in io.Reader, out io.Writer, cols, rows int, resizeChan <-chan [2]int) error {
+	if m.TerminalFunc != nil {
+		return m.TerminalFunc(in, out, cols, rows, resizeChan)
+	}
 	_, _ = fmt.Fprintln(out, "Mock SSH Terminal Connected")
 	_, _ = io.Copy(out, in)
 	return nil

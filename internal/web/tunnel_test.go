@@ -184,3 +184,61 @@ func TestTunnel_SuccessfulProxyAndRedirectRewrite(t *testing.T) {
 		t.Errorf("expected rewritten Location %s, got %s", expectedLocation, loc)
 	}
 }
+
+func TestTunnel_IdleReaper(t *testing.T) {
+	mockRunner := sshrunner.NewMockRunner()
+	mockFactory := func(h string, p int, u, k string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}
+
+	tmpDir, _ := os.MkdirTemp("", "pantau-reaper-test-*")
+	defer os.RemoveAll(tmpDir)
+	db, _ := store.Open(filepath.Join(tmpDir, "test.db"))
+	defer db.Close()
+
+	host := &store.Host{Name: "reaper-node", Host: "10.0.0.1", Port: 22, User: "root"}
+	hID, _ := db.CreateHost(host)
+	host.ID = hID
+
+	ins := inspector.New(db, mockFactory, nil)
+	s := NewServer(db, ins, nil)
+
+	// Simulate active tunnel connection
+	tr, err := s.getTunnelTransport(host)
+	if err != nil || tr == nil {
+		t.Fatalf("failed to get tunnel transport: %v", err)
+	}
+
+	// Verify entry stored in tunnelRunners
+	if _, ok := s.tunnelRunners.Load(host.ID); !ok {
+		t.Fatalf("expected tunnel runner entry stored for host %d", host.ID)
+	}
+
+	// Active entry (< maxIdle) should NOT be reaped
+	reaped := s.ReapIdleTunnelRunners(10 * time.Minute)
+	if reaped != 0 {
+		t.Errorf("expected 0 reaped for active entry, got %d", reaped)
+	}
+	if mockRunner.IsClosed() {
+		t.Errorf("runner should not be closed yet")
+	}
+
+	// Simulate entry became idle past maxIdle
+	entryVal, _ := s.tunnelRunners.Load(host.ID)
+	entry := entryVal.(*tunnelRunnerEntry)
+	entry.mu.Lock()
+	entry.lastUsed = time.Now().Add(-15 * time.Minute)
+	entry.mu.Unlock()
+
+	// Reaper must evict and close idle runner
+	reaped = s.ReapIdleTunnelRunners(10 * time.Minute)
+	if reaped != 1 {
+		t.Errorf("expected 1 reaped, got %d", reaped)
+	}
+	if !mockRunner.IsClosed() {
+		t.Errorf("expected mock runner to be closed by idle reaper")
+	}
+	if _, ok := s.tunnelRunners.Load(host.ID); ok {
+		t.Errorf("expected tunnel runner entry removed from tunnelRunners map")
+	}
+}

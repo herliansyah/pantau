@@ -21,6 +21,8 @@ import (
 	"pantau/internal/sshrunner"
 	"pantau/internal/store"
 	"pantau/internal/updater"
+
+	"github.com/gorilla/websocket"
 )
 
 func TestIsProtectedPathString(t *testing.T) {
@@ -2105,6 +2107,164 @@ func TestDuplicateHostPrevention(t *testing.T) {
 	srv.ServeHTTP(wPutSelf, reqPutSelf)
 	if wPutSelf.Code != http.StatusOK {
 		t.Fatalf("expected 200 OK when editing self, got %d: %s", wPutSelf.Code, wPutSelf.Body.String())
+	}
+}
+
+func TestWSTerminal_ClosesRunnerOnDisconnect(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-term-leak-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	host := &store.Host{
+		Name: "term-node",
+		Host: "192.168.1.111",
+		Port: 22,
+		User: "root",
+	}
+	hID, err := db.CreateHost(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host.ID = hID
+
+	mockRunner := sshrunner.NewMockRunner()
+	// Simulate long-running terminal command that does not exit on stdin EOF (like top or tail -f)
+	termTerminated := make(chan struct{})
+	mockRunner.TerminalFunc = func(in io.Reader, out io.Writer, cols, rows int, resizeChan <-chan [2]int) error {
+		_, _ = fmt.Fprintln(out, "bash-5.1$ top")
+		<-termTerminated
+		return nil
+	}
+	mockRunnerDefaultClose := mockRunner.Close
+	_ = mockRunnerDefaultClose
+
+	ins := inspector.New(db, func(h string, p int, u, k string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	srv := NewServer(db, ins, nil)
+	token := "term_test_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+
+	ts := httptest.NewServer(srv.mux)
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + fmt.Sprintf("/ws/terminal?host_id=%d", host.ID)
+	headers := http.Header{}
+	headers.Add("Cookie", "pantau_session="+token)
+
+	ws, _, err := websocket.DefaultDialer.Dial(wsURL, headers)
+	if err != nil {
+		t.Fatalf("failed to dial websocket terminal: %v", err)
+	}
+
+	// Read initial banner
+	_, msg, err := ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("failed to read from terminal: %v", err)
+	}
+	if !strings.Contains(string(msg), "top") {
+		t.Fatalf("expected top in initial terminal output, got %s", string(msg))
+	}
+
+	// Now client disconnects / closes browser
+	_ = ws.Close()
+	close(termTerminated)
+
+	// Verify runner is promptly closed by handleTerminal
+	deadline := time.Now().Add(2 * time.Second)
+	for !mockRunner.IsClosed() && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	if !mockRunner.IsClosed() {
+		t.Errorf("expected mock runner to be closed immediately on terminal websocket disconnect")
+	}
+}
+
+func TestWSDockerLogs_ClosesRunnerOnDisconnect(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-logs-leak-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	host := &store.Host{
+		Name: "docker-node",
+		Host: "192.168.1.112",
+		Port: 22,
+		User: "root",
+	}
+	hID, err := db.CreateHost(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host.ID = hID
+
+	mockRunner := sshrunner.NewMockRunner()
+	// Simulate docker logs -f streaming forever
+	streamTerminated := make(chan struct{})
+	mockRunner.StreamFunc = func(cmd string, out io.Writer) error {
+		_, _ = fmt.Fprintln(out, "2026-10-26T12:00:00Z Log message 1")
+		<-streamTerminated
+		return nil
+	}
+
+	ins := inspector.New(db, func(h string, p int, u, k string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	srv := NewServer(db, ins, nil)
+	token := "logs_test_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+
+	ts := httptest.NewServer(srv.mux)
+	defer ts.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + fmt.Sprintf("/ws/docker/logs?host_id=%d&container=test-service", host.ID)
+	headers := http.Header{}
+	headers.Add("Cookie", "pantau_session="+token)
+
+	ws, _, err := websocket.DefaultDialer.Dial(wsURL, headers)
+	if err != nil {
+		t.Fatalf("failed to dial websocket docker logs: %v", err)
+	}
+
+	// Read initial log line
+	_, msg, err := ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("failed to read from docker logs: %v", err)
+	}
+	if !strings.Contains(string(msg), "Log message 1") {
+		t.Fatalf("expected log output, got %s", string(msg))
+	}
+
+	// Now client disconnects / closes modal
+	_ = ws.Close()
+	close(streamTerminated)
+
+	// Verify runner is promptly closed by handleWSDockerLogs
+	deadline := time.Now().Add(2 * time.Second)
+	for !mockRunner.IsClosed() && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	if !mockRunner.IsClosed() {
+		t.Errorf("expected mock runner to be closed immediately on docker logs websocket disconnect")
 	}
 }
 
