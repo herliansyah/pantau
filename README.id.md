@@ -1,265 +1,143 @@
 <p align="center">
   <a href="#readme">
-    <img src=".github/assets/logo.svg" alt="Logo Pantau" width="128" />
+    <img src=".github/assets/logo.svg" alt="Logo Pantau" width="100" />
   </a>
 </p>
 
 <h1 align="center">Pantau</h1>
 
 <p align="center">
-  <b>Sistem Pemantauan Server Linux Berbasis Agentless SSH, Desired State Drift Engine & Manajemen Interaktif</b><br>
-  <i>Single binary. Tanpa instalasi agen remote. Embedded SQLite. Native SSH.</i>
+  Monitoring server Linux berbasis agentless SSH dan manajemen operasional ringan dalam satu binary tunggal.
 </p>
 
 <p align="center">
   <a href="README.md"><b>English</b></a> •
   <a href="README.id.md"><b>Bahasa Indonesia</b></a> •
-  <a href="docs/user-guide.id.md"><b>📖 Panduan Penggunaan</b></a>
+  <a href="docs/user-guide.id.md"><b>Dokumentasi</b></a> •
+  <a href="https://github.com/herliansyah/pantau/releases"><b>Rilis</b></a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go Version" />
-  <img src="https://img.shields.io/badge/Architecture-Agentless%20SSH-3b82f6?style=for-the-badge" alt="Architecture" />
-  <img src="https://img.shields.io/badge/Database-Embedded%20SQLite%20(WAL)-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" />
-  <img src="https://img.shields.io/badge/i18n-English%20%7C%20Indonesia-10b981?style=for-the-badge" alt="Dual Language" />
-  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License MIT" />
+  <a href="https://github.com/herliansyah/pantau/releases"><img src="https://img.shields.io/github/v/release/herliansyah/pantau?style=flat-square" alt="Rilis Terbaru" /></a>
+  <img src="https://img.shields.io/badge/go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Versi Go" />
+  <img src="https://img.shields.io/badge/database-embedded%20sqlite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="Lisensi" /></a>
 </p>
 
 <p align="center">
   <img src=".github/assets/dashboard.png" alt="Dashboard Pantau" width="100%" />
 </p>
 
-> [!WARNING]
-> **Peringatan Keamanan & Operasional Produksi**: Pantau adalah perangkat lunak *open-source* untuk pemantauan dan manajemen server Linux yang beroperasi dengan mengeksekusi perintah SSH, manipulasi file via SFTP, dan penyisipan kunci secara langsung dengan hak akses istimewa (*privileged/root*). Perangkat lunak ini disediakan atas dasar **"SEBAGAIMANA ADANYA" (*AS IS*)** tanpa jaminan apa pun. Pengguna memikul tanggung jawab penuh atas segala tindakan eksekusi remote, perlindungan kredensial/kunci privat, serta pemeliharaan cadangan (*backup*) mandiri. Jangan pernah membuka akses Pantau ke internet publik tanpa perlindungan reverse proxy, autentikasi ketat, dan enkripsi TLS/HTTPS.
+---
+
+## Mengapa Pantau?
+
+Sebagian besar perangkat monitoring infrastruktur mengharuskan instalasi, konfigurasi, dan pemeliharaan agen background (seperti Prometheus Node Exporter, Datadog Agent, atau Zabbix Agent) di setiap server yang dikelola. Pada armada server skala kecil hingga menengah, intranet terisolasi (*airgapped*), atau lingkungan dengan sistem operasi lama, pola ini memicu beban pemeliharaan dan memperluas celah keamanan.
+
+**Pantau mengambil pendekatan yang berbeda:**
+- **Zero remote agents**: Beroperasi sepenuhnya melalui protokol standar OpenSSH (`port 22`) menggunakan perintah standar POSIX. Server target tidak membutuhkan instalasi daemon tambahan, tidak membuka port telemetri khusus, dan tanpa jejak penggunaan memori/CPU di latar belakang.
+- **Single binary mandiri**: Ditulis dalam bahasa Go dengan basis data embedded SQLite dan antarmuka web tanpa npm. Berjalan di mana saja tanpa dependensi eksternal.
+- **Operasional terpadu**: Menggabungkan pemantauan metrik, deteksi drift terhadap baseline kondisi yang diharapkan, terminal interaktif multi-tab, manajemen file aman, serta streaming file antar-server langsung dari satu dashboard web.
 
 ---
 
-## 📖 Ringkasan
-
-**Pantau** adalah sistem pemantauan dan manajemen infrastruktur server Linux mandiri (*self-hosted*), ringan, dan berformat *single binary* yang dibangun dengan Go. Berbeda dari sistem tradisional seperti Prometheus/Node-Exporter, Zabbix, atau Datadog, Pantau beroperasi **100% agentless** melalui protokol SSH standar (`port 22`). Server target **tidak memerlukan daemon tambahan, tidak ada instalasi agen, dan tidak ada scraper telemetri yang membebani sistem**.
-
-Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi kondisi sistem secara berkala terhadap aturan **Desired State**, mendiagnosis deviasi secara otomatis melalui **Root Cause Excerpt**, mentransfer file antar-host langsung lewat memori, serta menyediakan Web Terminal interaktif (xterm.js) dan SFTP Code Editor langsung dari browser.
-
-> [!TIP]
-> **Playbook Administrator**: Mencari alur kerja operasional langkah-demi-langkah, prosedur pemulihan bencana, atau panduan pengerasan keamanan? Baca [Panduan Administrator Pantau](docs/user-guide.id.md) ([English](docs/user-guide.md)).
-
----
-
-## 🏛️ Arsitektur Sistem
+## Arsitektur Sistem
 
 ```
-                                  +--------------------------------------------------+
-                                  |                 Web Browser Client               |
-                                  |     (Single-Page App, Fixed Shell, xterm.js)     |
-                                  +------------------------+-------------------------+
-                                                           | HTTP / WebSocket
-                                                           v
-+--------------------------------------------------------------------------------------------------------------------+
-|                                                PANTAU CONTROL PLANE (Go)                                           |
-|                                                                                                                    |
-|  +---------------------+   +---------------------+   +---------------------+   +--------------------------------+  |
-|  |   Inspection Loop   |   |   Drift Engine      |   |  Hybrid Alerting    |   | Cross-Host Transfer Engine     |  |
-|  | (SSH Collector: 5m)|   | (Desired vs Actual) |   | (Telegram/Webhooks) |   | (Piped FIFO Stream, Zero-Disk) |  |
-|  +----------+----------+   +----------+----------+   +----------+----------+   +---------------+----------------+  |
-|             |                         |                         |                              |                   |
-|             +-------------------------+------------+------------+                              |                   |
-|                                                    |                                           |                   |
-|                                       +------------v-------------+                             |                   |
-|                                       | Embedded SQLite (WAL)    |                             |                   |
-|                                       | Encrypted Snapshot/Argon2|                             |                   |
-|                                       +------------+-------------+                             |                   |
-+----------------------------------------------------|-------------------------------------------|-------------------+
-                                                     | Native SSH Protocol                       | Stream Pipe
-                                                     v                                           v
-                       +-------------------------------------------+   +-------------------------------------------+
-                       |           Remote Linux Host A             |   |           Remote Linux Host B             |
-                       |  (Ubuntu / Debian / RHEL / CentOS 6-9)    |   |  (Ubuntu / Debian / RHEL / CentOS 6-9)    |
-                       |  - POSIX Standard CLI Tools (`ps`, `df`)  |   |  - POSIX Standard CLI Tools (`ps`, `df`)  |
-                       |  - Docker Engine / Containers             |   |  - Docker Engine / Containers             |
-                       |  - Tanpa Daemon / Tanpa Instalasi Agen    |   |  - Tanpa Daemon / Tanpa Instalasi Agen    |
-                       +-------------------------------------------+   +-------------------------------------------+
+                    +------------------------------------+
+                    |         Web Browser Client         |
+                    |   (SPA, xterm.js, CodeMirror, SSE) |
+                    +-----------------+------------------+
+                                      | HTTP / WebSocket
+                                      v
++---------------------------------------------------------------------------------+
+|                            PANTAU CONTROL PLANE (Go)                            |
+|                                                                                 |
+|  +--------------------+  +---------------------+  +--------------------------+  |
+|  |  Inspection Loop   |  | Drift Engine        |  | Cross-Host Stream        |  |
+|  |  (SSH POSIX probe) |  | (Baseline vs State) |  | (Memory pipe, zero disk) |  |
+|  +---------+----------+  +----------+----------+  +------------+-------------+  |
+|            |                        |                          |                |
+|            +------------------------+--------------------------+                |
+|                                     |                                           |
+|                       +-------------v-------------+                             |
+|                       |   Embedded SQLite (WAL)   |                             |
+|                       | Encrypted Snapshots (AES) |                             |
+|                       +-------------+-------------+                             |
++-------------------------------------|-------------------------------------------+
+                                      | Native SSH (Port 22)
+                 +--------------------+--------------------+
+                 v                                         v
++---------------------------------+       +---------------------------------+
+|       Remote Linux Host A       |       |       Remote Linux Host B       |
+| (Debian, Ubuntu, RHEL, Alpine)  |       | (Debian, Ubuntu, RHEL, Alpine)  |
+| - Standar perintah POSIX        |       | - Standar perintah POSIX        |
+| - Docker Engine / systemd       |       | - Docker Engine / systemd       |
+| - Tanpa instalasi agen / daemon |       | - Tanpa instalasi agen / daemon |
++---------------------------------+       +---------------------------------+
 ```
 
 ---
 
-## ✨ Fitur Utama
+## Kapabilitas Utama
 
-### 1. 🔍 Inspeksi Agentless SSH & 1-Click Key Provisioning
-- Mengambil metrik sistem secara aktual (CPU Load, RAM, partisi Disk, Network Egress, Sockets, Uptime, Kernel) murni melalui koneksi SSH standar.
-- **Spesifikasi Hardware & Resource Metrics**: Mengekstrak tipe model perangkat keras, jumlah core CPU, beban antrian CPU ternormalisasi, serta memori virtual (Swap). Menampilkan kapasitas absolut inline (`terpakai / total`) pada bar RAM dan Disk, serta status Swap permanen pada kartu Host.
-- **Structured Inspection Runs & Telemetri Eksekusi**: Mencatat riwayat eksekusi terstruktur (waktu eksekusi, durasi roundtrip dalam milidetik, status badge, ringkasan, dan rincian diagnostik jika terjadi anomali) di basis data internal SQLite. Menampilkan metrik durasi eksekusi riil (`duration_ms`) pada kartu Host dan tampilan tabel, diperkuat pembersihan otomatis (*rolling auto-pruning*) yang menjaga kuota 100 riwayat per host tanpa background scheduler.
-- **Inspection Guard, Anti-Flood Cooldown & Proteksi Hung NFS**: Menerapkan jeda waktu minimum 15 detik untuk inspeksi manual per-host (`HTTP 429 Too Many Requests`), penolakan eksplisit inspeksi paralel (*in-flight guard*, `HTTP 409 Conflict`), batas waktu eksekusi total 45 detik, serta isolasi perintah partisi lokal (`df -lPk /`) dengan batas waktu 5 detik untuk mencegah kebuntuan akibat network storage (NFS/CIFS) yang bermasalah.
-- **One-Time Key Provisioning**: Masukkan password server target sekali di RAM. Pantau secara idempoten menyalin public key universal RSA 4096-bit ke `~/.ssh/authorized_keys` (didukung universal dari OpenSSH 5.3+ lawas hingga Linux modern) dan langsung menghapus password dari memori.
-- **Kompatibilitas Server Lawas & TOFU**: Mendukung cipher warisan dan algoritma host key (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`, `ssh-rsa`) untuk memantau server Linux legasi (CentOS 5/6, Debian 7, OpenSSH 4.3+). Dilengkapi verifikasi TOFU (Trust-On-First-Use) yang otomatis mencatat fingerprint host pada koneksi awal sekaligus menangkal serangan MITM aktif.
-- **Inspeksi Massal & Kesegaran Data**: Pemicuan inspeksi serentak seluruh host via tombol `⚡ Inspect All` yang diproses melalui *bounded worker pool* (maksimal 5 pekerja paralel) dengan proteksi anti-flood, pembaruan otomatis berkala yang dapat dikonfigurasi (dengan dukungan nilai `0` detik untuk menonaktifkan inspeksi latar belakang agar murni on-demand manual), serta visualisasi waktu inspeksi relatif dan deteksi data usang (*Stale Inspection*) dengan supresi peringatan saat dijeda.
+### 1. Pemantauan Fleet & Metrik Real-time
+Pantau menginspeksi host remote melalui koneksi SSH standar menggunakan perintah non-interaktif POSIX (`/proc`, `ps`, `df`, `ss`).
+- **Saturasi sumber daya**: Memantau CPU load, penggunaan RAM, alokasi swap, partisi disk, dan throughput I/O via `/proc/diskstats` tanpa dependensi `iostat`.
+- **Telemetri proses dan jaringan**: Mengidentifikasi proses dengan konsumsi CPU/RAM tertinggi, port mendengarkan (*listening ports*), koneksi soket aktif, dan deteksi percobaan login SSH yang gagal (*failed logins*).
+- **Inventaris paket dan siklus hidup**: Memindai paket terinstal di berbagai distro Linux (`dpkg`, `rpm`, `apk`, `pacman`), mendeteksi paket/layanan tidak aktif (*dormant*), dan menghitung estimasi masa pakai serta tanggal End-of-Life (EOL) sistem operasi.
+- Baca selengkapnya pada [Panduan Inspeksi & Observabilitas](docs/user-guide.id.md#4-fase-3-observabilitas-analisis-drift--respons-insiden).
 
-### 2. 📋 Baseline Desired State & Otomatisasi Drift Engine
-- **1-Click Baseline**: Mendeteksi otomatis container Docker yang aktif, partisi disk, cron job, dan service database (`mysqld`, `postgres`, `redis`, `nginx`).
-- **Deteksi Drift Real-Time**: Memberikan peringatan otomatis saat container berhenti mendadak, disk melebihi batas ambang (misal: `> 85%`), cron job terhapus, atau file backup basi.
+### 2. Desired State Baseline & Diagnostik Insiden
+Definisikan baseline kondisi operasional yang diharapkan untuk kontainer, layanan sistem, batas toleransi disk, dan jadwal backup.
+- **Deteksi drift otomatis**: Memberikan peringatan ketika kontainer berhenti mendadak, layanan systemd gagal berjalan, cron job hilang, atau penggunaan partisi disk melampaui ambang batas aman.
+- **Tangkapan akar penyebab (Root Cause Excerpt)**: Saat layanan atau kontainer mengalami kegagalan (*crash*), Pantau otomatis mencatat *exit code*, status bendera `OOMKilled`, dan potongan log terakhir dari `journalctl` atau `docker logs`.
+- Baca selengkapnya pada [Panduan Desired State & Proteksi](docs/user-guide.id.md#3-fase-2-baseline-desired-state--proteksi-sistem).
 
-### 3. 🩺 Penangkapan Diagnostik Root Cause Excerpt
-- Saat terjadi kegagalan service atau crash container, Pantau langsung mengekstrak konteks insiden secara instan:
-  - Kode keluar (*exit code*) container Docker dan penanda memori habis `OOMKilled`.
-  - 50 baris log error terakhir dari `journalctl -u <service>` atau `docker logs <container>`.
-- Kronologi diagnostik insiden langsung tersaji pada tab *Timeline* pada modal Host.
+### 3. Web Terminal Terpadu & Operasional Remote
+Kelola server target langsung dari browser tanpa perlu berganti-ganti aplikasi terminal eksternal.
+- **Web terminal multi-tab**: Sesi interaktif PTY berbasis `xterm.js` dan WebSocket, mendukung tampilan terpisah (*split-pane* `Alt+\`), penyesuaian ukuran otomatis, dan *preset* perintah berulang.
+- **SFTP file editor & bookmark**: Navigasi struktur direktori remote, sematkan (*pin*) file konfigurasi atau log penting, dan sunting skrip secara langsung dengan *syntax highlighting*.
+- **Tunneling port web remote**: Reverse proxy HTTP/WebSocket tanpa agen di atas kanal SSH `direct-tcpip`, memungkinkan akses aman ke aplikasi web lokal di server target (`localhost:port`) tanpa membuka port firewall publik.
+- **Bridge terminal desktop lokal**: Buka aplikasi terminal desktop lokal Anda (Windows Terminal, GNOME Terminal, iTerm2, Alacritty) langsung ke server remote dengan 1-klik menggunakan kunci SSH efemeral sementara di RAM.
+- Baca selengkapnya pada [Panduan Terminal & Operasional Remote](docs/user-guide.id.md#investigasi-interaktif-via-terminal-dock--terminal-preset).
 
-### 4. 🚀 Streaming Transfer Antar-Host (Piped Cross-Host Transfer)
-- Mengalirkan file dan folder antar dua server remote secara langsung melalui *memory pipe* tanpa perlu disimpan ke disk lokal Pantau terlebih dahulu.
-- **Fast Stream Mode**: Memaksimalkan kecepatan transfer via pipa kompresi `tar`.
-- **Verified Mode**: Menghitung dan mencocokkan checksum SHA256 ujung-ke-ujung (*end-to-end*) pada server sumber dan target sebelum menyatakan transfer selesai.
+### 4. Zero-Disk Streaming & Backup Terenkripsi
+Transfer data antar-server secara aman dan lindungi seluruh konfigurasi kluster Anda.
+- **Transfer streaming lintas host**: Salin file dan folder antar dua server remote melalui *memory pipe* (`tar` streaming), tanpa pernah menyimpan (*spooling*) data ke disk lokal Pantau, dilengkapi verifikasi integritas opsional SHA-256.
+- **Snapshot sistem terenkripsi**: Ekspor konfigurasi host, baseline, dan kredensial SSH ke dalam arsip snapshot portabel yang diamankan dengan algoritma Argon2id dan AES-256-GCM.
+- **Sinkronisasi pemulihan bencana**: Jadwalkan sinkronisasi otomatis snapshot terenkripsi ke repositori privat GitHub untuk pemulihan cepat saat terjadi bencana (*disaster recovery*).
+- Baca selengkapnya pada [Panduan Transfer Streaming Lintas-Host](docs/user-guide.id.md#cross-host-transfer-pipa-memori-tanpa-disk-lokal).
 
-### 5. 🛡️ Observabilitas Jaringan, Disk I/O & Keamanan
-- **Laju Disk I/O Real-Time (Speedometer)**: Mengekstrak kecepatan baca/tulis disk secara seketika (B/s) dan volume akumulatif langsung via `/proc/diskstats` tanpa paket `iostat`, dilengkapi penanganan rollover reboot aman dan badge status beban kualitatif (Optimal `< 10 MB/s`, Aktif `10–80 MB/s`, Beban I/O Tinggi `≥ 80 MB/s`).
-- **Internet Egress & Latensi**: Menguji konektivitas keluar dan latensi ping ke DNS global (`1.1.1.1`).
-- **Live Active Sockets**: Merekap daftar IP publik eksternal yang sedang terhubung dan total koneksi aktif.
-- **Brute-Force & Failed Login Tracking**: Memantau percobaan login gagal dan indikasi serangan brute-force via `/var/log/auth.log` atau `journalctl _SYSTEMD_UNIT=ssh.service`.
-- **Klasifikasi Bidang Serang (Attack Surface)**: Mengidentifikasi port listen yang terbuka, jenis binding IP (`0.0.0.0` vs `127.0.0.1`), serta mengklasifikasikan tingkat risikonya (*Public Internet* vs *Localhost Only*).
-
-### 6. 🔐 System Snapshot Terenkripsi & Sinkronisasi GitHub
-- Mengenkripsi seluruh konfigurasi Host, kredensial SSH, dan aturan desired state ke dalam file snapshot `.enc` menggunakan derivasi kunci **Argon2id** dan enkripsi terotentikasi **AES-256-GCM**.
-- **Sinkronisasi GitHub Otomatis**: Mendorong (*push*) file snapshot terenkripsi ke repositori GitHub privat secara terjadwal.
-- **Disaster Recovery Wizard**: Pulihkan seluruh inventaris monitoring dari nol hanya menggunakan token GitHub + path repositori atau file `.enc` cadangan.
-
-### 7. 💻 Interactive Web Terminal & SFTP File Manager
-- **Web Terminal**: Akses shell interaktif di browser berbasis `xterm.js` melalui koneksi WebSocket SSH PTY dengan dukungan warna ANSI, penyesuaian ukuran terminal, dan integrasi clipboard aman.
-- **SFTP Explorer & Code Editor**: Eksplorasi direktori remote dengan breadcrumb interaktif, filter dan sorting berkas, duplikasi file/folder aman dengan pengecekan kapasitas disk otomatis, serta penyuntingan berkas dalam mode full-viewport bertema modern VS Code Dark+.
-
-### 8. 🌐 Antarmuka Dwibahasa (English & Bahasa Indonesia)
-- Tombol pemilih bahasa instan (`🌐 EN` / `🌐 ID`) langsung di bilah navigasi atas (header).
-- Kamus translasi lokal zero-dependency tersimpan di `localStorage` (default: Bahasa Inggris).
-- Istilah teknis domain kanonikal (*Host*, *Desired State*, *Drift*, *Root Cause Excerpt*, *Snapshot*) tetap dipertahankan sesuai konvensi industri.
-
-### 9. 🩺 Audit Transparan Lifecycle Assessment 6-Faktor & Rekomendasi Hardware Refresh
-- Mengukur kelayakan operasional Host melalui 6 faktor transparan: status Linux OS End-of-Life (EOL), batas masa pakai produktif hardware (*Productive Lifespan* & kurva degradasi MTBF berdasarkan tanggal BIOS bare-metal vs usia deployment OS VM Cloud), tekanan memori RAM, rasio saturasi CPU terhadap core, kapasitas disk root, dan integritas I/O kernel (`dmesg`).
-- **Panduan Peremajaan Perangkat Keras**: Mengidentifikasi server yang melampaui masa pakai produktif 3–5 tahun atau usia kritis 8 tahun secara otomatis, menyajikan checklist breakdown audit, serta menghasilkan kartu justifikasi resmi penggantian (*Hardware Refresh*).
-
-### 10. 🛡️ Kesiapan Airgapped & Self-Contained Web Assets (Zero-CDN)
-- 100% pustaka vendor antarmuka pengguna (`xterm.js`, `xterm-addon-fit`, dan `CodeMirror` lengkap dengan 8 mode bahasa: XML, JS, CSS, HTML, C-like, PHP, Shell, YAML) disematkan langsung ke dalam binary Go via `go:embed`.
-- Menegakkan *Content Security Policy* (CSP) ketat tanpa permintaan jaringan keluar ke CDN publik, menjamin antarmuka berfungsi 100% sempurna pada intranet terisolasi, VPC tertutup, maupun lingkungan *airgapped*.
-
-### 11. 📂 Host Grouping, Tampilan Flat, Terminal Maximize & Port Auto-Scan Fallback
-- **Host Group & Tampilan Flat**: Mengelompokkan Host berdasarkan fungsi server atau lingkungan (misal: *Server Utama*, *Testing*, *Database Cluster*) dengan baris/kartu pemisah visual pada tampilan Grid View maupun List View, atau menampilkan seluruh host dalam daftar datar tanpa header grup menggunakan opsi filter "Tanpa Grouping".
-- **Terminal Maximize**: Memperluas antarmuka terminal ke ukuran layar penuh peramban (*full-viewport*) dengan tetap mempertahankan pintasan tombol interaktif (seperti `Esc` pada `vim`, `nano`, atau `htop`).
-- **Port Auto-Scan Fallback**: Mendeteksi ketersediaan port secara berurutan (`8080` hingga `8099`) saat server dijalankan dengan port default, mencegah kegagalan startup akibat konflik port yang sedang digunakan.
-
-### 12. ⚡ Terminal Preset & Split-Pane Multi-Terminal
-- **Terminal Preset**: Menyimpan pintasan perintah diagnostik berulang (`htop`, `docker stats`, `journalctl -f`) dengan pengecekan ketersediaan utilitas remote sebelum eksekusi (*pre-flight check*).
-- **Split-Pane Web Terminal**: Membuka dua sesi terminal berdampingan secara simultan (`Alt+\`) untuk memantau atau membandingkan performa beberapa server remote sekaligus secara real-time.
-
-### 13. 🔐 Autentikasi Dua Faktor TOTP Airgapped & Pemulihan Darurat
-- **Standar RFC 6238 TOTP**: Memperketat autentikasi login administrator menggunakan token satu-kali-pakai berbasis waktu yang kompatibel dengan aplikasi authenticator umum (Google Authenticator, Aegis, 1Password, Bitwarden).
-- **100% Pendaftaran Mandiri Offline**: Secret key Base32 dan kode QR di-render murni di sisi peramban klien tanpa permintaan jaringan ke API eksternal atau risiko kebocoran data.
-- **Kode Pemulihan Darurat (Recovery Codes)**: Menghasilkan 8 kode cadangan sekali-pakai dengan opsi salin instan dan unduh berkas teks untuk pemulihan akun darurat.
-- **Proteksi Brute-Force Rate Limiting**: Menerapkan masa jeda pendinginan otomatis selama 30 detik setelah 3 kali percobaan verifikasi gagal secara berturut-turut.
-- **Flag Bypass Darurat Host**: Argumen startup `-disable-2fa` memungkinkan administrator menonaktifkan 2FA langsung melalui konsol server utama jika perangkat authenticator dan kode pemulihan hilang.
-
-### 14. 🖥️ Global Multi-Tab Terminal Dock & Terminal Header Launcher
-- **Multi-Tab Terminal Dock**: Dok terminal terintegrasi di bagian bawah aplikasi yang dapat menampung banyak sesi shell SSH PTY bersamaan ke berbagai server remote berbeda dengan penamaan tab dinamis (*inline rename*) dan tampilan belah layar (*Split-Pane* `Alt+\`).
-- **Terminal Header Launcher**: Tombol kendali terpadu pada header navigasi atas dengan lencana jumlah sesi aktif secara real-time. Berfungsi sebagai toggle cerdas untuk meminimalkan, membuka kembali, atau meluncurkan sesi baru dengan dropdown pemilih server.
-- **Reactive Host Session Badges**: Tombol terminal pada kartu Host (Grid View) dan baris tabel (List View) menampilkan badge jumlah sesi shell aktif, memberikan visibilitas instan server mana saja yang sedang dikelola.
-- **Peralihan Tampilan Fleksibel & Modal Stack**: Buka tutup dok atau maksimalkan ke layar penuh (*full-viewport*) dalam satu klik tanpa merusak sesi SSH; pengelolaan tumpukan modal dan penutupan berjenjang tombol `Escape` menjaga navigasi terminal tetap lancar.
-
-### 15. 🔄 Update Checker & Self-Update Semi-Otomatis (Zero-Ops)
-- **Deteksi Rilis Asinkron & Catatan Rilis CLI**: Memeriksa ketersediaan versi rilis baru secara periodik (setiap 12 jam dengan cache 6 jam) dan menyajikan notifikasi pembaruan di antarmuka web. Menjalankan `pantau -check-update` di terminal akan memeriksa rilis terbaru upstream, menampilkan URL rilis, serta mencetak catatan rilis (*release notes*) langsung ke terminal.
-- **Verifikasi Integritas SHA-256**: Mengunduh manifest `checksums.txt` resmi dan memvalidasi keaslian berkas arsip rilis sebelum diekstrak.
-- **Pre-flight Smoke Test & Rollback**: Menguji eksekusi biner baru secara mandiri sebelum penggantian biner aktif; membatalkan seketika jika terjadi ketidakcocokan arsitektur.
-- **Atomic Rename Swap Lintas Platform**: Penggantian in-place biner yang aman di Linux dan Windows (menggunakan teknik rename `.exe.old` untuk mengatasi file-lock OS).
-- **Graceful Process Handover**: Restart aman dengan mempertahankan argumen CLI dan koneksi basis data, memanfaatkan `instance.AcquireWithTimeout` (jeda toleransi hingga 3 detik) agar proses anak yang baru menunggu pelepasan lock database dari proses induk secara mulus tanpa benturan, disertai rekoneksi otomatis pada antarmuka web pengguna.
-- **Kesiapan Airgapped & Deteksi Docker**: Beroperasi fail-silent di jaringan tanpa akses internet publik (opsi `-disable-update-check`), serta secara cerdas mendeteksi lingkungan container Docker untuk menyajikan panduan `docker compose pull`.
-
-### 16. 📖 Dokumentasi In-App Airgapped & Embedded Changelog
-- **Dokumentasi Terintegrasi Single-Source**: Panduan resmi Pantau (README, Panduan Pengguna dwibahasa ID/EN, dan Changelog) disematkan langsung ke dalam binary tunggal via `go:embed`.
-- **In-App Reader Zero-Dependency**: Baca dokumentasi teknis secara offline tanpa internet atau dependensi CDN eksternal melalui **Documentation Modal** (`75vw × 80vh`), dilengkapi micro-parser Markdown bawaan, styling tema Nord, dan daftar isi dinamis (*Table of Contents*) dengan *smooth-scrolling*.
-- **Akses Fleksibel Pra dan Pasca-Login**: Tersedia sebelum login pada layar Initial Setup dan Disaster Recovery, serta setelah login melalui tombol bantuan `(?)` di header navigasi, klik badge nomor versi di footer, dan tautan di modal Settings.
-
-### 17. ⚡ In-App Activity Console & Live Event Stream
-- **Observabilitas Operasional Real-Time**: Aliran streaming peristiwa daemon dan aktivitas subsistem (`inspect`, `ssh`, `transfer`, `terminal`, `snapshot`, `system`, dan `auth`) secara langsung ke browser via Server-Sent Events (*zero-dependency* `GET /api/logs/stream`).
-- **Telemetry Ring Buffer**: Buffer memori melingkar berkapasitas tetap (100 entri) dan broadcaster non-blocking membungkus pustaka standar Go `log/slog` untuk konteks instan saat browser terhubung (*cold start*).
-- **Redaction Filter**: Filter batas deterministik yang secara otomatis menyensor kata sandi SSH, private key, token autentikasi, passphrase, dan rahasia 2FA menjadi `[REDACTED]`.
-- **Laci Diagnostik Activity Console**: Drawer collapsible di atas footer dengan tabel running 5-kolom (`Time`, `Level`, `Module`, `Host`, `Message & Details`), kartu detail atribut, *Smart Auto-Scroll*, tombol jeda/lanjutkan (*Pause/Resume*), penyaringan level (`ALL`, `ERROR`, `WARN`, `INFO`), pencarian instan, dan ekspor berkas `.log` / `.json` di sisi klien.
-- **Pemicu Footer & Pintasan Global**: Dibuka melalui tombol footer `⚡ Activity` dengan indikator pulse hijau, badge counter unread error merah, atau pintasan keyboard global `Ctrl + \`` (backtick).
-- **Throttling Performa Anti-Lag**: Melewatkan 100% manipulasi DOM saat laci tertutup dan menggabungkan pembaruan dengan `requestAnimationFrame` saat laci terbuka untuk mengeliminasi pemborosan CPU dan layout thrashing.
-
-### 18. ⚡ Top Resource Consumers & Process Telemetry
-- **Observabilitas Proses Agentless**: Mengekstrak 5 proses teratas pemakan sumber daya sistem dalam 3 dimensi utama—Top CPU (`%cpu`), Top RAM Fisik (`rss`), dan Top Swap (memori virtual)—secara berkala di setiap siklus inspeksi tanpa instalasi daemon tambahan di server target.
-- **Pemindai Swap Ringan Kondisional**: Ekstraksi VmSwap cepat via `/proc/[0-9]*/status` yang dipicu secara kondisional hanya saat terdeteksi penggunaan swap aktif (`SwapUsedBytes > 0`), mengeliminasi beban pemindaian pada server yang mematikan swap.
-- **Widget Telemetri Tab Overview**: Kartu visual 3-kolom responsif di tab Overview Host Detail yang menampilkan rincian PID, user, konsumsi memori, dan command, dilengkapi tombol pintas satu-klik untuk langsung membuka sesi Terminal Dock interaktif.
-
-### 19. 📦 Polyglot Package Inventory & Higienitas Software
-- **Inventarisasi Paket Multi-Distro Agentless**: Memetakan seluruh paket perangkat lunak terpasang di berbagai distribusi Linux—Debian/Ubuntu (`dpkg-query`), RHEL/CentOS/AlmaLinux/Rocky (`rpm`), Alpine (`apk`), dan Arch (`pacman`) menggunakan CLI bawaan sistem.
-- **Klasifikasi Higienitas & Deteksi Dormant Package**: Mengelompokkan paket secara otomatis menjadi **Manual Install** (dipasang eksplisit oleh administrator) vs **Base System** (bawaan instalasi distro/dependensi inti), serta mendeteksi **Dormant Package** (perangkat lunak berstatus daemon/service yang unit systemd-nya non-aktif, disabled, atau failed).
-- **Tab Packages & Guardrail Pemindaian**: Tab penjelajah paket khusus di Workspace Modal dengan pencarian instan, filter kategori (`⭐ Manual Install`, `💤 Dormant Packages`, `📋 All Packages`), tombol pemindaian ulang on-demand yang dilindungi cooldown anti-flood 30 detik (`HTTP 429`) dan kunci konkurensi latar belakang (`HTTP 409`).
-
-### 20. 🌐 Diagnostik Jaringan Agentless & Analisis Hop
-- **Perkakas Diagnostik On-Demand**: Uji coba interaktif Ping, Traceroute (dengan auto-fallback tracepath), TCP Port Probe tanpa dependensi (`/dev/tcp`), dan DNS Resolve secara real-time via Server-Sent Events (SSE).
-- **Analisis Hop Otomatis**: Klasifikasi hop jaringan ke zona Lokal/VPC Privat, Transit ISP, dan Destinasi, dilengkapi deteksi titik paket terhenti (*blackhole drop*) dan peringatan lonjakan latensi (>60ms).
-- **Probe Target Preset**: Menyimpan sasaran pengujian rutin router, switch, atau gateway cabang tak terkelola dengan label dan target IP/FQDN untuk pengujian instan satu-klik.
-- **Proteksi Konkurensi & Pencegahan Kesalahan**: Guard singleflight mencegah penumpukan proses per host, serta seleksi target secara otomatis menonaktifkan host yang sedang offline.
-
-### 21. ⚖️ Evaluasi Komparatif Multi-Host & Matriks Penilaian
-- **Matriks Komparasi Head-to-Head**: Evaluasi interaktif berdampingan membandingkan 2 hingga 4 host secara bersamaan di Workspace Modal menggunakan telemetri inspeksi sisi klien.
-- **Penilaian Multi-Kategori Terstandarisasi**: Menilai performa host lintas 4 dimensi (Komputasi, Penyimpanan & I/O, Keandalan Jaringan, serta Higienitas Sistem & Siklus Hidup) dengan filter derau toleransi 5% (*deadband*) dan penalti host stale.
-- **Sintesis Keputusan Eksekutif & Ekspor Markdown**: Menghasilkan rekomendasi penempatan beban kerja (*workload placement*) otomatis dan salin ringkasan Markdown terformat sekali klik untuk dokumentasi operasional.
-
-### 22. 📌 Pin Berkas dengan Catatan Operasional & Global Bookmarks
-- **Penyematan Berkas & Direktori Penting**: Sematkan berkas konfigurasi kritis atau folder log per host lengkap dengan catatan operasional (*notes*) dan lencana visual.
-- **Akses Cepat & Global Bookmarks**: Navigasi instan melalui bilah Quick Access di pengelola berkas atau secara menyeluruh lintas-host melalui tombol `🔖 Bookmarks` di header navigasi atas.
-- **Pencarian Lintas-Host & Loncat ke Terminal**: Cari berkas tersemat secara global, buka langsung di editor kode terintegrasi, atau luncurkan sesi Terminal Dock langsung ke direktori kerja berkas tersebut.
-
-### 23. ⚡ Pencarian Presets Terminal & Akses Cepat Pinned Paths
-- **Pencarian Live Presets Terminal**: Filter instan pada menu dropdown preset terminal berdasarkan judul preset, perintah, atau tag sesi tmux (`t:tag`), mempercepat eksekusi perintah diagnostik rutin tanpa perlu menggulir daftar panjang.
-- **Dropdown Pinned Paths Terminal**: Akses cepat khusus (`📌`) pada toolbar terminal yang menampilkan seluruh berkas dan direktori tersemat untuk host aktif, dilengkapi pencarian real-time berdasarkan path atau catatan operasional, aksi loncat direktori `cd` satu-klik, serta penyisipan path bertanda kutip ke dalam sesi shell.
-- **Bilah Alat Terminal Ringkas & Terintegrasi**: Pengelompokan toolbar yang bersih (lencana status host & reconnect, kontrol zoom font `+`/`-`/`0`, tombol pindah langsung ke Pengelola Berkas `📁 Files`, dan split-pane `⬛ Split`).
-- **Pelacakan Direktori Kerja Terminal Aktif**: Pelacakan direktori kerja shell remote secara real-time melalui judul jendela terminal dan sekuens ANSI OSC 7 untuk sinkronisasi navigasi.
-
-### 24. 🌐 Deteksi Link Terminal, Remote Browser Bridge & Web Port Tunneling
-- **Deteksi Link Terminal Interaktif**: Menggunakan API bawaan `xterm.js` via `term.registerLinkProvider` tanpa dependensi eksternal. Mendukung interaksi **`Ctrl+Click`** (Linux/Windows) dan **`Cmd+Click`** (macOS) untuk membuka URL publik langsung ke tab browser baru tanpa mengganggu seleksi teks atau copy-paste log terminal.
-- **Remote Web Port Tunneling**: Reverse proxy HTTP dan WebSocket on-demand (`/api/tunnel/:hostId/:port/*`) yang dialirkan secara *agentless* melalui channel OpenSSH RFC 4254 `direct-tcpip` (`golang.org/x/crypto/ssh` `DialContext`). Akses layanan web internal remote (`localhost:port` atau `127.0.0.1:port`) secara aman dari peramban desktop Anda tanpa membuka port firewall ke publik.
-- **Connection Pooling Cepat Tanpa Handshake Ulang**: Meng-cache koneksi transport SSH per host dengan auto-reconnect cerdas, mengeliminasi jeda handshake 100–300ms untuk pemuatan puluhan aset web (CSS, JS, gambar).
-- **Dukungan WebSocket Bawaan**: Aliran dua arah *full-duplex* berbasis protokol HTTP status `101 Switching Protocols` untuk server pengembangan modern (Vite HMR, Next.js, Jupyter Notebook).
-- **Zero-Configuration Remote Browser Bridge**: Otomatisasi penangkap sinyal terminal OSC 1337 (`OpenURL`) dan OSC 777 yang secara otomatis meneruskan permintaan buka peramban dari CLI remote (`gh auth login`, `xdg-open`, Python `webbrowser`, AWS SSO, `npm login`) langsung ke peramban desktop asli pengguna tanpa terjebak browser teks konsol (`w3m`/`lynx`).
-- **Penyuntikan Senyap Lingkungan Shell**: Auto-provisioning script `/tmp/pantau-browser` dan penyetelan environment variable (`BROWSER`, `GH_BROWSER`) secara senyap pada shell login tanpa memicu echo perintah di layar konsol.
-- **Menu Toolbar Dropdown `🌐 Ports` & Modal Aksi**: Menu toolbar khusus `🌐 Ports` di terminal dock untuk membuka port remote secara bebas dan menyimpan riwayat port di *localStorage*, dipadukan dengan modal dialog konfirmasi interaktif saat URL remote diklik.
-
-### 25. 🩺 Automated Network Triage Matrix & Observabilitas Jaringan Hybrid
-- **Pipeline Triage Multi-Layer Satu-Klik**: Mengevaluasi sumber daya Host, kinerja L7 HTTP komparatif (loopback lokal vs TTFB eksternal), deteksi Path MTU Blackhole (MTU sweep dengan bit Don't Fragment), serta rute transit ISP/VPN untuk memisahkan akar masalah server vs jaringan secara objektif dalam waktu kurang dari 15 detik.
-- **Fallback Firewall Cerdas**: Mencegah false alarm saat ping ICMP diblokir firewall dengan beralih otomatis ke TCP port probe (`ICMP_FILTERED_TCP_HEALTHY`).
-- **7 Triage Verdict Baku**: Klasifikasi kesimpulan deterministik (`HOST_SATURATED`, `APPLICATION_DEGRADED`, `TRANSIT_PATH_DEGRADED`, `BRANCH_GATEWAY_DOWN`, `MTU_BLACKHOLE_DETECTED`, `ICMP_FILTERED_TCP_HEALTHY`, `HEALTHY`).
-- **Pencatatan Insiden & Ekspor Tiket**: Menyimpan riwayat eksekusi ke SQLite lokal dan menyediakan generator tiket Markdown satu-klik untuk eskalasi ke helpdesk atau ISP.
-
-### 26. 💻 Native OS Terminal Bridge & Ephemeral Key Injector
-- **Peluncuran Terminal Bawaan OS Satu-Klik**: Buka aplikasi terminal desktop (Windows Terminal, GNOME Terminal, iTerm2, Alacritty, Kitty) langsung dari antarmuka Pantau ke host target tanpa memasukkan password berulang kali.
-- **Injeksi Kunci SSH RSA Ephemeral Murni di RAM**: Membuat pasangan kunci RSA 2048-bit sementara di memori tanpa pernah menyentuh disk server, disuntikkan via sesi SSH aktif ke `~/.ssh/authorized_keys`, dan dibersihkan otomatis melalui proteksi ganda (timer Go 5 menit + pemindaian posix awk reaktif).
-- **Mode Ganda Workstation Lokal & Remote Web**: Menjalankan proses terminal detached secara langsung jika diakses dari `localhost`, atau menampilkan modal interaktif berprotokol URL kustom `pantau://`, unduhan skrip self-extracting sekali pakai (`.cmd` di Windows dengan proteksi `icacls`, `.command`/`.sh` di macOS/Linux dengan `trap`), dan perintah salin streaming (`curl | bash`, `irm | iex`).
-- **Pewarisan Direktori Kerja (Active Path Navigation)**: Secara otomatis membuka sesi terminal desktop langsung di direktori kerja aktif dari tab Terminal Dock (OSC 7 / prompt tracking), folder aktif Pengelola Berkas SFTP, atau folder induk dari berkas tersemat Global Bookmarks.
-- **Kustomisasi Template Perintah Terminal**: Dukungan template perintah kustom (misal: `alacritty -e %cmd%`) dengan validasi pre-flight `exec.LookPath` dan sanitasi parameter anti-command-injection.
+### 5. Arsitektur Ramah Lingkungan Airgapped
+Dirancang dari awal untuk kebutuhan kepatuhan keamanan tinggi, VPC tertutup, dan intranet tanpa akses internet publik.
+- **Bebas dependensi runtime**: Binary Go mandiri dengan basis data embedded SQLite beroperasi dalam mode Write-Ahead Logging (WAL).
+- **Aset web mandiri (Zero-CDN)**: Seluruh pustaka antarmuka, font, ikon, dan skrip klien (`xterm.js`, `CodeMirror`) disematkan langsung melalui `go:embed` tanpa permintaan jaringan ke CDN eksternal.
+- **Keamanan lokal teruji**: Autentikasi dua faktor berbasis RFC 6238 TOTP dengan pembuatan QR code murni di sisi browser dan kode pemulihan darurat offline.
+- **Pembaruan semi-otomatis**: Pemeriksaan rilis langsung dari antarmuka dengan verifikasi hash SHA-256, uji kelayakan eksekusi (*pre-flight check*), dan penggantian binary secara atomik.
 
 ---
 
-## 🚀 Panduan Memulai Cepat (Quick Start)
+## Memulai Cepat
 
-### Opsi 1: Binary Mandiri (Paling Praktis)
+### Opsi 1: Binary Mandiri (Direkomendasikan)
 
-Unduh binary terbaru untuk arsitektur server Anda dari [GitHub Releases](https://github.com/herliansyah/pantau/releases):
+Unduh binary siap pakai untuk arsitektur server Anda dari halaman [GitHub Releases](https://github.com/herliansyah/pantau/releases):
 
 ```bash
 # Berikan izin eksekusi pada binary
 chmod +x pantau
 
-# Jalankan Pantau dengan port dan lokasi database kustom
+# Jalankan Pantau pada port 8080
 ./pantau -port 8080 -db data/pantau.db
 ```
 
 Buka `http://localhost:8080` di browser Anda.  
-**Password Default**: `admin` *(segera ganti melalui menu Settings)*.
-
----
+Password bawaan: `admin` *(Anda akan diminta mengubahnya saat pertama kali masuk)*.
 
 ### Opsi 2: Docker Compose
 
 ```yaml
-version: "3.8"
-
 services:
   pantau:
     image: ghcr.io/herliansyah/pantau:latest
@@ -277,18 +155,13 @@ volumes:
   pantau-data:
 ```
 
-*(Catatan: Image resmi Docker di GHCR mendukung multi-arsitektur secara native untuk `linux/amd64` dan `linux/arm64`. Variabel lingkungan standar `PORT` dan `DB_PATH` juga didukung sebagai fallback otomatis).*
-
 ```bash
 docker compose up -d
 ```
 
+### Opsi 3: Layanan Systemd (Server Produksi)
 
----
-
-### Opsi 3: Systemd Service (Linux Produksi)
-
-Buat file unit `/etc/systemd/system/pantau.service`:
+Buat file `/etc/systemd/system/pantau.service`:
 
 ```ini
 [Unit]
@@ -315,42 +188,37 @@ systemctl enable --now pantau
 
 ---
 
-## ⚙️ Referensi Konfigurasi
+## Referensi Konfigurasi
 
-| Argumen (Flag) | Environment Variable | Default | Keterangan |
+Pantau mendukung konfigurasi melalui flag CLI atau variabel lingkungan (*environment variables*):
+
+| Flag | Variabel Lingkungan | Default | Deskripsi |
 | :--- | :--- | :--- | :--- |
-| `-port` | `PANTAU_PORT` (atau `PORT`) | `8080` | Port listening HTTP (auto-scan port `8080`–`8099` jika default) |
-| `-db` | `PANTAU_DB` (atau `DB_PATH`) | `pantau.db` | Lokasi file basis data SQLite |
-| `-open` | - | `true` (Windows) / `false` | Buka peramban web bawaan secara otomatis saat startup |
-| `-disable-2fa` | - | `false` | Flag bypass darurat untuk menonaktifkan 2FA langsung dari terminal host |
-| `-check-update` | - | `false` | Periksa ketersediaan versi rilis terbaru, tampilkan catatan rilis, lalu keluar |
-| `-update` | - | `false` | Perbarui biner Pantau ke versi rilis terbaru lalu keluar |
-| `-disable-update-check` | `PANTAU_DISABLE_UPDATE_CHECK` | `false` | Nonaktifkan pengecekan pembaruan otomatis (cocok untuk airgapped) |
-| `-log-level` | `PANTAU_LOG_LEVEL` | `error` | Tingkat log konsol CLI (`debug`, `info`, `warn`, `error`, `off`) |
-| `-q`, `-quiet` | - | `false` | Redam log konsol selain error (shorthand untuk `-log-level=error`) |
-| `-v`, `-version` | - | - | Cetak versi Pantau lalu keluar |
+| `-port` | `PANTAU_PORT` (atau `PORT`) | `8080` | Port listening HTTP (otomatis memindai `8080`–`8099` jika port default terpakai) |
+| `-db` | `PANTAU_DB` (atau `DB_PATH`) | `pantau.db` | Jalur file basis data SQLite |
+| `-open` | - | `true` (Win) / `false` | Membuka browser default secara otomatis saat dijalankan |
+| `-disable-2fa` | - | `false` | Flag darurat untuk menonaktifkan 2FA TOTP langsung dari terminal host |
+| `-check-update` | - | `false` | Memeriksa ketersediaan versi rilis terbaru lalu keluar |
+| `-update` | - | `false` | Memperbarui executable Pantau ke versi rilis terbaru lalu keluar |
+| `-disable-update-check` | `PANTAU_DISABLE_UPDATE_CHECK` | `false` | Menonaktifkan pengecekan rilis otomatis (disarankan untuk lingkungan airgapped) |
+| `-log-level` | `PANTAU_LOG_LEVEL` | `error` | Tingkat log konsol (`debug`, `info`, `warn`, `error`, `off`) |
+| `-q`, `-quiet` | - | `false` | Menekan log konsol non-error (sama dengan `-log-level=error`) |
+| `-v`, `-version` | - | - | Menampilkan informasi versi Pantau lalu keluar |
 
 ---
 
-## 🛠️ Tech Stack
+## Catatan Keamanan & Produksi
 
-- **Backend Inti**: Golang (`net/http`, `golang.org/x/crypto/ssh`, `pkg/sftp`, `gorilla/websocket`)
-- **Database**: Pure-Go SQLite (`modernc.org/sqlite`) dengan mode Write-Ahead Logging (WAL)
-- **Frontend**: Single-Page Web App tersemat via `go:embed` (Zero-npm, Vanilla JS, xterm.js, CodeMirror)
-- **Keamanan**: Enkripsi snapshot Argon2id + AES-256-GCM, autentikasi admin ter-hash bcrypt
+- **Eksposur jaringan**: Pantau adalah panel kontrol administratif yang memiliki wewenang mengeksekusi perintah shell dan memanipulasi file pada server target. **Jangan pernah membuka port Pantau langsung ke internet publik** tanpa memasangnya di balik reverse proxy yang aman (misalnya Caddy, Nginx, atau Cloudflare Access) dengan enkripsi TLS dan pembatasan IP.
+- **Manajemen kunci SSH**: Server target dapat dihubungkan menggunakan injeksi kata sandi satu kali atau penempatan kunci publik manual ke `~/.ssh/authorized_keys`. Pantau menggunakan pasangan kunci SSH khusus dan segera menghapus kata sandi dari memori setelah injeksi berhasil.
+- **Pemulihan bencana**: Selalu ekspor dan cadangkan snapshot konfigurasi Anda secara berkala. Snapshot dilindungi menggunakan enkripsi terautentikasi Argon2id dan AES-256-GCM.
 
----
-
-## ⚠️ Pernyataan Bebas Tanggung Jawab (Disclaimer & Limitation of Liability)
-
-1. **Penafian Jaminan (*"AS IS"*)**: Pantau adalah perangkat lunak *open-source* yang didistribusikan di bawah lisensi MIT secara "SEBAGAIMANA ADANYA" (*AS IS*), tanpa jaminan apa pun, baik tersurat maupun tersirat, termasuk namun tidak terbatas pada jaminan kelayakan jual, kesesuaian untuk tujuan tertentu, ketiadaan pelanggaran hak, atau keandalan integrasi sistem.
-2. **Batasan Tanggung Jawab Pengembang**: Pengembang, pembuat, dan kontributor **lepas tangan dan tidak memikul tanggung jawab hukum atau finansial apa pun** atas segala bentuk kerusakan sistem, kegagalan operasi, kehilangan data, waktu henti server (*downtime*), pelanggaran keamanan, akses tidak sah, kerusakan konfigurasi, kepanikan kernel (*kernel panic*), atau kerugian finansial yang timbul secara langsung maupun tidak langsung dari instalasi, eksekusi, atau kesalahan pengoperasian perangkat lunak ini.
-3. **Tanggung Jawab Penuh Pengguna**: Anda selaku operator/administrator sistem memikul tanggung jawab tunggal dan penuh atas segala tindakan atau instruksi yang dijalankan melalui Pantau—termasuk namun tidak terbatas pada eksekusi perintah shell remote, modifikasi atau penghapusan file via SFTP, pengaliran transfer antar-host, perubahan jadwal cron, manipulasi status container Docker, dan *Key Provisioning* SSH.
+Untuk panduan pengerasan keamanan dan praktik terbaik operasional, pelajari [Panduan Keamanan Administrator](docs/user-guide.id.md#6-fase-5-pengerasan-keamanan-snapshot--pemulihan-bencana).
 
 ---
 
-## 📄 Lisensi
+## Lisensi
 
-Didistribusikan di bawah lisensi **MIT License**. Lihat berkas [LICENSE](LICENSE) untuk teks dan ketentuan hukum selengkapnya.
+Didistribusikan di bawah **Lisensi MIT**. Lihat [LICENSE](LICENSE) untuk rincian selengkapnya.
 
-Dikembangkan dengan ❤️ oleh [Herliansyah](https://github.com/herliansyah).
+Dikembangkan oleh [Herliansyah](https://github.com/herliansyah).
