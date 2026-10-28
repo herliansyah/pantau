@@ -14,7 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - OS Terminal Detection & Interactive Shell Retention: automatic cascade detection across Windows, macOS, and Linux with interactive shell chaining (`exec bash`, `cmd /k`, `powershell -NoExit`) so terminal windows remain open and interactive if SSH fails or disconnects.
   - Process Detachment: non-blocking detached process spawning in Go (`Setpgid` on POSIX, `CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS` on Windows).
   - Terminal Settings & Custom Template: support for power-user terminal command templates (e.g. `alacritty -e %cmd%`) with pre-flight binary lookpath and command injection prevention.
-  - UI Integrations: Native Terminal button on Terminal Toolbar and "Native Terminal" dropdown item on Host Cards (Grid and List views).
+  - UI Integrations: Native Terminal button on Terminal Toolbar and "Native Terminal" dropdown item on Host Cards (Grid and List views), dedicated "Native Terminal" action in SFTP File Manager toolbar, and quick native terminal launch for pinned files/folders in Global Bookmarks modal.
+  - Active Path Navigation: automatic synchronization of terminal active working directory (OSC 7 / prompt tracking in Terminal Tabs, current folder in SFTP File Manager, or target directory of pinned bookmarks) when opening native desktop terminals, with graceful fallback to user home directory.
 
 ## [0.27.0] - 2026-10-27
 ### Added
