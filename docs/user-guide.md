@@ -13,7 +13,7 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
 1. [Architecture & Trust Boundaries](#1-architecture--trust-boundaries)
 2. [Phase 1: Onboarding & Inventory Management](#2-phase-1-onboarding--inventory-management)
    - [Adding a Host & Key Provisioning](#adding-a-host--key-provisioning)
-   - [Organizing with Host Groups & Manual Host Order](#organizing-with-host-groups--manual-host-order)
+   - [Organizing with Host Groups, Flat View & Manual Host Order](#organizing-with-host-groups-flat-view--manual-host-order)
 3. [Phase 2: Desired State Baselines & System Guardrails](#3-phase-2-desired-state-baselines--system-guardrails)
    - [Capturing a 1-Click Desired State Baseline](#capturing-a-1-click-desired-state-baseline)
    - [Configuring Backup Freshness & Protected Paths](#configuring-backup-freshness--protected-paths)
@@ -23,8 +23,10 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
    - [Package Inventory & Software Hygiene Audit](#package-inventory--software-hygiene-audit)
    - [Detecting Drift & Root Cause Excerpts](#detecting-drift--root-cause-excerpts)
    - [Interactive Diagnostics via Terminal Dock & Terminal Presets](#interactive-diagnostics-via-terminal-dock--terminal-presets)
+   - [Native OS Terminal Bridge & Desktop Shell Access](#native-os-terminal-bridge--desktop-shell-access)
    - [In-App Activity Console & Live Telemetry Stream](#in-app-activity-console--live-telemetry-stream)
    - [Agentless Network Diagnostics & Hop Analysis](#agentless-network-diagnostics--hop-analysis)
+   - [Automated Branch Network Triage Matrix & Incident Verification](#automated-branch-network-triage-matrix--incident-verification)
    - [Evaluating Server Longevity with Lifecycle Assessment](#evaluating-server-longevity-with-lifecycle-assessment)
    - [Multi-Host Side-by-Side Comparison & Scoring Matrix](#multi-host-side-by-side-comparison--scoring-matrix)
 5. [Phase 4: File Operations & Cross-Host Data Transfer](#5-phase-4-file-operations--cross-host-data-transfer)
@@ -79,10 +81,12 @@ When connecting a new **Host** to Pantau:
 > [!NOTE]
 > For legacy Linux systems (CentOS 5/6, Debian 7, or systems running OpenSSH 4.x/5.x), Pantau automatically enables legacy cipher and host key fallbacks (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`, `ssh-rsa`) during the SSH handshake. Pantau applies TOFU (Trust-On-First-Use) host key verification, seamlessly recording the target host's fingerprint on initial connection while actively protecting subsequent sessions against Machine-in-the-Middle (MITM) tampering.
 
-### Organizing with Host Groups & Manual Host Order
+### Organizing with Host Groups, Flat View & Manual Host Order
 
 As your fleet grows:
 - **Host Group**: Categorize hosts by functional tiers or environments (e.g., `Database Cluster`, `Edge Proxies`, `Staging`). Groups render as distinct visual partitions in both Grid and List **View Mode**.
+- **Flat View Option ("No Grouping")**: Select "No Grouping" in the group filter dropdown to display all hosts in a continuous flat list or card grid without group headers, ideal for smaller fleets or cross-cluster filtering.
+- **Streamlined Host List View**: A compact 8-column layout with merged host address/OS information, inline operational note badges with direct editing, and strict no-wrap metric formatting.
 - **Manual Host Order**: Click and drag or prioritize mission-critical hosts to the top of the dashboard.
 - **Host Note & Global Note**: Use **Host Note** for server-specific maintenance checklists (e.g., `"Primary PostgreSQL; failover standby is db-02"`). Use **Global Note** for cluster-wide operational announcements and shift handovers.
 
@@ -200,6 +204,32 @@ When a drift or alert requires hands-on investigation:
 - **Working Directory Synchronization**: Synchronizes active working directory via shell window titles and OSC 7 ANSI escape sequences.
 - **Modal Stacking & Escape Key**: Child action dialogs (preset forms, rule modals, notes) dynamically stack above parent modals and maximized terminal docks. Pressing `Escape` hierarchically dismisses the top-most active dialog before passing keyboard input to lower layers.
 
+### Native OS Terminal Bridge & Desktop Shell Access
+
+While the in-browser terminal dock excels at rapid checks, long-running administration often demands your preferred desktop terminal emulator (Windows Terminal, GNOME Terminal, iTerm2, Alacritty, Kitty) for hardware acceleration, native fonts, system-wide hotkeys, and local workflow integration:
+
+- **1-Click Native Terminal Launch**: Open an external desktop terminal directly into the target host without re-entering SSH passwords or configuring manual SSH config entries.
+- **In-Memory Ephemeral RSA Key Injection**: On each launch request, Pantau generates a temporary RSA 2048-bit keypair purely in RAM (`crypto/rsa`, `crypto/rand`). The private key is never written to disk on the Pantau server. The public key is injected into `~/.ssh/authorized_keys` on the target host via the existing verified SSH session with comment metadata `pantau-ephemeral-<id>-<expiry>`.
+- **Two-Tier Automatic Cleanup**:
+  - *Proactive Go Timer*: Automatically deletes the ephemeral key from the remote host after 5 minutes (or when the launch concludes).
+  - *Reactive Sweep*: A POSIX `awk` filter removes expired keys during background inspections or prior to new key injections, ensuring no orphan keys remain. Active SSH sessions remain alive because OpenSSH only verifies keys during initial handshake.
+- **Dual Launch Modes (Local vs Remote Web)**:
+  - **Local Workstation (`localhost` / `127.0.0.1`)**: Spawns detached native terminal processes directly on your desktop with shell chaining (`cmd /k`, `powershell -NoExit`, `exec bash`) to keep the window open with local shell prompt fallback if SSH disconnects.
+  - **Remote Web Access**: Opens the **Native Terminal Launcher** modal with a 32-byte single-use ticket (burn-after-read, 60s TTL), offering three connection paths:
+    1. **Custom URL Protocol (`pantau://`)**: Seamless 1-click launch from the browser via OS URI handler without downloading files.
+    2. **Temporary Script Download**: Self-extracting, self-deleting client scripts (`.cmd` for Windows with `icacls` user ACL isolation, `.command` for macOS, `.sh` for Linux with `trap` auto-cleanup).
+    3. **Streaming Command**: Copy-paste streaming execution (`curl -sSL ... | bash` on Linux/macOS or `irm ... | iex` on Windows PowerShell).
+- **Active Path Navigation**: External terminals automatically open directly in the active working directory:
+  - From Terminal Dock: tracks the active working directory via OSC 7 ANSI sequences or shell prompt tracking.
+  - From SFTP File Manager: inherits the current directory being explored.
+  - From Global Bookmarks: launches directly into the parent folder of the pinned file.
+- **Terminal Settings & Custom Templates**: In **Settings** → **Native Terminal**, choose automatic OS detection or define a custom command template (e.g. `alacritty -e %cmd%` or `wt.exe new-tab %cmd%`) with pre-flight binary lookpath and command injection verification.
+- **Multiple Launch Points**:
+  - Popout button `↗` in the Terminal Dock toolbar.
+  - Context menu item `↗ Native Terminal` in Host Card action menus (Grid and List views).
+  - Toolbar button `↗ Native Terminal` in SFTP File Manager.
+  - Quick launch button next to pinned items in the Global Bookmarks modal.
+
 ### In-App Activity Console & Live Telemetry Stream
 
 To provide transparent operational feedback, Pantau includes a real-time diagnostic console that exposes what the daemon and its subsystems are doing at any given moment:
@@ -234,10 +264,33 @@ When troubleshooting server connectivity issues, firewall blocking, or cross-dat
   - **Zone Classification**: Identifies whether each hop belongs to `Local/Private VPC` (RFC 1918 / CGNAT), `ISP Transit`, or `Destination`.
   - **Blackhole Detection**: Pins down the exact network hop where traffic drops if destination is unreachable.
   - **Latency Spike Alerts**: Highlights significant latency jumps (>60ms) between consecutive hops.
+- **Probe Target Presets**: Save recurring unmanaged branch routers, switches, access points, and remote endpoints into SQLite-backed presets with operational labels and target IP/FQDN values for instant one-click testing without manual retyping.
 - **Dual Launch Points**:
   - Open from the **Network Diagnostics** tab in any Host Workspace Modal (with source host locked).
   - Open globally via the **`⚡ NetDiag`** button in the top navigation header cluster (with host picker).
 - **Concurrency & Safety Guards**: Employs an in-memory singleflight lock per host to prevent SSH session saturation. Offline hosts are automatically disabled in inter-host target dropdowns.
+
+### Automated Branch Network Triage Matrix & Incident Verification
+
+When branch offices or remote clients report web application sluggishness or downtime, operators frequently face the classic dilemma: is the issue caused by overloaded server hardware or a degraded ISP/VPN network route? The **Automated Network Triage Matrix** provides an adaptive, one-click diagnostic pipeline to resolve this question conclusively in under 15 seconds:
+
+- **Multi-Layer Diagnostic Pipeline**:
+  1. *Host & Application Self-Check*: Evaluates CPU/RAM/Swap usage, disk I/O, socket counts, and executes comparative L7 HTTP probes (local loopback `127.0.0.1` vs external probe) measuring HTTP response status and Time To First Byte (TTFB).
+  2. *Route & Interface Discovery*: Determines the outgoing interface, default gateway, and active path MTU via `ip route get <target>`.
+  3. *Path & Fragmentation Analysis*:
+     - On Private/VPN Routes: Runs an **MTU Sweep Probe** with Don't Fragment (DF) flags (1300, 1420, 1472 bytes) to detect Path MTU Blackholes.
+     - On Public Internet Routes: Runs **Hop Analysis** (traceroute/tracepath) to isolate upstream ISP congestion and blackhole drops.
+  4. *Intelligent Firewall Fallback*: If ICMP ping experiences 100% loss, the engine automatically falls back to a TCP port probe against the target service. If the port is open, the target is classified as reachable via `ICMP_FILTERED_TCP_HEALTHY`, preventing false down alarms.
+- **7 Deterministic Triage Verdicts**:
+  - `HOST_SATURATED`: Host resources (CPU, RAM, Disk I/O, or socket pools) are exhausted.
+  - `APPLICATION_DEGRADED`: Host resources and network paths are healthy, but application HTTP responses failed (5xx) or local TTFB exceeded SLA thresholds (>2000ms).
+  - `TRANSIT_PATH_DEGRADED`: Host and app are healthy, but transit packet loss (>2%) or severe latency spikes occurred.
+  - `BRANCH_GATEWAY_DOWN`: Target branch gateway failed to respond across both ICMP and TCP probes.
+  - `MTU_BLACKHOLE_DETECTED`: Small ping packets pass, but standard VPN MTU packet sizes (>1400 bytes) are dropped due to MTU mismatch.
+  - `ICMP_FILTERED_TCP_HEALTHY`: ICMP ping is blocked by firewalls, but service TCP ports are healthy and responding.
+  - `HEALTHY`: Host resources, L7 application responses, and network routes are all performing within normal boundaries.
+- **Incident Storage & Audit Log**: Every triage run is recorded in the local SQLite `triage_incident_logs` table, storing execution timestamps, source host, target branch, packet loss, TTFB, verdict, and raw output excerpts.
+- **1-Click Markdown Incident Ticket**: Click **Copy Incident Ticket** in the web UI to copy a structured Markdown incident summary ready for immediate pasting into ticketing systems, Slack, WhatsApp, or ISP escalation channels.
 
 ### Evaluating Server Longevity with Lifecycle Assessment
 

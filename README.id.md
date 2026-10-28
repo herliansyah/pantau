@@ -137,8 +137,8 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - 100% pustaka vendor antarmuka pengguna (`xterm.js`, `xterm-addon-fit`, dan `CodeMirror` lengkap dengan 8 mode bahasa: XML, JS, CSS, HTML, C-like, PHP, Shell, YAML) disematkan langsung ke dalam binary Go via `go:embed`.
 - Menegakkan *Content Security Policy* (CSP) ketat tanpa permintaan jaringan keluar ke CDN publik, menjamin antarmuka berfungsi 100% sempurna pada intranet terisolasi, VPC tertutup, maupun lingkungan *airgapped*.
 
-### 11. 📂 Host Grouping, Terminal Maximize & Port Auto-Scan Fallback
-- **Host Group**: Mengelompokkan Host berdasarkan fungsi server atau lingkungan (misal: *Server Utama*, *Testing*, *Database Cluster*) dengan baris/kartu pemisah visual pada tampilan Grid View maupun List View.
+### 11. 📂 Host Grouping, Tampilan Flat, Terminal Maximize & Port Auto-Scan Fallback
+- **Host Group & Tampilan Flat**: Mengelompokkan Host berdasarkan fungsi server atau lingkungan (misal: *Server Utama*, *Testing*, *Database Cluster*) dengan baris/kartu pemisah visual pada tampilan Grid View maupun List View, atau menampilkan seluruh host dalam daftar datar tanpa header grup menggunakan opsi filter "Tanpa Grouping".
 - **Terminal Maximize**: Memperluas antarmuka terminal ke ukuran layar penuh peramban (*full-viewport*) dengan tetap mempertahankan pintasan tombol interaktif (seperti `Esc` pada `vim`, `nano`, atau `htop`).
 - **Port Auto-Scan Fallback**: Mendeteksi ketersediaan port secara berurutan (`8080` hingga `8099`) saat server dijalankan dengan port default, mencegah kegagalan startup akibat konflik port yang sedang digunakan.
 
@@ -193,6 +193,7 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 ### 20. 🌐 Diagnostik Jaringan Agentless & Analisis Hop
 - **Perkakas Diagnostik On-Demand**: Uji coba interaktif Ping, Traceroute (dengan auto-fallback tracepath), TCP Port Probe tanpa dependensi (`/dev/tcp`), dan DNS Resolve secara real-time via Server-Sent Events (SSE).
 - **Analisis Hop Otomatis**: Klasifikasi hop jaringan ke zona Lokal/VPC Privat, Transit ISP, dan Destinasi, dilengkapi deteksi titik paket terhenti (*blackhole drop*) dan peringatan lonjakan latensi (>60ms).
+- **Probe Target Preset**: Menyimpan sasaran pengujian rutin router, switch, atau gateway cabang tak terkelola dengan label dan target IP/FQDN untuk pengujian instan satu-klik.
 - **Proteksi Konkurensi & Pencegahan Kesalahan**: Guard singleflight mencegah penumpukan proses per host, serta seleksi target secara otomatis menonaktifkan host yang sedang offline.
 
 ### 21. ⚖️ Evaluasi Komparatif Multi-Host & Matriks Penilaian
@@ -219,6 +220,19 @@ Pantau menginspeksi Host remote melalui perintah SSH non-interaktif, memvalidasi
 - **Zero-Configuration Remote Browser Bridge**: Otomatisasi penangkap sinyal terminal OSC 1337 (`OpenURL`) dan OSC 777 yang secara otomatis meneruskan permintaan buka peramban dari CLI remote (`gh auth login`, `xdg-open`, Python `webbrowser`, AWS SSO, `npm login`) langsung ke peramban desktop asli pengguna tanpa terjebak browser teks konsol (`w3m`/`lynx`).
 - **Penyuntikan Senyap Lingkungan Shell**: Auto-provisioning script `/tmp/pantau-browser` dan penyetelan environment variable (`BROWSER`, `GH_BROWSER`) secara senyap pada shell login tanpa memicu echo perintah di layar konsol.
 - **Menu Toolbar Dropdown `🌐 Ports` & Modal Aksi**: Menu toolbar khusus `🌐 Ports` di terminal dock untuk membuka port remote secara bebas dan menyimpan riwayat port di *localStorage*, dipadukan dengan modal dialog konfirmasi interaktif saat URL remote diklik.
+
+### 25. 🩺 Automated Network Triage Matrix & Observabilitas Jaringan Hybrid
+- **Pipeline Triage Multi-Layer Satu-Klik**: Mengevaluasi sumber daya Host, kinerja L7 HTTP komparatif (loopback lokal vs TTFB eksternal), deteksi Path MTU Blackhole (MTU sweep dengan bit Don't Fragment), serta rute transit ISP/VPN untuk memisahkan akar masalah server vs jaringan secara objektif dalam waktu kurang dari 15 detik.
+- **Fallback Firewall Cerdas**: Mencegah false alarm saat ping ICMP diblokir firewall dengan beralih otomatis ke TCP port probe (`ICMP_FILTERED_TCP_HEALTHY`).
+- **7 Triage Verdict Baku**: Klasifikasi kesimpulan deterministik (`HOST_SATURATED`, `APPLICATION_DEGRADED`, `TRANSIT_PATH_DEGRADED`, `BRANCH_GATEWAY_DOWN`, `MTU_BLACKHOLE_DETECTED`, `ICMP_FILTERED_TCP_HEALTHY`, `HEALTHY`).
+- **Pencatatan Insiden & Ekspor Tiket**: Menyimpan riwayat eksekusi ke SQLite lokal dan menyediakan generator tiket Markdown satu-klik untuk eskalasi ke helpdesk atau ISP.
+
+### 26. 💻 Native OS Terminal Bridge & Ephemeral Key Injector
+- **Peluncuran Terminal Bawaan OS Satu-Klik**: Buka aplikasi terminal desktop (Windows Terminal, GNOME Terminal, iTerm2, Alacritty, Kitty) langsung dari antarmuka Pantau ke host target tanpa memasukkan password berulang kali.
+- **Injeksi Kunci SSH RSA Ephemeral Murni di RAM**: Membuat pasangan kunci RSA 2048-bit sementara di memori tanpa pernah menyentuh disk server, disuntikkan via sesi SSH aktif ke `~/.ssh/authorized_keys`, dan dibersihkan otomatis melalui proteksi ganda (timer Go 5 menit + pemindaian posix awk reaktif).
+- **Mode Ganda Workstation Lokal & Remote Web**: Menjalankan proses terminal detached secara langsung jika diakses dari `localhost`, atau menampilkan modal interaktif berprotokol URL kustom `pantau://`, unduhan skrip self-extracting sekali pakai (`.cmd` di Windows dengan proteksi `icacls`, `.command`/`.sh` di macOS/Linux dengan `trap`), dan perintah salin streaming (`curl | bash`, `irm | iex`).
+- **Pewarisan Direktori Kerja (Active Path Navigation)**: Secara otomatis membuka sesi terminal desktop langsung di direktori kerja aktif dari tab Terminal Dock (OSC 7 / prompt tracking), folder aktif Pengelola Berkas SFTP, atau folder induk dari berkas tersemat Global Bookmarks.
+- **Kustomisasi Template Perintah Terminal**: Dukungan template perintah kustom (misal: `alacritty -e %cmd%`) dengan validasi pre-flight `exec.LookPath` dan sanitasi parameter anti-command-injection.
 
 ---
 

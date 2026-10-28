@@ -465,3 +465,12 @@ _Avoid_: Script downloader, ssh batch file, terminal trigger script
 **Native Terminal Launcher Config**:
 Konfigurasi preferensi aplikasi terminal native pengguna di pengaturan Pantau (deteksi otomatis default OS Windows/Linux/macOS dengan dukungan custom template command).
 _Avoid_: Terminal app setting, custom terminal runner
+
+**Active Path Navigation**:
+Mekanisme pewarisan direktori kerja aktif (dari File Manager, Terminal Dock, atau Global Bookmarks) ke sesi Native Terminal secara otomatis agar sesi shell eksternal langsung terbuka di direktori tersebut.
+_Avoid_: Directory syncing, folder jump, path inheritance
+
+**Pantau URL Protocol Handler**:
+Skema URI khusus (`pantau://`) untuk memicu peluncuran sesi native terminal secara satu-klik langsung dari browser desktop tanpa pengunduhan berkas skrip manual.
+_Avoid_: Custom scheme, terminal link, browser protocol hook
+

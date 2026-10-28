@@ -138,7 +138,7 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - Enforces a strict Content Security Policy (CSP) with zero external CDN network requests, guaranteeing full offline operations in isolated intranets, airgapped VPCs, or disconnected environments.
 
 ### 11. 📂 Host Grouping, Terminal Maximize & Port Auto-Scan
-- **Host Grouping**: Categorize hosts by environment or role (e.g. *Primary Cluster*, *Testing*, *Database Servers*) with unified grid and list view separation.
+- **Host Grouping & Flat View**: Categorize hosts by environment or role (e.g. *Primary Cluster*, *Testing*, *Database Servers*) with unified grid and list view separation, or display all hosts in a single flat view without headers using the "No Grouping" filter option.
 - **Terminal Maximize**: Expand the web terminal to a full-viewport canvas while preserving interactive terminal shortcuts (such as `Esc` in `vim`, `nano`, or `htop`).
 - **Port Auto-Scan Fallback**: Automatically scans sequential ports (`8080` to `8099`) when initialized on the default port, eliminating startup crashes caused by busy ports.
 
@@ -193,6 +193,7 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 ### 20. 🌐 Agentless Network Diagnostics & Hop Analysis
 - **On-Demand Diagnostic Probes**: Real-time interactive Ping, Traceroute (with tracepath auto-fallback), zero-dependency TCP Port Probe (`/dev/tcp`), and DNS Resolve streamed directly over Server-Sent Events (SSE).
 - **Automated Hop Analysis**: Categorizes network hops into Local/Private VPC, ISP Transit, and Destination zones, with automated blackhole packet drop detection and latency jump alerts (>60ms).
+- **Probe Target Presets**: Save frequently diagnosed unmanaged routers, switches, and remote endpoints with operational tags and IP/FQDN targets for one-click testing.
 - **Concurrency & Human-Error Protection**: Singleflight guard prevents concurrent diagnostic tasks per source host, while target selection automatically disables unreachable/offline hosts.
 
 ### 21. ⚖️ Multi-Host Side-by-Side Comparison & Scoring Matrix
@@ -219,6 +220,19 @@ Pantau inspects remote hosts via non-interactive SSH commands, continuously vali
 - **Zero-Configuration Remote Browser Bridge**: Automated OSC 1337 (`OpenURL`) and OSC 777 escape sequence receiver routing CLI tool browser requests (`gh auth login`, `xdg-open`, Python `webbrowser`, AWS SSO, `npm login`) directly to the client's desktop browser without headless text-browser (`w3m`/`lynx`) traps.
 - **Silent Shell Environment Auto-Provisioning**: Non-intrusive provisioning of `/tmp/pantau-browser` and silent environment injection (`BROWSER`, `GH_BROWSER`) across login shells with zero console echo.
 - **Terminal Ports Dropdown & Action Modal**: Dedicated `🌐 Ports` toolbar menu in the terminal dock for manual port forwarding entry and persistent recent port history (`localStorage`), paired with an interactive confirmation modal on clicking remote localhost URLs in terminal output.
+
+### 25. 🩺 Automated Network Triage Matrix & Hybrid Observability
+- **1-Click Multi-Layer Triage Pipeline**: Evaluates host resources, comparative L7 HTTP performance (local loopback vs external TTFB), Path MTU Blackhole detection (MTU sweep with Don't Fragment bit), and ISP/VPN transit routes to objectively isolate application vs network bottlenecks in under 15 seconds.
+- **Intelligent Firewall Fallback**: Prevents false down alarms when ICMP ping is blocked by falling back to TCP port probes (`ICMP_FILTERED_TCP_HEALTHY`).
+- **7 Deterministic Verdicts**: Classifies incidents automatically (`HOST_SATURATED`, `APPLICATION_DEGRADED`, `TRANSIT_PATH_DEGRADED`, `BRANCH_GATEWAY_DOWN`, `MTU_BLACKHOLE_DETECTED`, `ICMP_FILTERED_TCP_HEALTHY`, `HEALTHY`).
+- **Incident Storage & Export**: Stores incident summaries in SQLite and provides a 1-click Markdown incident ticket generator for helpdesk and ISP escalation.
+
+### 26. 💻 Native OS Terminal Bridge & Ephemeral Key Injector
+- **1-Click OS Native Terminal Launch**: Launch native desktop terminal emulators (Windows Terminal, GNOME Terminal, iTerm2, Alacritty, Kitty) directly from Pantau into target hosts with zero password re-entry.
+- **In-Memory Ephemeral RSA Key Injection**: Automatically generates short-lived RSA 2048-bit keypairs purely in RAM (zero disk persistence on server), injects them via active SSH sessions into `~/.ssh/authorized_keys`, and enforces two-tier auto-cleanup (proactive 5-minute Go timer + reactive POSIX `awk` sweep).
+- **Dual Workstation & Remote Web Modes**: Directly launches detached terminal processes when accessing Pantau locally (`localhost`), or opens an interactive modal with custom URL protocol (`pantau://`), self-extracting self-deleting launcher scripts (`.cmd` on Windows with `icacls` ACL isolation, `.command`/`.sh` on macOS/Linux with `trap` cleanup), and streaming one-click commands (`curl | bash`, `irm | iex`).
+- **Active Path Navigation**: Automatically inherits the active working directory from Terminal Dock tabs (OSC 7 / prompt tracking), SFTP File Manager, or Global Bookmarks when launching external desktop terminals.
+- **Terminal Settings & Custom Templates**: Configure custom terminal emulator command templates (e.g., `alacritty -e %cmd%`) with pre-flight binary detection and command injection protection.
 
 ---
 
