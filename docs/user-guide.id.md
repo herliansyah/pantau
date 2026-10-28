@@ -8,7 +8,7 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
 
 ---
 
-## 📑 Daftar Isi
+## Daftar Isi
 
 1. [Arsitektur & Batas Kepercayaan (Trust Boundaries)](#1-arsitektur--batas-kepercayaan-trust-boundaries)
 2. [Fase 1: Onboarding & Manajemen Inventaris Host](#2-fase-1-onboarding--manajemen-inventaris-host)

@@ -8,7 +8,7 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
 1. [Architecture & Trust Boundaries](#1-architecture--trust-boundaries)
 2. [Phase 1: Onboarding & Inventory Management](#2-phase-1-onboarding--inventory-management)

@@ -86,13 +86,13 @@ Pantau menginspeksi host remote melalui koneksi SSH standar menggunakan perintah
 - **Saturasi sumber daya**: Memantau CPU load, penggunaan RAM, alokasi swap, partisi disk, dan throughput I/O via `/proc/diskstats` tanpa dependensi `iostat`.
 - **Telemetri proses dan jaringan**: Mengidentifikasi proses dengan konsumsi CPU/RAM tertinggi, port mendengarkan (*listening ports*), koneksi soket aktif, dan deteksi percobaan login SSH yang gagal (*failed logins*).
 - **Inventaris paket dan siklus hidup**: Memindai paket terinstal di berbagai distro Linux (`dpkg`, `rpm`, `apk`, `pacman`), mendeteksi paket/layanan tidak aktif (*dormant*), dan menghitung estimasi masa pakai serta tanggal End-of-Life (EOL) sistem operasi.
-- Baca selengkapnya pada [Panduan Inspeksi & Telemetri](docs/user-guide.id.md#inspeksi-host--telemetri-sistem).
+- Baca selengkapnya pada [Panduan Inspeksi & Observabilitas](docs/user-guide.id.md#4-fase-3-observabilitas-analisis-drift--respons-insiden).
 
 ### 2. Desired State Baseline & Diagnostik Insiden
 Definisikan baseline kondisi operasional yang diharapkan untuk kontainer, layanan sistem, batas toleransi disk, dan jadwal backup.
 - **Deteksi drift otomatis**: Memberikan peringatan ketika kontainer berhenti mendadak, layanan systemd gagal berjalan, cron job hilang, atau penggunaan partisi disk melampaui ambang batas aman.
 - **Tangkapan akar penyebab (Root Cause Excerpt)**: Saat layanan atau kontainer mengalami kegagalan (*crash*), Pantau otomatis mencatat *exit code*, status bendera `OOMKilled`, dan potongan log terakhir dari `journalctl` atau `docker logs`.
-- Baca selengkapnya pada [Panduan Desired State & Drift](docs/user-guide.id.md#desired-state-engine--deteksi-drift).
+- Baca selengkapnya pada [Panduan Desired State & Proteksi](docs/user-guide.id.md#3-fase-2-baseline-desired-state--proteksi-sistem).
 
 ### 3. Web Terminal Terpadu & Operasional Remote
 Kelola server target langsung dari browser tanpa perlu berganti-ganti aplikasi terminal eksternal.
@@ -100,14 +100,14 @@ Kelola server target langsung dari browser tanpa perlu berganti-ganti aplikasi t
 - **SFTP file editor & bookmark**: Navigasi struktur direktori remote, sematkan (*pin*) file konfigurasi atau log penting, dan sunting skrip secara langsung dengan *syntax highlighting*.
 - **Tunneling port web remote**: Reverse proxy HTTP/WebSocket tanpa agen di atas kanal SSH `direct-tcpip`, memungkinkan akses aman ke aplikasi web lokal di server target (`localhost:port`) tanpa membuka port firewall publik.
 - **Bridge terminal desktop lokal**: Buka aplikasi terminal desktop lokal Anda (Windows Terminal, GNOME Terminal, iTerm2, Alacritty) langsung ke server remote dengan 1-klik menggunakan kunci SSH efemeral sementara di RAM.
-- Baca selengkapnya pada [Panduan Terminal & File Manager](docs/user-guide.id.md#web-terminal--sftp-workspace).
+- Baca selengkapnya pada [Panduan Terminal & Operasional Remote](docs/user-guide.id.md#investigasi-interaktif-via-terminal-dock--terminal-preset).
 
 ### 4. Zero-Disk Streaming & Backup Terenkripsi
 Transfer data antar-server secara aman dan lindungi seluruh konfigurasi kluster Anda.
 - **Transfer streaming lintas host**: Salin file dan folder antar dua server remote melalui *memory pipe* (`tar` streaming), tanpa pernah menyimpan (*spooling*) data ke disk lokal Pantau, dilengkapi verifikasi integritas opsional SHA-256.
 - **Snapshot sistem terenkripsi**: Ekspor konfigurasi host, baseline, dan kredensial SSH ke dalam arsip snapshot portabel yang diamankan dengan algoritma Argon2id dan AES-256-GCM.
 - **Sinkronisasi pemulihan bencana**: Jadwalkan sinkronisasi otomatis snapshot terenkripsi ke repositori privat GitHub untuk pemulihan cepat saat terjadi bencana (*disaster recovery*).
-- Baca selengkapnya pada [Panduan Transfer Streaming](docs/user-guide.id.md#transfer-streaming-antar-host).
+- Baca selengkapnya pada [Panduan Transfer Streaming Lintas-Host](docs/user-guide.id.md#cross-host-transfer-pipa-memori-tanpa-disk-lokal).
 
 ### 5. Arsitektur Ramah Lingkungan Airgapped
 Dirancang dari awal untuk kebutuhan kepatuhan keamanan tinggi, VPC tertutup, dan intranet tanpa akses internet publik.
@@ -213,7 +213,7 @@ Pantau mendukung konfigurasi melalui flag CLI atau variabel lingkungan (*environ
 - **Manajemen kunci SSH**: Server target dapat dihubungkan menggunakan injeksi kata sandi satu kali atau penempatan kunci publik manual ke `~/.ssh/authorized_keys`. Pantau menggunakan pasangan kunci SSH khusus dan segera menghapus kata sandi dari memori setelah injeksi berhasil.
 - **Pemulihan bencana**: Selalu ekspor dan cadangkan snapshot konfigurasi Anda secara berkala. Snapshot dilindungi menggunakan enkripsi terautentikasi Argon2id dan AES-256-GCM.
 
-Untuk panduan pengerasan keamanan dan praktik terbaik operasional, pelajari [Panduan Keamanan Administrator](docs/user-guide.id.md#playbook-keamanan-administrator).
+Untuk panduan pengerasan keamanan dan praktik terbaik operasional, pelajari [Panduan Keamanan Administrator](docs/user-guide.id.md#6-fase-5-pengerasan-keamanan-snapshot--pemulihan-bencana).
 
 ---
 

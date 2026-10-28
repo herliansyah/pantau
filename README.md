@@ -86,13 +86,13 @@ Pantau inspects remote hosts via standard SSH connections using non-interactive 
 - **Resource saturation**: Tracks CPU load, memory utilization, swap usage, disk partitions, and `/proc/diskstats` I/O rates without requiring `iostat`.
 - **Process and network telemetry**: Identifies top CPU and memory-consuming processes, open listening ports, inbound active sockets, and failed SSH authentication attempts.
 - **Package and lifecycle audit**: Catalogs installed software across Debian (`dpkg`), RHEL (`rpm`), Alpine (`apk`), and Arch (`pacman`), highlighting dormant services and calculating OS End-of-Life (EOL) timelines.
-- Learn more in the [Inspection and Metrics Guide](docs/user-guide.md#host-inspection--telemetry).
+- Learn more in the [Inspection and Metrics Guide](docs/user-guide.md#4-phase-3-observability-drift-triage--incident-response).
 
 ### 2. Desired State Baselines & Incident Diagnostics
 Establish expected operational baselines for containers, core services, disk thresholds, and backup timestamps.
 - **Automated drift detection**: Detects when containers stop, systemd services fail, cron jobs vanish, or disk usage exceeds configured warning levels.
 - **Root cause crash capture**: When a tracked service or container fails, Pantau automatically extracts the exit code, OOM-killed status flags, and the trailing lines from `journalctl` or `docker logs`.
-- Learn more in the [Desired State & Drift Guide](docs/user-guide.md#desired-state-engine--drift-detection).
+- Learn more in the [Desired State & Drift Guide](docs/user-guide.md#3-phase-2-desired-state-baselines--system-guardrails).
 
 ### 3. Integrated Web Terminal & Remote Operations
 Manage target servers directly from the browser without context-switching to external terminal applications.
@@ -100,14 +100,14 @@ Manage target servers directly from the browser without context-switching to ext
 - **SFTP file editor & bookmarks**: Browse remote file trees, pin critical log or configuration paths, and edit scripts with syntax highlighting.
 - **Remote web port tunneling**: Agentless HTTP/WebSocket reverse proxy over SSH `direct-tcpip` channels, allowing you to access private services (`localhost:port`) on remote servers without opening firewall ports.
 - **Native OS terminal bridge**: Launch your local desktop terminal (Windows Terminal, GNOME Terminal, iTerm2, Alacritty) into any remote host with one click via ephemeral in-memory SSH keys.
-- Learn more in the [Terminal and File Management Guide](docs/user-guide.md#web-terminal--sftp-workspace).
+- Learn more in the [Terminal and Remote Operations Guide](docs/user-guide.md#interactive-diagnostics-via-terminal-dock--terminal-presets).
 
 ### 4. Zero-Disk Streaming & Encrypted Backup
 Safely transfer data between servers and safeguard your configuration cluster.
 - **Piped cross-host transfer**: Stream files and directories directly between two remote Linux servers through memory pipes (`tar` stream), bypassing Pantau's local storage entirely, with optional end-to-end SHA-256 verification.
 - **Encrypted cluster snapshots**: Export host configurations, baselines, and SSH keys into portable encrypted snapshot archives secured with Argon2id and AES-256-GCM.
 - **Automated disaster recovery**: Schedule periodic encrypted snapshot backups to private GitHub repositories for automated offsite recovery.
-- Learn more in the [Cross-Host Transfer Guide](docs/user-guide.md#cross-host-streaming-transfers).
+- Learn more in the [Cross-Host Transfer Guide](docs/user-guide.md#cross-host-transfer-zero-disk-memory-pipes).
 
 ### 5. Airgapped-First Architecture
 Engineered from the ground up for strict security postures, private VPCs, and disconnected intranets.
@@ -213,7 +213,7 @@ Pantau accepts configuration via CLI flags or equivalent environment variables:
 - **SSH key management**: Target hosts can be provisioned using one-time password injection or manual public key placement (`~/.ssh/authorized_keys`). Pantau uses dedicated key pairs and discards passwords from memory immediately after provisioning.
 - **Disaster recovery**: Always export and backup your encrypted configuration snapshot regularly. Snapshots are encrypted with Argon2id and AES-256-GCM.
 
-For detailed security guidelines and hardening recommendations, consult the [Administrator Security Guide](docs/user-guide.md#security-playbook).
+For detailed security guidelines and hardening recommendations, consult the [Administrator Security Guide](docs/user-guide.md#6-phase-5-hardening-snapshots--disaster-recovery).
 
 ---
 
