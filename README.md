@@ -1,265 +1,143 @@
 <p align="center">
   <a href="#readme">
-    <img src=".github/assets/logo.svg" alt="Pantau Logo" width="128" />
+    <img src=".github/assets/logo.svg" alt="Pantau Logo" width="100" />
   </a>
 </p>
 
 <h1 align="center">Pantau</h1>
 
 <p align="center">
-  <b>Agentless Linux Server Monitoring, Desired State Drift Engine & Interactive Management</b><br>
-  <i>Single binary. Zero remote daemons. Embedded SQLite. Native SSH.</i>
+  Agentless Linux server monitoring and lightweight remote operations in a single binary.
 </p>
 
 <p align="center">
   <a href="README.md"><b>English</b></a> •
   <a href="README.id.md"><b>Bahasa Indonesia</b></a> •
-  <a href="docs/user-guide.md"><b>📖 User Guide</b></a>
+  <a href="docs/user-guide.md"><b>Documentation</b></a> •
+  <a href="https://github.com/herliansyah/pantau/releases"><b>Releases</b></a>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go Version" />
-  <img src="https://img.shields.io/badge/Architecture-Agentless%20SSH-3b82f6?style=for-the-badge" alt="Architecture" />
-  <img src="https://img.shields.io/badge/Database-Embedded%20SQLite%20(WAL)-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite" />
-  <img src="https://img.shields.io/badge/i18n-English%20%7C%20Indonesia-10b981?style=for-the-badge" alt="Dual Language" />
-  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License MIT" />
+  <a href="https://github.com/herliansyah/pantau/releases"><img src="https://img.shields.io/github/v/release/herliansyah/pantau?style=flat-square" alt="Latest Release" /></a>
+  <img src="https://img.shields.io/badge/go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go Version" />
+  <img src="https://img.shields.io/badge/database-embedded%20sqlite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License" /></a>
 </p>
 
 <p align="center">
   <img src=".github/assets/dashboard.png" alt="Pantau Dashboard" width="100%" />
 </p>
 
-> [!WARNING]
-> **Production & Security Advisory**: Pantau is an open-source administrative tool designed for server management and monitoring. It executes remote SSH commands, manages files via SFTP, and provisions keys directly on target Linux hosts with elevated/root privileges. This software is provided **"AS IS"** without warranties of any kind. Users are solely responsible for verifying operations, safeguarding private keys, and maintaining independent offline backups. Never expose Pantau to the public internet without proper authentication, reverse proxy protection, and TLS termination.
+---
+
+## Why Pantau?
+
+Most infrastructure monitoring tools require installing, configuring, and maintaining background agents (like Prometheus Node Exporter, Datadog Agent, or Zabbix Agent) across every managed machine. For small to mid-sized fleets, airgapped intranets, or environments with legacy operating systems, this introduces significant maintenance overhead and security surface.
+
+**Pantau takes a different path:**
+- **Zero remote agents**: Operates exclusively over standard OpenSSH (`port 22`) using POSIX standard commands. Target servers require zero daemon installations, zero open telemetry ports, and zero background resource footprint.
+- **Single self-contained binary**: Written in Go with an embedded SQLite database and embedded zero-npm web interface. Runs anywhere with zero external dependencies.
+- **Operations in one place**: Combines health metrics, drift detection against desired state baselines, interactive multi-tab terminals, secure file management, and zero-disk cross-host file streaming inside a single web dashboard.
 
 ---
 
-## 📖 Overview
-
-**Pantau** is a self-hosted, lightweight, single-binary infrastructure monitoring and server management system built in Go. Unlike Prometheus/Node-Exporter, Zabbix, or Datadog, Pantau operates **100% agentless** over standard SSH (`port 22`). Target servers require **no background agents, no daemon installation, and no persistent telemetry scrapers**.
-
-Pantau inspects remote hosts via non-interactive SSH commands, continuously validates systems against **Desired State** rules, diagnoses deviations with automatic **Root Cause Excerpts**, streams cross-host files in memory, and provides an in-browser Web Terminal (xterm.js) and SFTP Code Editor.
-
-> [!TIP]
-> **Administrator Playbook**: Looking for step-by-step operational workflows, disaster recovery procedures, or security hardening guides? Read the [Pantau Administrator Guide](docs/user-guide.md) ([Bahasa Indonesia](docs/user-guide.id.md)).
-
----
-
-## 🏛️ Architecture
+## Architecture
 
 ```
-                                  +--------------------------------------------------+
-                                  |                 Web Browser Client               |
-                                  |     (Single-Page App, Fixed Shell, xterm.js)     |
-                                  +------------------------+-------------------------+
-                                                           | HTTP / WebSocket
-                                                           v
-+--------------------------------------------------------------------------------------------------------------------+
-|                                                PANTAU CONTROL PLANE (Go)                                           |
-|                                                                                                                    |
-|  +---------------------+   +---------------------+   +---------------------+   +--------------------------------+  |
-|  |   Inspection Loop   |   |   Drift Engine      |   |  Hybrid Alerting    |   | Cross-Host Transfer Engine     |  |
-|  | (SSH Collector: 5m)|   | (Desired vs Actual) |   | (Telegram/Webhooks) |   | (Piped FIFO Stream, Zero-Disk) |  |
-|  +----------+----------+   +----------+----------+   +----------+----------+   +---------------+----------------+  |
-|             |                         |                         |                              |                   |
-|             +-------------------------+------------+------------+                              |                   |
-|                                                    |                                           |                   |
-|                                       +------------v-------------+                             |                   |
-|                                       | Embedded SQLite (WAL)    |                             |                   |
-|                                       | Encrypted Snapshot/Argon2|                             |                   |
-|                                       +------------+-------------+                             |                   |
-+----------------------------------------------------|-------------------------------------------|-------------------+
-                                                     | Native SSH Protocol                       | Stream Pipe
-                                                     v                                           v
-                       +-------------------------------------------+   +-------------------------------------------+
-                       |           Remote Linux Host A             |   |           Remote Linux Host B             |
-                       |  (Ubuntu / Debian / RHEL / CentOS 6-9)    |   |  (Ubuntu / Debian / RHEL / CentOS 6-9)    |
-                       |  - POSIX Standard CLI Tools (`ps`, `df`)  |   |  - POSIX Standard CLI Tools (`ps`, `df`)  |
-                       |  - Docker Engine / Containers             |   |  - Docker Engine / Containers             |
-                       |  - No Daemons / No Agents Installed       |   |  - No Daemons / No Agents Installed       |
-                       +-------------------------------------------+   +-------------------------------------------+
+                    +------------------------------------+
+                    |         Web Browser Client         |
+                    |   (SPA, xterm.js, CodeMirror, SSE) |
+                    +-----------------+------------------+
+                                      | HTTP / WebSocket
+                                      v
++---------------------------------------------------------------------------------+
+|                            PANTAU CONTROL PLANE (Go)                            |
+|                                                                                 |
+|  +--------------------+  +---------------------+  +--------------------------+  |
+|  |  Inspection Loop   |  | Drift Engine        |  | Cross-Host Stream        |  |
+|  |  (SSH POSIX probe) |  | (Baseline vs State) |  | (Memory pipe, zero disk) |  |
+|  +---------+----------+  +----------+----------+  +------------+-------------+  |
+|            |                        |                          |                |
+|            +------------------------+--------------------------+                |
+|                                     |                                           |
+|                       +-------------v-------------+                             |
+|                       |   Embedded SQLite (WAL)   |                             |
+|                       | Encrypted Snapshots (AES) |                             |
+|                       +-------------+-------------+                             |
++-------------------------------------|-------------------------------------------+
+                                      | Native SSH (Port 22)
+                 +--------------------+--------------------+
+                 v                                         v
++---------------------------------+       +---------------------------------+
+|       Remote Linux Host A       |       |       Remote Linux Host B       |
+| (Debian, Ubuntu, RHEL, Alpine)  |       | (Debian, Ubuntu, RHEL, Alpine)  |
+| - Standard POSIX tools (ps, df) |       | - Standard POSIX tools (ps, df) |
+| - Docker Engine / systemd       |       | - Docker Engine / systemd       |
+| - No agents / daemons installed |       | - No agents / daemons installed |
++---------------------------------+       +---------------------------------+
 ```
 
 ---
 
-## ✨ Key Features
+## Core Capabilities
 
-### 1. 🔍 Agentless SSH Inspection & 1-Click Key Provisioning
-- Collects real-time metrics (CPU Load, RAM, Disk partitions, Network Egress, Sockets, Uptime, Kernel) purely via standard POSIX SSH.
-- **Hardware Specs & Resource Metrics**: Extracts hardware model, CPU core count, normalized CPU load, and virtual memory (Swap) status. Displays inline absolute capacity (`used / total`) on RAM and Disk progress bars, and dedicated Swap indicators on host cards.
-- **Structured Inspection Runs & Telemetry**: Records per-host execution history (started timestamp, roundtrip duration in milliseconds, status badge, human-readable summary, and root cause diagnostic excerpts) in SQLite. Displays real-time execution duration metrics (`duration_ms`) on host cards and list views, with automatic inline rolling pruning maintaining a strict 100 runs limit per host with zero background schedulers.
-- **Inspection Guard, Anti-Flood Cooldown & Hung NFS Protection**: Enforces a 15-second per-host cooldown on manual inspections (`HTTP 429 Too Many Requests`), an explicit in-flight concurrency lock (`HTTP 409 Conflict`), an enforced 45-second total hard timeout budget, and isolated local filesystem queries (`df -lPk /`) with 5-second execution timeouts to prevent hung NFS/network storage deadlocks.
-- **One-Time Key Provisioning**: Provide target root/sudo password once in RAM. Pantau idempotently injects its universal RSA 4096-bit public key into `~/.ssh/authorized_keys` (universally supported across legacy OpenSSH 5.3+ through modern OpenSSH) and discards the password immediately from memory.
-- **Legacy Server Compatibility & TOFU**: Native cipher and host key fallbacks (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`, `ssh-rsa`) allow monitoring legacy Linux servers (CentOS 5/6, Debian 7, OpenSSH 4.3+). Built-in TOFU (Trust-On-First-Use) automatically records host fingerprints upon initial handshake while guarding against MITM attacks.
-- **Mass Inspection & Freshness Indicators**: Trigger simultaneous bulk inspection across all hosts via `⚡ Inspect All` running through a bounded worker pool (max 5 parallel host sessions) with an anti-flood lock, configurable background inspection intervals (with `0` seconds support to pause/disable background worker for pure on-demand manual inspection), dynamic time-ago indicators, and automated Stale Inspection warnings with pause suppression.
+### 1. Fleet Health & Real-time Metrics
+Pantau inspects remote hosts via standard SSH connections using non-interactive POSIX commands (`/proc`, `ps`, `df`, `ss`).
+- **Resource saturation**: Tracks CPU load, memory utilization, swap usage, disk partitions, and `/proc/diskstats` I/O rates without requiring `iostat`.
+- **Process and network telemetry**: Identifies top CPU and memory-consuming processes, open listening ports, inbound active sockets, and failed SSH authentication attempts.
+- **Package and lifecycle audit**: Catalogs installed software across Debian (`dpkg`), RHEL (`rpm`), Alpine (`apk`), and Arch (`pacman`), highlighting dormant services and calculating OS End-of-Life (EOL) timelines.
+- Learn more in the [Inspection and Metrics Guide](docs/user-guide.md#host-inspection--telemetry).
 
-### 2. 📋 Desired State Baseline & Automated Drift Engine
-- **1-Click Baseline**: Auto-detects running Docker containers, disks, cron jobs, and database services (`mysqld`, `postgres`, `redis`, `nginx`).
-- **Real-Time Drift Detection**: Alerts when a container crashes, disk exceeds threshold (e.g. `> 85%`), cron job disappears, or backup becomes stale.
+### 2. Desired State Baselines & Incident Diagnostics
+Establish expected operational baselines for containers, core services, disk thresholds, and backup timestamps.
+- **Automated drift detection**: Detects when containers stop, systemd services fail, cron jobs vanish, or disk usage exceeds configured warning levels.
+- **Root cause crash capture**: When a tracked service or container fails, Pantau automatically extracts the exit code, OOM-killed status flags, and the trailing lines from `journalctl` or `docker logs`.
+- Learn more in the [Desired State & Drift Guide](docs/user-guide.md#desired-state-engine--drift-detection).
 
-### 3. 🩺 Root Cause Excerpt Diagnostic Capture
-- When a service or container crashes, Pantau captures the exact fault context:
-  - Docker container exit code & `OOMKilled` memory termination flag.
-  - Tail 50 lines of crash output from `journalctl -u <service>` or `docker logs <container>`.
-- Displays incident diagnostic timelines directly inside the host workspace modal.
+### 3. Integrated Web Terminal & Remote Operations
+Manage target servers directly from the browser without context-switching to external terminal applications.
+- **Multi-tab PTY terminal**: Browser-based interactive shell powered by `xterm.js` and WebSockets, supporting split-pane view (`Alt+\`), dynamic resizing, and custom presets.
+- **SFTP file editor & bookmarks**: Browse remote file trees, pin critical log or configuration paths, and edit scripts with syntax highlighting.
+- **Remote web port tunneling**: Agentless HTTP/WebSocket reverse proxy over SSH `direct-tcpip` channels, allowing you to access private services (`localhost:port`) on remote servers without opening firewall ports.
+- **Native OS terminal bridge**: Launch your local desktop terminal (Windows Terminal, GNOME Terminal, iTerm2, Alacritty) into any remote host with one click via ephemeral in-memory SSH keys.
+- Learn more in the [Terminal and File Management Guide](docs/user-guide.md#web-terminal--sftp-workspace).
 
-### 4. 🚀 Piped Cross-Host Streaming Transfer
-- Stream files and folders between two remote hosts directly through memory pipes without spooling to Pantau's local disk.
-- **Fast Stream Mode**: Maximizes throughput via `tar` streaming pipes.
-- **Verified Mode**: Computes and verifies SHA256 checksums end-to-end on both source and destination hosts before reporting completion.
+### 4. Zero-Disk Streaming & Encrypted Backup
+Safely transfer data between servers and safeguard your configuration cluster.
+- **Piped cross-host transfer**: Stream files and directories directly between two remote Linux servers through memory pipes (`tar` stream), bypassing Pantau's local storage entirely, with optional end-to-end SHA-256 verification.
+- **Encrypted cluster snapshots**: Export host configurations, baselines, and SSH keys into portable encrypted snapshot archives secured with Argon2id and AES-256-GCM.
+- **Automated disaster recovery**: Schedule periodic encrypted snapshot backups to private GitHub repositories for automated offsite recovery.
+- Learn more in the [Cross-Host Transfer Guide](docs/user-guide.md#cross-host-streaming-transfers).
 
-### 5. 🛡️ Network & Disk I/O Observability
-- **Real-Time Disk I/O Rates (Speedometer)**: Extracts real-time disk read/write throughput rates (B/s) and cumulative volume directly via `/proc/diskstats` without `iostat` dependencies, featuring reboot rollover protection and qualitative load status badges (Optimal `< 10 MB/s`, Active `10–80 MB/s`, High I/O Load `≥ 80 MB/s`).
-- **Internet Egress & Latency**: Tests outbound connectivity and ping latency to global DNS resolvers (`1.1.1.1`).
-- **Live Active Sockets**: Aggregates top connected remote IP addresses and established connections.
-- **Brute-Force & Failed Login Counter**: Detects SSH brute-force attacks via `/var/log/auth.log` or `journalctl _SYSTEMD_UNIT=ssh.service`.
-- **Attack Surface Classification**: Highlights open listening ports, binding addresses (`0.0.0.0` vs `127.0.0.1`), and tags risk levels (Public Internet vs Localhost).
-
-### 6. 🔐 Encrypted System Snapshot & GitHub Disaster Recovery
-- Encrypts all host configurations, SSH credentials, and desired state baselines into portable `.enc` snapshots using **Argon2id** key derivation and **AES-256-GCM** authenticated encryption.
-- **Automated GitHub Sync**: Push encrypted snapshots to a private GitHub repository on a scheduled interval.
-- **Disaster Recovery Wizard**: Rebuild an entire monitoring cluster from scratch using a GitHub token + repository path or a raw `.enc` file.
-
-### 7. 💻 Interactive Web Terminal & SFTP File Manager
-- **Web Terminal**: In-browser interactive shell powered by `xterm.js` over WebSocket SSH PTY sessions with full ANSI color, terminal resize support, and safe clipboard bridge.
-- **SFTP Explorer & Code Editor**: Navigate remote directories with clickable breadcrumbs, sort by columns, filter by categories, duplicate files/folders with automatic disk space safety verification, and edit scripts with full-viewport CodeMirror maximize in a modern VS Code Dark+ theme.
-
-### 8. 🌐 Dual Language Interface (English & Bahasa Indonesia)
-- Instant client-side localization switcher (`🌐 EN` / `🌐 ID`) in the header.
-- Zero-dependency local translation dictionary stored in `localStorage` (default: English).
-- Canonical domain terminology preserved in Indonesian version for clear operational communication.
-
-### 9. 🩺 Transparent 6-Factor Lifecycle Assessment & Hardware Refresh
-- Evaluates server operational health across 6 transparent factors: Linux OS End-of-Life (EOL) status, hardware age & MTBF degradation (bare-metal BIOS date vs cloud VM OS deployment age), RAM pressure, CPU core-to-load saturation, disk capacity, and kernel I/O errors.
-- **Productive Lifespan Guidance**: Automatically flags servers exceeding standard 3–5 year hardware amortization or 8-year critical lifespans, providing auditable checklist breakdowns and formal hardware refresh justifications.
-
-### 10. 🛡️ Airgapped & Self-Contained Web Assets (Zero-CDN)
-- 100% of frontend vendor libraries (`xterm.js`, `xterm-addon-fit`, and `CodeMirror` with 8 syntax modes: XML, JS, CSS, HTML, C-like, PHP, Shell, YAML) are bundled directly inside the single binary via `go:embed`.
-- Enforces a strict Content Security Policy (CSP) with zero external CDN network requests, guaranteeing full offline operations in isolated intranets, airgapped VPCs, or disconnected environments.
-
-### 11. 📂 Host Grouping, Terminal Maximize & Port Auto-Scan
-- **Host Grouping & Flat View**: Categorize hosts by environment or role (e.g. *Primary Cluster*, *Testing*, *Database Servers*) with unified grid and list view separation, or display all hosts in a single flat view without headers using the "No Grouping" filter option.
-- **Terminal Maximize**: Expand the web terminal to a full-viewport canvas while preserving interactive terminal shortcuts (such as `Esc` in `vim`, `nano`, or `htop`).
-- **Port Auto-Scan Fallback**: Automatically scans sequential ports (`8080` to `8099`) when initialized on the default port, eliminating startup crashes caused by busy ports.
-
-### 12. ⚡ Terminal Presets & Split-Pane Observability
-- **Terminal Presets**: Save and execute recurring diagnostic commands (`htop`, `docker stats`, `journalctl -f`) with pre-flight availability checks.
-- **Split-Pane Web Terminal**: Launch dual side-by-side terminal sessions (`Alt+\`) to monitor and compare multiple remote hosts simultaneously in real time.
-
-### 13. 🔐 Airgapped TOTP Two-Factor Authentication (2FA) & Emergency Recovery
-- **Standard RFC 6238 TOTP**: Hardens administrator login using time-based one-time passwords compatible with any standard authenticator app (Google Authenticator, Aegis, 1Password, Bitwarden).
-- **100% Offline Enrollment**: Base32 secrets and QR codes are generated purely client-side with zero external API calls or telemetry leaks.
-- **Emergency Recovery Codes**: Generates 8 single-use recovery codes with instant copy and text file download for disaster recovery.
-- **Brute-Force Rate Limiting**: Enforces an automatic 30-second cooling lockout after 3 consecutive failed verification attempts.
-- **Host Bypass Flag**: Emergency `-disable-2fa` startup flag disables 2FA directly via the host master console if all credentials are lost.
-
-### 14. 🖥️ Global Multi-Tab Terminal Dock & Terminal Header Launcher
-- **Multi-Tab Terminal Dock**: Persistent application-wide dock hosting multiple concurrent SSH PTY terminal sessions across different remote servers with inline tab renaming and split-pane view (`Alt+\`).
-- **Terminal Header Launcher**: Integrated global launcher on the application header with a real-time active session badge. Acts as a smart toggle to minimize, restore, or quickly launch terminal sessions with a server picker dropdown.
-- **Reactive Host Session Badges**: Host cards in Grid and List views display live shell session count badges, showing at a glance which servers have active terminals running.
-- **Seamless Maximize & Hierarchical Navigation**: One-click maximize to full viewport without disconnecting SSH sessions; stacked modal layering and sequential `Escape` dismissal preserve terminal navigation.
-
-### 15. 🔄 Update Checker & Zero-Ops Semi-Automatic Self-Update
-- **Asynchronous Update Checker & CLI Release Notes**: Periodically checks for upstream GitHub Releases (every 12 hours with 6-hour cache TTL) and displays update indicators on the web dashboard. Running `pantau -check-update` in the terminal fetches the latest release, prints the download URL, and renders formatted release notes directly to stdout.
-- **SHA-256 Integrity Verification**: Validates downloaded release archives against official `checksums.txt` manifests before unpacking.
-- **Pre-flight Smoke Test & Rollback**: Verifies candidate binary execution (`pantau.tmp -v`) prior to swapping; immediately aborts if any architecture or runtime incompatibility is detected.
-- **Cross-Platform Atomic Swap**: In-place replacement on Linux and Windows (using `.exe.old` renaming to bypass OS executable file locking).
-- **Graceful Process Handover**: Zero-data-loss restart preserving CLI flags and database state, utilizing `instance.AcquireWithTimeout` (up to 3s retry) to seamlessly hand over the database lock from the terminating parent to the newly spawned child process without collision, paired with auto-reconnecting browser clients.
-- **Airgapped-First & Docker Awareness**: Fails silently in airgapped environments (with `-disable-update-check` flag), and intelligently detects Docker containers to display `docker compose pull` recommendations instead of binary swapping.
-
-### 16. 📖 Airgapped In-App Documentation Modal & Embedded Changelog
-- **Embedded Single-Source Guides**: Pantau's official README, User Guide (bilingual EN/ID), and Changelog are embedded directly inside the single binary via `go:embed`.
-- **Zero-Dependency In-App Reader**: Read operational guides offline without internet or external CDN dependencies via the **Documentation Modal** (`75vw × 80vh`), featuring an integrated micro-parser, theme-aware syntax styling, and smooth-scrolling dynamic Table of Contents.
-- **Dual Entry Point**: Accessible before login on initial setup and disaster recovery screens, as well as post-authentication via header `(?)`, footer version badge, and Settings links.
-
-### 17. ⚡ In-App Activity Console & Live Event Stream
-- **Real-Time Operational Observability**: Stream live runtime daemon and subsystem operations (`inspect`, `ssh`, `transfer`, `terminal`, `snapshot`, `system`, and `auth`) directly to the browser via zero-dependency Server-Sent Events (`GET /api/logs/stream`).
-- **Telemetry Ring Buffer**: In-memory fixed-capacity ring buffer (100 records) and non-blocking broadcaster wrapping Go standard library `log/slog` for instant cold-start operational context.
-- **Redaction Filter**: Deterministic boundary filter automatically sanitizing SSH passwords, private keys, authentication tokens, passphrases, and 2FA secrets into `[REDACTED]`.
-- **Collapsible Activity Console Drawer**: Bottom diagnostic drawer docked above the footer with a 5-column running table (`Time`, `Level`, `Module`, `Host`, `Message & Details`), expandable attribute cards, Smart Auto-Scroll, pause/resume freeze toggle, severity level filtering (`ALL`, `ERROR`, `WARN`, `INFO`), instant search, and client-side `.log` / `.json` file export.
-- **Footer Trigger & Global Shortcut**: Triggered via footer button `⚡ Activity` with live pulse indicator, unread error counter badge, or global shortcut `Ctrl + \`` (backtick).
-- **Zero-Waste Performance Throttling**: Skips 100% of DOM manipulation when the drawer is closed and coalesces incoming events with `requestAnimationFrame` when open to eliminate CPU waste and layout thrashing.
-
-### 18. ⚡ Top Resource Consumers & Process Telemetry
-- **Agentless Process Observability**: Continuously extracts top 5 resource-consuming processes across three dimensions—Top CPU (`%cpu`), Top Physical Memory (`rss`), and Top Virtual Memory (Swap)—during every standard inspection cycle without running background remote daemons.
-- **Conditional Swap Scanner**: Low-overhead `/proc/[0-9]*/status` VmSwap extraction executed conditionally only when swap memory usage is detected (`SwapUsedBytes > 0`), avoiding CPU churn on systems with swap unconfigured.
-- **Overview Telemetry Widget**: Responsive 3-column process card inside the Host Detail Overview tab showing PID, user, memory footprint, and command details, paired with a direct one-click launcher to open the interactive Terminal Dock.
-
-### 19. 📦 Polyglot Package Inventory & Software Hygiene
-- **Agentless Multi-Distro Inventory**: Discovers installed system software across Debian/Ubuntu (`dpkg-query`), RHEL/CentOS/AlmaLinux/Rocky (`rpm`), Alpine (`apk`), and Arch (`pacman`) via native zero-dependency CLI inspection.
-- **Software Hygiene & Dormant Detection**: Automatically categorizes packages into **Manual Install** (explicitly requested by operators) vs **Base System** (OS distro baseline/dependencies), and flags **Dormant Packages** whose associated systemd service units remain inactive, disabled, or failed.
-- **Dedicated Packages Tab & Guardrails**: Integrated package exploration tab in the Workspace Modal with instant text search, category filters (`⭐ Manual Install`, `💤 Dormant Packages`, `📋 All Packages`), on-demand rescan button with a 30-second anti-flood cooldown timer (`HTTP 429`), and background concurrency locking (`HTTP 409`).
-
-### 20. 🌐 Agentless Network Diagnostics & Hop Analysis
-- **On-Demand Diagnostic Probes**: Real-time interactive Ping, Traceroute (with tracepath auto-fallback), zero-dependency TCP Port Probe (`/dev/tcp`), and DNS Resolve streamed directly over Server-Sent Events (SSE).
-- **Automated Hop Analysis**: Categorizes network hops into Local/Private VPC, ISP Transit, and Destination zones, with automated blackhole packet drop detection and latency jump alerts (>60ms).
-- **Probe Target Presets**: Save frequently diagnosed unmanaged routers, switches, and remote endpoints with operational tags and IP/FQDN targets for one-click testing.
-- **Concurrency & Human-Error Protection**: Singleflight guard prevents concurrent diagnostic tasks per source host, while target selection automatically disables unreachable/offline hosts.
-
-### 21. ⚖️ Multi-Host Side-by-Side Comparison & Scoring Matrix
-- **Head-to-Head Comparative Matrix**: Side-by-side interactive evaluation comparing 2 to 4 hosts inside a dedicated Workspace Modal using client-side inspection telemetry.
-- **Standardized Multi-Category Scoring**: Evaluates hosts across Compute, Storage & I/O, Network Health, and System Hygiene & Lifecycle with a 5% deadband noise filter and stale-host penalty.
-- **Automated Decision Synthesis & Export**: Generates executive workload placement recommendations and one-click formatted Markdown summaries for stakeholder reports.
-
-### 22. 📌 File Pinning with Notes & Global Bookmarks
-- **Operational File & Directory Pinning**: Pin critical configuration files and log paths per host with contextual operator notes and visual badges.
-- **Quick Access & Global Bookmarks**: Instant access via the file manager Quick Access toolbar or globally across all hosts through the header `🔖 Bookmarks` launcher.
-- **Cross-Host Navigation & Terminal Jump**: Search pinned files globally, open them in the integrated code editor, or launch a Terminal Dock session straight into the parent directory.
-
-### 23. ⚡ Terminal Presets Live Search & Pinned Paths Quick-Access
-- **Terminal Presets Live Search**: Instant real-time filtering in the terminal presets dropdown by preset title, command, or tmux session tag (`t:tag`), enabling rapid command execution across extensive preset catalogs.
-- **Terminal Pinned Paths Dropdown**: Dedicated Quick-Access dropdown (`📌`) directly in the terminal toolbar listing all pinned files and directories for the active host with real-time path & note search filtering, 1-click `cd` directory jump, and quoted path injection into the shell session.
-- **Streamlined Terminal Toolbar & Direct Navigation**: Clean toolbar layout with host status badge, font zoom controls (`+`/`-`/`0`), 1-click context jump to Host File Manager (`📁 Files`), and split-pane controls (`⬛ Split`).
-- **Active Working Directory Tracking**: Real-time tracking of remote shell working directory via shell window titles and OSC 7 ANSI escape sequences.
-
-### 24. 🌐 Terminal Link Detection, Remote Browser Bridge & Web Port Tunneling
-- **Interactive Terminal Links**: Native link detection in `xterm.js` via `term.registerLinkProvider` without third-party vendor bloat. Supports `Ctrl+Click` (Linux/Windows) and `Cmd+Click` (macOS) to open public URLs directly in new browser tabs without interfering with terminal text selection.
-- **Remote Web Port Tunneling**: Agentless HTTP and WebSocket reverse proxy (`/api/tunnel/:hostId/:port/*`) streaming over OpenSSH RFC 4254 `direct-tcpip` channels (`golang.org/x/crypto/ssh` `DialContext`). Access remote private web applications (`localhost:port` or `127.0.0.1:port`) securely from your desktop browser without exposing public firewall ports.
-- **Zero-Handshake Connection Pooling**: Caches SSH tunnel transports per host with transparent auto-reconnect fallback, eliminating 100–300ms connection latency across sequential web assets (CSS, JS, images).
-- **Native WebSocket Hijacking**: Full-duplex bidirectional streaming supporting HTTP status `101 Switching Protocols` out of the box for modern development servers (Vite HMR, Next.js, Jupyter).
-- **Zero-Configuration Remote Browser Bridge**: Automated OSC 1337 (`OpenURL`) and OSC 777 escape sequence receiver routing CLI tool browser requests (`gh auth login`, `xdg-open`, Python `webbrowser`, AWS SSO, `npm login`) directly to the client's desktop browser without headless text-browser (`w3m`/`lynx`) traps.
-- **Silent Shell Environment Auto-Provisioning**: Non-intrusive provisioning of `/tmp/pantau-browser` and silent environment injection (`BROWSER`, `GH_BROWSER`) across login shells with zero console echo.
-- **Terminal Ports Dropdown & Action Modal**: Dedicated `🌐 Ports` toolbar menu in the terminal dock for manual port forwarding entry and persistent recent port history (`localStorage`), paired with an interactive confirmation modal on clicking remote localhost URLs in terminal output.
-
-### 25. 🩺 Automated Network Triage Matrix & Hybrid Observability
-- **1-Click Multi-Layer Triage Pipeline**: Evaluates host resources, comparative L7 HTTP performance (local loopback vs external TTFB), Path MTU Blackhole detection (MTU sweep with Don't Fragment bit), and ISP/VPN transit routes to objectively isolate application vs network bottlenecks in under 15 seconds.
-- **Intelligent Firewall Fallback**: Prevents false down alarms when ICMP ping is blocked by falling back to TCP port probes (`ICMP_FILTERED_TCP_HEALTHY`).
-- **7 Deterministic Verdicts**: Classifies incidents automatically (`HOST_SATURATED`, `APPLICATION_DEGRADED`, `TRANSIT_PATH_DEGRADED`, `BRANCH_GATEWAY_DOWN`, `MTU_BLACKHOLE_DETECTED`, `ICMP_FILTERED_TCP_HEALTHY`, `HEALTHY`).
-- **Incident Storage & Export**: Stores incident summaries in SQLite and provides a 1-click Markdown incident ticket generator for helpdesk and ISP escalation.
-
-### 26. 💻 Native OS Terminal Bridge & Ephemeral Key Injector
-- **1-Click OS Native Terminal Launch**: Launch native desktop terminal emulators (Windows Terminal, GNOME Terminal, iTerm2, Alacritty, Kitty) directly from Pantau into target hosts with zero password re-entry.
-- **In-Memory Ephemeral RSA Key Injection**: Automatically generates short-lived RSA 2048-bit keypairs purely in RAM (zero disk persistence on server), injects them via active SSH sessions into `~/.ssh/authorized_keys`, and enforces two-tier auto-cleanup (proactive 5-minute Go timer + reactive POSIX `awk` sweep).
-- **Dual Workstation & Remote Web Modes**: Directly launches detached terminal processes when accessing Pantau locally (`localhost`), or opens an interactive modal with custom URL protocol (`pantau://`), self-extracting self-deleting launcher scripts (`.cmd` on Windows with `icacls` ACL isolation, `.command`/`.sh` on macOS/Linux with `trap` cleanup), and streaming one-click commands (`curl | bash`, `irm | iex`).
-- **Active Path Navigation**: Automatically inherits the active working directory from Terminal Dock tabs (OSC 7 / prompt tracking), SFTP File Manager, or Global Bookmarks when launching external desktop terminals.
-- **Terminal Settings & Custom Templates**: Configure custom terminal emulator command templates (e.g., `alacritty -e %cmd%`) with pre-flight binary detection and command injection protection.
+### 5. Airgapped-First Architecture
+Engineered from the ground up for strict security postures, private VPCs, and disconnected intranets.
+- **Zero runtime dependencies**: Pure Go binary with embedded SQLite running in Write-Ahead Logging (WAL) mode.
+- **Self-contained frontend**: All web assets, fonts, icons, and client scripts (`xterm.js`, `CodeMirror`) are embedded directly via `go:embed` with zero CDN calls.
+- **Local security**: Multi-factor authentication via standard RFC 6238 TOTP with entirely client-side QR generation and emergency offline recovery codes.
+- **Semi-automatic updates**: In-app release checking with SHA-256 integrity checks, pre-flight binary verification, and atomic in-place binary swapping.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### Option 1: Standalone Binary (Fastest)
+### Option 1: Standalone Binary (Recommended)
 
-Download the latest binary for your architecture from [GitHub Releases](https://github.com/herliansyah/pantau/releases):
+Download the pre-compiled binary for your architecture from [GitHub Releases](https://github.com/herliansyah/pantau/releases):
 
 ```bash
 # Make binary executable
 chmod +x pantau
 
-# Run Pantau with custom port and data directory
+# Start Pantau on port 8080
 ./pantau -port 8080 -db data/pantau.db
 ```
 
-Open `http://localhost:8080` in your web browser.  
-**Default Password**: `admin` *(change immediately in Settings)*.
-
----
+Open `http://localhost:8080` in your browser.  
+Default password: `admin` *(prompted to update immediately upon first login)*.
 
 ### Option 2: Docker Compose
 
 ```yaml
-version: "3.8"
-
 services:
   pantau:
     image: ghcr.io/herliansyah/pantau:latest
@@ -277,16 +155,11 @@ volumes:
   pantau-data:
 ```
 
-*(Note: Official Docker images on GHCR are multi-architecture, supporting both `linux/amd64` and `linux/arm64` natively. Standard `PORT` and `DB_PATH` environment variables are also supported as automatic fallbacks).*
-
 ```bash
 docker compose up -d
 ```
 
-
----
-
-### Option 3: Systemd Service (Linux Production)
+### Option 3: Systemd Service (Linux Server)
 
 Create `/etc/systemd/system/pantau.service`:
 
@@ -315,42 +188,37 @@ systemctl enable --now pantau
 
 ---
 
-## ⚙️ Configuration Reference
+## Configuration Reference
 
-| Flag | Env Variable | Default | Description |
+Pantau accepts configuration via CLI flags or equivalent environment variables:
+
+| Flag | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `-port` | `PANTAU_PORT` (or `PORT`) | `8080` | HTTP listening port (auto-scans `8080`–`8099` on default) |
+| `-port` | `PANTAU_PORT` (or `PORT`) | `8080` | HTTP listening port (scans `8080`–`8099` if default is occupied) |
 | `-db` | `PANTAU_DB` (or `DB_PATH`) | `pantau.db` | Path to SQLite database file |
-| `-open` | - | `true` (Windows) / `false` | Automatically open default web browser on launch |
-| `-disable-2fa` | - | `false` | Emergency bypass flag to disable TOTP 2FA directly from host terminal |
-| `-check-update` | - | `false` | Check for latest upstream release version, print release notes, and exit |
-| `-update` | - | `false` | Update Pantau executable to latest release and exit |
-| `-disable-update-check` | `PANTAU_DISABLE_UPDATE_CHECK` | `false` | Disable background update checker (recommended for airgapped environments) |
-| `-log-level` | `PANTAU_LOG_LEVEL` | `error` | Console log level (`debug`, `info`, `warn`, `error`, `off`) |
-| `-q`, `-quiet` | - | `false` | Suppress non-error console logs (shorthand for `-log-level=error`) |
-| `-v`, `-version` | - | - | Print Pantau version and exit |
+| `-open` | - | `true` (Win) / `false` | Automatically launch default browser on startup |
+| `-disable-2fa` | - | `false` | Emergency bypass flag to disable TOTP 2FA directly via terminal |
+| `-check-update` | - | `false` | Check upstream release version and exit |
+| `-update` | - | `false` | Self-update binary to latest release and exit |
+| `-disable-update-check` | `PANTAU_DISABLE_UPDATE_CHECK` | `false` | Disable background update checks (recommended for airgapped setups) |
+| `-log-level` | `PANTAU_LOG_LEVEL` | `error` | Console log verbosity (`debug`, `info`, `warn`, `error`, `off`) |
+| `-q`, `-quiet` | - | `false` | Shorthand to suppress non-error logs (`-log-level=error`) |
+| `-v`, `-version` | - | - | Print version and runtime details, then exit |
 
 ---
 
-## 🛠️ Tech Stack
+## Security & Production Notes
 
-- **Core Backend**: Golang (`net/http`, `golang.org/x/crypto/ssh`, `pkg/sftp`, `gorilla/websocket`)
-- **Database**: Pure-Go SQLite (`modernc.org/sqlite`) with Write-Ahead Logging (WAL mode)
-- **Frontend**: Single-Page Web App embedded via `go:embed` (Zero-npm, Vanilla JS, xterm.js, CodeMirror)
-- **Security**: Argon2id + AES-256-GCM snapshot encryption, bcrypt admin credentials
+- **Network exposure**: Pantau is an administrative control plane capable of executing remote commands and modifying files. **Never expose Pantau directly to the public internet** without placing it behind a hardened reverse proxy (e.g., Caddy, Nginx, or Cloudflare Access) with TLS termination and restricted IP allowlists.
+- **SSH key management**: Target hosts can be provisioned using one-time password injection or manual public key placement (`~/.ssh/authorized_keys`). Pantau uses dedicated key pairs and discards passwords from memory immediately after provisioning.
+- **Disaster recovery**: Always export and backup your encrypted configuration snapshot regularly. Snapshots are encrypted with Argon2id and AES-256-GCM.
 
----
-
-## ⚠️ Disclaimer & Limitation of Liability
-
-1. **"AS IS" Warranty Disclaimer**: Pantau is open-source software provided under the MIT License on an "AS IS" and "AS AVAILABLE" basis, without warranties of any kind, whether express, implied, statutory, or otherwise, including but not limited to warranties of merchantability, fitness for a particular purpose, non-infringement, or system integration.
-2. **Assumption of Risk & Limitation of Liability**: The author, maintainers, and contributors accept **no liability or responsibility** for any damages, operational failures, data loss, server downtime, security breaches, unauthorized access, kernel panics, configuration corruption, or financial losses arising directly or indirectly from the installation, execution, or misuse of this software.
-3. **User Responsibility**: You as the system operator retain full and exclusive responsibility for all actions performed through Pantau, including but not limited to remote shell commands, file modifications or deletions via SFTP, cross-host file streaming, cron modifications, container state transitions, and SSH key provisioning.
+For detailed security guidelines and hardening recommendations, consult the [Administrator Security Guide](docs/user-guide.md#security-playbook).
 
 ---
 
-## 📄 License
+## License
 
-Distributed under the **MIT License**. See [LICENSE](LICENSE) for the full license text and terms.
+Distributed under the **MIT License**. See [LICENSE](LICENSE) for details.
 
-Developed with ❤️ by [Herliansyah](https://github.com/herliansyah).
+Maintained by [Herliansyah](https://github.com/herliansyah).
