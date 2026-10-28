@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -567,6 +568,23 @@ func generateUnixScript(ticket *NativeTicket, isMac bool) string {
 	return sb.String()
 }
 
+// flexibleID safely unmarshals host_id from either a JSON integer or string representation.
+type flexibleID int64
+
+func (f *flexibleID) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(string(b), "\" \t\r\n")
+	if s == "" || s == "null" {
+		*f = 0
+		return nil
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid host id: %s", s)
+	}
+	*f = flexibleID(n)
+	return nil
+}
+
 // --- HTTP Handlers ---
 
 // handleNativeTerminalOpen: POST /api/terminal/native-open
@@ -578,15 +596,15 @@ func (s *Server) handleNativeTerminalOpen(w http.ResponseWriter, r *http.Request
 	}
 
 	var req struct {
-		HostID int64  `json:"host_id"`
-		Mode   string `json:"mode"`
+		HostID flexibleID `json:"host_id"`
+		Mode   string     `json:"mode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "invalid request body"})
 		return
 	}
 
-	host, err := s.db.GetHost(req.HostID)
+	host, err := s.db.GetHost(int64(req.HostID))
 	if err != nil || host == nil {
 		writeJSON(w, http.StatusNotFound, map[string]interface{}{"ok": false, "error": "host not found"})
 		return
@@ -626,14 +644,14 @@ func (s *Server) handleNativeTerminalTicket(w http.ResponseWriter, r *http.Reque
 	}
 
 	var req struct {
-		HostID int64 `json:"host_id"`
+		HostID flexibleID `json:"host_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "invalid request body"})
 		return
 	}
 
-	host, err := s.db.GetHost(req.HostID)
+	host, err := s.db.GetHost(int64(req.HostID))
 	if err != nil || host == nil {
 		writeJSON(w, http.StatusNotFound, map[string]interface{}{"ok": false, "error": "host not found"})
 		return
