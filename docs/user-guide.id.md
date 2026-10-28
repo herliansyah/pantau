@@ -13,7 +13,7 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
 1. [Arsitektur & Batas Kepercayaan (Trust Boundaries)](#1-arsitektur--batas-kepercayaan-trust-boundaries)
 2. [Fase 1: Onboarding & Manajemen Inventaris Host](#2-fase-1-onboarding--manajemen-inventaris-host)
    - [Menambahkan Host & Key Provisioning](#menambahkan-host--key-provisioning)
-   - [Pengelompokan Host Group & Manual Host Order](#pengelompokan-host-group--manual-host-order)
+   - [Pengelompokan Host Group, Tampilan Flat & Manual Host Order](#pengelompokan-host-group-tampilan-flat--manual-host-order)
 3. [Fase 2: Baseline Desired State & Proteksi Sistem](#3-fase-2-baseline-desired-state--proteksi-sistem)
    - [Membuat 1-Click Desired State Baseline](#membuat-1-click-desired-state-baseline)
    - [Konfigurasi Backup Freshness & Protected Path](#konfigurasi-backup-freshness--protected-path)
@@ -23,8 +23,10 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
    - [Inventarisasi Paket & Audit Higienitas Software](#inventarisasi-paket--audit-higienitas-software)
    - [Mendeteksi Drift & Root Cause Excerpt](#mendeteksi-drift--root-cause-excerpt)
    - [Investigasi Interaktif via Terminal Dock & Terminal Preset](#investigasi-interaktif-via-terminal-dock--terminal-preset)
+   - [Jembatan Native Terminal & Akses Shell Desktop](#jembatan-native-terminal--akses-shell-desktop)
    - [In-App Activity Console & Live Telemetry Stream](#in-app-activity-console--live-telemetry-stream)
    - [Diagnostik Jaringan Agentless & Analisis Hop](#diagnostik-jaringan-agentless--analisis-hop)
+   - [Automated Network Triage Matrix & Verifikasi Insiden Cabang](#automated-network-triage-matrix--verifikasi-insiden-cabang)
    - [Evaluasi Kelayakan Server dengan Lifecycle Assessment](#evaluasi-kelayakan-server-dengan-lifecycle-assessment)
    - [Evaluasi Komparatif Multi-Host & Matriks Penilaian](#evaluasi-komparatif-multi-host--matriks-penilaian)
 5. [Fase 4: Operasi Berkas & Aliran Data Lintas-Host](#5-fase-4-operasi-berkas--aliran-data-lintas-host)
@@ -79,10 +81,12 @@ Untuk menghubungkan **Host** baru ke dalam Pantau:
 > [!NOTE]
 > Untuk server Linux lawas (*legacy*) seperti CentOS 5/6, Debian 7, atau OpenSSH 4.x/5.x, Pantau secara otomatis mengaktifkan fallback cipher dan algoritma host key warisan (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`, `ssh-rsa`) saat negosiasi SSH. Pantau menerapkan verifikasi host key TOFU (Trust-On-First-Use) yang otomatis mencatat fingerprint host pada koneksi awal sekaligus melindungi sesi berikutnya dari manipulasi Machine-in-the-Middle (MITM).
 
-### Pengelompokan Host Group & Manual Host Order
+### Pengelompokan Host Group, Tampilan Flat & Manual Host Order
 
 Ketika jumlah server bertambah banyak:
 - **Host Group**: Kelompokkan host berdasarkan fungsi sistem atau lingkungan (contoh: `Database Cluster`, `Edge Proxies`, `Testing Environment`). Grup akan dipisahkan secara visual baik pada **View Mode** Grid maupun List.
+- **Opsi Tampilan Flat ("Tanpa Grouping")**: Pilih opsi "Tanpa Grouping" pada dropdown filter grup untuk melihat seluruh host dalam satu daftar atau grid datar tanpa header grup pemisah.
+- **Tampilan Tabel Host List yang Ringkas**: Tata letak tabel 8 kolom yang efisien dengan penggabungan alamat host dan OS ke dalam satu sel dua-baris, lencana catatan operasional inline yang dapat diedit langsung, serta format teks metrik anti-wrap.
 - **Manual Host Order**: Atur urutan prioritas server utama agar selalu tampil di posisi teratas dashboard melalui pengurutan manual.
 - **Host Note & Global Note**: Gunakan **Host Note** untuk mencatat catatan operasional spesifik per server (misal: `"Master PostgreSQL; node replikasi ada di db-02"`). Gunakan **Global Note** untuk pengumuman sistem bersama atau catatan serah-terima giliran tugas antar-administrator.
 
@@ -200,6 +204,32 @@ Saat insiden memerlukan penanganan terminal langsung:
 - **Sinkronisasi Direktori Kerja**: Memantau direktori kerja aktif secara otomatis melalui pembaruan judul jendela terminal dan sekuens escape ANSI OSC 7.
 - **Modal Stacking & Tombol Escape**: Dialog aksi turunan (form preset, aturan desired state, catatan) menumpuk di atas modal induk secara dinamis dengan layer z-index bertingkat. Penekanan tombol `Escape` menutup dialog paling atas secara berurutan tanpa merusak sesi terminal di bawahnya.
 
+### Jembatan Native Terminal & Akses Shell Desktop
+
+Meskipun terminal web di browser sangat memadai untuk inspeksi cepat, sesi administrasi intensif sering kali membutuhkan aplikasi terminal emulator bawaan sistem operasi desktop (Windows Terminal, GNOME Terminal, iTerm2, Alacritty, Kitty) demi performa rendering hardware grafis, font kustom, pintasan keyboard sistem, dan integrasi dengan perkakas lokal:
+
+- **Peluncuran Terminal Bawaan OS Satu-Klik**: Membuka terminal desktop eksternal langsung ke host target tanpa memasukkan ulang password SSH atau menyusun entri konfigurasi SSH manual.
+- **Injeksi Kunci SSH Ephemeral RSA Murni di RAM**: Pada setiap permintaan buka terminal, Pantau membuat pasangan kunci RSA 2048-bit sementara murni di memori RAM (`crypto/rsa`, `crypto/rand`). Kunci privat tidak pernah disimpan ke disk server Pantau. Kunci publik disuntikkan secara atomik ke `~/.ssh/authorized_keys` di host target via sesi SSH aktif dengan metadata komentar `pantau-ephemeral-<id>-<expiry>`.
+- **Dua Tingkat Pembersihan Otomatis (Two-Tier Auto-Cleanup)**:
+  - *Timer Go Proaktif*: Secara otomatis menghapus kunci ephemeral dari host target setelah 5 menit (atau saat sesi peluncuran selesai).
+  - *Pemindaian POSIX awk Reaktif*: Filter `awk` membersihkan kunci yatim yang telah kedaluwarsa saat siklus inspeksi berkala atau sebelum injeksi baru. Sesi koneksi OpenSSH yang sedang berjalan tetap aktif karena verifikasi kunci publik hanya terjadi pada saat jabat tangan awal (*initial handshake*).
+- **Mode Peluncuran Ganda (Workstation Lokal vs Remote Web)**:
+  - **Workstation Lokal (`localhost` / `127.0.0.1`)**: Menjalankan proses terminal *detached* secara langsung di desktop pengguna dengan teknik *shell chaining* (`cmd /k`, `powershell -NoExit`, `exec bash`) agar jendela terminal tetap terbuka menampilkan output error dan menyerahkan prompt lokal jika koneksi SSH terputus.
+  - **Akses Peramban Jarak Jauh (Remote Web)**: Membuka modal dialog **Native Terminal Launcher** dengan tiket 32-byte sekali pakai (*burn-after-read*, TTL 60 detik) yang menyediakan tiga opsi koneksi:
+    1. **Protokol URL Kustom (`pantau://`)**: Peluncuran 1-klik langsung dari browser desktop tanpa perlu mengunduh berkas.
+    2. **Unduhan Skrip Sementara**: Berkas skrip *self-extracting* dan *self-deleting* (`.cmd` di Windows dengan pembatasan hak akses `icacls`, `.command` di macOS, `.sh` di Linux dengan `trap` pembersihan otomatis).
+    3. **Perintah Salin Streaming**: Eksekusi streaming satu baris langsung ke memori (`curl -sSL ... | bash` di Linux/macOS atau `irm ... | iex` di PowerShell Windows).
+- **Pewarisan Direktori Kerja Aktif (Active Path Navigation)**: Sesi terminal native secara otomatis terbuka langsung pada direktori kerja aktif:
+  - Dari Terminal Dock: mewarisi direktori kerja aktif yang dilacak via ANSI OSC 7 atau prompt tracking.
+  - Dari Pengelola Berkas SFTP: mewarisi folder direktori yang sedang dibuka.
+  - Dari Global Bookmarks: langsung masuk ke folder induk dari berkas tersemat.
+- **Kustomisasi Pengaturan & Template Terminal**: Pada menu **Settings** → **Native Terminal**, pilih deteksi otomatis default OS atau definisikan template perintah kustom (misal: `alacritty -e %cmd%` atau `wt.exe new-tab %cmd%`) dengan verifikasi biner `exec.LookPath` dan sanitasi anti-injeksi perintah.
+- **Titik Akses Beragam**:
+  - Tombol popout `↗` pada bilah alat Terminal Dock.
+  - Opsi `↗ Native Terminal` pada menu aksi `⋮` Host Card (tampilan Grid dan List).
+  - Tombol `↗ Native Terminal` pada bilah alat Pengelola Berkas SFTP.
+  - Tombol peluncur cepat pada modal Global Bookmarks.
+
 ### In-App Activity Console & Live Telemetry Stream
 
 Untuk memberikan visibilitas operasional yang transparan, Pantau dilengkapi dengan konsol diagnostik real-time yang menampilkan aktivitas yang sedang dijalankan daemon dan subsistem setiap saat:
@@ -234,10 +264,33 @@ Saat menangani kendala konektivitas antar-server, pemblokiran firewall, atau ano
   - **Klasifikasi Zona**: Mengidentifikasi apakah tiap hop merupakan `Lokal/VPC Privat` (RFC 1918 / CGNAT), `Transit ISP`, atau `Destinasi`.
   - **Deteksi Titik Terhenti (*Blackhole Drop*)**: Menunjukkan persis hop jaringan tempat paket terhenti jika target tidak tercapai.
   - **Peringatan Lonjakan Latensi**: Menandai lonjakan latensi signifikan (>60ms) antar dua hop berurutan.
+- **Probe Target Preset**: Simpan sasaran pengujian rutin router cabang, switch, access point, atau endpoint eksternal ke dalam preset basis data SQLite lengkap dengan label operasional dan target IP/FQDN untuk pengujian instan satu-klik tanpa mengetik ulang.
 - **Dua Titik Akses UI**:
   - Buka melalui tab **Network Diagnostics** di Workspace Modal (dengan host sumber terkunci).
   - Buka secara global via tombol **`⚡ NetDiag`** di header navbar atas (dengan pemilih host sumber aktif).
 - **Proteksi Konkurensi & Keamanan**: Menggunakan kunci singleflight in-memory per host untuk mencegah kehabisan sesi SSH. Host yang sedang offline secara otomatis dinonaktifkan dari daftar target antar-host.
+
+### Automated Network Triage Matrix & Verifikasi Insiden Cabang
+
+Saat kantor cabang atau klien remote mengeluhkan aplikasi web lambat atau down, operator sering terjebak dalam perdebatan klasik: apakah masalah bersumber dari kelebihan beban server aplikasi (Host) atau kemacetan pada jalur jaringan ISP/VPN? **Automated Network Triage Matrix** menyediakan pipeline diagnosis terorkestrasi adaptif satu-klik untuk menjawab masalah tersebut secara objektif dalam waktu kurang dari 15 detik:
+
+- **Pipeline Diagnostik Multi-Layer**:
+  1. *Host & Application Self-Check*: Memeriksa utilisasi CPU/RAM/Swap, I/O disk, jumlah socket, serta mengeksekusi uji L7 HTTP komparatif (loopback lokal `127.0.0.1` vs probe eksternal) untuk mengukur status HTTP dan Time To First Byte (TTFB).
+  2. *Route & Interface Discovery*: Menentukan interface keluar, gateway transmisi, dan batas MTU aktif via `ip route get <target>`.
+  3. *Analisis Rute & Fragmentasi*:
+     - Pada Jalur Privat/VPN: Menjalankan **MTU Sweep Probe** dengan bit Don't Fragment (DF) (1300, 1420, 1472 bytes) untuk mendeteksi *Path MTU Blackhole*.
+     - Pada Jalur Internet Publik: Menjalankan **Hop Analysis** (traceroute/tracepath) untuk mendeteksi kemacetan hop transit ISP atau titik *blackhole drop*.
+  4. *Fallback Firewall Cerdas*: Jika ping ICMP mengalami packet loss 100%, sistem otomatis beralih mengecek port TCP layanan target. Jika port terbuka, target diklasifikasikan sebagai `ICMP_FILTERED_TCP_HEALTHY` untuk mencegah laporan palsu bahwa cabang mati (*anti-false alarm*).
+- **7 Triage Verdict Baku**:
+  - `HOST_SATURATED`: Sumber daya Host (CPU, RAM, I/O disk, atau socket pool) mengalami saturasi/kehabisan kapasitas.
+  - `APPLICATION_DEGRADED`: Sumber daya Host dan jaringan sehat, namun respons HTTP aplikasi mengalami error (5xx) atau TTFB lokal melebihi batas toleransi (>2000ms).
+  - `TRANSIT_PATH_DEGRADED`: Host dan aplikasi sehat, namun rute transmisi mengalami packet loss (>2%) atau lonjakan latensi tinggi.
+  - `BRANCH_GATEWAY_DOWN`: Gateway cabang tujuan sama sekali tidak merespons pengujian ICMP maupun TCP port probe.
+  - `MTU_BLACKHOLE_DETECTED`: Paket ping kecil lolos, namun paket ukuran MTU terowongan (>1400 bytes) di-drop karena restriksi DF bit.
+  - `ICMP_FILTERED_TCP_HEALTHY`: Paket ICMP diblokir firewall, namun port TCP layanan aktif dan merespons normal.
+  - `HEALTHY`: Seluruh parameter (Host, aplikasi L7, dan rute jaringan) beroperasi optimal dalam batas normal.
+- **Pencatatan Insiden & Rekam Jejak Audit**: Setiap eksekusi triage tersimpan otomatis pada tabel SQLite `triage_incident_logs`, menyimpan timestamp, host sumber, preset cabang, packet loss, TTFB, verdict, dan kutipan output mentah.
+- **Generator Tiket Insiden Markdown Satu-Klik**: Klik tombol **Copy Incident Ticket** di antarmuka web untuk menyalin ringkasan insiden terstruktur dalam format Markdown yang siap ditempel ke sistem tiket, Slack, WhatsApp, atau saluran komplain ISP.
 
 ### Evaluasi Kelayakan Server dengan Lifecycle Assessment
 

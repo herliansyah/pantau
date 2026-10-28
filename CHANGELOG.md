@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Terminal Settings & Custom Template: support for power-user terminal command templates (e.g. `alacritty -e %cmd%`) with pre-flight binary lookpath and command injection prevention.
   - UI Integrations: Native Terminal button on Terminal Toolbar and "Native Terminal" dropdown item on Host Cards (Grid and List views), dedicated "Native Terminal" action in SFTP File Manager toolbar, and quick native terminal launch for pinned files/folders in Global Bookmarks modal.
   - Active Path Navigation: automatic synchronization of terminal active working directory (OSC 7 / prompt tracking in Terminal Tabs, current folder in SFTP File Manager, or target directory of pinned bookmarks) when opening native desktop terminals, with graceful fallback to user home directory.
+- Architectural Decision Record: [ADR-0036](docs/adr/0036-native-terminal-bridge-and-ephemeral-key-injector.md).
 
 ## [0.27.0] - 2026-10-27
 ### Added
@@ -39,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Network Diagnostic Probe Target Presets: domain entity to save unmanaged routers and remote endpoints (`internal/store`), backed by SQLite with seed defaults, snapshot export/import, and REST API endpoints (`/api/netdiag/presets`) with IPv4/IPv6 and FQDN validation. Features a 3-way target selector, optgroup preset dropdown, preset manager modal, and quick bookmarking in the web UI.
 - Automated Network Triage Matrix: diagnostic triage pipeline executing host self-checks, route discovery, and MTU sweep tests with deterministic verdict classification across 7 status categories (`HEALTHY`, `HIGH_LATENCY`, `LOCAL_GATEWAY_DOWN`, `UPSTREAM_DROP`, `DESTINATION_UNREACHABLE`, `MTU_BLACK_HOLE`, `DNS_FAILURE`), background auto-triage scheduler, triage notification alerts, and SQLite incident storage.
 - Markdown Incident Ticket Generator: one-click copy and export of comprehensive incident triage reports formatted in Markdown for ticketing systems and escalation channels.
-- Architectural Decision Record: [ADR-0035](docs/adr/0035-automated-network-triage-matrix-and-hybrid-network-observability.md).
+- Architectural Decision Record: [ADR-0035](docs/adr/0035-automated-branch-triage-matrix-and-hybrid-network-observability.md).
 
 ### Changed
 - Network Diagnostics Workspace Modal: promoted netdiag dialog to a standardized workspace modal (85vw × 84vh) with fixed top-anchored alignment, eliminating cumulative layout shifts (CLS), and internal scrolling across probe and triage views.
