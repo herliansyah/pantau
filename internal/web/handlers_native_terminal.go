@@ -51,9 +51,19 @@ type NativeTicket struct {
 	HostAddress  string        `json:"host_address"`
 	HostPort     int           `json:"host_port"`
 	HostUser     string        `json:"host_user"`
+	InitialDir   string        `json:"initial_dir,omitempty"`
 	EphemeralKey *EphemeralKey `json:"-"`
 	ExpiresAt    time.Time     `json:"expires_at"`
 	CreatedIP    string        `json:"created_ip"`
+}
+
+// cleanInitialDir strips control characters and newlines from an initial directory path.
+func cleanInitialDir(dir string) string {
+	dir = strings.TrimSpace(dir)
+	dir = strings.ReplaceAll(dir, "\n", "")
+	dir = strings.ReplaceAll(dir, "\r", "")
+	dir = strings.ReplaceAll(dir, "\x00", "")
+	return dir
 }
 
 // GenerateEphemeralKey generates an RSA 2048-bit keypair in RAM for universal compatibility
@@ -337,8 +347,13 @@ func detectDefaultTerminal(goos string) (termType, termPath string) {
 }
 
 // buildLaunchCommand constructs the exec.Cmd for native terminal execution.
-func buildLaunchCommand(goos, termPath, customTemplate, keyPath, user, host string, port int) (*exec.Cmd, error) {
+func buildLaunchCommand(goos, termPath, customTemplate, keyPath, user, host string, port int, initialDir string) (*exec.Cmd, error) {
 	sshBase := fmt.Sprintf(`ssh -i "%s" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s`, keyPath, port, user, host)
+	cleanedDir := cleanInitialDir(initialDir)
+	if cleanedDir != "" && cleanedDir != "~" {
+		escapedDir := strings.ReplaceAll(cleanedDir, "'", `'\''`)
+		sshBase = fmt.Sprintf(`%s -t "cd '%s' 2>/dev/null; exec bash -l || exec sh -l"`, sshBase, escapedDir)
+	}
 
 	if customTemplate != "" {
 		// Custom template mode: execute via system shell to properly preserve quotes and arguments
@@ -397,7 +412,7 @@ func buildLaunchCommand(goos, termPath, customTemplate, keyPath, user, host stri
 }
 
 // launchLocalTerminal handles launching native terminal when Pantau runs locally.
-func (s *Server) launchLocalTerminal(host *store.Host, customTemplate string) error {
+func (s *Server) launchLocalTerminal(host *store.Host, customTemplate string, initialDir string) error {
 	// 1. Generate in-memory key
 	key, err := GenerateEphemeralKey(host.ID, 5*time.Minute)
 	if err != nil {
@@ -444,7 +459,7 @@ func (s *Server) launchLocalTerminal(host *store.Host, customTemplate string) er
 	if port <= 0 {
 		port = 22
 	}
-	cmd, err := buildLaunchCommand(runtime.GOOS, termPath, customTemplate, keyFile, host.User, host.Host, port)
+	cmd, err := buildLaunchCommand(runtime.GOOS, termPath, customTemplate, keyFile, host.User, host.Host, port, initialDir)
 	if err != nil {
 		_ = os.Remove(keyFile)
 		_ = s.cleanupEphemeralKeyByID(context.Background(), host, key.ID)
@@ -507,12 +522,19 @@ func generateWindowsCmdScript(ticket *NativeTicket) string {
 	}
 	keyB64 := base64.StdEncoding.EncodeToString(ticket.EphemeralKey.PrivateKey)
 
+	var remoteCmd string
+	cleanedDir := cleanInitialDir(ticket.InitialDir)
+	if cleanedDir != "" && cleanedDir != "~" {
+		escapedDir := strings.ReplaceAll(cleanedDir, "'", `'\''`)
+		remoteCmd = fmt.Sprintf(` -t \"cd '%s' 2>/dev/null; exec bash -l || exec sh -l\"`, escapedDir)
+	}
+
 	var sb strings.Builder
 	sb.WriteString("@echo off\r\n")
 	sb.WriteString("REM Pantau Remote Ephemeral Terminal Launcher\r\n")
 	psCmd := fmt.Sprintf(
-		`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$b='%s'; $key=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b)); $k=[System.IO.Path]::GetTempFileName(); Set-Content -Path $k -Value $key; icacls $k /inheritance:r /grant:r \"$($env:USERNAME):(R)\" | Out-Null; Write-Host '[Pantau] Connecting to %s (%s)...'; ssh -i $k -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s; $code=$LASTEXITCODE; Remove-Item -Force $k -ErrorAction SilentlyContinue; if ($code -ne 0) { Write-Host ''; Write-Host \"[Pantau] Sesi SSH terputus atau gagal (exit code: $code).\"; pause }"`,
-		keyB64, displayName, ticket.HostAddress, port, ticket.HostUser, ticket.HostAddress,
+		`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$b='%s'; $key=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b)); $k=[System.IO.Path]::GetTempFileName(); Set-Content -Path $k -Value $key; icacls $k /inheritance:r /grant:r \"$($env:USERNAME):(R)\" | Out-Null; Write-Host '[Pantau] Connecting to %s (%s)...'; ssh -i $k -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s; $code=$LASTEXITCODE; Remove-Item -Force $k -ErrorAction SilentlyContinue; if ($code -ne 0) { Write-Host ''; Write-Host \"[Pantau] Sesi SSH terputus atau gagal (exit code: $code).\"; pause }"`,
+		keyB64, displayName, ticket.HostAddress, port, ticket.HostUser, ticket.HostAddress, remoteCmd,
 	)
 	sb.WriteString(psCmd)
 	sb.WriteString("\r\n")
@@ -526,6 +548,13 @@ func generateUnixScript(ticket *NativeTicket, isMac bool) string {
 	if port <= 0 {
 		port = 22
 	}
+	var remoteCmd string
+	cleanedDir := cleanInitialDir(ticket.InitialDir)
+	if cleanedDir != "" && cleanedDir != "~" {
+		escapedDir := strings.ReplaceAll(cleanedDir, "'", `'\''`)
+		remoteCmd = fmt.Sprintf(` -t "cd '%s' 2>/dev/null; exec bash -l || exec sh -l"`, escapedDir)
+	}
+
 	var sb strings.Builder
 	sb.WriteString("#!/usr/bin/env bash\n")
 	sb.WriteString("set -e\n\n")
@@ -537,13 +566,24 @@ func generateUnixScript(ticket *NativeTicket, isMac bool) string {
 	sb.WriteString("\nEOF\n\n")
 	sb.WriteString(fmt.Sprintf("echo \"[Pantau] Connecting to %s (%s)...\"\n", displayName, ticket.HostAddress))
 	sb.WriteString("set +e\n")
-	sb.WriteString("if [ -t 0 ]; then\n")
-	sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s\n", port, ticket.HostUser, ticket.HostAddress))
-	sb.WriteString("elif [ -c /dev/tty ]; then\n")
-	sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s < /dev/tty\n", port, ticket.HostUser, ticket.HostAddress))
-	sb.WriteString("else\n")
-	sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s\n", port, ticket.HostUser, ticket.HostAddress))
-	sb.WriteString("fi\n")
+	if isMac {
+		// macOS Terminal runs under GUI session without attached tty on launch
+		sb.WriteString("if [ -t 0 ]; then\n")
+		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
+		sb.WriteString("elif [ -c /dev/tty ]; then\n")
+		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s < /dev/tty\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
+		sb.WriteString("else\n")
+		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
+		sb.WriteString("fi\n")
+	} else {
+		sb.WriteString("if [ -t 0 ]; then\n")
+		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
+		sb.WriteString("elif [ -c /dev/tty ]; then\n")
+		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s < /dev/tty\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
+		sb.WriteString("else\n")
+		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
+		sb.WriteString("fi\n")
+	}
 	sb.WriteString("SSH_EXIT=$?\n\n")
 	sb.WriteString("if [ $SSH_EXIT -ne 0 ]; then\n")
 	sb.WriteString("    echo \"\"\n")
@@ -596,12 +636,19 @@ func (s *Server) handleNativeTerminalOpen(w http.ResponseWriter, r *http.Request
 	}
 
 	var req struct {
-		HostID flexibleID `json:"host_id"`
-		Mode   string     `json:"mode"`
+		HostID     flexibleID `json:"host_id"`
+		Path       string     `json:"path"`
+		InitialDir string     `json:"initial_dir"`
+		Mode       string     `json:"mode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "invalid request body"})
 		return
+	}
+
+	targetDir := req.Path
+	if targetDir == "" {
+		targetDir = req.InitialDir
 	}
 
 	host, err := s.db.GetHost(int64(req.HostID))
@@ -623,7 +670,7 @@ func (s *Server) handleNativeTerminalOpen(w http.ResponseWriter, r *http.Request
 		customTemplate, _ = s.db.GetSetting("terminal_launcher_template")
 	}
 
-	if err := s.launchLocalTerminal(host, customTemplate); err != nil {
+	if err := s.launchLocalTerminal(host, customTemplate, targetDir); err != nil {
 		logger.Error("native_terminal", host.Name, fmt.Sprintf("launch failed: %v", err))
 		writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": fmt.Sprintf("launch failed: %v", err)})
 		return
@@ -644,11 +691,18 @@ func (s *Server) handleNativeTerminalTicket(w http.ResponseWriter, r *http.Reque
 	}
 
 	var req struct {
-		HostID flexibleID `json:"host_id"`
+		HostID     flexibleID `json:"host_id"`
+		Path       string     `json:"path"`
+		InitialDir string     `json:"initial_dir"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "invalid request body"})
 		return
+	}
+
+	targetDir := req.Path
+	if targetDir == "" {
+		targetDir = req.InitialDir
 	}
 
 	host, err := s.db.GetHost(int64(req.HostID))
@@ -698,6 +752,7 @@ func (s *Server) handleNativeTerminalTicket(w http.ResponseWriter, r *http.Reque
 		HostAddress:  host.Host,
 		HostPort:     port,
 		HostUser:     host.User,
+		InitialDir:   targetDir,
 		EphemeralKey: key,
 		ExpiresAt:    time.Now().Add(60 * time.Second),
 		CreatedIP:    clientIP,
@@ -793,15 +848,22 @@ func (s *Server) handleNativeTerminalRun(w http.ResponseWriter, r *http.Request)
 	}
 	var content string
 	if strings.Contains(ua, "powershell") || strings.Contains(ua, "windows") {
+		var remoteCmd string
+		cleanedDir := cleanInitialDir(ticket.InitialDir)
+		if cleanedDir != "" && cleanedDir != "~" {
+			escapedDir := strings.ReplaceAll(cleanedDir, "'", `'\''`)
+			remoteCmd = fmt.Sprintf(` -t "cd '%s' 2>/dev/null; exec bash -l || exec sh -l"`, escapedDir)
+		}
+
 		// Output PowerShell friendly script
 		content = fmt.Sprintf(`$k = [System.IO.Path]::GetTempFileName()
 Set-Content -Path "$k" -Value @"
 %s
 "@
 icacls "$k" /inheritance:r /grant:r "$($env:USERNAME):(R)" | Out-Null
-ssh -i "$k" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s
+ssh -i "$k" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s
 Remove-Item -Force "$k" -ErrorAction SilentlyContinue
-`, strings.TrimSpace(string(ticket.EphemeralKey.PrivateKey)), port, ticket.HostUser, ticket.HostAddress)
+`, strings.TrimSpace(string(ticket.EphemeralKey.PrivateKey)), port, ticket.HostUser, ticket.HostAddress, remoteCmd)
 	} else {
 		content = generateUnixScript(ticket, strings.Contains(ua, "macintosh") || strings.Contains(ua, "darwin"))
 	}

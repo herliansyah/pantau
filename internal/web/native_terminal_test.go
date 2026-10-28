@@ -445,7 +445,7 @@ func TestNativeTicketDoesNotPanicAuthMiddleware(t *testing.T) {
 
 func TestBuildLaunchCommandEscaping(t *testing.T) {
 	// Darwin AppleScript quotes escaping
-	cmdDarwin, err := buildLaunchCommand("darwin", "Terminal", "", "/path/to/key", "user", "127.0.0.1", 22)
+	cmdDarwin, err := buildLaunchCommand("darwin", "Terminal", "", "/path/to/key", "user", "127.0.0.1", 22, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -458,7 +458,7 @@ func TestBuildLaunchCommandEscaping(t *testing.T) {
 	}
 
 	// Linux custom template execution
-	cmdLinux, err := buildLaunchCommand("linux", "/bin/sh", "alacritty -e %cmd%", "/path/to/key", "user", "127.0.0.1", 22)
+	cmdLinux, err := buildLaunchCommand("linux", "/bin/sh", "alacritty -e %cmd%", "/path/to/key", "user", "127.0.0.1", 22, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -565,5 +565,99 @@ func TestCopyNativeCmdInsecureContextFallback(t *testing.T) {
 
 	if strings.Contains(copyFnBody, "navigator.clipboard.writeText") && !strings.Contains(copyFnBody, "navigator.clipboard &&") {
 		t.Errorf("copyNativeCmd must not directly call navigator.clipboard.writeText without checking navigator.clipboard (causes TypeError in insecure contexts)")
+	}
+}
+
+func TestNativeTerminalActivePath(t *testing.T) {
+	// 1. buildLaunchCommand with active path
+	cmd, err := buildLaunchCommand("linux", "/usr/bin/gnome-terminal", "", "/tmp/key", "root", "192.168.1.10", 22, "/var/log/nginx")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cmdStr := strings.Join(cmd.Args, " ")
+	if !strings.Contains(cmdStr, `-t "cd '/var/log/nginx' 2>/dev/null; exec bash -l || exec sh -l"`) {
+		t.Errorf("expected cd to /var/log/nginx with bash/sh fallback in cmd, got: %s", cmdStr)
+	}
+
+	// 2. buildLaunchCommand with path escaping (single quotes)
+	cmdQuote, err := buildLaunchCommand("linux", "/usr/bin/gnome-terminal", "", "/tmp/key", "root", "192.168.1.10", 22, "/home/user/app's")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	quoteCmdStr := strings.Join(cmdQuote.Args, " ")
+	if !strings.Contains(quoteCmdStr, `/home/user/app'\''s`) {
+		t.Errorf("expected escaped single quote in path, got: %s", quoteCmdStr)
+	}
+
+	// 3. generateUnixScript with InitialDir
+	key, err := GenerateEphemeralKey(10, 5*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticket := &NativeTicket{
+		Token:        "ticket-path-test",
+		HostID:       10,
+		HostName:     "srv-app",
+		HostAddress:  "10.0.0.5",
+		HostPort:     2222,
+		HostUser:     "deploy",
+		InitialDir:   "/var/www/html",
+		EphemeralKey: key,
+	}
+	unixScript := generateUnixScript(ticket, false)
+	if !strings.Contains(unixScript, `-t "cd '/var/www/html' 2>/dev/null; exec bash -l || exec sh -l"`) {
+		t.Errorf("expected unix script to contain directory navigation: %s", unixScript)
+	}
+
+	// 4. generateWindowsCmdScript with InitialDir
+	winScript := generateWindowsCmdScript(ticket)
+	if !strings.Contains(winScript, `-t \"cd '/var/www/html' 2>/dev/null; exec bash -l || exec sh -l\"`) {
+		t.Errorf("expected windows cmd script to contain escaped directory navigation: %s", winScript)
+	}
+
+	// 5. Test API ticket creation with path parameter
+	mockRunner := &mockTestSSHRunner{}
+	s, _, host := setupTestServerWithDB(t, mockRunner)
+	sessionToken := "test-session-active-path"
+	s.sessions.Store(sessionToken, time.Now().Add(1*time.Hour))
+
+	reqBody := bytes.NewBufferString(fmt.Sprintf(`{"host_id": %d, "path": "/etc/systemd"}`, host.ID))
+	req := httptest.NewRequest(http.MethodPost, "/api/terminal/native-ticket", reqBody)
+	req.AddCookie(&http.Cookie{Name: "pantau_session", Value: sessionToken})
+	rec := httptest.NewRecorder()
+
+	s.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var ticketRes struct {
+		Ticket string `json:"ticket"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &ticketRes); err != nil {
+		t.Fatalf("failed to decode ticket json: %v", err)
+	}
+
+	// Test streaming run retrieves script with path
+	runReq := httptest.NewRequest(http.MethodGet, "/api/terminal/native-run?ticket="+ticketRes.Ticket, nil)
+	runRec := httptest.NewRecorder()
+	s.ServeHTTP(runRec, runReq)
+	if runRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for native-run, got %d: %s", runRec.Code, runRec.Body.String())
+	}
+	if !strings.Contains(runRec.Body.String(), `/etc/systemd`) {
+		t.Errorf("expected script output to navigate to /etc/systemd: %s", runRec.Body.String())
+	}
+
+	// 6. Verify File Manager and Terminal Tab HTML wiring
+	html := string(embeddedHTML)
+	if !strings.Contains(html, "openNativeTerminalForPath") {
+		t.Errorf("expected openNativeTerminalForPath function and button in HTML")
+	}
+	if !strings.Contains(html, "onclick=\"openNativeTerminalForPath('${escapeHtml(data.path)}')\"") {
+		t.Errorf("expected File Manager toolbar to have openNativeTerminalForPath button")
+	}
+	if !strings.Contains(html, "openNativeTerminalFromGlobalPin") {
+		t.Errorf("expected Global Bookmarks modal to have openNativeTerminalFromGlobalPin button")
 	}
 }

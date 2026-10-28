@@ -192,6 +192,7 @@ func TestFileManagerPinsAndGlobalBookmarksUI(t *testing.T) {
 		"loadHostFilePins",
 		"renderQuickAccessBar",
 		"openTerminalFromGlobalPin",
+		"openNativeTerminalFromGlobalPin",
 	}
 
 	for _, el := range requiredElements {

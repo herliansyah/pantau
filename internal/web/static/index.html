@@ -7232,6 +7232,9 @@ function renderFilesView() {
         <button class="btn btn-sm" onclick="openTerminalForPath('${escapeHtml(data.path)}')" title="${t('open_terminal_here', 'Open Terminal Here')}" style="display: inline-flex; align-items: center; gap: 4px;">
           <span>💻</span> <span>${t('open_terminal_here', 'Open Terminal Here')}</span>
         </button>
+        <button class="btn btn-sm" onclick="openNativeTerminalForPath('${escapeHtml(data.path)}')" title="${t('open_native_terminal', 'Native Terminal')}" style="display: inline-flex; align-items: center; gap: 4px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m6 10 3 2-3 2"/><path d="M12 14h4"/></svg> <span>${t('open_native_terminal', 'Native Terminal')}</span>
+        </button>
         <button class="btn btn-sm" onclick="loadFiles('${parent}')">${t('up_dir')}</button>
         <button class="btn btn-sm" onclick="loadFiles('${escapeHtml(data.path)}')" title="${t('refresh')}">🔄</button>
         <input type="file" id="fileUploadInput" style="display: none;" onchange="uploadFile('${data.path}')" />
@@ -7862,6 +7865,9 @@ function renderGlobalPinsList() {
                   <button class="btn btn-sm" onclick="openTerminalFromGlobalPin(${p.host_id}, '${escapeHtml(p.path)}', ${isDir})" title="${t('open_terminal_here', 'Open Terminal Here')}" style="font-size: 0.78rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
                     <span>💻</span> <span>Terminal</span>
                   </button>
+                  <button class="btn btn-sm" onclick="openNativeTerminalFromGlobalPin(${p.host_id}, '${escapeHtml(p.path)}', ${isDir})" title="${t('open_native_terminal', 'Native Terminal')}" style="font-size: 0.78rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m6 10 3 2-3 2"/><path d="M12 14h4"/></svg> <span>${t('open_native_terminal', 'Native Terminal')}</span>
+                  </button>
                   <button class="btn btn-sm" onclick="deleteGlobalPin(${p.host_id}, '${escapeHtml(p.path)}')" title="${t('btn_unpin')}" style="padding: 3px 8px; color: var(--danger); opacity: 0.7;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">
                     🗑️
                   </button>
@@ -7885,6 +7891,12 @@ function openTerminalFromGlobalPin(hostId, targetPath, isDir) {
   const folderName = (termDir === '/' || !termDir) ? '/' : termDir.split('/').filter(Boolean).pop() || termDir;
   const customTitle = `${hostName}: ${folderName}`;
   openTerminalForHost(hostId, null, true, customTitle, termDir);
+}
+
+function openNativeTerminalFromGlobalPin(hostId, targetPath, isDir) {
+  closeModal('globalPinsModal');
+  const termDir = isDir ? targetPath : (targetPath.substring(0, targetPath.lastIndexOf('/')) || '/');
+  openNativeTerminalForHost(hostId, termDir);
 }
 
 async function deleteGlobalPin(hostId, path) {
@@ -14575,14 +14587,28 @@ function openNativeTerminalForTab(tabId) {
     showToast('Pilih sesi terminal yang terhubung ke Host terlebih dahulu', 'warning');
     return;
   }
-  openNativeTerminalForHost(targetHostId);
+  const activePath = getTerminalActivePath(tabId);
+  openNativeTerminalForHost(targetHostId, activePath);
 }
 
-async function openNativeTerminalForHost(hostId) {
+function openNativeTerminalForPath(targetPath) {
+  if (!currentHost || !currentHost.id) {
+    showToast('Pilih Host terlebih dahulu', 'warning');
+    return;
+  }
+  openNativeTerminalForHost(currentHost.id, targetPath);
+}
+
+async function openNativeTerminalForHost(hostId, targetPath = null) {
   const hid = parseInt(hostId, 10);
   if (!hid || isNaN(hid)) {
     showToast('ID Host tidak valid', 'warning');
     return;
+  }
+
+  const payload = { host_id: hid };
+  if (targetPath && typeof targetPath === 'string' && targetPath.trim() !== '') {
+    payload.path = targetPath.trim();
   }
 
   // 1. If Localhost: launch directly via OS process
@@ -14592,7 +14618,7 @@ async function openNativeTerminalForHost(hostId) {
       const res = await fetch('/api/terminal/native-open', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host_id: hid })
+        body: JSON.stringify(payload)
       });
       let data = {};
       try { data = await res.json(); } catch (_) {}
@@ -14612,7 +14638,7 @@ async function openNativeTerminalForHost(hostId) {
     const res = await fetch('/api/terminal/native-ticket', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host_id: hid })
+      body: JSON.stringify(payload)
     });
     let data = {};
     try { data = await res.json(); } catch (_) {}
