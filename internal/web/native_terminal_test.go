@@ -517,6 +517,34 @@ func TestSanitizeFilename(t *testing.T) {
 	}
 }
 
+func TestNativeTerminalHostIDFromString(t *testing.T) {
+	mockRunner := &mockTestSSHRunner{}
+	s, _, host := setupTestServerWithDB(t, mockRunner)
+
+	sessionToken := "test-session-string-id"
+	s.sessions.Store(sessionToken, time.Now().Add(1*time.Hour))
+
+	// 1. Test POST /api/terminal/native-ticket with string host_id (e.g. from frontend button)
+	reqBody := bytes.NewBufferString(fmt.Sprintf(`{"host_id": "%d"}`, host.ID))
+	req := httptest.NewRequest(http.MethodPost, "/api/terminal/native-ticket", reqBody)
+	req.AddCookie(&http.Cookie{Name: "pantau_session", Value: sessionToken})
+	rec := httptest.NewRecorder()
+
+	s.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for ticket creation with string host_id, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// 2. Verify Toolbar HTML wiring: Button next to reconnect uses openNativeTerminalForTab
+	html := string(embeddedHTML)
+	if strings.Contains(html, "onclick=\"openNativeTerminalForHost('${tab.hostID}')\"") {
+		t.Errorf("found unquoted/string hostID call in tab workspace toolbar: must use openNativeTerminalForTab('${tab.id}')")
+	}
+	if !strings.Contains(html, "onclick=\"openNativeTerminalForTab('${tab.id}')\"") {
+		t.Errorf("expected openNativeTerminalForTab('${tab.id}') in tab workspace toolbar next to reconnect button")
+	}
+}
+
 func TestCopyNativeCmdInsecureContextFallback(t *testing.T) {
 	html := string(embeddedHTML)
 

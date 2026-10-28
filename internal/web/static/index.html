@@ -8481,7 +8481,7 @@ function createTabWorkspaceDOM(tab) {
           </button>
           <button class="btn btn-sm" onclick="clearTabActiveTerminal('${tab.id}')" title="Clear screen" style="padding: 3px 8px; font-size: 0.72rem;">🧹 Clear</button>
           <button class="btn btn-sm" onclick="reconnectTabTerminal('${tab.id}')" title="Reconnect SSH" style="padding: 3px 8px; font-size: 0.72rem;">🔄 Reconnect</button>
-          <button class="btn btn-sm" onclick="openNativeTerminalForHost('${tab.hostID}')" title="${t('open_native_terminal', 'Native Terminal')}" style="padding: 3px 8px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 5px;">
+          <button class="btn btn-sm" onclick="openNativeTerminalForTab('${tab.id}')" title="${t('open_native_terminal', 'Native Terminal')}" style="padding: 3px 8px; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 5px;">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m6 10 3 2-3 2"/><path d="M12 14h4"/></svg>
             <span class="lbl-native-term">${t('open_native_terminal', 'Native Terminal')}</span>
           </button>
@@ -14564,16 +14564,26 @@ function openActiveTerminalInNative() {
     showToast('Tidak ada tab terminal aktif', 'warning');
     return;
   }
-  const tab = terminalTabs.find(t => t.id === activeTerminalTabId);
-  if (!tab || !tab.hostID) {
+  openNativeTerminalForTab(activeTerminalTabId);
+}
+
+function openNativeTerminalForTab(tabId) {
+  const tab = terminalTabs.find(t => t.id === tabId);
+  if (!tab) return;
+  const targetHostId = (tab.isSplit && tab.focusedPane === 'right') ? (tab.hostIDRight || tab.hostID) : tab.hostID;
+  if (!targetHostId) {
     showToast('Pilih sesi terminal yang terhubung ke Host terlebih dahulu', 'warning');
     return;
   }
-  openNativeTerminalForHost(tab.hostID);
+  openNativeTerminalForHost(targetHostId);
 }
 
 async function openNativeTerminalForHost(hostId) {
-  if (!hostId) return;
+  const hid = parseInt(hostId, 10);
+  if (!hid || isNaN(hid)) {
+    showToast('ID Host tidak valid', 'warning');
+    return;
+  }
 
   // 1. If Localhost: launch directly via OS process
   if (isLocalAccess()) {
@@ -14582,7 +14592,7 @@ async function openNativeTerminalForHost(hostId) {
       const res = await fetch('/api/terminal/native-open', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host_id: hostId })
+        body: JSON.stringify({ host_id: hid })
       });
       let data = {};
       try { data = await res.json(); } catch (_) {}
@@ -14602,14 +14612,14 @@ async function openNativeTerminalForHost(hostId) {
     const res = await fetch('/api/terminal/native-ticket', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host_id: hostId })
+      body: JSON.stringify({ host_id: hid })
     });
     let data = {};
     try { data = await res.json(); } catch (_) {}
     if (!res.ok) throw new Error(data.error || 'Gagal menyiapkan tiket terminal');
 
     currentNativeTicket = data;
-    document.getElementById('nativeTermHostName').textContent = data.host_name || ('Host #' + hostId);
+    document.getElementById('nativeTermHostName').textContent = data.host_name || ('Host #' + hid);
     document.getElementById('nativeCmdUnix').textContent = data.command_unix || '';
     document.getElementById('nativeCmdWin').textContent = data.command_win || '';
 
