@@ -1534,6 +1534,7 @@ func TestWorkspaceModalMaximizeAndTerminalFromPath(t *testing.T) {
 	activePathElements := []string{
 		"getTerminalActivePath",
 		"extractPathFromTerminalTitle",
+		"extractPathFromTerminalBuffer",
 	}
 	for _, el := range activePathElements {
 		if !strings.Contains(html, el) {
@@ -2320,6 +2321,32 @@ func TestHostListDropdownPositioning(t *testing.T) {
 	}
 	if !strings.Contains(html, `id="activeTerminalBadge" class="badge badge-healthy header-btn-badge"`) {
 		t.Errorf("expected activeTerminalBadge to include header-btn-badge class")
+	}
+}
+
+func TestResolveRemotePath(t *testing.T) {
+	tests := []struct {
+		user     string
+		target   string
+		expected string
+	}{
+		{user: "ubuntu", target: "", expected: "/home/ubuntu"},
+		{user: "root", target: "", expected: "/root"},
+		{user: "ubuntu", target: "~", expected: "/home/ubuntu"},
+		{user: "ubuntu", target: "~/", expected: "/home/ubuntu"},
+		{user: "ubuntu", target: "~/projects", expected: "/home/ubuntu/projects"},
+		{user: "ubuntu", target: "~/projects/sub", expected: "/home/ubuntu/projects/sub"},
+		{user: "ubuntu", target: "/var/log", expected: "/var/log"},
+		{user: "ubuntu", target: "/var/log/../etc", expected: "/var/etc"},
+		{user: "ubuntu", target: "/var/log/../../etc", expected: "/etc"},
+		{user: "ubuntu", target: "myapp/logs", expected: "/home/ubuntu/myapp/logs"},
+	}
+
+	for _, tc := range tests {
+		got := resolveRemotePath(nil, tc.user, tc.target)
+		if got != tc.expected {
+			t.Errorf("resolveRemotePath(nil, %q, %q) = %q, expected %q", tc.user, tc.target, got, tc.expected)
+		}
 	}
 }
 

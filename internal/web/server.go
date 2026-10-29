@@ -1502,6 +1502,46 @@ func isProtectedPath(p string, sftpClient *sftp.Client) bool {
 	return false
 }
 
+// resolveRemotePath resolves ~, ~/... and relative paths against the remote user's home directory.
+func resolveRemotePath(sftpClient *sftp.Client, user, targetPath string) string {
+	targetPath = strings.TrimSpace(targetPath)
+	if targetPath == "" {
+		targetPath = "."
+	}
+
+	// If it is already an absolute path not starting with ~, clean and return.
+	if path.IsAbs(targetPath) && !strings.HasPrefix(targetPath, "~") {
+		return path.Clean(targetPath)
+	}
+
+	var homeDir string
+	if sftpClient != nil {
+		if real, err := sftpClient.RealPath("."); err == nil && real != "" && real != "." {
+			homeDir = real
+		}
+	}
+	if homeDir == "" {
+		if user == "root" {
+			homeDir = "/root"
+		} else if user != "" {
+			homeDir = "/home/" + user
+		} else {
+			homeDir = "/"
+		}
+	}
+
+	if targetPath == "~" || targetPath == "~/" || targetPath == "." {
+		return path.Clean(homeDir)
+	}
+	if strings.HasPrefix(targetPath, "~/") {
+		return path.Clean(path.Join(homeDir, strings.TrimPrefix(targetPath, "~/")))
+	}
+	if strings.HasPrefix(targetPath, "~") {
+		return path.Clean(path.Join("/home", strings.TrimPrefix(targetPath, "~")))
+	}
+	return path.Clean(path.Join(homeDir, targetPath))
+}
+
 func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.ResponseWriter, r *http.Request) {
 	if len(subparts) == 0 {
 		http.Error(w, "missing file action", http.StatusBadRequest)
@@ -1583,9 +1623,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 	switch action {
 	case "list":
 		dirPath := r.URL.Query().Get("path")
-		if dirPath == "" {
-			dirPath = "/"
-		}
+		dirPath = resolveRemotePath(sftpClient, host.User, dirPath)
 		entries, err := sftpClient.ReadDir(dirPath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -1627,12 +1665,13 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			"files":        list,
 		})
 	case "read":
-		path := r.URL.Query().Get("path")
-		if path == "" {
+		pathParam := r.URL.Query().Get("path")
+		if pathParam == "" {
 			http.Error(w, "path required", http.StatusBadRequest)
 			return
 		}
-		f, err := sftpClient.Open(path)
+		pathParam = resolveRemotePath(sftpClient, host.User, pathParam)
+		f, err := sftpClient.Open(pathParam)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -1643,7 +1682,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		buf := make([]byte, 2*1024*1024)
 		n, _ := f.Read(buf)
 		writeJSON(w, http.StatusOK, map[string]string{
-			"path":    path,
+			"path":    pathParam,
 			"content": string(buf[:n]),
 		})
 
@@ -1660,6 +1699,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
+		req.Path = resolveRemotePath(sftpClient, host.User, req.Path)
 		if isProtectedPath(req.Path, sftpClient) {
 			http.Error(w, "protected path: cannot modify system location", http.StatusForbidden)
 			return
@@ -1684,9 +1724,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			return
 		}
 		targetDir := r.URL.Query().Get("dir")
-		if targetDir == "" {
-			targetDir = "/"
-		}
+		targetDir = resolveRemotePath(sftpClient, host.User, targetDir)
 		overwrite := r.URL.Query().Get("overwrite") == "true"
 		file, header, err := r.FormFile("file")
 		if err != nil {
@@ -1728,6 +1766,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "path required", http.StatusBadRequest)
 			return
 		}
+		targetPath = resolveRemotePath(sftpClient, host.User, targetPath)
 		out, _, _, _ := runner.Exec(fmt.Sprintf(`du -sb %s 2>/dev/null | cut -f1`, shellQuote(targetPath)))
 		size, _ := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
 		outDf, _, _, _ := runner.Exec(fmt.Sprintf(`df -PB1 %s 2>/dev/null | tail -n 1 | awk '{print $4}'`, shellQuote(path.Dir(targetPath))))
@@ -1751,6 +1790,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			return
 		}
 		req.Path = strings.TrimSpace(req.Path)
+		req.Path = resolveRemotePath(sftpClient, host.User, req.Path)
 		req.NewName = strings.TrimSpace(req.NewName)
 		if req.Path == "" || req.NewName == "" {
 			http.Error(w, "path and new_name required", http.StatusBadRequest)
@@ -1805,6 +1845,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "path required", http.StatusBadRequest)
 			return
 		}
+		targetPath = resolveRemotePath(sftpClient, host.User, targetPath)
 		st, err := sftpClient.Stat(targetPath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -1866,6 +1907,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
+		req.Path = resolveRemotePath(sftpClient, host.User, req.Path)
 		if isProtectedPath(req.Path, sftpClient) {
 			http.Error(w, "protected path: cannot delete system location", http.StatusForbidden)
 			return
@@ -1886,6 +1928,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
+		req.Path = resolveRemotePath(sftpClient, host.User, req.Path)
 		if isProtectedPath(req.Path, sftpClient) {
 			http.Error(w, "protected path: cannot modify system location", http.StatusForbidden)
 			return
@@ -2224,6 +2267,9 @@ chmod +x /tmp/pantau-browser
 for f in ~/.bashrc ~/.zshrc ~/.profile; do
   if [ -f "$f" ] && ! grep -q "pantau-browser" "$f" 2>/dev/null; then
     printf '\n# Pantau Remote Browser Bridge\nexport BROWSER=/tmp/pantau-browser GH_BROWSER=/tmp/pantau-browser\n' >> "$f"
+  fi
+  if [ -f "$f" ] && ! grep -q "pantau_osc7" "$f" 2>/dev/null; then
+    printf '\n# Pantau OSC 7 Path Tracking\npantau_osc7() { printf "\\033]7;file://%%s%%s\\033\\\\" "$HOSTNAME" "$PWD" 2>/dev/null; }\ncase ";$PROMPT_COMMAND;" in *";pantau_osc7;"*) ;; *) PROMPT_COMMAND="pantau_osc7${PROMPT_COMMAND:+;$PROMPT_COMMAND}" ;; esac\n' >> "$f"
   fi
 done`
 	_, _, _, _ = runner.ExecTimeout(cmd, 2*time.Second)

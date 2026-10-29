@@ -8758,19 +8758,43 @@ function setupTerminalClipboardBridge(term, ws, container) {
   }
 }
 
-// ponytail: tracks active working directory in interactive terminal via OSC 7, shell window titles, and cd commands
+// ponytail: tracks active working directory in interactive terminal via OSC 7, shell window titles, terminal prompts, and cd commands
 function extractPathFromTerminalTitle(title) {
   if (!title || typeof title !== 'string') return null;
-  let str = title.trim();
-  str = str.replace(/[\x00\x07]/g, '').trim();
+  let str = title.trim().replace(/[\x00\x07]/g, '').trim();
+  // Strip trailing shell or window manager indicators (e.g. " - bash", " (tmux)")
+  str = str.replace(/\s*-\s*[A-Za-z0-9_.-]+$/, '').replace(/\s*\([^)]*\)$/, '').trim();
   const colonIdx = str.lastIndexOf(':');
   if (colonIdx !== -1) {
     str = str.substring(colonIdx + 1).trim();
   }
-  str = str.replace(/[\$#]\s*$/, '').trim();
+  str = str.replace(/[\$#%]\s*$/, '').trim();
   if (!str) return null;
   if (str.startsWith('/') || str.startsWith('~')) {
     return str;
+  }
+  return null;
+}
+
+function extractPathFromTerminalBuffer(term) {
+  if (!term || !term.buffer || !term.buffer.active) return null;
+  const buf = term.buffer.active;
+  const startY = Math.min(buf.baseY + buf.cursorY, buf.length - 1);
+  for (let y = startY; y >= Math.max(0, startY - 8); y--) {
+    const line = buf.getLine(y);
+    if (!line) continue;
+    const text = line.translateToString(true).trim();
+    if (!text) continue;
+    // Standard shell prompts:
+    // 1. user@host:path$ or user@host: path#
+    const m1 = text.match(/[:\s]([~/][^\s\$#%>]*)\s*[\$#%>]\s*$/);
+    if (m1 && m1[1]) return m1[1].trim();
+    // 2. [user@host path]$
+    const m2 = text.match(/\[[^@]+@[^\]\s]+\s+([~/][^\]\s]+)\]\s*[\$#%>]/);
+    if (m2 && m2[1]) return m2[1].trim();
+    // 3. user:~/dir$
+    const m3 = text.match(/[:]([~/][^\s\$#%>]*)\s*[\$#%>]/);
+    if (m3 && m3[1]) return m3[1].trim();
   }
   return null;
 }
@@ -8789,7 +8813,19 @@ function getTerminalActivePath(tabId) {
   if (!tab) return '/';
   const isRight = (tab.isSplit && tab.focusedPane === 'right');
   const targetHostId = isRight ? (tab.hostIDRight || tab.hostID) : tab.hostID;
-  const currentPath = isRight ? (tab.currentDirRight || tab.initialDir) : (tab.currentDirLeft || tab.initialDir);
+  let currentPath = isRight ? tab.currentDirRight : tab.currentDirLeft;
+
+  if (!currentPath || currentPath === '/') {
+    const term = isRight ? tab.termRight : tab.termLeft;
+    if (term) {
+      const bufPath = extractPathFromTerminalBuffer(term);
+      if (bufPath) {
+        setTabActivePath(tab, isRight ? 'right' : 'left', bufPath);
+        currentPath = bufPath;
+      }
+    }
+  }
+
   if (currentPath && currentPath !== '/') {
     return currentPath;
   }
@@ -8823,6 +8859,51 @@ function setupTerminalPathTracking(tab, pane, term) {
       if (p) {
         setTabActivePath(tab, pane, p);
       }
+    });
+  }
+
+  // 3. Command input line tracking for explicit cd invocations
+  let inputBuffer = '';
+  term.onData(data => {
+    for (let i = 0; i < data.length; i++) {
+      const ch = data[i];
+      if (ch === '\r' || ch === '\n') {
+        const cmd = inputBuffer.trim();
+        inputBuffer = '';
+        const cdMatch = cmd.match(/^cd(?:\s+(.*))?$/);
+        if (cdMatch) {
+          let target = (cdMatch[1] || '').trim();
+          target = target.replace(/^['"]|['"]$/g, '').trim();
+          if (!target || target === '~') {
+            setTabActivePath(tab, pane, '~');
+          } else if (target.startsWith('/') || target.startsWith('~')) {
+            setTabActivePath(tab, pane, target);
+          } else if (target === '..') {
+            const cur = (pane === 'right' ? tab.currentDirRight : tab.currentDirLeft) || '';
+            if (cur && cur !== '/' && cur !== '~') {
+              const parent = cur.substring(0, cur.lastIndexOf('/')) || '/';
+              setTabActivePath(tab, pane, parent);
+            }
+          } else if (target !== '.' && !target.includes(' ')) {
+            const cur = (pane === 'right' ? tab.currentDirRight : tab.currentDirLeft);
+            if (cur && cur !== '/' && cur !== '~') {
+              setTabActivePath(tab, pane, cur.replace(/\/$/, '') + '/' + target);
+            }
+          }
+        }
+      } else if (ch === '\x7f' || ch === '\b') {
+        inputBuffer = inputBuffer.slice(0, -1);
+      } else if (ch >= ' ') {
+        inputBuffer += ch;
+      }
+    }
+  });
+
+  // 4. Output prompt tracking on terminal line feeds
+  if (term.onLineFeed) {
+    term.onLineFeed(() => {
+      const p = extractPathFromTerminalBuffer(term);
+      if (p) setTabActivePath(tab, pane, p);
     });
   }
 }
@@ -9229,11 +9310,20 @@ async function openFileManagerForTab(tabId) {
 
   let targetPath = getTerminalActivePath(tabId);
 
+  setHostFilesPath(targetHostId, targetPath);
+  setHostActiveTab(targetHostId, 'files');
+
+  const existingSession = workspaceSessions.find(s => s.type === 'host' && s.hostId === targetHostId);
+  if (existingSession) {
+    existingSession.path = targetPath;
+    existingSession.tab = 'files';
+  }
+
   minimizeTerminalDock();
   await openHostDetail(targetHostId);
-  setHostFilesPath(targetHostId, targetPath);
   if (currentHost) currentHost._lastPath = targetPath;
   switchTab('files');
+  loadFiles(targetPath);
 }
 
 // ponytail: toggle terminal pinned paths dropdown for active tab host
@@ -14604,6 +14694,15 @@ async function openNativeTerminalForHost(hostId, targetPath = null) {
   if (!hid || isNaN(hid)) {
     showToast('ID Host tidak valid', 'warning');
     return;
+  }
+
+  // If no targetPath explicitly passed, inspect if an active terminal session exists for this host
+  if (!targetPath) {
+    const activeTab = (activeTerminalTabId && terminalTabs.find(t => t.id === activeTerminalTabId && (t.hostID === hid || t.hostIDRight === hid)))
+      || terminalTabs.find(t => t.hostID === hid || t.hostIDRight === hid);
+    if (activeTab) {
+      targetPath = getTerminalActivePath(activeTab.id);
+    }
   }
 
   const payload = { host_id: hid };

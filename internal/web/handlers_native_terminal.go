@@ -66,6 +66,25 @@ func cleanInitialDir(dir string) string {
 	return dir
 }
 
+// buildRemoteCdClause constructs the SSH remote command clause to navigate to initialDir.
+// It supports absolute paths, ~, and ~/subpath with safe single quoting without breaking tilde expansion.
+func buildRemoteCdClause(initialDir string) string {
+	cleaned := cleanInitialDir(initialDir)
+	if cleaned == "" {
+		return ""
+	}
+	if cleaned == "~" {
+		return `cd ~ 2>/dev/null; exec bash -l || exec sh -l`
+	}
+	if strings.HasPrefix(cleaned, "~/") {
+		sub := strings.TrimPrefix(cleaned, "~/")
+		escapedSub := strings.ReplaceAll(sub, "'", `'\''`)
+		return fmt.Sprintf(`cd ~/'%s' 2>/dev/null; exec bash -l || exec sh -l`, escapedSub)
+	}
+	escapedDir := strings.ReplaceAll(cleaned, "'", `'\''`)
+	return fmt.Sprintf(`cd '%s' 2>/dev/null; exec bash -l || exec sh -l`, escapedDir)
+}
+
 // GenerateEphemeralKey generates an RSA 2048-bit keypair in RAM for universal compatibility
 // with both modern Linux (OpenSSH 8.x/9.x) and legacy Linux hosts (OpenSSH 5.x/6.x per ADR-0005).
 func GenerateEphemeralKey(hostID int64, ttl time.Duration) (*EphemeralKey, error) {
@@ -349,10 +368,9 @@ func detectDefaultTerminal(goos string) (termType, termPath string) {
 // buildLaunchCommand constructs the exec.Cmd for native terminal execution.
 func buildLaunchCommand(goos, termPath, customTemplate, keyPath, user, host string, port int, initialDir string) (*exec.Cmd, error) {
 	sshBase := fmt.Sprintf(`ssh -i "%s" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s`, keyPath, port, user, host)
-	cleanedDir := cleanInitialDir(initialDir)
-	if cleanedDir != "" && cleanedDir != "~" {
-		escapedDir := strings.ReplaceAll(cleanedDir, "'", `'\''`)
-		sshBase = fmt.Sprintf(`%s -t "cd '%s' 2>/dev/null; exec bash -l || exec sh -l"`, sshBase, escapedDir)
+	cdClause := buildRemoteCdClause(initialDir)
+	if cdClause != "" {
+		sshBase = fmt.Sprintf(`%s -t "%s"`, sshBase, cdClause)
 	}
 
 	if customTemplate != "" {
@@ -523,10 +541,10 @@ func generateWindowsCmdScript(ticket *NativeTicket) string {
 	keyB64 := base64.StdEncoding.EncodeToString(ticket.EphemeralKey.PrivateKey)
 
 	var remoteCmd string
-	cleanedDir := cleanInitialDir(ticket.InitialDir)
-	if cleanedDir != "" && cleanedDir != "~" {
-		escapedDir := strings.ReplaceAll(cleanedDir, "'", `'\''`)
-		remoteCmd = fmt.Sprintf(` -t \"cd '%s' 2>/dev/null; exec bash -l || exec sh -l\"`, escapedDir)
+	cdClause := buildRemoteCdClause(ticket.InitialDir)
+	if cdClause != "" {
+		escaped := strings.ReplaceAll(cdClause, `"`, `\"`)
+		remoteCmd = fmt.Sprintf(` -t \"%s\"`, escaped)
 	}
 
 	var sb strings.Builder
@@ -549,10 +567,9 @@ func generateUnixScript(ticket *NativeTicket, isMac bool) string {
 		port = 22
 	}
 	var remoteCmd string
-	cleanedDir := cleanInitialDir(ticket.InitialDir)
-	if cleanedDir != "" && cleanedDir != "~" {
-		escapedDir := strings.ReplaceAll(cleanedDir, "'", `'\''`)
-		remoteCmd = fmt.Sprintf(` -t "cd '%s' 2>/dev/null; exec bash -l || exec sh -l"`, escapedDir)
+	cdClause := buildRemoteCdClause(ticket.InitialDir)
+	if cdClause != "" {
+		remoteCmd = fmt.Sprintf(` -t "%s"`, cdClause)
 	}
 
 	var sb strings.Builder
@@ -849,10 +866,9 @@ func (s *Server) handleNativeTerminalRun(w http.ResponseWriter, r *http.Request)
 	var content string
 	if strings.Contains(ua, "powershell") || strings.Contains(ua, "windows") {
 		var remoteCmd string
-		cleanedDir := cleanInitialDir(ticket.InitialDir)
-		if cleanedDir != "" && cleanedDir != "~" {
-			escapedDir := strings.ReplaceAll(cleanedDir, "'", `'\''`)
-			remoteCmd = fmt.Sprintf(` -t "cd '%s' 2>/dev/null; exec bash -l || exec sh -l"`, escapedDir)
+		cdClause := buildRemoteCdClause(ticket.InitialDir)
+		if cdClause != "" {
+			remoteCmd = fmt.Sprintf(` -t "%s"`, cdClause)
 		}
 
 		// Output PowerShell friendly script
