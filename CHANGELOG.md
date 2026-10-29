@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.28.0] - 2026-10-29
 ### Added
 - Native Terminal Bridge: feature to launch OS native terminal emulators (Windows Terminal, GNOME Terminal, iTerm2, Alacritty, etc.) connected to monitored Linux hosts without re-entering passwords.
   - Ephemeral RSA 2048-bit SSH Keypair Injection: in-memory key generation without touching Pantau server disk, universal compatibility with legacy OpenSSH 5.3+ (CentOS 6) and modern servers, atomic append to `~/.ssh/authorized_keys` with unique comment metadata, and two-tier auto-cleanup (proactive Go timer and reactive sweep via POSIX `awk`).
