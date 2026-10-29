@@ -569,14 +569,73 @@ func TestCopyNativeCmdInsecureContextFallback(t *testing.T) {
 }
 
 func TestNativeTerminalActivePath(t *testing.T) {
-	// 1. buildLaunchCommand with active path
+	// 1. buildLaunchCommand with active path on Linux
 	cmd, err := buildLaunchCommand("linux", "/usr/bin/gnome-terminal", "", "/tmp/key", "root", "192.168.1.10", 22, "/var/log/nginx")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	cmdStr := strings.Join(cmd.Args, " ")
-	if !strings.Contains(cmdStr, `-t "cd '/var/log/nginx' 2>/dev/null; exec bash -l || exec sh -l"`) {
-		t.Errorf("expected cd to /var/log/nginx with bash/sh fallback in cmd, got: %s", cmdStr)
+	if !strings.Contains(cmdStr, `-t "cd '/var/log/nginx' 2>/dev/null || true && exec bash -l || exec sh -l"`) {
+		t.Errorf("expected cd to /var/log/nginx with semicolon-free bash/sh fallback in cmd, got: %s", cmdStr)
+	}
+
+	// 1b. buildLaunchCommand with active path on Windows Terminal (wt.exe)
+	cmdWinWT, err := buildLaunchCommand("windows", `C:\Users\User\AppData\Local\Microsoft\WindowsApps\wt.exe`, "", `C:\Temp\key`, "root", "192.168.1.10", 22, "/var/log/nginx")
+	if err != nil {
+		t.Fatalf("unexpected error on Windows WT: %v", err)
+	}
+	winWTCmdStr := strings.Join(cmdWinWT.Args, " ")
+	if !strings.Contains(winWTCmdStr, "new-tab cmd.exe /k") {
+		t.Errorf("expected wt.exe new-tab cmd.exe /k, got: %s", winWTCmdStr)
+	}
+	if !strings.Contains(winWTCmdStr, `-t "cd '/var/log/nginx' 2>/dev/null || true && exec bash -l || exec sh -l"`) {
+		t.Errorf("expected semicolon-free remote command for Windows Terminal, got: %s", winWTCmdStr)
+	}
+	// Verify no unescaped semicolon exists in any argument passed to wt.exe (would cause WT sub-command split error 2147942402)
+	for _, arg := range cmdWinWT.Args {
+		// If an arg contains ';', it must be escaped as '\;'
+		cleanedArg := strings.ReplaceAll(arg, `\;`, "")
+		if strings.Contains(cleanedArg, ";") {
+			t.Errorf("found unescaped semicolon in wt argument (causes WT 0x80070002 split error): %s", arg)
+		}
+	}
+
+	// 1c. Test Windows Terminal semicolon escaping when a semicolon is present
+	cmdWinWTSemi, err := buildLaunchCommand("windows", `wt.exe`, "", `key`, "user", "10.0.0.1", 22, "/path;with;semicolons")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, arg := range cmdWinWTSemi.Args {
+		cleanedArg := strings.ReplaceAll(arg, `\;`, "")
+		if strings.Contains(cleanedArg, ";") {
+			t.Errorf("unescaped semicolon found in wt.exe argument: %s", arg)
+		}
+	}
+
+	// 1d. buildLaunchCommand with active path on Windows PowerShell & CMD fallback
+	cmdWinPS, err := buildLaunchCommand("windows", "powershell.exe", "", `key`, "root", "192.168.1.10", 22, "/var/log/nginx")
+	if err != nil {
+		t.Fatalf("unexpected error on Windows PowerShell: %v", err)
+	}
+	if !strings.Contains(strings.Join(cmdWinPS.Args, " "), "-NoExit -Command") {
+		t.Errorf("expected powershell -NoExit -Command, got: %v", cmdWinPS.Args)
+	}
+
+	cmdWinCMD, err := buildLaunchCommand("windows", "cmd.exe", "", `key`, "root", "192.168.1.10", 22, "/var/log/nginx")
+	if err != nil {
+		t.Fatalf("unexpected error on Windows CMD: %v", err)
+	}
+	if !strings.Contains(strings.Join(cmdWinCMD.Args, " "), "cmd.exe /c start") {
+		t.Errorf("expected cmd.exe /c start, got: %v", cmdWinCMD.Args)
+	}
+
+	// 1e. buildLaunchCommand with active path on Darwin (macOS)
+	cmdDarwin, err := buildLaunchCommand("darwin", "/Applications/Utilities/Terminal.app", "", "/tmp/key", "root", "192.168.1.10", 22, "/var/log/nginx")
+	if err != nil {
+		t.Fatalf("unexpected error on macOS Darwin: %v", err)
+	}
+	if !strings.Contains(strings.Join(cmdDarwin.Args, " "), "osascript") {
+		t.Errorf("expected osascript on Darwin, got: %v", cmdDarwin.Args)
 	}
 
 	// 2. buildLaunchCommand with path escaping (single quotes)
@@ -605,13 +664,13 @@ func TestNativeTerminalActivePath(t *testing.T) {
 		EphemeralKey: key,
 	}
 	unixScript := generateUnixScript(ticket, false)
-	if !strings.Contains(unixScript, `-t "cd '/var/www/html' 2>/dev/null; exec bash -l || exec sh -l"`) {
+	if !strings.Contains(unixScript, `-t "cd '/var/www/html' 2>/dev/null || true && exec bash -l || exec sh -l"`) {
 		t.Errorf("expected unix script to contain directory navigation: %s", unixScript)
 	}
 
 	// 4. generateWindowsCmdScript with InitialDir
 	winScript := generateWindowsCmdScript(ticket)
-	if !strings.Contains(winScript, `-t \"cd '/var/www/html' 2>/dev/null; exec bash -l || exec sh -l\"`) {
+	if !strings.Contains(winScript, `-t \"cd '/var/www/html' 2>/dev/null || true && exec bash -l || exec sh -l\"`) {
 		t.Errorf("expected windows cmd script to contain escaped directory navigation: %s", winScript)
 	}
 
@@ -627,7 +686,7 @@ func TestNativeTerminalActivePath(t *testing.T) {
 		EphemeralKey: key,
 	}
 	unixTilde := generateUnixScript(ticketTilde, false)
-	if !strings.Contains(unixTilde, `-t "cd ~/'projects/greenling' 2>/dev/null; exec bash -l || exec sh -l"`) {
+	if !strings.Contains(unixTilde, `-t "cd ~/'projects/greenling' 2>/dev/null || true && exec bash -l || exec sh -l"`) {
 		t.Errorf("expected unix script to preserve tilde expansion for ~/projects/greenling, got: %s", unixTilde)
 	}
 
