@@ -1383,7 +1383,6 @@ body.has-workspace-shelf .container {
       </div>
       <div class="header-divider"></div>
       <div class="header-cluster">
-        <span id="activeAlertBadge" style="display: none; cursor: pointer;" class="badge badge-down" onclick="toggleAlertOverlay(event)" title="Click to view alerts">0 ALERTS</span>
         <button class="btn btn-icon" id="btnInspectAll" onclick="inspectAllHosts()" title="Inspect All Hosts" data-i18n-title="btn_inspect_all_title" aria-label="Inspect All Hosts">
           <svg id="inspectAllIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
         </button>
@@ -2924,7 +2923,6 @@ const I18N = {
     "edit_pin": "Edit Pin / Note",
     "pin_this_item": "Pin to Quick Access",
     "confirm_unpin_item": "Are you sure you want to unpin \"{name}\"?",
-    "alerts_badge": "ALERTS",
     "add_host": "+ Add Host",
     "settings": "⚙️ Settings",
     "settings_title": "Settings",
@@ -3646,7 +3644,6 @@ const I18N = {
     "edit_pin": "Edit Pin / Catatan",
     "pin_this_item": "Sematkan ke Akses Cepat",
     "confirm_unpin_item": "Apakah Anda yakin ingin melepas pin untuk \"{name}\"?",
-    "alerts_badge": "ALERTS",
     "add_host": "+ Tambah Host",
     "settings": "⚙️ Pengaturan",
     "settings_title": "Pengaturan",
@@ -5821,11 +5818,8 @@ async function loadAlerts() {
   const res = await fetch('/api/alerts');
   if (!res.ok) return;
   const alerts = await res.json();
-  const badge = document.getElementById('activeAlertBadge');
   const banner = document.getElementById('alertBannerArea');
   if (alerts && alerts.length > 0) {
-    badge.innerText = alerts.length + ' ALERTS';
-    badge.style.display = 'inline-block';
 
     const hostSet = new Set();
     alerts.forEach(a => { if (a.host_name) hostSet.add(a.host_name); });
@@ -5884,7 +5878,6 @@ async function loadAlerts() {
       </div>
     `;
   } else {
-    badge.style.display = 'none';
     banner.innerHTML = '';
     alertOverlayOpen = false;
   }
@@ -5909,9 +5902,8 @@ function openHostDetailFromAlert(hostID) {
 document.addEventListener('click', function(e) {
   const panel = document.getElementById('alertOverlayPanel');
   const bar = document.querySelector('.alert-summary-bar');
-  const badge = document.getElementById('activeAlertBadge');
   if (!panel || !alertOverlayOpen) return;
-  if (!panel.contains(e.target) && (!bar || !bar.contains(e.target)) && (!badge || !badge.contains(e.target))) {
+  if (!panel.contains(e.target) && (!bar || !bar.contains(e.target))) {
     closeAlertOverlay();
   }
 });
