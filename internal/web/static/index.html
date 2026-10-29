@@ -466,6 +466,103 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 .host-group-header-row td { background: rgba(15, 23, 42, 0.45); padding: 8px 14px; font-weight: 600; }
 .host-note-badge { background: rgba(56, 189, 248, 0.08); border: 1px dashed rgba(56, 189, 248, 0.3); color: #93c5fd; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem; line-height: 1.35; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; cursor: pointer; transition: all 0.15s; }
 .host-note-badge:hover { border-color: #60a5fa; background: rgba(56, 189, 248, 0.15); color: #bfdbfe; }
+.note-preview-content {
+  font-size: 0.92rem;
+  color: #cbd5e1;
+  line-height: 1.65;
+  background: #090d16;
+  padding: 16px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  min-height: 240px;
+  max-height: 65vh;
+  overflow-y: auto;
+  word-break: break-word;
+}
+.note-preview-content h1, .note-preview-content h2, .note-preview-content h3, .note-preview-content h4 {
+  color: #f1f5f9;
+  margin-top: 1.1rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.note-preview-content h1:first-child, .note-preview-content h2:first-child, .note-preview-content h3:first-child {
+  margin-top: 0;
+}
+.note-preview-content h1 { font-size: 1.35rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px; }
+.note-preview-content h2 { font-size: 1.15rem; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 3px; }
+.note-preview-content h3 { font-size: 1.02rem; }
+.note-preview-content p { margin: 0 0 0.8rem 0; }
+.note-preview-content p:last-child { margin-bottom: 0; }
+.note-preview-content ul, .note-preview-content ol {
+  margin: 0 0 0.8rem 1.25rem;
+  padding: 0;
+}
+.note-preview-content li { margin-bottom: 0.25rem; }
+.note-preview-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: rgba(255, 255, 255, 0.08);
+  color: #38bdf8;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+.note-preview-content pre {
+  background: #030712;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.note-preview-content pre code {
+  background: transparent;
+  color: #e2e8f0;
+  padding: 0;
+  font-size: 0.85rem;
+  display: block;
+}
+.note-preview-content blockquote {
+  border-left: 3px solid #38bdf8;
+  margin: 0.75rem 0;
+  padding: 4px 12px;
+  color: #94a3b8;
+  background: rgba(56, 189, 248, 0.05);
+  border-radius: 0 4px 4px 0;
+}
+.note-preview-content a {
+  color: #38bdf8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.note-preview-content a:hover {
+  color: #7dd3fc;
+}
+.note-preview-content hr {
+  border: none;
+  border-top: 1px solid var(--card-border);
+  margin: 1.2rem 0;
+}
+.note-editor-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: #090d16;
+  color: #f1f5f9;
+  min-height: 240px;
+  max-height: 65vh;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.note-editor-textarea:focus {
+  border-color: var(--primary, #38bdf8);
+}
 .drag-handle { cursor: grab; color: var(--text-muted); user-select: none; font-size: 1rem; padding: 2px 4px; border-radius: 4px; }
 .drag-handle:hover { color: #38bdf8; background: rgba(56, 189, 248, 0.1); }
 .card.drag-target { outline: 2px dashed #38bdf8; opacity: 0.85; }
@@ -1286,7 +1383,6 @@ body.has-workspace-shelf .container {
       </div>
       <div class="header-divider"></div>
       <div class="header-cluster">
-        <span id="activeAlertBadge" style="display: none; cursor: pointer;" class="badge badge-down" onclick="toggleAlertOverlay(event)" title="Click to view alerts">0 ALERTS</span>
         <button class="btn btn-icon" id="btnInspectAll" onclick="inspectAllHosts()" title="Inspect All Hosts" data-i18n-title="btn_inspect_all_title" aria-label="Inspect All Hosts">
           <svg id="inspectAllIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
         </button>
@@ -1790,7 +1886,7 @@ body.has-workspace-shelf .container {
 
 <!-- Global Notes Modal -->
 <div id="globalNotesModal" class="modal">
-  <div class="modal-content modal-dialog-md">
+  <div class="modal-content modal-dialog-lg">
     <div class="modal-header">
       <div style="display: flex; align-items: center; gap: 8px;">
         <span>📝</span>
@@ -1800,14 +1896,18 @@ body.has-workspace-shelf .container {
     </div>
     <div class="modal-body">
       <div id="globalNotesModalView">
-        <div id="globalNotesModalText" style="font-size: 0.9rem; color: #cbd5e1; white-space: pre-wrap; line-height: 1.6; background: #090d16; padding: 14px 16px; border-radius: 8px; border: 1px solid var(--card-border); min-height: 120px; max-height: 50vh; overflow-y: auto;"></div>
+        <div id="globalNotesModalText" class="note-preview-content"></div>
       </div>
       <div id="globalNotesModalEdit" style="display: none; flex-direction: column; gap: 8px;">
-        <textarea id="globalNotesModalInput" rows="10" placeholder="Enter system-wide operational notes, shift handovers, or emergency procedures..." data-i18n-placeholder="global_note_ph" style="font-family: inherit; font-size: 0.9rem; line-height: 1.5; padding: 12px;"></textarea>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 0.75rem; color: var(--text-muted);" data-i18n="note_markdown_hint">Supports Markdown (# heading, **bold**, *italic*, `code`, ```block```, lists, links)</span>
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Ctrl+Enter to save</span>
+        </div>
+        <textarea id="globalNotesModalInput" rows="12" class="note-editor-textarea" placeholder="Enter system-wide operational notes, shift handovers, or emergency procedures..." data-i18n-placeholder="global_note_ph" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();saveGlobalNotesModal();}"></textarea>
       </div>
       <div id="globalNotesModalViewActions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
         <button class="btn" onclick="closeModal('globalNotesModal')" data-i18n="close">Close</button>
-        <button class="btn btn-primary" onclick="startEditGlobalNotesModal()" data-i18n="edit">✏️ Edit</button>
+        <button class="btn btn-primary" id="btnEditGlobalNotes" onclick="startEditGlobalNotesModal()" data-i18n="edit">✏️ Edit</button>
       </div>
       <div id="globalNotesModalEditActions" style="display: none; justify-content: flex-end; gap: 10px; margin-top: 14px;">
         <button class="btn" onclick="cancelEditGlobalNotesModal()" data-i18n="cancel">Cancel</button>
@@ -1873,21 +1973,35 @@ body.has-workspace-shelf .container {
   </div>
 </div>
 
-<!-- Edit Host Note Modal -->
+<!-- Host Note Modal -->
 <div id="hostNoteModal" class="modal">
-  <div class="modal-content modal-dialog">
+  <div class="modal-content modal-dialog-lg">
     <div class="modal-header">
-      <h3 data-i18n="edit_host_note_title">Edit Host Note</h3>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span>📝</span>
+        <h3 data-i18n="host_note">Host Note</h3>
+        <span id="editNoteHostBadge" class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 0.8rem; font-weight: 600;"></span>
+      </div>
       <button class="btn btn-sm" onclick="closeModal('hostNoteModal')">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="editNoteHostId" />
-      <div class="form-group">
-        <label id="editNoteHostNameLabel" style="font-weight: 600; color: #60a5fa;">Host</label>
-        <textarea id="editNoteContent" rows="4" placeholder="Enter notes for this host..." data-i18n-placeholder="host_note_ph"></textarea>
+      <div id="hostNoteModalView">
+        <div id="hostNoteModalText" class="note-preview-content"></div>
       </div>
-      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
-        <button class="btn" onclick="closeModal('hostNoteModal')" data-i18n="cancel">Cancel</button>
+      <div id="hostNoteModalEdit" style="display: none; flex-direction: column; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 0.75rem; color: var(--text-muted);" data-i18n="note_markdown_hint">Supports Markdown (# heading, **bold**, *italic*, `code`, ```block```, lists, links)</span>
+          <span style="font-size: 0.72rem; color: var(--text-muted);">Ctrl+Enter to save</span>
+        </div>
+        <textarea id="editNoteContent" rows="12" class="note-editor-textarea" placeholder="Enter notes for this host..." data-i18n-placeholder="host_note_ph" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();saveHostNote();}"></textarea>
+      </div>
+      <div id="hostNoteModalViewActions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+        <button class="btn" onclick="closeModal('hostNoteModal')" data-i18n="close">Close</button>
+        <button class="btn btn-primary" id="btnEditHostNote" onclick="startEditHostNote()" data-i18n="edit">✏️ Edit</button>
+      </div>
+      <div id="hostNoteModalEditActions" style="display: none; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+        <button class="btn" onclick="cancelEditHostNote()" data-i18n="cancel">Cancel</button>
         <button class="btn btn-primary" onclick="saveHostNote()" data-i18n="save">Save</button>
       </div>
     </div>
@@ -2809,7 +2923,6 @@ const I18N = {
     "edit_pin": "Edit Pin / Note",
     "pin_this_item": "Pin to Quick Access",
     "confirm_unpin_item": "Are you sure you want to unpin \"{name}\"?",
-    "alerts_badge": "ALERTS",
     "add_host": "+ Add Host",
     "settings": "⚙️ Settings",
     "settings_title": "Settings",
@@ -3299,7 +3412,12 @@ const I18N = {
     "sort_status": "Status",
     "host_note": "Host Note",
     "host_note_ph": "e.g. Primary DB server, maintenance every Sunday",
+    "host_note_empty": "No notes recorded for this host.",
     "edit_host_note_title": "Edit Host Note",
+    "note_markdown_hint": "Supports Markdown: # header, **bold**, *italic*, `code`, ```block```, lists, links",
+    "add_note": "Add Note",
+    "host_note_saved": "Host note saved successfully",
+    "failed_save_host_note": "Failed to save host note",
     "no_note_set": "+ Add note...",
     "drag_handle_title": "Drag to reorder host (Manual Order mode)",
     "col_status": "Status",
@@ -3526,7 +3644,6 @@ const I18N = {
     "edit_pin": "Edit Pin / Catatan",
     "pin_this_item": "Sematkan ke Akses Cepat",
     "confirm_unpin_item": "Apakah Anda yakin ingin melepas pin untuk \"{name}\"?",
-    "alerts_badge": "ALERTS",
     "add_host": "+ Tambah Host",
     "settings": "⚙️ Pengaturan",
     "settings_title": "Pengaturan",
@@ -3990,7 +4107,12 @@ const I18N = {
     "sort_status": "Status",
     "host_note": "Catatan Host",
     "host_note_ph": "misal: Server DB utama, jadwal maintenance hari Minggu",
+    "host_note_empty": "Belum ada catatan untuk host ini.",
     "edit_host_note_title": "Ubah Catatan Host",
+    "note_markdown_hint": "Mendukung Markdown: # heading, **tebal**, *miring*, `kode`, ```blok```, daftar, tautan",
+    "add_note": "Tambah Catatan",
+    "host_note_saved": "Catatan host berhasil disimpan",
+    "failed_save_host_note": "Gagal menyimpan catatan host",
     "no_note_set": "+ Tambah catatan...",
     "drag_handle_title": "Tarik untuk mengatur posisi host (Mode Urutan Manual)",
     "col_status": "Status",
@@ -4469,6 +4591,119 @@ function setUIPrefs(updates) {
   } catch(e) {}
 }
 
+// ponytail: minimalist zero-dependency markdown micro-parser
+// Handles headings (# - ####), bold (**), italic (*), strike (~~), inline code (`),
+// fenced code blocks (```), blockquotes (>), lists (- / * / 1.), and http/https links safely without XSS.
+function renderMarkdown(raw) {
+  if (!raw || !raw.trim()) return '';
+  let src = String(raw).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // 1. Extract fenced code blocks
+  const codeBlocks = [];
+  src = src.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, function(match, lang, code) {
+    const id = `__CB_${codeBlocks.length}__`;
+    codeBlocks.push(`<pre><code class="${lang ? 'lang-' + escapeHtml(lang) : ''}">${escapeHtml(code.replace(/\n$/, ''))}</code></pre>`);
+    return id;
+  });
+
+  // 2. Extract inline code
+  const inlineCodes = [];
+  src = src.replace(/`([^`\n]+)`/g, function(match, code) {
+    const id = `__IC_${inlineCodes.length}__`;
+    inlineCodes.push(`<code>${escapeHtml(code)}</code>`);
+    return id;
+  });
+
+  // 3. Escape all remaining HTML entities to prevent any XSS
+  src = escapeHtml(src);
+
+  // 4. Block-level parsing
+  const lines = src.split('\n');
+  const out = [];
+  let inUl = false;
+  let inOl = false;
+
+  function closeLists() {
+    if (inUl) { out.push('</ul>'); inUl = false; }
+    if (inOl) { out.push('</ol>'); inOl = false; }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Horizontal Rule: --- or ***
+    if (/^(\*{3,}|-{3,}|_{3,})$/.test(trimmed)) {
+      closeLists();
+      out.push('<hr>');
+      continue;
+    }
+
+    // Headings: #, ##, ###, ####
+    const hMatch = line.match(/^(#{1,4})\s+(.+)$/);
+    if (hMatch) {
+      closeLists();
+      const level = hMatch[1].length;
+      out.push(`<h${level}>${hMatch[2]}</h${level}>`);
+      continue;
+    }
+
+    // Blockquote: >
+    const bqMatch = line.match(/^>\s*(.+)$/);
+    if (bqMatch) {
+      closeLists();
+      out.push(`<blockquote>${bqMatch[1]}</blockquote>`);
+      continue;
+    }
+
+    // Bullet List: - item or * item
+    const ulMatch = line.match(/^[-*]\s+(.+)$/);
+    if (ulMatch) {
+      if (inOl) { out.push('</ol>'); inOl = false; }
+      if (!inUl) { out.push('<ul>'); inUl = true; }
+      out.push(`<li>${ulMatch[1]}</li>`);
+      continue;
+    }
+
+    // Numbered List: 1. item
+    const olMatch = line.match(/^\d+\.\s+(.+)$/);
+    if (olMatch) {
+      if (inUl) { out.push('</ul>'); inUl = false; }
+      if (!inOl) { out.push('<ol>'); inOl = true; }
+      out.push(`<li>${olMatch[1]}</li>`);
+      continue;
+    }
+
+    closeLists();
+
+    if (!trimmed) {
+      out.push('<div style="height: 0.5rem;"></div>');
+    } else {
+      out.push(`<p>${line}</p>`);
+    }
+  }
+  closeLists();
+
+  let html = out.join('\n');
+
+  // 5. Inline formatting (bold, strike, italic)
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+  // 6. Markdown links: [text](https://example.com)
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\s'")]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+  // 7. Auto-link plain URLs not already inside an anchor tag
+  html = html.replace(/(^|[^"'>])(https?:\/\/[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=%]+)(?![^<]*>|[^<>]*<\/a>)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
+
+  // 8. Restore code blocks and inline codes
+  html = html.replace(/__CB_(\d+)__/g, (m, idx) => codeBlocks[Number(idx)] || '');
+  html = html.replace(/__IC_(\d+)__/g, (m, idx) => inlineCodes[Number(idx)] || '');
+
+  return html;
+}
+
 let globalNotesData = '';
 
 async function loadGlobalNotes() {
@@ -4492,18 +4727,23 @@ function showGlobalNotesViewMode() {
   const viewActions = document.getElementById('globalNotesModalViewActions');
   const editActions = document.getElementById('globalNotesModalEditActions');
   const textEl = document.getElementById('globalNotesModalText');
+  const editBtn = document.getElementById('btnEditGlobalNotes');
 
   if (viewEl) viewEl.style.display = 'block';
   if (editEl) editEl.style.display = 'none';
   if (viewActions) viewActions.style.display = 'flex';
   if (editActions) editActions.style.display = 'none';
 
+  const notes = (globalNotesData || '').trim();
   if (textEl) {
-    if (!globalNotesData.trim()) {
-      textEl.innerHTML = `<span style="color: var(--text-muted); font-style: italic;">${t('global_note_empty')}</span>`;
+    if (!notes) {
+      textEl.innerHTML = `<div style="text-align: center; padding: 36px 12px; color: var(--text-muted);"><div style="font-size: 2rem; margin-bottom: 8px; opacity: 0.6;">📝</div><div style="font-style: italic; margin-bottom: 12px;">${t('global_note_empty')}</div><button class="btn btn-sm btn-primary" onclick="startEditGlobalNotesModal()">✏️ ${t('add_note', 'Add Note')}</button></div>`;
     } else {
-      textEl.textContent = globalNotesData;
+      textEl.innerHTML = renderMarkdown(notes);
     }
+  }
+  if (editBtn) {
+    editBtn.innerHTML = notes ? t('edit', '✏️ Edit') : `✏️ ${t('add_note', 'Add Note')}`;
   }
 }
 
@@ -4550,17 +4790,80 @@ async function saveGlobalNotesModal() {
   }
 }
 
+let activeHostNoteData = {
+  id: null,
+  name: '',
+  notes: ''
+};
+
 function openEditNoteModal(hostId, currentNote, hostName) {
-  document.getElementById('editNoteHostId').value = hostId;
-  document.getElementById('editNoteHostNameLabel').innerText = hostName ? `${t('col_name')}: ${hostName}` : t('host_note');
-  document.getElementById('editNoteContent').value = currentNote || '';
+  activeHostNoteData = {
+    id: hostId,
+    name: hostName || '',
+    notes: currentNote || ''
+  };
+  const idInput = document.getElementById('editNoteHostId');
+  if (idInput) idInput.value = hostId;
+  const badgeEl = document.getElementById('editNoteHostBadge');
+  if (badgeEl) {
+    badgeEl.innerText = hostName ? `${t('col_name', 'Host')}: ${hostName}` : `#${hostId}`;
+  }
+  showHostNoteViewMode();
   openModal('hostNoteModal');
-  setTimeout(() => document.getElementById('editNoteContent').focus(), 50);
+}
+
+function showHostNoteViewMode() {
+  const viewEl = document.getElementById('hostNoteModalView');
+  const editEl = document.getElementById('hostNoteModalEdit');
+  const viewActions = document.getElementById('hostNoteModalViewActions');
+  const editActions = document.getElementById('hostNoteModalEditActions');
+  const textEl = document.getElementById('hostNoteModalText');
+  const editBtn = document.getElementById('btnEditHostNote');
+
+  if (viewEl) viewEl.style.display = 'block';
+  if (editEl) editEl.style.display = 'none';
+  if (viewActions) viewActions.style.display = 'flex';
+  if (editActions) editActions.style.display = 'none';
+
+  const notes = (activeHostNoteData.notes || '').trim();
+  if (textEl) {
+    if (!notes) {
+      textEl.innerHTML = `<div style="text-align: center; padding: 36px 12px; color: var(--text-muted);"><div style="font-size: 2rem; margin-bottom: 8px; opacity: 0.6;">📝</div><div style="font-style: italic; margin-bottom: 12px;">${t('host_note_empty', 'No notes recorded for this host.')}</div><button class="btn btn-sm btn-primary" onclick="startEditHostNote()">✏️ ${t('add_note', 'Add Note')}</button></div>`;
+    } else {
+      textEl.innerHTML = renderMarkdown(notes);
+    }
+  }
+  if (editBtn) {
+    editBtn.innerHTML = notes ? t('edit', '✏️ Edit') : `✏️ ${t('add_note', 'Add Note')}`;
+  }
+}
+
+function startEditHostNote() {
+  const viewEl = document.getElementById('hostNoteModalView');
+  const editEl = document.getElementById('hostNoteModalEdit');
+  const viewActions = document.getElementById('hostNoteModalViewActions');
+  const editActions = document.getElementById('hostNoteModalEditActions');
+  const input = document.getElementById('editNoteContent');
+
+  if (viewEl) viewEl.style.display = 'none';
+  if (editEl) editEl.style.display = 'flex';
+  if (viewActions) viewActions.style.display = 'none';
+  if (editActions) editActions.style.display = 'flex';
+
+  if (input) {
+    input.value = activeHostNoteData.notes || '';
+    setTimeout(() => input.focus(), 50);
+  }
+}
+
+function cancelEditHostNote() {
+  showHostNoteViewMode();
 }
 
 async function saveHostNote() {
-  const hostId = document.getElementById('editNoteHostId').value;
-  const notes = document.getElementById('editNoteContent').value;
+  const hostId = activeHostNoteData.id || (document.getElementById('editNoteHostId') ? document.getElementById('editNoteHostId').value : null);
+  const input = document.getElementById('editNoteContent');
+  const notes = input ? input.value : '';
   if (!hostId) return;
 
   try {
@@ -4570,7 +4873,8 @@ async function saveHostNote() {
       body: JSON.stringify({ notes })
     });
     if (res.ok) {
-      closeModal('hostNoteModal');
+      activeHostNoteData.notes = notes;
+      showHostNoteViewMode();
       if (window.detailData && window.detailData.host && window.detailData.host.id == hostId) {
         window.detailData.host.notes = notes;
         if (currentTab === 'overview') switchTab('overview');
@@ -5514,11 +5818,8 @@ async function loadAlerts() {
   const res = await fetch('/api/alerts');
   if (!res.ok) return;
   const alerts = await res.json();
-  const badge = document.getElementById('activeAlertBadge');
   const banner = document.getElementById('alertBannerArea');
   if (alerts && alerts.length > 0) {
-    badge.innerText = alerts.length + ' ALERTS';
-    badge.style.display = 'inline-block';
 
     const hostSet = new Set();
     alerts.forEach(a => { if (a.host_name) hostSet.add(a.host_name); });
@@ -5577,7 +5878,6 @@ async function loadAlerts() {
       </div>
     `;
   } else {
-    badge.style.display = 'none';
     banner.innerHTML = '';
     alertOverlayOpen = false;
   }
@@ -5602,9 +5902,8 @@ function openHostDetailFromAlert(hostID) {
 document.addEventListener('click', function(e) {
   const panel = document.getElementById('alertOverlayPanel');
   const bar = document.querySelector('.alert-summary-bar');
-  const badge = document.getElementById('activeAlertBadge');
   if (!panel || !alertOverlayOpen) return;
-  if (!panel.contains(e.target) && (!bar || !bar.contains(e.target)) && (!badge || !badge.contains(e.target))) {
+  if (!panel.contains(e.target) && (!bar || !bar.contains(e.target))) {
     closeAlertOverlay();
   }
 });
@@ -6347,8 +6646,8 @@ function switchTab(tab, presetID) {
             <h4 style="margin: 0;">${t('host_note')}</h4>
             <button class="btn btn-sm" onclick="openEditNoteModal(${d.host.id}, decodeURIComponent('${encodeURIComponent(d.host.notes || '')}'), decodeURIComponent('${encodeURIComponent(d.host.name || '')}'))">${t('edit')}</button>
           </div>
-          <div style="font-size: 0.85rem; color: #cbd5e1; white-space: pre-wrap; line-height: 1.5; background: #090d16; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--card-border);">
-            ${d.host.notes ? escapeHtml(d.host.notes) : '<span style="color: var(--text-muted); font-style: italic;">' + t('no_note_set') + '</span>'}
+          <div style="font-size: 0.88rem; color: #cbd5e1; line-height: 1.6; background: #090d16; padding: 12px 16px; border-radius: 6px; border: 1px solid var(--card-border); max-height: 320px; overflow-y: auto;" class="note-preview-content">
+            ${d.host.notes ? renderMarkdown(d.host.notes) : '<span style="color: var(--text-muted); font-style: italic;">' + t('no_note_set') + '</span>'}
           </div>
         </div>
       </div>
