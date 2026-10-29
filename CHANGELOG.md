@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.1] - 2026-10-29
+### Fixed
+- Native Terminal Launch on Windows Terminal: avoid command splitting error 2147942402 (0x80070002) by replacing semicolon chaining in remote `cd` navigation with POSIX-standard `|| true &&`, and escaping semicolons as `\;` when launching Windows Terminal (`wt.exe`).
+
 ## [0.28.0] - 2026-10-29
 ### Added
 - Native Terminal Bridge: feature to launch OS native terminal emulators (Windows Terminal, GNOME Terminal, iTerm2, Alacritty, etc.) connected to monitored Linux hosts without re-entering passwords.
