@@ -68,21 +68,23 @@ func cleanInitialDir(dir string) string {
 
 // buildRemoteCdClause constructs the SSH remote command clause to navigate to initialDir.
 // It supports absolute paths, ~, and ~/subpath with safe single quoting without breaking tilde expansion.
+// ponytail: uses semicolon-free shell chaining ('|| true &&') so arguments do not trigger command
+// splitting on Windows Terminal (wt.exe), PowerShell, or POSIX shells across all client operating systems.
 func buildRemoteCdClause(initialDir string) string {
 	cleaned := cleanInitialDir(initialDir)
 	if cleaned == "" {
 		return ""
 	}
 	if cleaned == "~" {
-		return `cd ~ 2>/dev/null; exec bash -l || exec sh -l`
+		return `cd ~ 2>/dev/null || true && exec bash -l || exec sh -l`
 	}
 	if strings.HasPrefix(cleaned, "~/") {
 		sub := strings.TrimPrefix(cleaned, "~/")
 		escapedSub := strings.ReplaceAll(sub, "'", `'\''`)
-		return fmt.Sprintf(`cd ~/'%s' 2>/dev/null; exec bash -l || exec sh -l`, escapedSub)
+		return fmt.Sprintf(`cd ~/'%s' 2>/dev/null || true && exec bash -l || exec sh -l`, escapedSub)
 	}
 	escapedDir := strings.ReplaceAll(cleaned, "'", `'\''`)
-	return fmt.Sprintf(`cd '%s' 2>/dev/null; exec bash -l || exec sh -l`, escapedDir)
+	return fmt.Sprintf(`cd '%s' 2>/dev/null || true && exec bash -l || exec sh -l`, escapedDir)
 }
 
 // GenerateEphemeralKey generates an RSA 2048-bit keypair in RAM for universal compatibility
@@ -389,7 +391,9 @@ func buildLaunchCommand(goos, termPath, customTemplate, keyPath, user, host stri
 	switch goos {
 	case "windows":
 		if strings.Contains(strings.ToLower(termPath), "wt") {
-			cmd := exec.Command(termPath, "new-tab", "cmd.exe", "/k", sshBase)
+			// Windows Terminal uses ';' as a subcommand delimiter unless escaped as '\;'
+			escapedSSH := strings.ReplaceAll(sshBase, ";", `\;`)
+			cmd := exec.Command(termPath, "new-tab", "cmd.exe", "/k", escapedSSH)
 			setDetachedProcess(cmd)
 			return cmd, nil
 		}
