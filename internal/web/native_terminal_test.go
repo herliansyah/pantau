@@ -615,6 +615,30 @@ func TestNativeTerminalActivePath(t *testing.T) {
 		t.Errorf("expected windows cmd script to contain escaped directory navigation: %s", winScript)
 	}
 
+	// 4b. Test tilde home and subpath navigation in Unix and Windows scripts
+	ticketTilde := &NativeTicket{
+		Token:        "ticket-tilde-test",
+		HostID:       10,
+		HostName:     "srv-app",
+		HostAddress:  "10.0.0.5",
+		HostPort:     2222,
+		HostUser:     "deploy",
+		InitialDir:   "~/projects/greenling",
+		EphemeralKey: key,
+	}
+	unixTilde := generateUnixScript(ticketTilde, false)
+	if !strings.Contains(unixTilde, `-t "cd ~/'projects/greenling' 2>/dev/null; exec bash -l || exec sh -l"`) {
+		t.Errorf("expected unix script to preserve tilde expansion for ~/projects/greenling, got: %s", unixTilde)
+	}
+
+	cmdTilde, err := buildLaunchCommand("linux", "/usr/bin/gnome-terminal", "", "/tmp/key", "root", "192.168.1.10", 22, "~")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(strings.Join(cmdTilde.Args, " "), `cd ~ 2>/dev/null`) {
+		t.Errorf("expected cd ~ in launch command, got: %v", cmdTilde.Args)
+	}
+
 	// 5. Test API ticket creation with path parameter
 	mockRunner := &mockTestSSHRunner{}
 	s, _, host := setupTestServerWithDB(t, mockRunner)
