@@ -86,6 +86,7 @@ Pantau inspects remote hosts via standard SSH connections using non-interactive 
 - **Resource saturation**: Tracks CPU load, memory utilization, swap usage, disk partitions, and `/proc/diskstats` I/O rates without requiring `iostat`.
 - **Process and network telemetry**: Identifies top CPU and memory-consuming processes, open listening ports, inbound active sockets, and failed SSH authentication attempts.
 - **Package and lifecycle audit**: Catalogs installed software across Debian (`dpkg`), RHEL (`rpm`), Alpine (`apk`), and Arch (`pacman`), highlighting dormant services and calculating OS End-of-Life (EOL) timelines.
+- **Time-series metrics & application probing**: Embedded SQLite storage for historical metrics with configurable retention (default 7 days) and hourly auto-pruning. Interactive multi-chart visualization powered by lightweight vendored uPlot (1h/6h/24h/7d ranges with automatic SQL downsampling), mini-sparklines on host cards, and built-in probe presets for Nginx, MySQL, PHP-FPM, Redis, and PostgreSQL.
 - Learn more in the [Inspection and Metrics Guide](docs/user-guide.md#4-phase-3-observability-drift-triage--incident-response).
 
 ### 2. Desired State Baselines & Incident Diagnostics

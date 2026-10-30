@@ -355,6 +355,8 @@ func TestAirgappedSelfContainedAssets(t *testing.T) {
 		{"/vendor/xterm-addon-fit.js", "text/javascript"},
 		{"/vendor/mode/yaml.min.js", "text/javascript"},
 		{"/vendor/mode/shell.min.js", "text/javascript"},
+		{"/vendor/uPlot.iife.min.js", "text/javascript"},
+		{"/vendor/uPlot.min.css", "text/css"},
 	}
 
 	for _, tc := range testVendorAssets {
@@ -666,9 +668,9 @@ func TestIndexGzipAndETagRevalidation(t *testing.T) {
 	if wGz.Header().Get("ETag") != etag {
 		t.Errorf("expected matching ETag %s, got %s", etag, wGz.Header().Get("ETag"))
 	}
-	// Verify compression ratio: ~150KB vs ~690KB (<160KB)
-	if wGz.Body.Len() > 160000 {
-		t.Errorf("expected gzipped body < 160KB, got %d bytes", wGz.Body.Len())
+	// Verify compression ratio: ~176KB vs ~810KB (<190KB)
+	if wGz.Body.Len() > 190000 {
+		t.Errorf("expected gzipped body < 190KB, got %d bytes", wGz.Body.Len())
 	}
 
 	// Decompress and compare with raw

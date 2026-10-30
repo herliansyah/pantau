@@ -20,6 +20,7 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
 4. [Phase 3: Observability, Drift Triage & Incident Response](#4-phase-3-observability-drift-triage--incident-response)
    - [Inspection Lifecycle, Mass Inspection (Inspect All) & Recency](#inspection-lifecycle-mass-inspection-inspect-all--recency)
    - [Resource Metrics, Process Telemetry & Hardware Observability](#resource-metrics-process-telemetry--hardware-observability)
+   - [Time-Series Metrics, Application Telemetry & Temporal Trends](#time-series-metrics-application-telemetry--temporal-trends)
    - [Package Inventory & Software Hygiene Audit](#package-inventory--software-hygiene-audit)
    - [Detecting Drift & Root Cause Excerpts](#detecting-drift--root-cause-excerpts)
    - [Interactive Diagnostics via Terminal Dock & Terminal Presets](#interactive-diagnostics-via-terminal-dock--terminal-presets)
@@ -158,6 +159,33 @@ Telemetry collection continuously extracts granular system capacity:
   - **Top RAM (Physical RSS)**: Tracks PID, user, `%mem`, RSS memory footprint, and process name via `ps -eo pid,user,%mem,rss,comm --sort=-rss`.
   - **Top Swap (Virtual Memory)**: Conditionally extracted only when `SwapUsedBytes > 0` by parsing `VmSwap:` in `/proc/[0-9]*/status`, identifying virtual memory hogs without remote daemon overhead.
   - **One-Click Terminal Launcher**: The Top Resource Consumers card in the Overview tab provides an **Open Terminal** action button to immediately jump into an interactive troubleshooting session on the host.
+
+### Time-Series Metrics, Application Telemetry & Temporal Trends
+
+Beyond instantaneous snapshots, Pantau provides agentless, historical time-series telemetry recording and interactive trend analysis:
+
+- **Embedded SQLite Time-Series Storage**: Every scheduled inspection cycle automatically records system resources into a lightweight, flat table `metric_samples` (`host_id`, `metric`, `value`, `recorded_at`). Composite indexes ensure fast range lookups without requiring external TSDB engines like Prometheus or InfluxDB.
+- **Configurable Rolling Retention & Automatic Hourly Pruning**: Metric history is governed by a retention policy (`metric_retention_days`, default: 7 days) configured in **Settings** > **General**. An automated hourly background worker (`startMetricsPruneWorker`) continuously purges samples older than the retention threshold, preventing unbounded SQLite growth.
+- **Granular Collection Controls (Global & Per-Host Tri-State)**:
+  - **Global Toggle**: Enable or disable metric recording across the entire fleet in **Settings** > **General** (`metrics_enabled`).
+  - **Per-Host Override**: In the Host configuration modal, choose between **Inherit Global** (`-1`), **Force ON** (`1`), or **Force OFF** (`0`), allowing you to save I/O on ephemeral hosts or mandate telemetry on critical production servers.
+- **Dual-Tier Zero-Dependency Frontend Visualization**:
+  - **Host Card Mini-Sparklines**: Handcrafted, pure SVG trendlines (~15 lines of vanilla JavaScript, zero external libraries) embedded on Host Cards render 1-hour CPU and RAM trajectories directly in Grid and List views for instant fleet-wide scannability.
+  - **Host Detail Modal `[📊 Metrics & Telemetry]` Tab**: Powered by locally vendored **uPlot** (`~48 KB` minified, zero CDN dependencies, HTML5 Canvas 2D) for butter-smooth rendering of thousands of data points.
+  - **Synchronized Crosshair & Zoom**: Multi-chart stack (CPU, RAM, Disk I/O, Network I/O, Latency, Application Probes) shares a synchronized cursor crosshair (`uPlot.sync()`) for effortless cross-metric correlation during incident investigations.
+  - **Interactive Time-Range Selector**: Select between **1h** (raw resolution), **6h** (raw resolution), **24h** (5-minute dynamic SQL bucketing), and **7d** (30-minute dynamic SQL bucketing) to balance granularity and transfer efficiency (< 15 KB payload, < 25 ms query response).
+  - **Category Filters**: Filter chart views by **All**, **Hardware**, or **Applications**.
+- **Agentless Application Metric Probes**:
+  - Run lightweight inspection probes directly over the active SSH session without separate daemon or agent installations.
+  - **Isolated Execution & Safe Fallback**: Each probe executes in a subshell wrapped with strict timeouts (`timeout -k 1s 3s bash -c ...`) and silent error suppression, ensuring service outages or hung sockets never freeze the host inspection loop.
+  - **Standardized Key-Value Output Contract**: Probes emit plain text lines formatted as `key: value` or `key=value` (e.g. `nginx_active: 42`, `mysql_qps: 180.5`). Comment lines (`#`) and unparsable output are ignored automatically.
+  - **Built-in Probe Presets**: Ready-to-use presets with intelligent multi-path auto-detection:
+    - **Nginx Stub Status**: Extracts `nginx_active`, `nginx_accepts`, `nginx_handled`, `nginx_requests`, `nginx_reading`, `nginx_writing`, and `nginx_waiting` from `/stub_status` or `/nginx_status`.
+    - **MySQL Status**: Queries `mysqladmin status` to record `mysql_uptime`, `mysql_threads_connected`, `mysql_questions`, `mysql_slow_queries`, `mysql_opens`, and `mysql_qps`.
+    - **PHP-FPM Status**: Auto-detects status endpoint JSON or falls back to native `ps` process counting for `active_processes`, `idle_processes`, and `total_processes`.
+    - **Redis Info**: Gathers `redis_connected_clients`, `redis_used_memory_bytes`, `redis_ops_per_sec`, `redis_rejected_connections`, `redis_expired_keys`, and `redis_uptime` via `redis-cli`, supporting auto-detected passwords and UNIX sockets.
+    - **PostgreSQL Stats**: Extracts active, idle, and total connection counts from `pg_stat_activity` with peer authentication fallback (`sudo -u postgres` / `su - postgres`).
+  - **Custom Probe Management**: Create, edit, test, and toggle custom shell probes via the **Manage Probes** dialog in the Metrics tab.
 
 ### Package Inventory & Software Hygiene Audit
 

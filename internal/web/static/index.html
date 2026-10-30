@@ -8,7 +8,21 @@
 <link rel="stylesheet" href="/vendor/xterm.css" />
 <link rel="stylesheet" href="/vendor/codemirror.min.css" />
 <link rel="stylesheet" href="/vendor/nord.min.css" />
+<link rel="stylesheet" href="/vendor/uPlot.min.css" />
 <style>
+/* uPlot dark theme overrides for Pantau */
+.uplot { font-family: inherit; }
+.u-legend { font-size: 0.78rem !important; color: var(--text-muted); padding: 4px 0; }
+.u-legend .u-series { cursor: pointer; transition: opacity 0.15s ease, filter 0.15s ease; user-select: none; }
+.u-legend .u-series:hover th { color: #38bdf8 !important; }
+.u-legend .u-series.u-off { opacity: 0.35 !important; filter: grayscale(1); text-decoration: line-through; }
+.u-legend .u-series th { color: #f8fafc; font-weight: 500; padding: 2px 6px !important; }
+.u-legend .u-series td { padding: 2px 6px !important; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.8rem; }
+.u-legend .u-marker { border-radius: 2px; }
+.uplot-popover { pointer-events: none; }
+.u-title { color: #f8fafc; font-size: 0.85rem !important; font-weight: 600 !important; text-align: left !important; margin-bottom: 6px; }
+.u-cursor-x, .u-cursor-y { border-color: rgba(56, 189, 248, 0.6) !important; }
+.u-cursor-pt { background: #38bdf8 !important; }
 :root {
   --bg: #0f172a;
   --card-bg: #1e293b;
@@ -87,7 +101,13 @@ a.btn:hover { text-decoration: none; color: var(--text); }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
 .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
 .card-title { font-size: 1.1rem; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
-.stat-row { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); }
+.stat-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 0.85rem; color: var(--text-muted); }
+.stat-row > span:first-child { flex-shrink: 0; }
+.stat-row > span:last-child { text-align: right; word-break: break-word; overflow-wrap: anywhere; min-width: 0; }
+@media (max-width: 480px) {
+  .stat-row { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .stat-row > span:last-child { text-align: left; width: 100%; }
+}
 .progress { background: #334155; border-radius: 4px; height: 6px; overflow: hidden; margin-top: 4px; }
 .progress-fill { background: var(--primary); height: 100%; }
 .progress-fill.warn { background: var(--warning); }
@@ -142,14 +162,40 @@ a.btn:hover { text-decoration: none; color: var(--text); }
   .container { padding-top: 66px; padding-bottom: 46px; padding-left: 12px; padding-right: 12px; }
 }
 .modal-header { padding: 16px 20px; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
-.modal-tabs-bar { padding: 0 20px; border-bottom: 1px solid var(--card-border); flex-shrink: 0; overflow-x: auto; background: rgba(15, 23, 42, 0.4); }
-.modal-tabs-bar .tabs { margin-bottom: 0; border-bottom: none; }
+.modal-tabs-bar { padding: 0 16px; border-bottom: 1px solid var(--card-border); flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; background: rgba(15, 23, 42, 0.4); position: relative; overflow: visible; min-width: 0; }
+.modal-tabs-bar .tabs { margin-bottom: 0; border-bottom: none; display: flex; gap: 4px; overflow: hidden; flex: 1; min-width: 0; white-space: nowrap; }
 .modal-body { padding: 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 .modal-footer { padding: 12px 20px; border-top: 1px solid var(--card-border); display: flex; justify-content: flex-end; gap: 8px; flex-shrink: 0; background: rgba(15, 23, 42, 0.2); }
 .tabs { display: flex; gap: 8px; overflow-x: auto; white-space: nowrap; }
-.tab { padding: 10px 16px; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; font-weight: 500; border-bottom: 2px solid transparent; flex-shrink: 0; transition: all 0.15s ease; }
+.tab { padding: 10px 16px; cursor: pointer; color: var(--text-muted); font-size: 0.85rem; font-weight: 500; border-bottom: 2px solid transparent; flex-shrink: 0; transition: all 0.15s ease; user-select: none; }
 .tab:hover { color: #f8fafc; }
 .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+/* Responsive Tab Overflow Dropdown ("More ▼") */
+.tabs-overflow-container { position: relative; flex-shrink: 0; margin-left: 6px; }
+.tabs-more-btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; padding: 10px 12px; color: var(--text-muted); font-size: 0.85rem; font-weight: 500; transition: all 0.15s ease; user-select: none; outline: none; }
+.tabs-more-btn:hover { color: #f8fafc; }
+.tabs-more-btn.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+.tabs-more-dropdown { position: absolute; top: calc(100% + 4px); right: 0; min-width: 220px; max-width: 290px; background: #0f172a; border: 1px solid var(--card-border); border-radius: 8px; box-shadow: 0 14px 35px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.06); padding: 6px; display: none; flex-direction: column; gap: 2px; z-index: 1050; backdrop-filter: blur(16px); }
+.tabs-more-dropdown.open { display: flex; }
+.tabs-more-dropdown-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; font-size: 0.83rem; color: #94a3b8; border-radius: 6px; cursor: pointer; transition: all 0.12s ease; text-decoration: none; white-space: nowrap; background: transparent; border: none; width: 100%; text-align: left; }
+.tabs-more-dropdown-item:hover { background: rgba(255, 255, 255, 0.08); color: #f8fafc; }
+.tabs-more-dropdown-item.active { background: rgba(56, 189, 248, 0.12); color: #38bdf8; font-weight: 600; }
+
+/* Host Detail Overview Grid & System Info Card (Ergonomic & Responsive) */
+.host-overview-grid { display: grid; grid-template-columns: minmax(360px, 450px) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+@media (max-width: 960px) {
+  .host-overview-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+}
+.host-overview-grid > .card { min-width: 0; }
+.sysinfo-card { width: 100%; }
+.sysinfo-card .stat-row { display: flex; align-items: baseline; justify-content: flex-start; gap: 12px; font-size: 0.85rem; padding: 3px 0; }
+.sysinfo-card .stat-row > span:first-child { width: 148px; min-width: 148px; max-width: 148px; flex-shrink: 0; color: var(--text-muted); }
+.sysinfo-card .stat-row > span:last-child { flex: 1; text-align: left; color: #f1f5f9; word-break: break-word; overflow-wrap: anywhere; }
+@media (max-width: 500px) {
+  .sysinfo-card .stat-row { flex-direction: column; align-items: flex-start; gap: 2px; padding: 4px 0; }
+  .sysinfo-card .stat-row > span:first-child { width: 100%; min-width: 0; max-width: 100%; font-size: 0.78rem; }
+}
 /* ponytail: 6-column grid fits comfortably in 740px Action Dialog (modal-dialog-lg); scrollable on mobile */
 #settingsTabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; overflow-x: auto; }
 #settingsTabs .tab { padding: 10px 4px; text-align: center; justify-content: center; display: flex; align-items: center; white-space: nowrap; font-size: 0.82rem; }
@@ -1827,6 +1873,14 @@ body.has-workspace-shelf .container {
             <input type="date" id="hostCommissionDate" />
           </div>
           <div class="form-group">
+            <label data-i18n="host_metrics_label">📊 Metrics & Telemetry</label>
+            <select id="hostMetricsEnabled">
+              <option value="-1">Inherit Global (Default)</option>
+              <option value="1">Force ON (Always Collect)</option>
+              <option value="0">Force OFF (Disabled)</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label data-i18n="host_note">Host Note</label>
             <textarea id="hostNote" rows="2" placeholder="e.g. Primary DB server, maintenance every Sunday" data-i18n-placeholder="host_note_ph"></textarea>
           </div>
@@ -2027,7 +2081,7 @@ body.has-workspace-shelf .container {
         <button class="btn btn-sm" onclick="closeHostDetailModal()">✕</button>
       </div>
     </div>
-    <div class="modal-tabs-bar">
+    <div class="modal-tabs-bar" id="hostDetailTabsBar">
       <div class="tabs" id="hostDetailTabs">
         <div class="tab active" data-tab="overview" onclick="switchTab('overview')" data-i18n="tab_overview">Overview</div>
         <div class="tab" data-tab="network" onclick="switchTab('network')" data-i18n="tab_network">Network & Security</div>
@@ -2037,7 +2091,15 @@ body.has-workspace-shelf .container {
         <div class="tab" data-tab="docker" onclick="switchTab('docker')" data-i18n="tab_docker">Docker</div>
         <div class="tab" data-tab="timeline" onclick="switchTab('timeline')" data-i18n="tab_timeline">Incident Timeline</div>
         <div class="tab" data-tab="runs" onclick="switchTab('runs')" data-i18n="tab_runs">Inspection Runs</div>
+        <div class="tab" data-tab="metrics" onclick="switchTab('metrics')" data-i18n="tab_metrics">📊 Metrics & Telemetry</div>
         <div class="tab" data-tab="files" onclick="switchTab('files')" data-i18n="tab_files">File Manager</div>
+      </div>
+      <div class="tabs-overflow-container" id="hostDetailMoreContainer" style="display: none;">
+        <button type="button" class="tab tabs-more-btn" id="hostDetailMoreBtn" onclick="toggleHostDetailMoreMenu(event)" title="More Tabs" data-i18n-title="more">
+          <span id="hostDetailMoreLabel" data-i18n="more">More</span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="tabs-more-dropdown" id="hostDetailMoreDropdown"></div>
       </div>
     </div>
     <div class="modal-body" id="tabContent"></div>
@@ -2135,6 +2197,28 @@ body.has-workspace-shelf .container {
               <span style="font-size: 0.85rem; color: var(--text-muted);" data-i18n="seconds_unit">seconds (0 = disabled)</span>
             </div>
             <button class="btn btn-primary btn-sm" onclick="savePollInterval()" style="width: auto; white-space: nowrap;" data-i18n="save_interval">Save Interval</button>
+          </div>
+        </div>
+
+        <!-- Telemetry & Metrics Observability Settings -->
+        <div class="card" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0;">📊 Metrics & Telemetry Observability</h4>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;">
+              <input type="checkbox" id="settingMetricsEnabled" style="width: 16px; height: 16px; cursor: pointer;" />
+              <span>Enable Globally</span>
+            </label>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
+            Collects time-series hardware metrics and application probes during inspection. Hosts set to "Inherit Global" will follow this setting.
+          </p>
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <label style="font-size: 0.85rem; color: var(--text-muted);">Data Retention:</label>
+              <input type="number" id="settingMetricRetentionDays" min="1" max="90" placeholder="7" style="width: 80px;" />
+              <span style="font-size: 0.85rem; color: var(--text-muted);">days (auto-pruned)</span>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="saveMetricsSettings()" style="width: auto; white-space: nowrap;">Save Metrics Settings</button>
           </div>
         </div>
 
@@ -2857,6 +2941,57 @@ body.has-workspace-shelf .container {
   </div>
 </div>
 
+<!-- Metric Probes Modal -->
+<div id="metricProbesModal" class="modal">
+  <div class="modal-content modal-dialog-lg">
+    <div class="modal-header">
+      <h3 id="metricProbesModalTitle">⚙️ Application Metric Probes</h3>
+      <button class="btn btn-sm" onclick="closeModal('metricProbesModal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding: 16px 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+        <span style="font-size: 0.82rem; color: var(--text-muted);">Probes execute during inspection. Shell output should be formatted as <code>key: value</code>.</span>
+        <div style="display: flex; gap: 8px;">
+          <select id="probePresetSelect" class="btn btn-sm" style="background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text); padding: 4px 8px;" onchange="applyProbePreset()">
+            <option value="">-- Add from Preset --</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="openNewProbeForm()">+ New Probe</button>
+        </div>
+      </div>
+
+      <!-- Probe Form (Hidden by default) -->
+      <div id="probeFormContainer" style="display: none; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+        <input type="hidden" id="editProbeId" />
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px;">
+          <div class="form-group">
+            <label style="font-size: 0.78rem; font-weight: 600;">Probe Name</label>
+            <input type="text" id="probeNameInput" placeholder="e.g. Nginx Status, MySQL QPS" />
+          </div>
+          <div class="form-group" style="display: flex; align-items: flex-end; padding-bottom: 6px;">
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.85rem;">
+              <input type="checkbox" id="probeEnabledInput" checked />
+              <span>Active</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom: 12px;">
+          <label style="font-size: 0.78rem; font-weight: 600;">Shell Command (One-liner)</label>
+          <textarea id="probeCommandInput" rows="3" style="font-family: monospace; font-size: 0.82rem;" placeholder="curl -s http://127.0.0.1/nginx_status | awk '...'"></textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button class="btn btn-sm" onclick="closeProbeForm()">Cancel</button>
+          <button class="btn btn-primary btn-sm" onclick="saveProbeForm()">Save Probe</button>
+        </div>
+      </div>
+
+      <!-- Probes List Table -->
+      <div id="probesListContainer" style="overflow-x: auto;">
+        <!-- Dynamically rendered -->
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="/vendor/xterm.js"></script>
 <script src="/vendor/xterm-addon-fit.js"></script>
 <script src="/vendor/codemirror.min.js"></script>
@@ -2868,6 +3003,7 @@ body.has-workspace-shelf .container {
 <script src="/vendor/mode/php.min.js"></script>
 <script src="/vendor/mode/shell.min.js"></script>
 <script src="/vendor/mode/yaml.min.js"></script>
+<script src="/vendor/uPlot.iife.min.js"></script>
 
 <script>
 const I18N = {
@@ -3145,6 +3281,7 @@ const I18N = {
     "inject_key_success": "\u2705 Public key successfully injected to server {name}! Pantau can now access this server via keyless SSH.",
     "inject_key_failed": "\u274c Failed: ",
     "tab_overview": "Overview",
+    "more": "More",
     "tab_network": "Network & Security",
     "tab_packages": "Packages",
     "tab_desired": "Desired State (Drift)",
@@ -3167,6 +3304,8 @@ const I18N = {
     "run_summary": "Summary",
     "no_runs_desc": "No inspection runs recorded yet for this host.",
     "view_diagnostics": "View Diagnostic Details",
+    "tab_metrics": "Metrics & Telemetry",
+    "host_metrics_label": "Metrics & Telemetry Observability",
     "tab_files": "File Manager",
     "tab_terminal": "Terminal",
     "sys_info": "System Information",
@@ -3866,6 +4005,7 @@ const I18N = {
     "inject_key_success": "\u2705 Public key berhasil di-inject ke server {name}! Sekarang Pantau dapat mengakses server via SSH keyless.",
     "inject_key_failed": "\u274c Gagal: ",
     "tab_overview": "Overview",
+    "more": "Lainnya",
     "tab_network": "Network & Keamanan",
     "tab_packages": "Paket & Aplikasi",
     "tab_desired": "Desired State (Drift)",
@@ -3888,6 +4028,8 @@ const I18N = {
     "run_summary": "Ringkasan",
     "no_runs_desc": "Belum ada riwayat inspeksi yang tercatat untuk host ini.",
     "view_diagnostics": "Lihat Rincian Diagnostik",
+    "tab_metrics": "Metrik & Telemetri",
+    "host_metrics_label": "Observabilitas Metrik & Telemetri",
     "tab_files": "File Manager",
     "tab_terminal": "Terminal",
     "sys_info": "Informasi Sistem",
@@ -5191,6 +5333,29 @@ async function savePollInterval() {
   }
 }
 
+async function saveMetricsSettings() {
+  const enabled = document.getElementById('settingMetricsEnabled')?.checked ? 'true' : 'false';
+  const retentionInput = document.getElementById('settingMetricRetentionDays');
+  const retention = parseInt(retentionInput?.value, 10) || 7;
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metrics_enabled: enabled,
+        metric_retention_days: String(retention)
+      })
+    });
+    if (res.ok) {
+      showToast(t('settings_saved', 'Metrics settings saved successfully'), 'success');
+    } else {
+      showToast(t('save_failed', 'Failed to save settings'), 'error');
+    }
+  } catch (e) {
+    showToast(t('save_failed', 'Failed to save settings') + ': ' + e.message, 'error');
+  }
+}
+
 async function saveAutoTriageSettings() {
   const enabled = document.getElementById('settingAutoTriageEnabled')?.checked ? '1' : '0';
   const interval = document.getElementById('settingAutoTriageInterval')?.value || '10';
@@ -5443,7 +5608,7 @@ function renderGridView(grid, isManualSort) {
           <span>${t('internet')}</span>
           <span class="status-pill">${h.internet_online ? '<span style="color: #34d399;">●</span> ' + t('online') + ' (' + h.internet_latency_ms + 'ms)' : '<span style="color: #f87171;">●</span> ' + t('offline')}</span>
         </div>
-        <div class="stat-row" style="flex-direction: column; gap: 4px;">
+        <div class="stat-row" style="flex-direction: column; gap: 4px; align-items: stretch;">
           <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted);">
             <span>${t('traffic_net')}</span>
             <span>${t('traffic_disk')} <span style="font-size: 0.7rem; font-weight: 600; color: ${diskStatusColor};">● ${diskStatusText}</span></span>
@@ -5934,6 +6099,7 @@ function openAddHostModal() {
   document.getElementById('hostCommissionDate').value = '';
   document.getElementById('hostNote').value = '';
   document.getElementById('hostGroup').value = '';
+  if (document.getElementById('hostMetricsEnabled')) document.getElementById('hostMetricsEnabled').value = '-1';
   resetHostModalTestResult();
   updateGroupSuggestions();
   document.getElementById('passGroup').style.display = 'block';
@@ -5954,6 +6120,7 @@ function openEditHostModal(hostId) {
   document.getElementById('hostCustomKey').value = h.custom_key || '';
   document.getElementById('hostCommissionDate').value = h.commission_date || '';
   document.getElementById('hostNote').value = h.notes || '';
+  if (document.getElementById('hostMetricsEnabled')) document.getElementById('hostMetricsEnabled').value = String(h.metrics_enabled !== undefined ? h.metrics_enabled : -1);
   document.getElementById('passGroup').style.display = 'none';
   resetHostModalTestResult();
   updateGroupSuggestions();
@@ -6087,6 +6254,7 @@ async function saveHost() {
     commission_date: (document.getElementById('hostCommissionDate')?.value || '').trim(),
     notes: document.getElementById('hostNote').value,
     group_name: (document.getElementById('hostGroup')?.value || '').trim(),
+    metrics_enabled: isNaN(parseInt(document.getElementById('hostMetricsEnabled')?.value, 10)) ? -1 : parseInt(document.getElementById('hostMetricsEnabled')?.value, 10),
   };
   const method = id ? 'PUT' : 'POST';
   const url = id ? '/api/hosts/' + id : '/api/hosts';
@@ -6222,6 +6390,8 @@ function closeAllDropdowns() {
   document.querySelectorAll('.dropdown.open').forEach(el => {
     el.classList.remove('open', 'open-down', 'open-up');
   });
+  const moreDd = document.getElementById('hostDetailMoreDropdown');
+  if (moreDd) moreDd.classList.remove('open');
 }
 window.addEventListener('click', closeAllDropdowns);
 
@@ -6352,6 +6522,7 @@ function applyHostDetailMaximizeState() {
       btn.title = t('maximize_workspace', 'Maximize Workspace');
     }
   }
+  setTimeout(updateHostDetailTabsOverflow, 40);
 }
 
 function toggleHostDetailMaximize(e) {
@@ -6361,6 +6532,124 @@ function toggleHostDetailMaximize(e) {
     localStorage.setItem('pantau_host_detail_maximized', isHostDetailMaximized ? 'true' : 'false');
   } catch(err) {}
   applyHostDetailMaximizeState();
+}
+
+function toggleHostDetailMoreMenu(e) {
+  if (e) e.stopPropagation();
+  const dd = document.getElementById('hostDetailMoreDropdown');
+  if (dd) dd.classList.toggle('open');
+}
+
+let hostDetailTabsObserver = null;
+function initHostDetailTabsObserver() {
+  const bar = document.getElementById('hostDetailTabsBar');
+  if (!bar || hostDetailTabsObserver) return;
+  if (window.ResizeObserver) {
+    let rAF = null;
+    hostDetailTabsObserver = new ResizeObserver(() => {
+      if (rAF) cancelAnimationFrame(rAF);
+      rAF = requestAnimationFrame(() => {
+        updateHostDetailTabsOverflow();
+      });
+    });
+    hostDetailTabsObserver.observe(bar);
+  }
+}
+
+function updateHostDetailTabsOverflow() {
+  const bar = document.getElementById('hostDetailTabsBar');
+  const tabsContainer = document.getElementById('hostDetailTabs');
+  const moreContainer = document.getElementById('hostDetailMoreContainer');
+  const moreBtn = document.getElementById('hostDetailMoreBtn');
+  const moreDropdown = document.getElementById('hostDetailMoreDropdown');
+  const moreLabel = document.getElementById('hostDetailMoreLabel');
+  if (!bar || !tabsContainer || !moreContainer || !moreDropdown || !moreBtn || !moreLabel) return;
+
+  const modal = document.getElementById('hostDetailModal');
+  if (!modal || modal.style.display === 'none' || (!modal.classList.contains('open') && window.getComputedStyle(modal).display === 'none')) {
+    return;
+  }
+  const barWidth = bar.clientWidth;
+  if (barWidth <= 0) return;
+
+  const tabs = Array.from(tabsContainer.querySelectorAll('.tab'));
+  if (tabs.length === 0) return;
+
+  // Temporarily reset all tabs to natural display to measure their natural widths
+  tabs.forEach(t => {
+    t.style.display = '';
+  });
+  moreContainer.style.display = 'none';
+
+  // Measure tab widths
+  const tabWidths = tabs.map(t => {
+    const r = t.getBoundingClientRect();
+    return Math.ceil(r.width);
+  });
+  const totalTabsWidth = tabWidths.reduce((a, b) => a + b, 0);
+
+  // If all tabs fit comfortably within the bar (leaving 8px breathing room)
+  if (totalTabsWidth <= barWidth - 8) {
+    moreContainer.style.display = 'none';
+    moreDropdown.classList.remove('open');
+    moreBtn.classList.remove('active');
+    moreLabel.innerText = t('more', 'More');
+    return;
+  }
+
+  // Tabs overflow: show More container
+  moreContainer.style.display = '';
+  const moreBtnWidth = 95;
+  const maxAvailableForTabs = barWidth - moreBtnWidth;
+
+  let currentWidth = 0;
+  const hiddenTabs = [];
+
+  tabs.forEach((tabEl, idx) => {
+    const w = tabWidths[idx] + 4; // tab width + gap
+    // Always keep at least the first tab visible (Overview)
+    if (idx === 0 || (currentWidth + w <= maxAvailableForTabs)) {
+      tabEl.style.display = '';
+      currentWidth += w;
+    } else {
+      tabEl.style.display = 'none';
+      hiddenTabs.push(tabEl);
+    }
+  });
+
+  // Populate More dropdown with hidden tabs
+  moreDropdown.innerHTML = '';
+  let activeTabNameInDropdown = null;
+
+  hiddenTabs.forEach(tabEl => {
+    const tabKey = tabEl.getAttribute('data-tab');
+    const tabText = tabEl.innerText.trim();
+    const isActive = tabEl.classList.contains('active') || currentTab === tabKey;
+    if (isActive) {
+      activeTabNameInDropdown = tabText;
+    }
+
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'tabs-more-dropdown-item' + (isActive ? ' active' : '');
+    item.setAttribute('data-tab', tabKey);
+    item.innerHTML = `<span>${escapeHtml(tabText)}</span>${isActive ? '<span style="color: var(--primary); font-size: 0.75rem;">●</span>' : ''}`;
+    item.onclick = (e) => {
+      e.stopPropagation();
+      moreDropdown.classList.remove('open');
+      switchTab(tabKey);
+    };
+    moreDropdown.appendChild(item);
+  });
+
+  // Update More button active state and label
+  if (activeTabNameInDropdown) {
+    moreBtn.classList.add('active');
+    moreLabel.innerText = `${t('more', 'More')}: ${activeTabNameInDropdown}`;
+  } else {
+    moreBtn.classList.remove('active');
+    moreLabel.innerText = t('more', 'More');
+  }
 }
 
 // Per-Host Tab & Files Path State (sessionStorage)
@@ -6423,8 +6712,10 @@ async function openHostDetail(id) {
   badge.innerText = currentHost.status;
   openModal('hostDetailModal');
   applyHostDetailMaximizeState();
+  initHostDetailTabsObserver();
   const targetTab = getHostActiveTab(currentHost.id);
   switchTab(targetTab);
+  setTimeout(updateHostDetailTabsOverflow, 30);
   if (!currentHost.last_inspected || currentHost.is_inspecting) {
     scheduleFastPollIfNeeded();
   }
@@ -6446,9 +6737,19 @@ function switchTab(tab, presetID) {
   if (currentHost && currentHost.id) {
     setHostActiveTab(currentHost.id, tab);
   }
+  if (tab !== 'metrics') {
+    if (window.activeUPlots && window.activeUPlots.length > 0) {
+      window.activeUPlots.forEach(u => { try { u.destroy(); } catch(e) {} });
+      window.activeUPlots = [];
+    }
+    if (window.metricsResizeObserver) {
+      window.metricsResizeObserver.disconnect();
+    }
+  }
   document.querySelectorAll('#hostDetailTabs .tab').forEach(t => {
     t.classList.toggle('active', t.getAttribute('data-tab') === tab);
   });
+  updateHostDetailTabsOverflow();
 
   const content = document.getElementById('tabContent');
   const d = window.detailData;
@@ -6507,12 +6808,12 @@ function switchTab(tab, presetID) {
           <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">${t('initial_sync_detail_hint', 'Pantau is currently running its first agentless inspection on this host. System specs, resource usage, and containers will appear here automatically in a few seconds.')}</div>
         </div>
       ` : ''}
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-        <div class="card">
+      <div class="host-overview-grid">
+        <div class="card sysinfo-card">
           <h4>${t('sys_info')}</h4>
           <div class="stat-row"><span>${t('hardware_vendor', 'Hardware / Platform:')}</span> <span>${escapeHtml(d.host.hardware_model || 'Unknown / Standard')}</span></div>
           <div class="stat-row"><span>${t('os')}</span> <span>${escapeHtml(d.host.os_info)}</span></div>
-          <div class="stat-row"><span>${t('kernel')}</span> <span>${escapeHtml(d.host.kernel)}</span></div>
+          <div class="stat-row"><span>${t('kernel')}</span> <span style="font-family: monospace; font-size: 0.82rem;">${escapeHtml(d.host.kernel)}</span></div>
           <div class="stat-row"><span>${t('cpu_label', 'CPU:')}</span> <span>${d.host.cpu_cores || 1} ${(d.host.cpu_cores || 1) > 1 ? t('cores', 'Cores') : t('core', 'Core')} <span style="color: var(--text-muted); font-size: 0.82rem;">(Load: ${escapeHtml(d.host.cpu_load || '-')})</span></span></div>
           <div class="stat-row"><span>${t('phys_mem', 'RAM:')}</span> <span>${formatBytes(d.host.ram_used_bytes || 0)} / ${formatBytes(d.host.ram_total_bytes || 0)} (${d.host.ram_total_bytes > 0 ? Math.round(((d.host.ram_used_bytes || 0) / d.host.ram_total_bytes) * 100) : 0}%)</span></div>
           <div class="stat-row"><span>${t('virtual_mem', 'Swap:')}</span> <span>${d.host.swap_total_bytes > 0 ? formatBytes(d.host.swap_used_bytes || 0) + ' / ' + formatBytes(d.host.swap_total_bytes) + ' (' + Math.round(((d.host.swap_used_bytes || 0) / d.host.swap_total_bytes) * 100) + '%)' : '<span style="color: var(--text-muted);">' + t('swap_disabled', 'Disabled') + '</span>'}</span></div>
@@ -6525,7 +6826,7 @@ function switchTab(tab, presetID) {
             </span>
           </div>
         </div>
-        <div class="card">
+        <div class="card lifecycle-card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
             <h4 style="margin: 0;">${t('lifecycle_assessment')}</h4>
             <button class="btn btn-sm" onclick="openCommissionDateModal(${d.host.id}, '${escapeHtml(d.host.commission_date || '')}', '${escapeHtml(d.host.bios_date || '')}')" style="font-size: 0.75rem; padding: 2px 8px; display: inline-flex; align-items: center; gap: 4px;" title="${t('edit_commission_date', 'Edit Commission Date')}">
@@ -6537,12 +6838,12 @@ function switchTab(tab, presetID) {
           ${breakdownList && breakdownList.length > 0 ? `
             <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px;">
               ${breakdownList.map(f => `
-                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; padding: 5px 8px; background: rgba(255,255,255,0.03); border-radius: 4px; border-left: 3px solid ${f.score_deduction < 0 ? 'var(--danger, #f87171)' : 'var(--success, #34d399)'};">
-                  <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; padding: 6px 10px; background: rgba(255,255,255,0.03); border-radius: 4px; border-left: 3px solid ${f.score_deduction < 0 ? 'var(--danger, #f87171)' : 'var(--success, #34d399)'};">
+                  <div style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;" title="${escapeHtml(f.name)}: ${escapeHtml(f.detail)}">
                     <span style="font-weight: 600; color: ${f.score_deduction < 0 ? '#fca5a5' : '#a7f3d0'};">${escapeHtml(f.name)}:</span>
                     <span style="color: var(--text-muted); margin-left: 4px;">${escapeHtml(f.detail)}</span>
                   </div>
-                  <span style="font-weight: 700; font-size: 0.8rem; white-space: nowrap; color: ${f.score_deduction < 0 ? 'var(--danger, #f87171)' : 'var(--success, #34d399)'};">
+                  <span style="font-weight: 700; font-size: 0.8rem; white-space: nowrap; flex-shrink: 0; color: ${f.score_deduction < 0 ? 'var(--danger, #f87171)' : 'var(--success, #34d399)'};">
                     ${f.score_deduction < 0 ? f.score_deduction : '+0'}
                   </span>
                 </div>
@@ -6893,6 +7194,8 @@ function switchTab(tab, presetID) {
     `;
   } else if (tab === 'runs') {
     renderInspectionRunsTab();
+  } else if (tab === 'metrics') {
+    renderMetricsTab(d.host);
   } else if (tab === 'packages') {
     renderPackagesTab();
   } else if (tab === 'netdiag') {
@@ -6906,6 +7209,1730 @@ function switchTab(tab, presetID) {
     if (content) {
       content.innerHTML = `<div class="card" style="padding: 20px; color: var(--danger);">Error displaying tab ${escapeHtml(tab)}: ${escapeHtml(err.message)}</div>`;
     }
+  }
+}
+
+let currentMetricRange = '24h';
+let currentMetricCategory = 'all';
+window.activeUPlots = window.activeUPlots || [];
+
+function renderMiniSparkline(values, width = 80, height = 20, strokeColor = '#38bdf8') {
+  if (!values || values.length < 2) return '';
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const step = width / (values.length - 1);
+  const points = values.map((v, i) => {
+    const x = (i * step).toFixed(1);
+    const y = (height - ((v - min) / range) * (height - 4) - 2).toFixed(1);
+    return `${x},${y}`;
+  }).join(' ');
+  return `<svg width="${width}" height="${height}" style="overflow: visible; display: inline-block; vertical-align: middle;">
+    <polyline fill="none" stroke="${strokeColor}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" points="${points}" />
+  </svg>`;
+}
+
+async function renderMetricsTab(host) {
+  const content = document.getElementById('tabContent');
+  if (!content || !host) return;
+
+  if (window.activeUPlots && window.activeUPlots.length > 0) {
+    window.activeUPlots.forEach(u => { try { u.destroy(); } catch(e) {} });
+    window.activeUPlots = [];
+  }
+
+  content.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; flex-shrink: 0;">
+      <div style="display: inline-flex; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 2px;">
+        ${['1h', '6h', '24h', '7d'].map(r => `
+          <button class="btn btn-sm ${currentMetricRange === r ? 'btn-primary' : ''}"
+                  style="border: none; border-radius: 4px; padding: 4px 12px; font-size: 0.78rem; cursor: pointer; ${currentMetricRange !== r ? 'background: transparent; color: var(--text-muted);' : ''}"
+                  onclick="changeMetricRange('${r}')">${r.toUpperCase()}</button>
+        `).join('')}
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: inline-flex; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 2px;">
+          ${[
+            { id: 'all', label: 'All' },
+            { id: 'hardware', label: 'Hardware' },
+            { id: 'applications', label: 'Apps' }
+          ].map(c => `
+            <button class="btn btn-sm ${currentMetricCategory === c.id ? 'btn-primary' : ''}"
+                    style="border: none; border-radius: 4px; padding: 4px 10px; font-size: 0.78rem; cursor: pointer; ${currentMetricCategory !== c.id ? 'background: transparent; color: var(--text-muted);' : ''}"
+                    onclick="changeMetricCategory('${c.id}')">${c.label}</button>
+          `).join('')}
+        </div>
+
+        <!-- Filter Charts Dropdown -->
+        <div style="position: relative; display: inline-block;">
+          <button id="filterChartsBtn" class="btn btn-sm" onclick="toggleChartsFilterDropdown(event)" style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;" title="Show / Hide Charts">
+            <span>🎛️</span>
+            <span>Charts</span>
+            <span id="filterChartsBadge" style="font-size: 0.68rem; font-family: ui-monospace, SFMono-Regular, monospace; padding: 1px 6px; border-radius: 9999px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35);">All</span>
+            <span style="font-size: 0.62rem; opacity: 0.6;">▼</span>
+          </button>
+          <div id="filterChartsDropdown" style="display: none; position: absolute; right: 0; top: calc(100% + 6px); z-index: 1000; width: 360px; max-width: 90vw; background: #0f172a; border: 1px solid rgba(51, 65, 85, 0.85); border-radius: 10px; box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.75), 0 10px 15px -5px rgba(0, 0, 0, 0.5); padding: 12px 14px; font-size: 0.8rem; backdrop-filter: blur(12px);">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid rgba(51, 65, 85, 0.55);">
+              <div style="display: flex; align-items: center; gap: 7px;">
+                <span style="font-weight: 700; color: #f8fafc; font-size: 0.82rem; letter-spacing: -0.01em;">Visible Charts</span>
+                <span id="filterChartsActiveCounter" style="font-size: 0.67rem; font-family: ui-monospace, SFMono-Regular, monospace; padding: 1px 6px; border-radius: 9999px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35);">--</span>
+              </div>
+              <div style="display: flex; gap: 5px;">
+                <button class="btn btn-sm" onclick="setAllChartsVisibility(true, ${host.id})" style="padding: 2px 8px; font-size: 0.7rem; font-weight: 500;" title="Show all charts">All</button>
+                <button class="btn btn-sm" onclick="setAllChartsVisibility(false, ${host.id})" style="padding: 2px 8px; font-size: 0.7rem; color: var(--text-muted);" title="Hide all charts">None</button>
+              </div>
+            </div>
+            <div style="position: relative; margin: 9px 0 8px 0;">
+              <input type="text" id="filterChartsSearchInput" placeholder="🔍 Quick search charts..." oninput="onFilterChartsSearch(this.value)" style="width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid rgba(51, 65, 85, 0.8); border-radius: 6px; padding: 5px 10px 5px 28px; font-size: 0.75rem; color: #f8fafc; outline: none; transition: border-color 0.15s ease;" onfocus="this.style.borderColor='#38bdf8'" onblur="this.style.borderColor='rgba(51, 65, 85, 0.8)'" />
+              <span style="position: absolute; left: 8px; top: 50%; transform: translateY(-50%); font-size: 0.72rem; opacity: 0.45; pointer-events: none;">🔍</span>
+            </div>
+            <div id="filterChartsList" style="display: flex; flex-direction: column; gap: 2px; max-height: 290px; overflow-y: auto; padding-right: 3px; scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.3) transparent;">
+              <div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding: 12px;">Loading charts...</div>
+            </div>
+            <div style="margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(51, 65, 85, 0.45); font-size: 0.68rem; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between;">
+              <span>💡 Click <b>Solo</b> to focus a single metric</span>
+              <span style="font-family: ui-monospace, monospace; opacity: 0.5;">Esc to close</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-sm" onclick="openMetricProbesModal(${host.id})" style="display: inline-flex; align-items: center; gap: 6px;">
+          ⚙️ <span>Manage Probes</span>
+        </button>
+        <button class="btn btn-sm" onclick="renderMetricsTab(window.detailData ? window.detailData.host : currentHost)" title="Refresh Metrics">
+          🔄
+        </button>
+      </div>
+    </div>
+
+    <div id="metricsChartsContainer" style="display: flex; flex-direction: column; gap: 16px; overflow-y: auto; padding-right: 4px;">
+      <div style="text-align: center; color: var(--text-muted); padding: 30px;">Loading metrics data...</div>
+    </div>
+  `;
+
+  try {
+    const res = await fetch(`/api/hosts/${host.id}/metrics?range=${currentMetricRange}&category=${currentMetricCategory}`);
+    if (!res.ok) {
+      document.getElementById('metricsChartsContainer').innerHTML = `<div class="card" style="padding: 20px; color: var(--danger);">Failed to load metrics</div>`;
+      return;
+    }
+    const data = await res.json();
+    const container = document.getElementById('metricsChartsContainer');
+    if (!container) return;
+
+    if (!data.enabled) {
+      container.innerHTML = `
+        <div class="card" style="padding: 30px 20px; text-align: center; border: 1px dashed var(--card-border);">
+          <div style="font-size: 2.2rem; margin-bottom: 8px;">📊</div>
+          <div style="font-size: 1.05rem; font-weight: 600; color: #38bdf8;">Metrics Collection Disabled</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; max-width: 480px; margin-left: auto; margin-right: auto;">
+            Time-series telemetry collection is disabled for this host. You can enable it specifically for this host in Host Settings, or enable it globally in Settings &gt; General.
+          </div>
+          <div style="margin-top: 16px; display: flex; justify-content: center; gap: 10px;">
+            <button class="btn btn-primary btn-sm" onclick="openEditHostModal(${host.id})">⚙️ Host Settings</button>
+            <button class="btn btn-sm" onclick="openSettingsModal('general')">⚙️ Global Settings</button>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    if (!data.timestamps || data.timestamps.length === 0) {
+      if (currentMetricCategory === 'applications') {
+        container.innerHTML = `
+          <div class="card" style="padding: 28px 16px; text-align: center; border: 1px dashed var(--card-border);">
+            <div style="font-size: 1.6rem; margin-bottom: 6px;">🔌</div>
+            <div style="font-weight: 600; color: #f8fafc;">No Application Metrics Recorded</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Click <b>⚙️ Manage Probes</b> above to add Nginx, MySQL, PHP-FPM, Redis, PostgreSQL or custom probes.</div>
+          </div>
+        `;
+        return;
+      }
+      container.innerHTML = `
+        <div class="card" style="padding: 30px 20px; text-align: center; border: 1px dashed var(--card-border);">
+          <div style="font-size: 2.2rem; margin-bottom: 8px; animation: spin 2.5s linear infinite; display: inline-block;">⏳</div>
+          <div style="font-size: 1.05rem; font-weight: 600; color: #38bdf8;">Waiting for First Metric Samples...</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; max-width: 460px; margin-left: auto; margin-right: auto;">
+            No metric samples recorded yet within the selected ${currentMetricRange.toUpperCase()} window. Samples are recorded automatically during each inspection sweep.
+          </div>
+          <div style="margin-top: 14px;">
+            <button class="btn btn-primary btn-sm" onclick="inspectHost(${host.id}, event)">⚡ Run Inspection Now</button>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = '';
+    window.currentRenderedCharts = [];
+    const timestamps = data.timestamps;
+    const series = data.series || {};
+    const chartWidth = Math.max(container.clientWidth - 24, 600);
+    const syncGroup = (typeof uPlot !== 'undefined' && uPlot.sync) ? uPlot.sync("pantau-metrics-sync") : { key: "pantau-metrics" };
+
+    function hexToRgba(hex, alpha = 0.1) {
+      if (!hex || typeof hex !== 'string') return `rgba(56, 189, 248, ${alpha})`;
+      if (hex.startsWith('rgba')) return hex;
+      let c = hex.replace('#', '');
+      if (c.length === 3) c = c.split('').map(x => x + x).join('');
+      const num = parseInt(c, 16);
+      if (isNaN(num)) return `rgba(56, 189, 248, ${alpha})`;
+      return `rgba(${(num >> 16) & 255}, ${(num >> 8) & 255}, ${num & 255}, ${alpha})`;
+    }
+
+    function makeAreaGradient(color, topAlpha = 0.18, bottomAlpha = 0.01) {
+      return (u, seriesIdx) => {
+        try {
+          const ctx = u.ctx;
+          const top = u.bbox.top;
+          const height = u.bbox.height;
+          const grad = ctx.createLinearGradient(0, top, 0, top + height);
+          grad.addColorStop(0, hexToRgba(color, topAlpha));
+          grad.addColorStop(1, hexToRgba(color, bottomAlpha));
+          return grad;
+        } catch(e) {
+          return hexToRgba(color, topAlpha * 0.5);
+        }
+      };
+    }
+
+    function formatAxisTicks(vals) {
+      if (!vals || vals.length === 0) return [];
+      let step = 1;
+      for (let i = 1; i < vals.length; i++) {
+        const d = Math.abs(vals[i] - vals[i - 1]);
+        if (d > 0) { step = d; break; }
+      }
+      return vals.map(v => {
+        if (v === null || v === undefined || isNaN(v)) return '';
+        const abs = Math.abs(v);
+        if (abs === 0) return '0';
+        if (abs >= 1e12 || step >= 1e11) {
+          const dec = step < 1e11 ? 2 : (step < 1e12 ? 1 : 0);
+          return (v / 1e12).toFixed(dec) + 'T';
+        }
+        if (abs >= 1e9 || step >= 1e8) {
+          const dec = step < 1e8 ? 2 : (step < 1e9 ? 1 : 0);
+          return (v / 1e9).toFixed(dec) + 'B';
+        }
+        if (abs >= 1e6 || step >= 1e5) {
+          const dec = step < 1e5 ? 2 : (step < 1e6 ? 1 : 0);
+          return (v / 1e6).toFixed(dec) + 'M';
+        }
+        if (abs >= 1e3 || step >= 1e2) {
+          const dec = step < 1e2 ? 2 : (step < 1e3 ? 1 : 0);
+          return (v / 1e3).toFixed(dec) + 'k';
+        }
+        if (abs < 1 && abs > 0) return v.toFixed(2);
+        return Number.isInteger(v) ? v.toString() : v.toFixed(1);
+      });
+    }
+
+    function formatLegendValue(v) {
+      if (v === null || v === undefined || isNaN(v)) return '--';
+      const abs = Math.abs(v);
+      if (abs >= 1e6) {
+        return Number.isInteger(v) ? v.toLocaleString() : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      }
+      if (abs >= 1000) {
+        return Number.isInteger(v) ? v.toLocaleString() : v.toFixed(1);
+      }
+      if (abs < 1 && abs > 0) return v.toFixed(2);
+      return Number.isInteger(v) ? v.toString() : v.toFixed(2);
+    }
+
+    function format24hTimeAxis(u, splits) {
+      if (!splits || splits.length === 0) return [];
+      const min = splits[0];
+      const max = splits[splits.length - 1];
+      const spanSec = max - min;
+      
+      let prevDateKey = null;
+      return splits.map((ts) => {
+        if (ts == null) return '';
+        const d = new Date(ts * 1000);
+        const HH = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        const DD = String(d.getDate()).padStart(2, '0');
+        const MM = String(d.getMonth() + 1).padStart(2, '0');
+        const dateKey = `${DD}/${MM}`;
+
+        if (spanSec > 86400 * 2) {
+          return `${dateKey}\n${HH}:${mm}`;
+        }
+
+        const isNewDay = prevDateKey !== null && prevDateKey !== dateKey;
+        prevDateKey = dateKey;
+        if (isNewDay || (HH === '00' && mm === '00')) {
+          return `${dateKey}\n${HH}:${mm}`;
+        }
+
+        return `${HH}:${mm}`;
+      });
+    }
+
+    function computeRateSeries(ts, vals) {
+      if (!vals || vals.length === 0) return [];
+      const rates = new Array(vals.length);
+      rates[0] = 0;
+      for (let i = 1; i < vals.length; i++) {
+        const v0 = vals[i - 1];
+        const v1 = vals[i];
+        const t0 = ts[i - 1];
+        const t1 = ts[i];
+        if (v0 === null || v0 === undefined || v1 === null || v1 === undefined || t0 == null || t1 == null) {
+          rates[i] = 0;
+          continue;
+        }
+        const dt = t1 - t0;
+        const dv = v1 - v0;
+        if (dt > 0 && dv >= 0) {
+          rates[i] = +(dv / dt).toFixed(2);
+        } else {
+          rates[i] = 0;
+        }
+      }
+      if (rates.length > 1 && rates[0] === 0 && rates[1] > 0) rates[0] = rates[1];
+      return rates;
+    }
+
+    function createChartCard(title, yLabel, seriesDefs, chartData, options = {}) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.position = 'relative';
+      card.style.padding = '12px 16px 14px 16px';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.gap = '4px';
+
+      // Unique chart ID & visibility persistence
+      const chartId = options.id || ('chart-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+      card.setAttribute('data-chart-id', chartId);
+      card.setAttribute('data-chart-title', title);
+
+      const storageKey = 'pantau_hidden_charts_' + host.id;
+      let hiddenChartIds = new Set();
+      try {
+        hiddenChartIds = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]'));
+      } catch (e) {}
+
+      if (hiddenChartIds.has(chartId)) {
+        card.style.display = 'none';
+      }
+
+      // Legend series visibility persistence
+      const legendStorageKey = 'pantau_hidden_legend_' + host.id;
+      let hiddenSeriesMap = {};
+      try {
+        hiddenSeriesMap = JSON.parse(localStorage.getItem(legendStorageKey) || '{}');
+      } catch (e) {}
+      const hiddenLabelsForChart = new Set(hiddenSeriesMap[chartId] || []);
+
+      window.currentRenderedCharts = window.currentRenderedCharts || [];
+      const chartRecord = {
+        id: chartId,
+        title: title,
+        card: card,
+        category: (chartId.startsWith('hw-') ? 'hardware' : 'application'),
+        uPlot: null
+      };
+      window.currentRenderedCharts.push(chartRecord);
+
+      // 1. Calculate Summary Stats (Max, Avg, Now)
+      const primarySeriesIdx = 1;
+      let statNow = null, statMax = null, statAvg = null;
+      if (chartData && chartData.length > 1) {
+        const pData = chartData[primarySeriesIdx] || [];
+        const valid = pData.filter(v => v !== null && v !== undefined && !isNaN(v));
+        if (valid.length > 0) {
+          statNow = valid[valid.length - 1];
+          statMax = Math.max(...valid);
+          statAvg = valid.reduce((a, b) => a + b, 0) / valid.length;
+        }
+      }
+
+      // Build card header with title and stats chips
+      const headerEl = document.createElement('div');
+      headerEl.className = 'chart-card-header';
+      headerEl.style.cssText = 'display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 2px;';
+
+      const titleEl = document.createElement('div');
+      titleEl.style.cssText = 'display: flex; align-items: center; gap: 8px; font-size: 0.86rem; font-weight: 600; color: #f8fafc;';
+      titleEl.innerHTML = title;
+      headerEl.appendChild(titleEl);
+
+      const statsAndControls = document.createElement('div');
+      statsAndControls.style.cssText = 'display: flex; align-items: center; gap: 8px; flex-wrap: wrap;';
+
+      const statChips = document.createElement('div');
+      statChips.className = 'chart-stat-chips';
+      statChips.style.cssText = 'display: inline-flex; align-items: center; gap: 7px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(51, 65, 85, 0.5); border-radius: 6px; padding: 2px 8px; font-size: 0.72rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: var(--text-muted);';
+
+      function renderChips(now, max, avg, unit = '') {
+        const uStr = unit ? ` ${unit}` : '';
+        return `
+          <span>Max: <strong style="color: #f8fafc;">${formatLegendValue(max)}${uStr}</strong></span>
+          <span style="opacity: 0.35;">|</span>
+          <span>Avg: <strong style="color: #cbd5e1;">${formatLegendValue(avg)}${uStr}</strong></span>
+          <span style="opacity: 0.35;">|</span>
+          <span>Now: <strong style="color: #38bdf8;">${formatLegendValue(now)}${uStr}</strong></span>
+        `;
+      }
+
+      if (statNow !== null) {
+        statChips.innerHTML = renderChips(statNow, statMax, statAvg, options.unit || '');
+        statsAndControls.appendChild(statChips);
+      }
+
+      headerEl.appendChild(statsAndControls);
+      card.appendChild(headerEl);
+
+      const chartEl = document.createElement('div');
+      chartEl.style.width = '100%';
+      chartEl.style.position = 'relative';
+      card.appendChild(chartEl);
+      container.appendChild(card);
+
+      if (typeof uPlot === 'undefined') {
+        chartEl.innerHTML = `<div style="color: var(--warning); padding: 10px;">uPlot library not loaded</div>`;
+        return;
+      }
+
+      // Popover element (Floating Hover Tooltip)
+      const popover = document.createElement('div');
+      popover.className = 'uplot-popover';
+      popover.style.cssText = 'position: absolute; display: none; pointer-events: none; z-index: 50; min-width: 175px; background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(51, 65, 85, 0.7); border-radius: 6px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4); padding: 8px 10px; font-size: 0.74rem;';
+      chartEl.appendChild(popover);
+
+      // Spline paths generator
+      const splinePaths = (typeof uPlot !== 'undefined' && uPlot.paths && typeof uPlot.paths.spline === 'function')
+        ? uPlot.paths.spline()
+        : undefined;
+
+      const opts = {
+        width: chartWidth,
+        height: 160,
+        cursor: {
+          sync: {
+            key: syncGroup.key,
+            setSeries: true
+          }
+        },
+        hooks: {
+          setCursor: [
+            (u) => {
+              if (u.cursor.left < 0 && u.data && u.data[0] && u.data[0].length > 0) {
+                u.setLegend({ idx: u.data[0].length - 1 }, false);
+                popover.style.display = 'none';
+                return;
+              }
+              if (u.cursor.left < 0 || u.cursor.idx == null) {
+                popover.style.display = 'none';
+                return;
+              }
+
+              const idx = u.cursor.idx;
+              const ts = u.data[0][idx];
+              if (ts == null) {
+                popover.style.display = 'none';
+                return;
+              }
+
+              const date = new Date(ts * 1000);
+              const DD = String(date.getDate()).padStart(2, '0');
+              const MM = String(date.getMonth() + 1).padStart(2, '0');
+              const YYYY = date.getFullYear();
+              const HH = String(date.getHours()).padStart(2, '0');
+              const mm = String(date.getMinutes()).padStart(2, '0');
+              const dateStr = `${HH}:${mm} · ${DD}/${MM}/${YYYY}`;
+
+              let rowsHtml = '';
+              for (let si = 1; si < u.series.length; si++) {
+                const s = u.series[si];
+                if (!s.show) continue;
+                const val = u.data[si][idx];
+                const formattedVal = formatLegendValue(val);
+                const color = typeof s.stroke === 'function' ? '#38bdf8' : (s.stroke || '#38bdf8');
+                rowsHtml += `
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 3px;">
+                    <div style="display: flex; align-items: center; gap: 6px; color: #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px;">
+                      <span style="display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: ${color}; flex-shrink: 0;"></span>
+                      <span style="font-weight: 500;">${s.label}</span>
+                    </div>
+                    <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 600; color: #f8fafc; text-align: right;">${formattedVal}</div>
+                  </div>
+                `;
+              }
+
+              popover.innerHTML = `
+                <div style="font-size: 0.7rem; color: #94a3b8; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; border-bottom: 1px solid rgba(51, 65, 85, 0.4); padding-bottom: 3px; margin-bottom: 4px;">
+                  ⏱️ ${dateStr}
+                </div>
+                ${rowsHtml}
+              `;
+
+              popover.style.display = 'block';
+
+              const chartRect = chartEl.getBoundingClientRect();
+              const overRect = u.over ? u.over.getBoundingClientRect() : { left: chartRect.left + 80, top: chartRect.top + 16, width: chartRect.width - 80, height: 120 };
+
+              // Absolute cursor coordinates relative to chartEl
+              const cursorX = (overRect.left - chartRect.left) + u.cursor.left;
+              const cursorY = (overRect.top - chartRect.top) + u.cursor.top;
+
+              const popWidth = popover.offsetWidth || 195;
+              const popHeight = popover.offsetHeight || 85;
+              const gutter = 32; // Generous 32px clearance so cursor dot and crosshair are never blocked
+
+              let isFlipped = false;
+              let left = cursorX + gutter;
+
+              if (left + popWidth > chartRect.width - 14) {
+                left = cursorX - popWidth - gutter;
+                isFlipped = true;
+              }
+              if (left < 8) left = 8;
+
+              // Vertical centering on cursor dot, clamped inside bounds
+              let top = Math.max(8, Math.min(cursorY - (popHeight / 2), chartRect.height - popHeight - 8));
+
+              popover.style.left = left + 'px';
+              popover.style.top = top + 'px';
+              popover.style.borderLeft = isFlipped ? '1px solid rgba(51, 65, 85, 0.7)' : '3px solid #38bdf8';
+              popover.style.borderRight = isFlipped ? '3px solid #38bdf8' : '1px solid rgba(51, 65, 85, 0.7)';
+              popover.style.boxShadow = isFlipped
+                ? '-4px 10px 25px -5px rgba(0, 0, 0, 0.7), 0 0 15px rgba(56, 189, 248, 0.12)'
+                : '4px 10px 25px -5px rgba(0, 0, 0, 0.7), 0 0 15px rgba(56, 189, 248, 0.12)';
+            }
+          ],
+          draw: [
+            (u) => {
+              if (!options.thresholds || options.thresholds.length === 0) return;
+              const ctx = u.ctx;
+              const { left, top, width, height } = u.bbox;
+              ctx.save();
+              options.thresholds.forEach(t => {
+                const yPos = u.valToPos(t.value, 'y', true);
+                if (yPos >= top && yPos <= top + height) {
+                  ctx.strokeStyle = t.color;
+                  ctx.lineWidth = 1;
+                  ctx.setLineDash([5, 4]);
+                  ctx.beginPath();
+                  ctx.moveTo(left, yPos);
+                  ctx.lineTo(left + width, yPos);
+                  ctx.stroke();
+
+                  if (t.label) {
+                    ctx.fillStyle = t.color;
+                    ctx.font = '600 9px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(t.label, left + width - 6, yPos - 3);
+                  }
+                }
+              });
+              ctx.restore();
+            }
+          ]
+        },
+        scales: {
+          x: { time: true },
+          y: { auto: true }
+        },
+        axes: [
+          {
+            stroke: '#94a3b8',
+            values: (u, splits) => format24hTimeAxis(u, splits),
+            grid: { stroke: 'rgba(51, 65, 85, 0.35)' },
+            ticks: { stroke: 'rgba(51, 65, 85, 0.5)' }
+          },
+          {
+            stroke: '#94a3b8',
+            label: yLabel,
+            size: 52,
+            values: (u, vals) => formatAxisTicks(vals),
+            grid: { stroke: 'rgba(51, 65, 85, 0.35)' },
+            ticks: { stroke: 'rgba(51, 65, 85, 0.5)' }
+          }
+        ],
+        series: [
+          {
+            label: "Time",
+            value: (u, ts) => {
+              if (ts == null) return "--";
+              const d = new Date(ts * 1000);
+              const DD = String(d.getDate()).padStart(2, '0');
+              const MM = String(d.getMonth() + 1).padStart(2, '0');
+              const YYYY = d.getFullYear();
+              const HH = String(d.getHours()).padStart(2, '0');
+              const mm = String(d.getMinutes()).padStart(2, '0');
+              return `${DD}/${MM}/${YYYY} ${HH}:${mm}`;
+            }
+          },
+          ...seriesDefs.map(s => {
+            const isHidden = hiddenLabelsForChart.has(s.label);
+            return {
+              value: (u, v) => formatLegendValue(v),
+              paths: s.paths || splinePaths,
+              ...s,
+              points: (s.points !== undefined) ? s.points : { show: false },
+              show: isHidden ? false : (s.show !== undefined ? s.show : true)
+            };
+          })
+        ]
+      };
+
+      try {
+        const u = new uPlot(opts, chartData, chartEl);
+        if (chartData && chartData[0] && chartData[0].length > 0) {
+          u.setLegend({ idx: chartData[0].length - 1 }, false);
+        }
+        window.activeUPlots.push(u);
+        chartRecord.uPlot = u;
+
+        // 5. Interactive Legend Toggle (Click to Hide / Alt-Click or Ctrl-Click to Solo) with Persistence
+        const legendEl = chartEl.querySelector('.u-legend');
+        if (legendEl) {
+          legendEl.querySelectorAll('.u-series').forEach((sRow, idx) => {
+            if (idx > 0) {
+              sRow.setAttribute('title', 'Click to toggle · Alt+Click to solo');
+            }
+          });
+
+          function saveLegendHiddenState() {
+            try {
+              const currentMap = JSON.parse(localStorage.getItem(legendStorageKey) || '{}');
+              const hiddenList = [];
+              for (let i = 1; i < u.series.length; i++) {
+                if (!u.series[i].show) {
+                  hiddenList.push(u.series[i].label);
+                }
+              }
+              if (hiddenList.length > 0) {
+                currentMap[chartId] = hiddenList;
+              } else {
+                delete currentMap[chartId];
+              }
+              localStorage.setItem(legendStorageKey, JSON.stringify(currentMap));
+            } catch (err) {}
+          }
+
+          legendEl.addEventListener('click', (e) => {
+            const seriesEl = e.target.closest('.u-series');
+            if (!seriesEl) return;
+            // Prevent uPlot internal click listener on TH from double-toggling
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+
+            const seriesEls = Array.from(legendEl.querySelectorAll('.u-series'));
+            const sIdx = seriesEls.indexOf(seriesEl);
+            if (sIdx > 0 && u) {
+              const isSolo = e.altKey || e.ctrlKey || e.metaKey;
+              if (isSolo) {
+                const otherSeries = u.series.filter((s, idx) => idx > 0 && idx !== sIdx);
+                const allOthersHidden = otherSeries.every(s => !s.show);
+                if (allOthersHidden) {
+                  for (let i = 1; i < u.series.length; i++) u.setSeries(i, { show: true });
+                } else {
+                  for (let i = 1; i < u.series.length; i++) u.setSeries(i, { show: i === sIdx });
+                }
+              } else {
+                const isShown = u.series[sIdx].show;
+                u.setSeries(sIdx, { show: !isShown });
+              }
+              saveLegendHiddenState();
+            }
+          }, { capture: true });
+        }
+
+        // 6. Mode Toggle for Rate vs Cumulative
+        if (options.rateData) {
+          let currentMode = options.defaultMode || 'rate';
+          const toggleContainer = document.createElement('div');
+          toggleContainer.style.cssText = 'display: inline-flex; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 2px;';
+
+          const btnRate = document.createElement('button');
+          btnRate.className = `btn btn-sm ${currentMode === 'rate' ? 'btn-primary' : ''}`;
+          btnRate.style.cssText = `padding: 2px 8px; font-size: 0.72rem; border: none; border-radius: 4px; cursor: pointer; ${currentMode !== 'rate' ? 'background: transparent; color: var(--text-muted);' : ''}`;
+          btnRate.innerText = '⚡ Rate/s';
+
+          const btnTotal = document.createElement('button');
+          btnTotal.className = `btn btn-sm ${currentMode === 'total' ? 'btn-primary' : ''}`;
+          btnTotal.style.cssText = `padding: 2px 8px; font-size: 0.72rem; border: none; border-radius: 4px; cursor: pointer; ${currentMode !== 'total' ? 'background: transparent; color: var(--text-muted);' : ''}`;
+          btnTotal.innerText = 'Total';
+
+          function updateDataMode(mode) {
+            currentMode = mode;
+            btnRate.className = `btn btn-sm ${currentMode === 'rate' ? 'btn-primary' : ''}`;
+            btnRate.style.background = currentMode === 'rate' ? '' : 'transparent';
+            btnRate.style.color = currentMode === 'rate' ? '' : 'var(--text-muted)';
+
+            btnTotal.className = `btn btn-sm ${currentMode === 'total' ? 'btn-primary' : ''}`;
+            btnTotal.style.background = currentMode === 'total' ? '' : 'transparent';
+            btnTotal.style.color = currentMode === 'total' ? '' : 'var(--text-muted)';
+
+            const activeData = currentMode === 'rate' ? options.rateData : chartData;
+            u.setData(activeData);
+
+            const newYLabel = currentMode === 'rate' ? (options.rateYLabel || 'Rate (/sec)') : yLabel;
+            u.axes[1].label = newYLabel;
+            u.redraw();
+
+            const pData = activeData[primarySeriesIdx] || [];
+            const valid = pData.filter(v => v !== null && v !== undefined && !isNaN(v));
+            if (valid.length > 0) {
+              statChips.innerHTML = renderChips(valid[valid.length - 1], Math.max(...valid), valid.reduce((a, b) => a + b, 0) / valid.length, currentMode === 'rate' ? '/s' : '');
+            }
+          }
+
+          btnRate.onclick = () => updateDataMode('rate');
+          btnTotal.onclick = () => updateDataMode('total');
+
+          toggleContainer.appendChild(btnRate);
+          toggleContainer.appendChild(btnTotal);
+          statsAndControls.appendChild(toggleContainer);
+
+          if (currentMode === 'rate') {
+            setTimeout(() => updateDataMode('rate'), 10);
+          }
+        }
+      } catch (err) {
+        console.error("uPlot init error for " + title, err);
+      }
+    }
+
+    // 1. CPU, RAM & Swap Utilization (%)
+    if ((currentMetricCategory === 'all' || currentMetricCategory === 'hardware') && (series.cpu || series.ram || series.swap)) {
+      const cpuData = series.cpu || new Array(timestamps.length).fill(0);
+      const ramData = series.ram || new Array(timestamps.length).fill(0);
+      const sDefs = [
+        { label: "CPU %", stroke: "#38bdf8", width: 1.5, fill: makeAreaGradient("#38bdf8", 0.16, 0.01) },
+        { label: "RAM %", stroke: "#a855f7", width: 1.5, fill: makeAreaGradient("#a855f7", 0.16, 0.01) }
+      ];
+      const cData = [timestamps, cpuData, ramData];
+      if (series.swap) {
+        sDefs.push({ label: "Swap %", stroke: "#f43f5e", width: 1.5, fill: makeAreaGradient("#f43f5e", 0.14, 0.01) });
+        cData.push(series.swap);
+      }
+      createChartCard(
+        series.swap ? "CPU, RAM & Swap Utilization (%)" : "CPU & RAM Utilization (%)",
+        "Percent (%)",
+        sDefs,
+        cData,
+        {
+          id: 'hw-cpu-ram-swap',
+          unit: '%',
+          thresholds: [
+            { value: 80, color: 'rgba(234, 179, 8, 0.55)', label: '80% WARN' },
+            { value: 90, color: 'rgba(244, 63, 94, 0.7)', label: '90% CRIT' }
+          ]
+        }
+      );
+    }
+
+    // 2. Disk Storage Utilization (%)
+    if ((currentMetricCategory === 'all' || currentMetricCategory === 'hardware') && series.disk) {
+      createChartCard(
+        "Disk Storage Capacity (%)",
+        "Percent (%)",
+        [
+          { label: "Disk Used %", stroke: "#eab308", width: 1.5, fill: makeAreaGradient("#eab308", 0.16, 0.01) }
+        ],
+        [timestamps, series.disk],
+        {
+          id: 'hw-disk-storage',
+          unit: '%',
+          thresholds: [
+            { value: 80, color: 'rgba(234, 179, 8, 0.55)', label: '80% WARN' },
+            { value: 90, color: 'rgba(244, 63, 94, 0.7)', label: '90% CRIT' }
+          ]
+        }
+      );
+    }
+
+    // 3. Disk I/O Rate (MB/s)
+    if ((currentMetricCategory === 'all' || currentMetricCategory === 'hardware') && (series.disk_read_bps || series.disk_write_bps)) {
+      const rMB = (series.disk_read_bps || new Array(timestamps.length).fill(0)).map(v => +(v / (1024 * 1024)).toFixed(2));
+      const wMB = (series.disk_write_bps || new Array(timestamps.length).fill(0)).map(v => +(v / (1024 * 1024)).toFixed(2));
+      createChartCard(
+        "Disk I/O Throughput (MB/s)",
+        "MB/s",
+        [
+          { label: "Read (MB/s)", stroke: "#34d399", width: 1.5, fill: makeAreaGradient("#34d399", 0.16, 0.01) },
+          { label: "Write (MB/s)", stroke: "#f59e0b", width: 1.5, fill: makeAreaGradient("#f59e0b", 0.16, 0.01) }
+        ],
+        [timestamps, rMB, wMB],
+        { id: 'hw-disk-io', unit: 'MB/s' }
+      );
+    }
+
+    // 4. Network Bandwidth (KB/s)
+    if ((currentMetricCategory === 'all' || currentMetricCategory === 'hardware') && (series.net_rx_bps || series.net_tx_bps)) {
+      const rxKB = (series.net_rx_bps || new Array(timestamps.length).fill(0)).map(v => +(v / 1024).toFixed(1));
+      const txKB = (series.net_tx_bps || new Array(timestamps.length).fill(0)).map(v => +(v / 1024).toFixed(1));
+      createChartCard(
+        "Network Bandwidth (KB/s)",
+        "KB/s",
+        [
+          { label: "Rx (KB/s)", stroke: "#06b6d4", width: 1.5, fill: makeAreaGradient("#06b6d4", 0.16, 0.01) },
+          { label: "Tx (KB/s)", stroke: "#ec4899", width: 1.5, fill: makeAreaGradient("#ec4899", 0.16, 0.01) }
+        ],
+        [timestamps, rxKB, txKB],
+        { id: 'hw-net-bandwidth', unit: 'KB/s' }
+      );
+    }
+
+    // 5. Network Uplink Latency (ms)
+    if ((currentMetricCategory === 'all' || currentMetricCategory === 'hardware') && series.internet_latency_ms) {
+      createChartCard(
+        "Network & Internet Latency (ms)",
+        "Latency (ms)",
+        [
+          { label: "Latency (ms)", stroke: "#14b8a6", width: 1.5, fill: makeAreaGradient("#14b8a6", 0.16, 0.01) }
+        ],
+        [timestamps, series.internet_latency_ms],
+        {
+          id: 'hw-net-latency',
+          unit: 'ms',
+          thresholds: [
+            { value: 50, color: 'rgba(234, 179, 8, 0.55)', label: '50ms SLA' },
+            { value: 100, color: 'rgba(244, 63, 94, 0.7)', label: '100ms HIGH' }
+          ]
+        }
+      );
+    }
+
+    // 6. Application Metrics - Grouped per Application & Scale with Beautiful Labels
+    const hwKeys = new Set(["cpu", "ram", "ram_used_bytes", "ram_total_bytes", "swap", "swap_used_bytes", "swap_total_bytes", "disk", "disk_used_bytes", "disk_total_bytes", "disk_read_bps", "disk_write_bps", "net_rx_bps", "net_tx_bps", "internet_latency_ms"]);
+    const appKeys = Object.keys(series).filter(k => !hwKeys.has(k));
+
+    const metricFriendlyNames = {
+      // MySQL
+      "mysql_threads_connected": "Active Threads",
+      "mysql_threads_running": "Threads Running",
+      "mysql_connections": "Total Connections",
+      "mysql_slow_queries": "Slow Queries",
+      "mysql_qps": "Queries / Sec (QPS)",
+      "mysql_questions": "Questions",
+      "mysql_queries": "Total Queries",
+      "mysql_opens": "Open Tables",
+      "mysql_uptime": "Uptime (s)",
+      "mysql_innodb_buffer_pool_reads": "InnoDB Buffer Reads",
+
+      // Nginx
+      "nginx_active": "Active Connections",
+      "nginx_reading": "Reading Connections",
+      "nginx_writing": "Writing Connections",
+      "nginx_waiting": "Waiting (Keep-Alive)",
+      "nginx_requests": "Total Requests",
+      "nginx_accepts": "Accepted Connections",
+      "nginx_handled": "Handled Connections",
+
+      // PHP-FPM
+      "active_processes": "Active Workers",
+      "idle_processes": "Idle Workers",
+      "total_processes": "Total Workers",
+      "listen_queue": "Listen Queue",
+      "accepted_conn": "Accepted Connections",
+      "slow_requests": "Slow Requests",
+      "max_active_processes": "Max Active Workers",
+      "max_children_reached": "Max Children Reached",
+      "php_active_processes": "Active Workers",
+      "php_idle_processes": "Idle Workers",
+      "php_total_processes": "Total Workers",
+      "php_listen_queue": "Listen Queue",
+      "php_accepted_conn": "Accepted Connections",
+      "php_slow_requests": "Slow Requests",
+
+      // Redis
+      "redis_connected_clients": "Connected Clients",
+      "redis_blocked_clients": "Blocked Clients",
+      "redis_ops_per_sec": "Commands / Sec",
+      "redis_rejected_connections": "Rejected Connections",
+      "redis_expired_keys": "Expired Keys",
+      "redis_uptime": "Uptime (s)",
+      "redis_used_memory_bytes": "Memory Used (Bytes)",
+      "redis_used_memory": "Memory Used",
+      "redis_keys": "Total Keys",
+
+      // PostgreSQL
+      "pg_active_connections": "Active Connections",
+      "pg_idle_connections": "Idle Connections",
+      "pg_total_connections": "Total Connections",
+      "pg_commits": "Commits",
+      "pg_rollbacks": "Rollbacks",
+      "pg_tps": "Transactions / Sec (TPS)",
+      "pg_slow_queries": "Slow Queries"
+    };
+
+    function formatAppMetricLabel(rawKey) {
+      if (!rawKey) return '';
+      if (metricFriendlyNames[rawKey]) {
+        return metricFriendlyNames[rawKey];
+      }
+      // Smart formatting for custom probe keys:
+      // Strip service prefixes like mysql_, nginx_, php_, redis_, pg_, postgres_, app_, custom_, docker_, etc.
+      let cleaned = rawKey.replace(/^(mysql|nginx|php|redis|postgres|pg|docker|app|custom|apache|httpd|mongo|mongodb|kafka|rabbit|rabbitmq|node|nodejs|go|golang|pm2|supervisor|celery|sidekiq|laravel|django|elasticsearch|elastic|es|minio|traefik|haproxy|tcp|udp)_/i, '');
+      // Replace underscores and hyphens with spaces
+      cleaned = cleaned.replace(/[_\-]+/g, ' ').trim();
+      // Title Case with special technical acronym handling
+      return cleaned.split(/\s+/).map(word => {
+        const lower = word.toLowerCase();
+        if (["qps", "tps", "rps", "iops", "cpu", "ram", "rss", "mtu", "ip", "db", "io", "ssl", "tls", "tcp", "udp", "kb", "mb", "gb", "sec", "p95", "p99", "sla", "api", "http", "https"].includes(lower)) {
+          return lower.toUpperCase();
+        }
+        if (lower === "conn") return "Connections";
+        if (lower === "req" || lower === "reqs") return "Requests";
+        if (lower === "ops") return "Operations";
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      }).join(' ');
+    }
+
+    if ((currentMetricCategory === 'all' || currentMetricCategory === 'applications') && appKeys.length > 0) {
+      // Group keys by application/probe domain and logical scale
+      const groups = {};
+
+      appKeys.forEach(k => {
+        let appName = "⚡ Other Applications";
+        let subGroup = "";
+        let yLabel = "Count";
+
+        if (k.startsWith("nginx_")) {
+          appName = "🌐 Nginx Web Server";
+          if (["nginx_active", "nginx_reading", "nginx_writing", "nginx_waiting"].includes(k) || k.includes("connection")) {
+            subGroup = "Connections";
+            yLabel = "Connections";
+          } else {
+            subGroup = "Requests & Traffic";
+            yLabel = "Requests";
+          }
+        } else if (k.startsWith("mysql_")) {
+          appName = "🐬 MySQL Database";
+          if (["mysql_threads_connected", "mysql_slow_queries", "mysql_qps", "mysql_threads_running", "mysql_connections"].includes(k) || k.includes("thread") || k.includes("slow") || k.includes("qps") || k.includes("conn")) {
+            subGroup = "Connections & Load";
+            yLabel = "Threads / QPS / Conn";
+          } else {
+            subGroup = "Queries & Cumulative";
+            yLabel = "Queries / Time";
+          }
+        } else if (k.startsWith("php_") || ["active_processes", "idle_processes", "total_processes", "listen_queue", "accepted_conn", "slow_requests"].includes(k) || k.includes("processes")) {
+          appName = "🐘 PHP-FPM Worker Pool";
+          subGroup = "Processes";
+          yLabel = "Workers / Queue";
+        } else if (k.startsWith("redis_")) {
+          appName = "🔴 Redis Cache";
+          if (["redis_connected_clients", "redis_ops_per_sec", "redis_rejected_connections", "redis_blocked_clients"].includes(k) || k.includes("client") || k.includes("ops")) {
+            subGroup = "Clients & Ops";
+            yLabel = "Clients / Ops";
+          } else {
+            subGroup = "Memory & Keys";
+            yLabel = "Bytes / Keys";
+          }
+        } else if (k.startsWith("pg_") || k.startsWith("postgres_")) {
+          appName = "🐘 PostgreSQL Database";
+          if (["pg_active_connections", "pg_idle_connections", "pg_total_connections"].includes(k) || k.includes("conn")) {
+            subGroup = "Connections";
+            yLabel = "Connections";
+          } else {
+            subGroup = "Activity";
+            yLabel = "Transactions / Queries";
+          }
+        } else if (k.startsWith("apache_") || k.startsWith("httpd_")) {
+          appName = "🪶 Apache Web Server";
+          yLabel = k.includes("worker") ? "Workers" : "Requests";
+        } else if (k.startsWith("docker_")) {
+          appName = "🐳 Docker Engine";
+          yLabel = "Containers / Tasks";
+        } else if (k.startsWith("mongo_") || k.startsWith("mongodb_")) {
+          appName = "🍃 MongoDB Database";
+          yLabel = k.includes("conn") ? "Connections" : "Ops / Docs";
+        } else if (k.startsWith("rabbit") || k.startsWith("amqp_")) {
+          appName = "🐇 RabbitMQ Broker";
+          yLabel = "Messages / Queues";
+        } else if (k.startsWith("kafka_")) {
+          appName = "🪵 Apache Kafka";
+          yLabel = "Messages / Lag";
+        } else if (k.startsWith("elastic") || k.startsWith("es_")) {
+          appName = "🔍 Elasticsearch";
+          yLabel = "Docs / Shards";
+        } else {
+          const parts = k.split(/[_\-.]/);
+          if (parts.length > 1 && parts[0].length >= 2) {
+            const head = ["tcp", "udp", "ssl", "api", "db", "io"].includes(parts[0].toLowerCase())
+              ? parts[0].toUpperCase()
+              : parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+            appName = "⚡ " + head + " App";
+          }
+          if (k.includes("latency") || k.includes("_ms") || k.includes("time")) {
+            yLabel = "Time (ms)";
+          } else if (k.includes("rate") || k.includes("qps") || k.includes("tps") || k.includes("rps")) {
+            yLabel = "Rate /s";
+          } else if (k.includes("bytes") || k.includes("memory") || k.includes("size")) {
+            yLabel = "Bytes / Size";
+          } else if (k.includes("conn") || k.includes("client")) {
+            yLabel = "Connections";
+          } else if (k.includes("worker") || k.includes("thread") || k.includes("proc")) {
+            yLabel = "Workers";
+          } else {
+            yLabel = "Count";
+          }
+        }
+
+        const groupKey = subGroup ? `${appName} (${subGroup})` : appName;
+        if (!groups[groupKey]) groups[groupKey] = { keys: [], yLabel: yLabel };
+        groups[groupKey].keys.push(k);
+      });
+
+      const palette = ["#10b981", "#6366f1", "#f97316", "#8b5cf6", "#06b6d4", "#ec4899", "#eab308", "#14b8a6"];
+
+      Object.entries(groups).forEach(([groupTitle, gInfo]) => {
+        const keys = gInfo.keys;
+        const appSeriesDefs = keys.map((k, i) => {
+          const color = palette[i % palette.length];
+          return {
+            label: formatAppMetricLabel(k),
+            stroke: color,
+            width: 1.5,
+            fill: makeAreaGradient(color, 0.14, 0.01)
+          };
+        });
+        const appData = [timestamps, ...keys.map(k => series[k])];
+        const cumulativeKeys = new Set(["mysql_questions", "mysql_queries", "mysql_opens", "nginx_requests", "nginx_accepts", "nginx_handled", "redis_expired_keys", "pg_commits", "pg_rollbacks"]);
+        const hasCumulative = keys.some(k => 
+          cumulativeKeys.has(k) || 
+          k.endsWith("_total") || 
+          k.endsWith("_cumulative") || 
+          k.endsWith("_count") ||
+          k.includes("_total_")
+        );
+        const cardOpts = {
+          id: 'app-' + groupTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        };
+        if (hasCumulative) {
+          const rateData = [timestamps, ...keys.map(k => computeRateSeries(timestamps, series[k]))];
+          cardOpts.rateData = rateData;
+          cardOpts.defaultMode = 'rate';
+          cardOpts.rateYLabel = 'Rate (/sec)';
+        }
+        createChartCard(
+          groupTitle,
+          gInfo.yLabel || "Count",
+          appSeriesDefs,
+          appData,
+          cardOpts
+        );
+      });
+    } else if (currentMetricCategory === 'applications' && appKeys.length === 0) {
+      const emptyCard = document.createElement('div');
+      emptyCard.className = 'card';
+      emptyCard.style.padding = '28px 16px';
+      emptyCard.style.textAlign = 'center';
+      emptyCard.style.border = '1px dashed var(--card-border)';
+      emptyCard.innerHTML = `
+        <div style="font-size: 1.6rem; margin-bottom: 6px;">🔌</div>
+        <div style="font-weight: 600; color: #f8fafc;">No Application Metrics Recorded</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">Click <b>⚙️ Manage Probes</b> above to add Nginx, MySQL, PHP-FPM, Redis, PostgreSQL or custom probes.</div>
+      `;
+      container.appendChild(emptyCard);
+    }
+
+    // Initialize Chart Filter Dropdown with current rendered charts
+    initChartsFilterDropdown(host.id);
+
+    if (!window.metricsResizeObserver && window.ResizeObserver) {
+      window.metricsResizeObserver = new ResizeObserver(entries => {
+        for (let entry of entries) {
+          const w = entry.contentRect.width;
+          if (w > 100 && window.activeUPlots) {
+            window.activeUPlots.forEach(u => {
+              try { u.setSize({ width: Math.floor(w - 32), height: 160 }); } catch(e) {}
+            });
+          }
+        }
+      });
+    }
+    if (window.metricsResizeObserver) {
+      window.metricsResizeObserver.disconnect();
+      window.metricsResizeObserver.observe(container);
+    }
+
+  } catch (err) {
+    console.error("renderMetricsTab error:", err);
+    const container = document.getElementById('metricsChartsContainer');
+    if (container) {
+      container.innerHTML = `<div class="card" style="padding: 20px; color: var(--danger);">Error displaying charts: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+}
+
+function toggleChartsFilterDropdown(event) {
+  if (event) {
+    event.stopPropagation();
+  }
+  const dropdown = document.getElementById('filterChartsDropdown');
+  if (!dropdown) return;
+  const isHidden = dropdown.style.display === 'none' || !dropdown.style.display;
+  dropdown.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) {
+    const searchInput = document.getElementById('filterChartsSearchInput');
+    if (searchInput) {
+      searchInput.value = '';
+      onFilterChartsSearch('');
+      setTimeout(() => searchInput.focus(), 60);
+    }
+  }
+}
+
+function updateChartsFilterBadge(hostId) {
+  const badge = document.getElementById('filterChartsBadge');
+  const counterBadge = document.getElementById('filterChartsActiveCounter');
+  const charts = window.currentRenderedCharts || [];
+  if (charts.length === 0) {
+    if (badge) {
+      badge.innerText = '0';
+      badge.style.color = 'var(--text-muted)';
+    }
+    if (counterBadge) counterBadge.innerText = '0 charts';
+    return;
+  }
+  const storageKey = 'pantau_hidden_charts_' + hostId;
+  let hidden = new Set();
+  try {
+    hidden = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]'));
+  } catch(e) {}
+
+  let visibleCount = 0;
+  charts.forEach(c => {
+    if (!hidden.has(c.id)) visibleCount++;
+  });
+
+  if (counterBadge) {
+    counterBadge.innerText = `${visibleCount} / ${charts.length} active`;
+  }
+
+  if (badge) {
+    if (visibleCount === charts.length) {
+      badge.innerText = 'All';
+      badge.style.color = '#38bdf8';
+      badge.style.background = 'rgba(56, 189, 248, 0.15)';
+      badge.style.borderColor = 'rgba(56, 189, 248, 0.35)';
+    } else if (visibleCount === 0) {
+      badge.innerText = 'None';
+      badge.style.color = 'var(--text-muted)';
+      badge.style.background = 'rgba(100, 116, 139, 0.15)';
+      badge.style.borderColor = 'rgba(100, 116, 139, 0.35)';
+    } else {
+      badge.innerText = `${visibleCount}/${charts.length}`;
+      badge.style.color = '#f59e0b';
+      badge.style.background = 'rgba(245, 158, 11, 0.15)';
+      badge.style.borderColor = 'rgba(245, 158, 11, 0.35)';
+    }
+  }
+}
+
+function getChartIconAndCleanTitle(chart) {
+  const id = chart.id;
+  const title = chart.title;
+  if (id === 'hw-cpu-ram-swap') return { icon: '💻', name: 'CPU, RAM & Swap (%)' };
+  if (id === 'hw-disk-storage') return { icon: '💾', name: 'Disk Storage Capacity (%)' };
+  if (id === 'hw-disk-io') return { icon: '⚡', name: 'Disk I/O Throughput (MB/s)' };
+  if (id === 'hw-net-bandwidth') return { icon: '📡', name: 'Network Bandwidth (KB/s)' };
+  if (id === 'hw-net-latency') return { icon: '⏱️', name: 'Network & Internet Latency (ms)' };
+
+  const match = title.match(/^(\p{Extended_Pictographic}|\uD83C[\uDF00-\uDFFF]|\uD83D[\uDC00-\uDE4F]|\uD83D[\uDE80-\uDEFF]|[\u2600-\u2B55])\s*(.*)$/u);
+  if (match) {
+    return { icon: match[1], name: match[2].trim() };
+  }
+  return { icon: '🔌', name: title };
+}
+
+function initChartsFilterDropdown(hostId) {
+  const listEl = document.getElementById('filterChartsList');
+  if (!listEl) return;
+  const charts = window.currentRenderedCharts || [];
+  if (charts.length === 0) {
+    listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.75rem; text-align: center; padding: 12px;">No charts available</div>';
+    updateChartsFilterBadge(hostId);
+    return;
+  }
+
+  const storageKey = 'pantau_hidden_charts_' + hostId;
+  let hidden = new Set();
+  try {
+    hidden = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]'));
+  } catch(e) {}
+
+  listEl.innerHTML = '';
+
+  const hwCharts = charts.filter(c => (c.category || (c.id.startsWith('hw-') ? 'hardware' : 'application')) === 'hardware');
+  const appCharts = charts.filter(c => (c.category || (c.id.startsWith('hw-') ? 'hardware' : 'application')) === 'application');
+
+  function renderSection(sectionTitle, icon, chartList, categoryKey) {
+    if (chartList.length === 0) return;
+
+    const secHeader = document.createElement('div');
+    secHeader.className = 'chart-filter-sec-header';
+    secHeader.setAttribute('data-category', categoryKey);
+    secHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 6px 4px 4px 4px; margin-top: 5px; border-bottom: 1px solid rgba(51, 65, 85, 0.4); font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; user-select: none;';
+
+    const leftSpan = document.createElement('div');
+    leftSpan.style.cssText = 'display: flex; align-items: center; gap: 5px;';
+    leftSpan.innerHTML = `<span>${icon}</span> <span>${sectionTitle}</span> <span style="font-size: 0.63rem; font-weight: normal; opacity: 0.7; font-family: ui-monospace, monospace;">(${chartList.length})</span>`;
+
+    const rightActions = document.createElement('div');
+    rightActions.style.cssText = 'display: flex; align-items: center; gap: 6px; font-size: 0.66rem; text-transform: none; font-weight: 500;';
+
+    const btnAll = document.createElement('span');
+    btnAll.innerText = 'All';
+    btnAll.style.cssText = 'cursor: pointer; color: #38bdf8;';
+    btnAll.onclick = () => setCategoryChartsVisibility(categoryKey, true, hostId);
+
+    const btnSep = document.createElement('span');
+    btnSep.innerText = '·';
+    btnSep.style.opacity = '0.4';
+
+    const btnHide = document.createElement('span');
+    btnHide.innerText = 'Hide';
+    btnHide.style.cssText = 'cursor: pointer; color: var(--text-muted);';
+    btnHide.onclick = () => setCategoryChartsVisibility(categoryKey, false, hostId);
+
+    rightActions.appendChild(btnAll);
+    rightActions.appendChild(btnSep);
+    rightActions.appendChild(btnHide);
+
+    secHeader.appendChild(leftSpan);
+    secHeader.appendChild(rightActions);
+    listEl.appendChild(secHeader);
+
+    chartList.forEach(c => {
+      const isVisible = !hidden.has(c.id);
+      const meta = getChartIconAndCleanTitle(c);
+
+      const row = document.createElement('div');
+      row.className = 'chart-filter-row';
+      row.setAttribute('data-chart-id', c.id);
+      row.setAttribute('data-category', categoryKey);
+      row.setAttribute('data-search-text', (meta.name + ' ' + c.title).toLowerCase());
+      row.style.cssText = `
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 5px 8px;
+        margin: 1px 0;
+        border-radius: 6px;
+        transition: background 0.15s ease, opacity 0.15s ease;
+        cursor: pointer;
+        user-select: none;
+        background: ${isVisible ? 'transparent' : 'rgba(15, 23, 42, 0.4)'};
+        opacity: ${isVisible ? '1' : '0.55'};
+      `;
+
+      row.onmouseenter = () => {
+        row.style.background = isVisible ? 'rgba(56, 189, 248, 0.08)' : 'rgba(51, 65, 85, 0.4)';
+      };
+      row.onmouseleave = () => {
+        row.style.background = isVisible ? 'transparent' : 'rgba(15, 23, 42, 0.4)';
+      };
+
+      const labelWrap = document.createElement('label');
+      labelWrap.style.cssText = 'display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: pointer; margin: 0;';
+
+      const chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.checked = isVisible;
+      chk.id = `chk-chart-${c.id}`;
+      chk.style.cssText = 'cursor: pointer; margin: 0; width: 14px; height: 14px; accent-color: #38bdf8; flex-shrink: 0;';
+      chk.onchange = (e) => {
+        toggleChartVisibility(c.id, e.target.checked, hostId);
+      };
+
+      const iconSpan = document.createElement('span');
+      iconSpan.style.cssText = 'width: 18px; text-align: center; flex-shrink: 0; font-size: 0.86rem; line-height: 1;';
+      iconSpan.innerText = meta.icon;
+
+      const textSpan = document.createElement('span');
+      textSpan.style.cssText = `
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 0.77rem;
+        font-weight: 500;
+        color: ${isVisible ? '#f1f5f9' : 'var(--text-muted)'};
+      `;
+      textSpan.innerText = meta.name;
+      textSpan.title = c.title;
+
+      labelWrap.appendChild(chk);
+      labelWrap.appendChild(iconSpan);
+      labelWrap.appendChild(textSpan);
+
+      const soloBtn = document.createElement('button');
+      soloBtn.className = 'btn btn-sm';
+      soloBtn.innerText = 'Solo';
+      soloBtn.title = `Focus only on ${meta.name}`;
+      soloBtn.style.cssText = `
+        padding: 2px 7px;
+        font-size: 0.67rem;
+        font-weight: 600;
+        border-radius: 4px;
+        background: rgba(56, 189, 248, 0.08);
+        color: #38bdf8;
+        border: 1px solid rgba(56, 189, 248, 0.22);
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: all 0.15s ease;
+      `;
+      soloBtn.onmouseenter = () => {
+        soloBtn.style.background = '#38bdf8';
+        soloBtn.style.color = '#0f172a';
+        soloBtn.style.borderColor = '#38bdf8';
+        soloBtn.style.boxShadow = '0 0 8px rgba(56, 189, 248, 0.4)';
+      };
+      soloBtn.onmouseleave = () => {
+        soloBtn.style.background = 'rgba(56, 189, 248, 0.08)';
+        soloBtn.style.color = '#38bdf8';
+        soloBtn.style.borderColor = 'rgba(56, 189, 248, 0.22)';
+        soloBtn.style.boxShadow = 'none';
+      };
+      soloBtn.onclick = (e) => {
+        e.stopPropagation();
+        soloChartVisibility(c.id, hostId);
+      };
+
+      row.appendChild(labelWrap);
+      row.appendChild(soloBtn);
+      listEl.appendChild(row);
+    });
+  }
+
+  renderSection('Hardware Telemetry', '🖥️', hwCharts, 'hardware');
+  renderSection('Application Probes', '🔌', appCharts, 'application');
+
+  updateChartsFilterBadge(hostId);
+}
+
+function onFilterChartsSearch(query) {
+  const q = (query || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#filterChartsList .chart-filter-row');
+  const headers = document.querySelectorAll('#filterChartsList .chart-filter-sec-header');
+
+  const secCounts = { hardware: 0, application: 0 };
+  let totalMatches = 0;
+
+  rows.forEach(r => {
+    const text = r.getAttribute('data-search-text') || '';
+    const cat = r.getAttribute('data-category') || 'hardware';
+    const match = !q || text.includes(q);
+    r.style.display = match ? 'flex' : 'none';
+    if (match) {
+      secCounts[cat] = (secCounts[cat] || 0) + 1;
+      totalMatches++;
+    }
+  });
+
+  headers.forEach(h => {
+    const cat = h.getAttribute('data-category');
+    h.style.display = secCounts[cat] > 0 ? 'flex' : 'none';
+  });
+
+  let noMatchEl = document.getElementById('filterChartsNoMatch');
+  if (totalMatches === 0 && q) {
+    if (!noMatchEl) {
+      noMatchEl = document.createElement('div');
+      noMatchEl.id = 'filterChartsNoMatch';
+      noMatchEl.style.cssText = 'text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 14px;';
+      noMatchEl.innerText = 'No matching charts found';
+      document.getElementById('filterChartsList').appendChild(noMatchEl);
+    } else {
+      noMatchEl.style.display = 'block';
+    }
+  } else if (noMatchEl) {
+    noMatchEl.style.display = 'none';
+  }
+}
+
+function toggleChartVisibility(chartId, isVisible, hostId) {
+  const charts = window.currentRenderedCharts || [];
+  const chart = charts.find(c => c.id === chartId);
+  if (chart && chart.card) {
+    chart.card.style.display = isVisible ? 'flex' : 'none';
+    if (isVisible && chart.uPlot) {
+      setTimeout(() => {
+        try {
+          const w = chart.card.clientWidth;
+          if (w > 100) chart.uPlot.setSize({ width: Math.floor(w - 32), height: 160 });
+          chart.uPlot.redraw();
+        } catch(e) {}
+      }, 10);
+    }
+  }
+
+  const storageKey = 'pantau_hidden_charts_' + hostId;
+  let hidden = new Set();
+  try {
+    hidden = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]'));
+  } catch(e) {}
+
+  if (isVisible) {
+    hidden.delete(chartId);
+  } else {
+    hidden.add(chartId);
+  }
+  localStorage.setItem(storageKey, JSON.stringify(Array.from(hidden)));
+
+  const row = document.querySelector(`#filterChartsList .chart-filter-row[data-chart-id="${chartId}"]`);
+  if (row) {
+    row.style.background = isVisible ? 'transparent' : 'rgba(15, 23, 42, 0.4)';
+    row.style.opacity = isVisible ? '1' : '0.55';
+    const textSpan = row.querySelector('label span:last-child');
+    if (textSpan) textSpan.style.color = isVisible ? '#f1f5f9' : 'var(--text-muted)';
+  }
+
+  updateChartsFilterBadge(hostId);
+}
+
+function setCategoryChartsVisibility(categoryKey, visible, hostId) {
+  const charts = window.currentRenderedCharts || [];
+  const targetCharts = charts.filter(c => (c.category || (c.id.startsWith('hw-') ? 'hardware' : 'application')) === categoryKey);
+  if (targetCharts.length === 0) return;
+
+  const storageKey = 'pantau_hidden_charts_' + hostId;
+  let hidden = new Set();
+  try {
+    hidden = new Set(JSON.parse(localStorage.getItem(storageKey) || '[]'));
+  } catch(e) {}
+
+  targetCharts.forEach(c => {
+    if (visible) {
+      hidden.delete(c.id);
+    } else {
+      hidden.add(c.id);
+    }
+    if (c.card) {
+      c.card.style.display = visible ? 'flex' : 'none';
+      if (visible && c.uPlot) {
+        setTimeout(() => {
+          try {
+            const w = c.card.clientWidth;
+            if (w > 100) c.uPlot.setSize({ width: Math.floor(w - 32), height: 160 });
+            c.uPlot.redraw();
+          } catch(e) {}
+        }, 10);
+      }
+    }
+  });
+
+  localStorage.setItem(storageKey, JSON.stringify(Array.from(hidden)));
+  initChartsFilterDropdown(hostId);
+}
+
+function setAllChartsVisibility(visible, hostId) {
+  const charts = window.currentRenderedCharts || [];
+  const storageKey = 'pantau_hidden_charts_' + hostId;
+  const hidden = visible ? new Set() : new Set(charts.map(c => c.id));
+  localStorage.setItem(storageKey, JSON.stringify(Array.from(hidden)));
+
+  charts.forEach(c => {
+    if (c.card) {
+      c.card.style.display = visible ? 'flex' : 'none';
+      if (visible && c.uPlot) {
+        setTimeout(() => {
+          try {
+            const w = c.card.clientWidth;
+            if (w > 100) c.uPlot.setSize({ width: Math.floor(w - 32), height: 160 });
+            c.uPlot.redraw();
+          } catch(e) {}
+        }, 10);
+      }
+    }
+  });
+
+  initChartsFilterDropdown(hostId);
+}
+
+function soloChartVisibility(chartId, hostId) {
+  const charts = window.currentRenderedCharts || [];
+  const storageKey = 'pantau_hidden_charts_' + hostId;
+  const hidden = new Set();
+
+  charts.forEach(c => {
+    const isThisChart = c.id === chartId;
+    if (c.card) {
+      c.card.style.display = isThisChart ? 'flex' : 'none';
+      if (isThisChart && c.uPlot) {
+        setTimeout(() => {
+          try {
+            const w = c.card.clientWidth;
+            if (w > 100) c.uPlot.setSize({ width: Math.floor(w - 32), height: 160 });
+            c.uPlot.redraw();
+          } catch(e) {}
+        }, 10);
+      }
+    }
+    if (!isThisChart) hidden.add(c.id);
+  });
+
+  localStorage.setItem(storageKey, JSON.stringify(Array.from(hidden)));
+  initChartsFilterDropdown(hostId);
+}
+
+if (!window._chartsFilterOutsideClickListener) {
+  window._chartsFilterOutsideClickListener = (e) => {
+    const dropdown = document.getElementById('filterChartsDropdown');
+    const btn = document.getElementById('filterChartsBtn');
+    if (dropdown && dropdown.style.display !== 'none') {
+      if (!dropdown.contains(e.target) && !btn?.contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    }
+  };
+  document.addEventListener('click', window._chartsFilterOutsideClickListener);
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const dd = document.getElementById('filterChartsDropdown');
+      if (dd && dd.style.display !== 'none') {
+        dd.style.display = 'none';
+      }
+    }
+  });
+}
+
+function changeMetricRange(range) {
+  currentMetricRange = range;
+  const d = window.detailData;
+  if (d && d.host) {
+    renderMetricsTab(d.host);
+  }
+}
+
+function changeMetricCategory(category) {
+  currentMetricCategory = category;
+  const d = window.detailData;
+  if (d && d.host) {
+    renderMetricsTab(d.host);
+  }
+}
+
+let activeProbeHostId = 0;
+let cachedProbePresets = [];
+let currentMetricProbes = [];
+
+async function openMetricProbesModal(hostId) {
+  activeProbeHostId = hostId;
+  const h = (allRawHosts || []).find(item => item.id === hostId) || (window.detailData ? window.detailData.host : null);
+  const titleEl = document.getElementById('metricProbesModalTitle');
+  if (titleEl) {
+    titleEl.innerText = `⚙️ Probes: ${h ? h.name : 'Host ' + hostId}`;
+  }
+  closeProbeForm();
+  openModal('metricProbesModal');
+  await loadProbePresets();
+  await loadMetricProbes(hostId);
+}
+
+async function loadProbePresets() {
+  const select = document.getElementById('probePresetSelect');
+  if (!select) return;
+  if (cachedProbePresets.length > 0) return;
+  try {
+    const res = await fetch('/api/metric-probes/presets');
+    if (!res.ok) return;
+    cachedProbePresets = await res.json() || [];
+    select.innerHTML = '<option value="">-- Add from Preset --</option>' +
+      cachedProbePresets.map((p, i) => `<option value="${i}">[${escapeHtml(p.category || 'App')}] ${escapeHtml(p.name)}</option>`).join('');
+  } catch (e) {
+    console.error('Failed to load probe presets:', e);
+  }
+}
+
+function applyProbePreset() {
+  const select = document.getElementById('probePresetSelect');
+  const idx = select?.value;
+  if (idx === '' || idx === undefined) return;
+  const preset = cachedProbePresets[parseInt(idx, 10)];
+  if (!preset) return;
+  openNewProbeForm();
+  document.getElementById('probeNameInput').value = preset.name;
+  document.getElementById('probeCommandInput').value = preset.command;
+  select.value = '';
+}
+
+function openNewProbeForm() {
+  document.getElementById('editProbeId').value = '';
+  document.getElementById('probeNameInput').value = '';
+  document.getElementById('probeCommandInput').value = '';
+  document.getElementById('probeEnabledInput').checked = true;
+  document.getElementById('probeFormContainer').style.display = 'block';
+  setTimeout(() => document.getElementById('probeNameInput')?.focus(), 50);
+}
+
+function closeProbeForm() {
+  const container = document.getElementById('probeFormContainer');
+  if (container) container.style.display = 'none';
+}
+
+function editExistingProbe(pData) {
+  let p = null;
+  if (typeof pData === 'number' || (typeof pData === 'string' && /^\d+$/.test(pData))) {
+    const id = parseInt(pData, 10);
+    p = currentMetricProbes.find(item => item.id === id);
+  } else if (typeof pData === 'string') {
+    try { p = JSON.parse(decodeURIComponent(pData)); } catch(e) {}
+  } else if (typeof pData === 'object' && pData !== null) {
+    p = pData;
+  }
+  if (!p) return;
+  document.getElementById('editProbeId').value = p.id;
+  document.getElementById('probeNameInput').value = p.name;
+  document.getElementById('probeCommandInput').value = p.command;
+  document.getElementById('probeEnabledInput').checked = p.enabled;
+  document.getElementById('probeFormContainer').style.display = 'block';
+  setTimeout(() => document.getElementById('probeNameInput')?.focus(), 50);
+}
+
+async function saveProbeForm() {
+  const idStr = document.getElementById('editProbeId')?.value;
+  const name = document.getElementById('probeNameInput')?.value.trim();
+  const command = document.getElementById('probeCommandInput')?.value.trim();
+  const enabled = document.getElementById('probeEnabledInput')?.checked;
+
+  if (!name || !command) {
+    showToast('Name and command are required', 'error');
+    return;
+  }
+
+  const payload = {
+    id: idStr ? parseInt(idStr, 10) : 0,
+    name,
+    command,
+    enabled
+  };
+
+  try {
+    const res = await fetch(`/api/hosts/${activeProbeHostId}/metric-probes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      showToast('Probe saved successfully', 'success');
+      closeProbeForm();
+      await loadMetricProbes(activeProbeHostId);
+    } else {
+      showToast('Failed to save probe', 'error');
+    }
+  } catch (e) {
+    showToast('Failed to save probe: ' + e.message, 'error');
+  }
+}
+
+async function deleteProbe(probeId) {
+  const confirmed = await showConfirm({
+    title: 'Delete Metric Probe',
+    message: 'Are you sure you want to delete this metric probe?',
+    confirmText: 'Delete',
+    danger: true
+  });
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`/api/hosts/${activeProbeHostId}/metric-probes/${probeId}`, {
+      method: 'DELETE'
+    });
+    if (res.ok) {
+      showToast('Probe deleted', 'success');
+      await loadMetricProbes(activeProbeHostId);
+    } else {
+      showToast('Failed to delete probe', 'error');
+    }
+  } catch (e) {
+    showToast('Failed to delete probe: ' + e.message, 'error');
+  }
+}
+
+async function toggleProbeActive(probeId, currentEnabled, pJson) {
+  let p = currentMetricProbes.find(item => item.id === probeId);
+  if (!p && pJson) {
+    try { p = JSON.parse(decodeURIComponent(pJson)); } catch(e) {}
+  }
+  if (!p) return;
+  try {
+    const updated = { ...p, enabled: typeof currentEnabled === 'boolean' ? !currentEnabled : !p.enabled };
+    const res = await fetch(`/api/hosts/${activeProbeHostId}/metric-probes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated)
+    });
+    if (res.ok) {
+      await loadMetricProbes(activeProbeHostId);
+    }
+  } catch (e) {
+    showToast('Failed to toggle probe: ' + e.message, 'error');
+  }
+}
+
+async function loadMetricProbes(hostId) {
+  if (hostId) activeProbeHostId = hostId;
+  const container = document.getElementById('probesListContainer');
+  if (!container) return;
+  container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 16px;">Loading probes...</div>';
+
+  try {
+    const res = await fetch(`/api/hosts/${hostId}/metric-probes`);
+    if (!res.ok) {
+      container.innerHTML = '<div style="color: var(--danger); text-align: center; padding: 12px;">Failed to load probes</div>';
+      return;
+    }
+    const probes = await res.json() || [];
+    currentMetricProbes = probes;
+    if (probes.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 24px 16px; color: var(--text-muted); border: 1px dashed var(--card-border); border-radius: 8px;">
+          <div style="font-size: 1.5rem; margin-bottom: 6px;">🔌</div>
+          <div style="font-weight: 600; color: #f8fafc;">No Application Probes Configured</div>
+          <div style="font-size: 0.8rem; margin-top: 4px;">Choose a preset above (Nginx, MySQL, PHP-FPM, Redis, PostgreSQL) or click "+ New Probe" to add custom shell probes.</div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
+        <thead>
+          <tr style="border-bottom: 1px solid var(--card-border); color: var(--text-muted); text-align: left;">
+            <th style="padding: 8px 10px; width: 60px;">Status</th>
+            <th style="padding: 8px 10px; width: 180px;">Probe Name</th>
+            <th style="padding: 8px 10px;">Command</th>
+            <th style="padding: 8px 10px; width: 100px; text-align: right;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${probes.map(p => `
+            <tr style="border-bottom: 1px solid rgba(51, 65, 85, 0.4);">
+              <td style="padding: 8px 10px;">
+                <input type="checkbox" ${p.enabled ? 'checked' : ''} onchange="toggleProbeActive(${p.id}, ${p.enabled})" style="cursor: pointer;" title="${p.enabled ? 'Enabled' : 'Disabled'}" />
+              </td>
+              <td style="padding: 8px 10px; font-weight: 600; color: #f8fafc;">
+                ${escapeHtml(p.name)}
+              </td>
+              <td style="padding: 8px 10px; font-family: monospace; font-size: 0.76rem; color: #94a3b8; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(p.command)}">
+                ${escapeHtml(p.command)}
+              </td>
+              <td style="padding: 8px 10px; text-align: right; white-space: nowrap;">
+                <button class="btn btn-sm" onclick="editExistingProbe(${p.id})" title="Edit probe" style="padding: 2px 6px; font-size: 0.75rem;">✏️</button>
+                <button class="btn btn-sm" onclick="deleteProbe(${p.id})" title="Delete probe" style="padding: 2px 6px; font-size: 0.75rem; color: var(--danger);">🗑️</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (e) {
+    container.innerHTML = `<div style="color: var(--danger); text-align: center; padding: 12px;">Error: ${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -7522,6 +9549,7 @@ function renderFilesView() {
   content.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; flex-wrap: wrap;">
       <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 260px;">
+        <button class="btn btn-sm" onclick="loadFiles('${parent}')" style="flex-shrink: 0;">${t('up_dir')}</button>
         <div class="file-breadcrumb-bar" style="flex: 1;">
           ${renderBreadcrumbs(data.path)}
         </div>
@@ -7534,7 +9562,6 @@ function renderFilesView() {
         <button class="btn btn-sm" onclick="openNativeTerminalForPath('${escapeHtml(data.path)}')" title="${t('open_native_terminal', 'Native Terminal')}" style="display: inline-flex; align-items: center; gap: 4px;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m6 10 3 2-3 2"/><path d="M12 14h4"/></svg> <span>${t('open_native_terminal', 'Native Terminal')}</span>
         </button>
-        <button class="btn btn-sm" onclick="loadFiles('${parent}')">${t('up_dir')}</button>
         <button class="btn btn-sm" onclick="loadFiles('${escapeHtml(data.path)}')" title="${t('refresh')}">🔄</button>
         <input type="file" id="fileUploadInput" style="display: none;" onchange="uploadFile('${data.path}')" />
         <button class="btn btn-primary btn-sm" ${isProtectedDir ? 'disabled title="' + t('cannot_upload_protected') + '"' : ''} onclick="document.getElementById('fileUploadInput').click()">${t('upload_file')}</button>
@@ -10625,6 +12652,7 @@ async function loadSettingsPresets() {
 window.addEventListener('resize', () => {
   if (fitAddonLeft) fitAddonLeft.fit();
   if (fitAddonRight) fitAddonRight.fit();
+  updateHostDetailTabsOverflow();
 });
 
 window.addEventListener('keydown', (e) => {
@@ -10859,6 +12887,11 @@ async function openSettingsModal(tab) {
   document.getElementById('settingWebhook').value = data.webhook_url || '';
   const pollEl = document.getElementById('settingPollInterval');
   if (pollEl) pollEl.value = (data.poll_interval_sec !== undefined && data.poll_interval_sec !== '') ? data.poll_interval_sec : '300';
+
+  const metricsEnabledEl = document.getElementById('settingMetricsEnabled');
+  if (metricsEnabledEl) metricsEnabledEl.checked = data.metrics_enabled !== 'false';
+  const metricRetEl = document.getElementById('settingMetricRetentionDays');
+  if (metricRetEl) metricRetEl.value = data.metric_retention_days || '7';
 
   const triageEnabledEl = document.getElementById('settingAutoTriageEnabled');
   if (triageEnabledEl) triageEnabledEl.checked = data.auto_triage_enabled === '1' || data.auto_triage_enabled === 'true';
@@ -11514,6 +13547,13 @@ function closeModal(id) {
     return;
   }
   if (id === 'hostDetailModal') {
+    if (window.activeUPlots && window.activeUPlots.length > 0) {
+      window.activeUPlots.forEach(u => { try { u.destroy(); } catch(e) {} });
+      window.activeUPlots = [];
+    }
+    if (window.metricsResizeObserver) {
+      window.metricsResizeObserver.disconnect();
+    }
     currentDetailHostId = null;
     if (currentHost) {
       workspaceSessions = workspaceSessions.filter(s => !(s.type === 'host' && s.hostId === currentHost.id));
@@ -13519,7 +15559,7 @@ function renderTriageHistoryTable(cid) {
     }
 
     const d = new Date(l.created_at);
-    const timeStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timeStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
     return `
       <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
