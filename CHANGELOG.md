@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Added
+- Time-Series Metric Observability & Application Telemetry: continuous agentless recording of system resource metrics and application performance telemetry into embedded SQLite with configurable rolling retention.
+  - SQLite Time-Series Engine: flat table `metric_samples` with composite index `(host_id, metric, recorded_at)` and index `(recorded_at)` for high-performance range queries and rapid data pruning.
+  - Automatic Rolling Retention & Prune Worker: hourly background worker (`startMetricsPruneWorker`) automatically enforcing retention policy (`metric_retention_days`, default 7 days) without manual intervention.
+  - Tri-State Collection Controls: global toggle (`metrics_enabled`) and per-host override (`hosts.metrics_enabled`: `-1` Inherit Global, `1` Force ON, `0` Force OFF).
+  - Agentless Application Metric Probes: execution of custom and preset application metric probes combined into existing SSH inspection sessions, with isolated subshell timeouts (`timeout 3s`) and graceful silent fallback.
+  - Built-in Probe Presets: ready-to-use presets with auto-detection for Nginx Stub Status, MySQL Status (`mysqladmin`), PHP-FPM Status (JSON & native ps fallback), Redis Info (`redis-cli` with auth/socket support), and PostgreSQL Stats (`pg_stat_activity` with peer auth).
+  - High-Performance Columnar Time-Series Query API: `GET /api/hosts/{id}/metrics?range=24h&category=all|hardware|applications` returning columnar arrays with dynamic SQL bucketing downsampling (`step=0` for 1h/6h, `step=300s` for 24h, `step=1800s` for 7d).
+  - Dual-Tier Zero-Dependency Frontend Visualization:
+    - Host Detail Modal `[📊 Metrics & Telemetry]` tab powered by locally vendored **uPlot** (`~48 KB` minified, HTML5 Canvas 2D, zero CDN dependencies) with synchronized crosshair cursor (`uPlot.sync()`), zoom/pan, time-range selectors (1h, 6h, 24h, 7d), and category toggles.
+    - Handcrafted pure SVG mini-sparklines (~15 lines vanilla JS, zero dependencies) on Host Cards for instantaneous 1-hour CPU and RAM trends.
+  - Probe Manager UI: modal interface for creating, editing, testing, and toggling custom probes and adopting presets.
+- Architectural Decision Record: [ADR-0037](docs/adr/0037-metric-samples-application-telemetry-and-uplot-observability.md).
+
 ## [0.28.1] - 2026-10-29
 ### Fixed
 - Native Terminal Launch on Windows Terminal: avoid command splitting error 2147942402 (0x80070002) by replacing semicolon chaining in remote `cd` navigation with POSIX-standard `|| true &&`, and escaping semicolons as `\;` when launching Windows Terminal (`wt.exe`).

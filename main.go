@@ -305,6 +305,7 @@ func main() {
 	defer cancel()
 
 	go startInspectionWorker(ctx, db, ins)
+	go startMetricsPruneWorker(ctx, db)
 	snapshotMgr := snapshot.NewManager(db, nil)
 	go snapshotMgr.Start(ctx)
 
@@ -385,6 +386,26 @@ func openBrowser(url string) {
 		cmd = exec.Command("xdg-open", url)
 	}
 	_ = cmd.Start()
+}
+
+func startMetricsPruneWorker(ctx context.Context, db *store.DB) {
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+
+	go func() {
+		days := db.GetMetricRetentionDays()
+		_, _ = db.PruneMetricSamples(days)
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			days := db.GetMetricRetentionDays()
+			_, _ = db.PruneMetricSamples(days)
+		}
+	}
 }
 
 func startInspectionWorker(ctx context.Context, db *store.DB, ins *inspector.Inspector) {

@@ -220,6 +220,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/presets", s.authMiddleware(s.handlePresets))
 	s.mux.HandleFunc("/api/presets/", s.authMiddleware(s.handlePresetDetail))
 
+	// Metric Probe Presets
+	s.mux.HandleFunc("/api/metric-probes/presets", s.authMiddleware(s.handleMetricProbePresets))
+
 	// WebSockets (Terminal & Docker Logs)
 	s.mux.HandleFunc("/ws/terminal", s.authMiddleware(s.handleWSTerminal))
 	s.mux.HandleFunc("/ws/docker/logs", s.authMiddleware(s.handleWSDockerLogs))
@@ -715,13 +718,19 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		var req struct {
 			store.Host
-			Password string `json:"password"`
+			RawMetricsEnabled *int   `json:"metrics_enabled"`
+			Password          string `json:"password"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
 		h := req.Host
+		if req.RawMetricsEnabled != nil {
+			h.MetricsEnabled = *req.RawMetricsEnabled
+		} else {
+			h.MetricsEnabled = -1
+		}
 		h.Name = strings.TrimSpace(h.Name)
 		h.Host = strings.ToLower(strings.TrimSpace(h.Host))
 		h.User = strings.TrimSpace(h.User)
@@ -1034,11 +1043,15 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 				"runs":         runs,
 			})
 		case http.MethodPut:
-			var h store.Host
-			if err := json.NewDecoder(r.Body).Decode(&h); err != nil {
+			var req struct {
+				store.Host
+				RawMetricsEnabled *int `json:"metrics_enabled"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				http.Error(w, "bad request", http.StatusBadRequest)
 				return
 			}
+			h := req.Host
 			h.ID = hostID
 			h.Name = strings.TrimSpace(h.Name)
 			h.Host = strings.ToLower(strings.TrimSpace(h.Host))
@@ -1055,6 +1068,11 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			if existing == nil {
 				http.Error(w, "host not found", http.StatusNotFound)
 				return
+			}
+			if req.RawMetricsEnabled != nil {
+				h.MetricsEnabled = *req.RawMetricsEnabled
+			} else {
+				h.MetricsEnabled = existing.MetricsEnabled
 			}
 			if h.Host == "" {
 				h.Host = existing.Host
@@ -1429,6 +1447,144 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		http.Error(w, "not found", http.StatusNotFound)
+
+	case "metrics":
+		// GET /api/hosts/{id}/metrics?range=24h&category=all
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		host, err := s.db.GetHost(hostID)
+		if err != nil || host == nil {
+			http.Error(w, "host not found", http.StatusNotFound)
+			return
+		}
+
+		timeRange := r.URL.Query().Get("range")
+		if timeRange == "" {
+			timeRange = "24h"
+		}
+		category := r.URL.Query().Get("category")
+
+		now := time.Now().Unix()
+		var from, to, step int64
+		if fStr := r.URL.Query().Get("from"); fStr != "" {
+			from, _ = strconv.ParseInt(fStr, 10, 64)
+		}
+		if tStr := r.URL.Query().Get("to"); tStr != "" {
+			to, _ = strconv.ParseInt(tStr, 10, 64)
+		}
+		if to <= 0 {
+			to = now
+		}
+
+		if from <= 0 {
+			switch timeRange {
+			case "1h":
+				from = to - 3600
+				step = 0
+			case "6h":
+				from = to - 21600
+				step = 0
+			case "7d":
+				from = to - 7*86400
+				step = 1800 // 30 min buckets
+			default: // 24h
+				from = to - 86400
+				step = 300 // 5 min buckets
+			}
+		} else if stepStr := r.URL.Query().Get("step"); stepStr != "" {
+			step, _ = strconv.ParseInt(stepStr, 10, 64)
+		}
+
+		var include, exclude []string
+		if category == "hardware" {
+			include = store.HardwareMetrics
+		} else if category == "applications" {
+			exclude = store.HardwareMetrics
+		}
+
+		data, err := s.db.GetMetricSamplesFiltered(hostID, include, exclude, from, to, step)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"ok":         true,
+			"enabled":    s.db.IsHostMetricsEnabled(host),
+			"range":      timeRange,
+			"from":       from,
+			"to":         to,
+			"step":       step,
+			"timestamps": data.Timestamps,
+			"series":     data.Series,
+		})
+		return
+
+	case "metric-probes":
+		// /api/hosts/{id}/metric-probes
+		// /api/hosts/{id}/metric-probes/{probe_id}
+		var subProbeID int64
+		if len(parts) >= 3 && parts[2] != "" {
+			var err error
+			subProbeID, err = strconv.ParseInt(parts[2], 10, 64)
+			if err != nil {
+				http.Error(w, "invalid probe id", http.StatusBadRequest)
+				return
+			}
+			if r.Method == http.MethodDelete {
+				if err := s.db.DeleteHostMetricProbe(hostID, subProbeID); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "status": "deleted"})
+				return
+			}
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			probes, err := s.db.GetHostMetricProbes(hostID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, http.StatusOK, probes)
+		case http.MethodPost, http.MethodPut:
+			var p store.HostMetricProbe
+			if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+				http.Error(w, "bad request", http.StatusBadRequest)
+				return
+			}
+			p.Name = strings.TrimSpace(p.Name)
+			p.Command = strings.TrimSpace(p.Command)
+			if p.Name == "" || p.Command == "" {
+				http.Error(w, "name and command are required", http.StatusBadRequest)
+				return
+			}
+			p.HostID = hostID
+			if subProbeID > 0 {
+				p.ID = subProbeID
+			}
+			if p.ID > 0 {
+				if err := s.db.UpdateHostMetricProbe(&p); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+			} else {
+				id, err := s.db.CreateHostMetricProbe(&p)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				p.ID = id
+			}
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "probe": p})
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+		return
 
 	case "files":
 		s.handleFilesRoute(hostID, parts[2:], w, r)
@@ -2019,6 +2175,15 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		termTemplate, _ := s.db.GetSetting("terminal_launcher_template")
 
+		metricsEnabled, _ := s.db.GetSetting("metrics_enabled")
+		if metricsEnabled == "" {
+			metricsEnabled = "true"
+		}
+		metricRetentionDays, _ := s.db.GetSetting("metric_retention_days")
+		if metricRetentionDays == "" {
+			metricRetentionDays = "7"
+		}
+
 		writeJSON(w, http.StatusOK, map[string]string{
 			"ssh_public_key":              pubKey,
 			"telegram_token":              tgToken,
@@ -2039,6 +2204,8 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			"auto_triage_default_host_id": autoTriageHost,
 			"terminal_launcher_mode":      termMode,
 			"terminal_launcher_template":  termTemplate,
+			"metrics_enabled":             metricsEnabled,
+			"metric_retention_days":       metricRetentionDays,
 		})
 	case http.MethodPost:
 		var req map[string]string
@@ -2442,6 +2609,47 @@ func (s *Server) handlePresetDetail(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+var defaultMetricProbePresets = []map[string]string{
+	{
+		"name":        "Nginx Stub Status",
+		"category":    "Web Server",
+		"command":     `(curl -s -f http://127.0.0.1/stub_status 2>/dev/null || curl -s -f http://127.0.0.1/nginx_status 2>/dev/null || curl -s -f http://127.0.0.1:8080/stub_status 2>/dev/null || curl -s -f http://127.0.0.1:8080/nginx_status 2>/dev/null) | awk '/Active connections/ {print "nginx_active: "$3} /server accepts handled requests/ {getline; print "nginx_accepts: "$1"\nnginx_handled: "$2"\nnginx_requests: "$3} /Reading/ {print "nginx_reading: "$2"\nnginx_writing: "$4"\nnginx_waiting: "$6}'`,
+		"description": "Ekstrak active connections, reading, writing, waiting dari ngx_http_stub_status_module (multi-path auto-detect)",
+	},
+	{
+		"name":        "MySQL Status",
+		"category":    "Database",
+		"command":     `mysqladmin status 2>/dev/null | awk '{for(i=1;i<=NF;i++){if($i=="Uptime:") print "mysql_uptime: "$(i+1); if($i=="Threads:") print "mysql_threads_connected: "$(i+1); if($i=="Questions:") print "mysql_questions: "$(i+1); if($i=="Slow" && $(i+1)=="queries:") print "mysql_slow_queries: "$(i+2); if($i=="Opens:") print "mysql_opens: "$(i+1); if($i=="Queries" && $(i+2)=="per" && $(i+3)=="second" && $(i+4)=="avg:") print "mysql_qps: "$(i+5)}}'`,
+		"description": "Ekstrak Uptime, Threads Connected, Questions, Slow Queries, dan QPS dari mysqladmin",
+	},
+	{
+		"name":        "PHP-FPM Status",
+		"category":    "Application",
+		"command":     `out=$( (curl -s -f http://127.0.0.1/status?json 2>/dev/null || curl -s -f http://127.0.0.1/fpm-status?json 2>/dev/null || curl -s -f http://127.0.0.1:8080/status?json 2>/dev/null) | grep -oE '"(accepted conn|listen queue|active processes|idle processes|total processes)":[0-9]+' | tr -d '"' | sed 's/ /_/g' ); if [ -n "$out" ]; then echo "$out"; else ps aux 2>/dev/null | awk '/[p]hp.*fpm/ {if($8 ~ /^R/) active++; else idle++; total++} END {if(total>0) print "active_processes: "active+0"\nidle_processes: "idle+0"\ntotal_processes: "total+0}'; fi`,
+		"description": "Ekstrak active processes, idle processes, total processes via status HTTP atau native ps fallback",
+	},
+	{
+		"name":        "Redis Info",
+		"category":    "Cache & Queue",
+		"command":     `pass=$(grep -hE '^\s*requirepass\s+' /etc/redis/redis.conf /etc/redis.conf /etc/redis/*.conf 2>/dev/null | awk '{print $2}' | tr -d '"\r\n' | head -n 1); (redis-cli info 2>/dev/null || [ -n "$pass" ] && redis-cli -a "$pass" info 2>/dev/null || redis-cli -s /var/run/redis/redis-server.sock info 2>/dev/null || redis-cli -s /var/run/redis/redis.sock info 2>/dev/null) | awk -F: '/connected_clients:/ {sub(/\r$/, "", $2); print "redis_connected_clients: "$2} /used_memory:/ {sub(/\r$/, "", $2); print "redis_used_memory_bytes: "$2} /instantaneous_ops_per_sec:/ {sub(/\r$/, "", $2); print "redis_ops_per_sec: "$2} /rejected_connections:/ {sub(/\r$/, "", $2); print "redis_rejected_connections: "$2} /expired_keys:/ {sub(/\r$/, "", $2); print "redis_expired_keys: "$2} /uptime_in_seconds:/ {sub(/\r$/, "", $2); print "redis_uptime: "$2}'`,
+		"description": "Ekstrak connected clients, memory bytes, ops/sec, dan uptime dari redis-cli (support requirepass & unix socket)",
+	},
+	{
+		"name":        "PostgreSQL Stats",
+		"category":    "Database",
+		"command":     `q="SELECT 'pg_active_connections: ' || count(CASE WHEN state = 'active' THEN 1 END) || E'\npg_idle_connections: ' || count(CASE WHEN state LIKE 'idle%' THEN 1 END) || E'\npg_total_connections: ' || count(*) FROM pg_stat_activity WHERE pid <> pg_backend_pid();"; (echo "$q" | sudo -u postgres psql -t -A 2>/dev/null || echo "$q" | su - postgres -c "psql -t -A" 2>/dev/null || echo "$q" | psql -U postgres -t -A 2>/dev/null || true)`,
+		"description": "Ekstrak active, idle, dan total connections dari pg_stat_activity (support peer auth & sudo/su)",
+	},
+}
+
+func (s *Server) handleMetricProbePresets(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, defaultMetricProbePresets)
 }
 
 // WebSocket Docker Log Stream

@@ -238,7 +238,117 @@ func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration
 		Details:    details,
 	})
 
+	ins.collectMetricSamples(host, runner)
+
 	return ins.db.UpdateHostInspection(host)
+}
+
+func (ins *Inspector) collectMetricSamples(h *store.Host, runner sshrunner.Runner) {
+	if !ins.db.IsHostMetricsEnabled(h) {
+		return
+	}
+
+	samples := make(map[string]float64)
+
+	// 1. Hardware metrics
+	if h.CPULoad != "" {
+		parts := strings.Split(h.CPULoad, ",")
+		if len(parts) > 0 {
+			if val, err := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64); err == nil {
+				if h.CPUCores > 0 {
+					samples["cpu"] = math.Min(100.0, (val/float64(h.CPUCores))*100.0)
+				} else {
+					samples["cpu"] = val
+				}
+			}
+		}
+	}
+	if h.RAMTotalBytes > 0 {
+		samples["ram"] = (float64(h.RAMUsedBytes) / float64(h.RAMTotalBytes)) * 100.0
+		samples["ram_used_bytes"] = float64(h.RAMUsedBytes)
+		samples["ram_total_bytes"] = float64(h.RAMTotalBytes)
+	}
+	if h.SwapTotalBytes > 0 {
+		samples["swap"] = (float64(h.SwapUsedBytes) / float64(h.SwapTotalBytes)) * 100.0
+		samples["swap_used_bytes"] = float64(h.SwapUsedBytes)
+		samples["swap_total_bytes"] = float64(h.SwapTotalBytes)
+	}
+	if h.DiskTotalBytes > 0 {
+		samples["disk"] = (float64(h.DiskUsedBytes) / float64(h.DiskTotalBytes)) * 100.0
+		samples["disk_used_bytes"] = float64(h.DiskUsedBytes)
+		samples["disk_total_bytes"] = float64(h.DiskTotalBytes)
+	}
+	samples["disk_read_bps"] = float64(h.DiskReadSpeedBps)
+	samples["disk_write_bps"] = float64(h.DiskWriteSpeedBps)
+	samples["net_rx_bps"] = float64(h.NetRxSpeedBps)
+	samples["net_tx_bps"] = float64(h.NetTxSpeedBps)
+	if h.InternetOnline {
+		samples["internet_latency_ms"] = float64(h.InternetLatencyMs)
+	}
+
+	// 2. Application metric probes
+	probes, err := ins.db.GetHostMetricProbes(h.ID)
+	if err == nil && len(probes) > 0 {
+		var probeCmds []string
+		for _, p := range probes {
+			if !p.Enabled || strings.TrimSpace(p.Command) == "" {
+				continue
+			}
+			quotedCmd := shellQuote(p.Command)
+			probeCmds = append(probeCmds, fmt.Sprintf("echo '---PROBE:%d---'; (timeout -k 1s 3s bash -c %s 2>/dev/null || timeout 3s bash -c %s 2>/dev/null || bash -c %s 2>/dev/null || true)", p.ID, quotedCmd, quotedCmd, quotedCmd))
+		}
+		if len(probeCmds) > 0 {
+			combined := strings.Join(probeCmds, "; ")
+			out, _, _, _ := runner.Exec(combined)
+			parseProbeOutput(out, samples)
+		}
+	}
+
+	if len(samples) > 0 {
+		_ = ins.db.SaveMetricSamples(h.ID, samples, time.Now().Unix())
+	}
+}
+
+func parseProbeOutput(stdout string, samples map[string]float64) {
+	lines := strings.Split(stdout, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "---PROBE:") {
+			continue
+		}
+		var key, valStr string
+		if idx := strings.IndexAny(line, ":="); idx != -1 {
+			key = strings.TrimSpace(line[:idx])
+			valStr = strings.TrimSpace(strings.TrimLeft(line[idx:], ":= \t"))
+		} else if idx := strings.IndexAny(line, " \t"); idx != -1 {
+			key = strings.TrimSpace(line[:idx])
+			valStr = strings.TrimSpace(strings.TrimLeft(line[idx:], " \t"))
+		} else {
+			continue
+		}
+		key = strings.ToLower(key)
+		var cleanKey strings.Builder
+		for _, r := range key {
+			if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '.' || r == '-' {
+				cleanKey.WriteRune(r)
+			} else {
+				cleanKey.WriteRune('_')
+			}
+		}
+		cleanKeyStr := strings.Trim(cleanKey.String(), "_.-")
+		if cleanKeyStr == "" || store.IsHardwareMetric(cleanKeyStr) {
+			continue
+		}
+		fields := strings.Fields(valStr)
+		if len(fields) == 0 {
+			continue
+		}
+		val, err := strconv.ParseFloat(fields[0], 64)
+		if err != nil {
+			continue
+		}
+		samples[cleanKeyStr] = val
+	}
 }
 
 // SystemMetricsBatchCmd is the single-shot batch command to gather system, network, and security metrics.

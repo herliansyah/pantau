@@ -9,8 +9,10 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -79,6 +81,16 @@ type Host struct {
 	TopCPUProcesses   string `json:"top_cpu_processes"`  // JSON serialized []ProcessInfo
 	TopRAMProcesses   string `json:"top_ram_processes"`  // JSON serialized []ProcessInfo
 	TopSwapProcesses  string `json:"top_swap_processes"` // JSON serialized []ProcessInfo
+	MetricsEnabled    int    `json:"metrics_enabled"`    // -1: inherit global, 1: force on, 0: force off
+}
+
+type HostMetricProbe struct {
+	ID        int64     `json:"id"`
+	HostID    int64     `json:"host_id"`
+	Name      string    `json:"name"`
+	Command   string    `json:"command"`
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type ProcessInfo struct {
@@ -281,7 +293,8 @@ func (d *DB) migrate() error {
 		os_install_epoch INTEGER DEFAULT 0,
 		top_cpu_processes TEXT DEFAULT '',
 		top_ram_processes TEXT DEFAULT '',
-		top_swap_processes TEXT DEFAULT ''
+		top_swap_processes TEXT DEFAULT '',
+		metrics_enabled INTEGER DEFAULT -1
 	);
 
 	CREATE TABLE IF NOT EXISTS host_packages (
@@ -406,6 +419,26 @@ func (d *DB) migrate() error {
 		UNIQUE(host_id, path)
 	);
 	CREATE INDEX IF NOT EXISTS idx_host_file_pins_host ON host_file_pins(host_id);
+
+	CREATE TABLE IF NOT EXISTS metric_samples (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+		metric TEXT NOT NULL,
+		value REAL NOT NULL,
+		recorded_at INTEGER NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_metric_samples_lookup ON metric_samples(host_id, metric, recorded_at);
+	CREATE INDEX IF NOT EXISTS idx_metric_samples_prune ON metric_samples(recorded_at);
+
+	CREATE TABLE IF NOT EXISTS host_metric_probes (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		command TEXT NOT NULL,
+		enabled INTEGER DEFAULT 1,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_host_metric_probes_host ON host_metric_probes(host_id, enabled);
 	`
 	_, err := d.Exec(schema)
 	if err != nil {
@@ -443,6 +476,7 @@ func (d *DB) migrate() error {
 	_ = d.alterAddColumn("hosts", "top_cpu_processes", "TEXT DEFAULT ''")
 	_ = d.alterAddColumn("hosts", "top_ram_processes", "TEXT DEFAULT ''")
 	_ = d.alterAddColumn("hosts", "top_swap_processes", "TEXT DEFAULT ''")
+	_ = d.alterAddColumn("hosts", "metrics_enabled", "INTEGER DEFAULT -1")
 
 	_ = d.alterAddColumn("probe_target_presets", "app_endpoint", "TEXT DEFAULT '/'")
 	_ = d.alterAddColumn("probe_target_presets", "baseline_mtu", "INTEGER DEFAULT 1500")
@@ -638,7 +672,8 @@ const hostSelectCols = `SELECT id, name, host, port, user, COALESCE(custom_key,'
 	COALESCE(notes, ''), COALESCE(sort_order, 0), COALESCE(group_name, ''),
 	COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0),
 	COALESCE(last_duration_ms, 0), COALESCE(commission_date, ''), COALESCE(bios_date, ''), COALESCE(os_install_epoch, 0),
-	COALESCE(top_cpu_processes, ''), COALESCE(top_ram_processes, ''), COALESCE(top_swap_processes, '')
+	COALESCE(top_cpu_processes, ''), COALESCE(top_ram_processes, ''), COALESCE(top_swap_processes, ''),
+	COALESCE(metrics_enabled, -1)
 	FROM hosts `
 
 func scanHost(s rowScanner) (*Host, error) {
@@ -653,7 +688,8 @@ func scanHost(s rowScanner) (*Host, error) {
 		&h.Notes, &h.SortOrder, &h.GroupName,
 		&h.CPUCores, &h.HardwareModel, &h.SwapUsedBytes, &h.SwapTotalBytes,
 		&h.LastDurationMs, &h.CommissionDate, &h.BIOSDate, &h.OSInstallEpoch,
-		&h.TopCPUProcesses, &h.TopRAMProcesses, &h.TopSwapProcesses)
+		&h.TopCPUProcesses, &h.TopRAMProcesses, &h.TopSwapProcesses,
+		&h.MetricsEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -715,7 +751,11 @@ func (d *DB) FindHostByTarget(host string, port int, excludeID int64) (*Host, er
 func (d *DB) CreateHost(h *Host) (int64, error) {
 	var maxOrder int
 	_ = d.QueryRow(`SELECT COALESCE(MAX(sort_order), 0) FROM hosts`).Scan(&maxOrder)
-	res, err := d.Exec(`INSERT INTO hosts (name, host, port, user, custom_key, status, notes, sort_order, group_name, commission_date, bios_date) VALUES (?, ?, ?, ?, ?, 'unknown', ?, ?, ?, ?, ?)`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, maxOrder+1, h.GroupName, h.CommissionDate, h.BIOSDate)
+	metricsEnabled := h.MetricsEnabled
+	if metricsEnabled != 0 && metricsEnabled != 1 && metricsEnabled != -1 {
+		metricsEnabled = -1
+	}
+	res, err := d.Exec(`INSERT INTO hosts (name, host, port, user, custom_key, status, notes, sort_order, group_name, commission_date, bios_date, metrics_enabled) VALUES (?, ?, ?, ?, ?, 'unknown', ?, ?, ?, ?, ?, ?)`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, maxOrder+1, h.GroupName, h.CommissionDate, h.BIOSDate, metricsEnabled)
 	if err != nil {
 		return 0, err
 	}
@@ -723,7 +763,7 @@ func (d *DB) CreateHost(h *Host) (int64, error) {
 }
 
 func (d *DB) UpdateHost(h *Host) error {
-	_, err := d.Exec(`UPDATE hosts SET name=?, host=?, port=?, user=?, custom_key=?, notes=?, group_name=?, commission_date=? WHERE id=?`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, h.GroupName, h.CommissionDate, h.ID)
+	_, err := d.Exec(`UPDATE hosts SET name=?, host=?, port=?, user=?, custom_key=?, notes=?, group_name=?, commission_date=?, metrics_enabled=? WHERE id=?`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, h.GroupName, h.CommissionDate, h.MetricsEnabled, h.ID)
 	return err
 }
 func (d *DB) UpdateHostNotes(id int64, notes string) error {
@@ -1679,5 +1719,251 @@ func (d *DB) SaveFilePin(hostID int64, path string, isDir bool, note string) err
 
 func (d *DB) DeleteFilePin(hostID int64, path string) error {
 	_, err := d.Exec(`DELETE FROM host_file_pins WHERE host_id = ? AND path = ?`, hostID, path)
+	return err
+}
+
+// Metrics & Telemetry Observability
+
+var HardwareMetrics = []string{
+	"cpu", "ram", "ram_used_bytes", "ram_total_bytes",
+	"swap", "swap_used_bytes", "swap_total_bytes",
+	"disk", "disk_used_bytes", "disk_total_bytes",
+	"disk_read_bps", "disk_write_bps",
+	"net_rx_bps", "net_tx_bps", "internet_latency_ms",
+}
+
+func IsHardwareMetric(metric string) bool {
+	for _, m := range HardwareMetrics {
+		if m == metric {
+			return true
+		}
+	}
+	return false
+}
+
+// IsHostMetricsEnabled returns whether metrics collection is enabled for this host.
+// 1 = Force ON, 0 = Force OFF, -1 = Inherit Global.
+func (d *DB) IsHostMetricsEnabled(h *Host) bool {
+	if h == nil {
+		return false
+	}
+	if h.MetricsEnabled == 1 {
+		return true
+	}
+	if h.MetricsEnabled == 0 {
+		return false
+	}
+	// Inherit global setting (default: true)
+	val, err := d.GetSetting("metrics_enabled")
+	if err != nil || val == "" {
+		return true // default enabled
+	}
+	return strings.ToLower(strings.TrimSpace(val)) == "true"
+}
+
+func (d *DB) GetMetricRetentionDays() int {
+	val, err := d.GetSetting("metric_retention_days")
+	if err != nil || val == "" {
+		return 7
+	}
+	days, err := strconv.Atoi(strings.TrimSpace(val))
+	if err != nil || days <= 0 {
+		return 7
+	}
+	return days
+}
+
+func (d *DB) SaveMetricSamples(hostID int64, samples map[string]float64, recordedAt int64) error {
+	if len(samples) == 0 {
+		return nil
+	}
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Prepare(`INSERT INTO metric_samples (host_id, metric, value, recorded_at) VALUES (?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for m, v := range samples {
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			continue
+		}
+		if _, err := stmt.Exec(hostID, m, v, recordedAt); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (d *DB) PruneMetricSamples(retentionDays int) (int64, error) {
+	if retentionDays <= 0 {
+		retentionDays = 7
+	}
+	cutoff := time.Now().Unix() - int64(retentionDays*86400)
+	res, err := d.Exec(`DELETE FROM metric_samples WHERE recorded_at < ?`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+type MetricQueryResponse struct {
+	Timestamps []int64              `json:"timestamps"`
+	Series     map[string][]float64 `json:"series"`
+}
+
+func (d *DB) GetMetricSamples(hostID int64, metrics []string, from, to, step int64) (*MetricQueryResponse, error) {
+	return d.GetMetricSamplesFiltered(hostID, metrics, nil, from, to, step)
+}
+
+func (d *DB) GetMetricSamplesFiltered(hostID int64, include, exclude []string, from, to, step int64) (*MetricQueryResponse, error) {
+	if to <= 0 {
+		to = time.Now().Unix()
+	}
+	if from <= 0 {
+		from = to - 86400 // default 24h
+	}
+
+	var metricFilterSQL string
+	var args []any
+	args = append(args, hostID, from, to)
+
+	if len(include) > 0 {
+		placeholders := make([]string, len(include))
+		for i, m := range include {
+			placeholders[i] = "?"
+			args = append(args, m)
+		}
+		metricFilterSQL += fmt.Sprintf(" AND metric IN (%s)", strings.Join(placeholders, ","))
+	}
+	if len(exclude) > 0 {
+		placeholders := make([]string, len(exclude))
+		for i, m := range exclude {
+			placeholders[i] = "?"
+			args = append(args, m)
+		}
+		metricFilterSQL += fmt.Sprintf(" AND metric NOT IN (%s)", strings.Join(placeholders, ","))
+	}
+
+	var query string
+	if step <= 0 {
+		query = fmt.Sprintf(`
+			SELECT recorded_at, metric, value
+			FROM metric_samples
+			WHERE host_id = ? AND recorded_at >= ? AND recorded_at <= ?%s
+			ORDER BY recorded_at ASC
+		`, metricFilterSQL)
+	} else {
+		query = fmt.Sprintf(`
+			SELECT (recorded_at / %d) * %d AS bucket_ts, metric, AVG(value)
+			FROM metric_samples
+			WHERE host_id = ? AND recorded_at >= ? AND recorded_at <= ?%s
+			GROUP BY bucket_ts, metric
+			ORDER BY bucket_ts ASC
+		`, step, step, metricFilterSQL)
+	}
+
+	rows, err := d.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	tsMap := make(map[int64]int)
+	var timestamps []int64
+	type sampleEntry struct {
+		ts     int64
+		metric string
+		val    float64
+	}
+	var entries []sampleEntry
+	metricSet := make(map[string]bool)
+
+	for rows.Next() {
+		var ts int64
+		var m string
+		var val float64
+		if err := rows.Scan(&ts, &m, &val); err != nil {
+			return nil, err
+		}
+		if _, exists := tsMap[ts]; !exists {
+			tsMap[ts] = len(timestamps)
+			timestamps = append(timestamps, ts)
+		}
+		metricSet[m] = true
+		entries = append(entries, sampleEntry{ts: ts, metric: m, val: val})
+	}
+
+	series := make(map[string][]float64)
+	for m := range metricSet {
+		series[m] = make([]float64, len(timestamps))
+	}
+
+	for _, e := range entries {
+		idx := tsMap[e.ts]
+		series[e.metric][idx] = e.val
+	}
+
+	if timestamps == nil {
+		timestamps = []int64{}
+	}
+
+	return &MetricQueryResponse{
+		Timestamps: timestamps,
+		Series:     series,
+	}, nil
+}
+
+func (d *DB) GetHostMetricProbes(hostID int64) ([]HostMetricProbe, error) {
+	rows, err := d.Query(`SELECT id, host_id, name, command, enabled, created_at FROM host_metric_probes WHERE host_id = ? ORDER BY id ASC`, hostID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var probes []HostMetricProbe
+	for rows.Next() {
+		var p HostMetricProbe
+		var en int
+		if err := rows.Scan(&p.ID, &p.HostID, &p.Name, &p.Command, &en, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		p.Enabled = en == 1
+		probes = append(probes, p)
+	}
+	if probes == nil {
+		probes = []HostMetricProbe{}
+	}
+	return probes, nil
+}
+
+func (d *DB) CreateHostMetricProbe(p *HostMetricProbe) (int64, error) {
+	en := 0
+	if p.Enabled {
+		en = 1
+	}
+	res, err := d.Exec(`INSERT INTO host_metric_probes (host_id, name, command, enabled) VALUES (?, ?, ?, ?)`, p.HostID, p.Name, p.Command, en)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func (d *DB) UpdateHostMetricProbe(p *HostMetricProbe) error {
+	en := 0
+	if p.Enabled {
+		en = 1
+	}
+	_, err := d.Exec(`UPDATE host_metric_probes SET name = ?, command = ?, enabled = ? WHERE id = ? AND host_id = ?`, p.Name, p.Command, en, p.ID, p.HostID)
+	return err
+}
+
+func (d *DB) DeleteHostMetricProbe(hostID, probeID int64) error {
+	_, err := d.Exec(`DELETE FROM host_metric_probes WHERE id = ? AND host_id = ?`, probeID, hostID)
 	return err
 }

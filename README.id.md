@@ -86,6 +86,7 @@ Pantau menginspeksi host remote melalui koneksi SSH standar menggunakan perintah
 - **Saturasi sumber daya**: Memantau CPU load, penggunaan RAM, alokasi swap, partisi disk, dan throughput I/O via `/proc/diskstats` tanpa dependensi `iostat`.
 - **Telemetri proses dan jaringan**: Mengidentifikasi proses dengan konsumsi CPU/RAM tertinggi, port mendengarkan (*listening ports*), koneksi soket aktif, dan deteksi percobaan login SSH yang gagal (*failed logins*).
 - **Inventaris paket dan siklus hidup**: Memindai paket terinstal di berbagai distro Linux (`dpkg`, `rpm`, `apk`, `pacman`), mendeteksi paket/layanan tidak aktif (*dormant*), dan menghitung estimasi masa pakai serta tanggal End-of-Life (EOL) sistem operasi.
+- **Metrik time-series & probing aplikasi**: Penyimpanan riwayat sampel metrik berbasis SQLite lokal dengan kebijakan retensi terkonfigurasi (default 7 hari) dan pembersihan otomatis (*auto-prune*) setiap jam. Visualisasi tren multi-grafik interaktif menggunakan uPlot bawaan (rentang 1h/6h/24h/7d dengan downsampling SQL dinamis), mini-sparkline pada kartu host, serta preset probe bawaan untuk Nginx, MySQL, PHP-FPM, Redis, dan PostgreSQL.
 - Baca selengkapnya pada [Panduan Inspeksi & Observabilitas](docs/user-guide.id.md#4-fase-3-observabilitas-analisis-drift--respons-insiden).
 
 ### 2. Desired State Baseline & Diagnostik Insiden

@@ -474,3 +474,15 @@ _Avoid_: Directory syncing, folder jump, path inheritance
 Skema URI khusus (`pantau://`) untuk memicu peluncuran sesi native terminal secara satu-klik langsung dari browser desktop tanpa pengunduhan berkas skrip manual.
 _Avoid_: Custom scheme, terminal link, browser protocol hook
 
+**Metric Sample**:
+Titik data numerik observabilitas berstempel waktu (timestamp) yang merekam nilai terukur dari sumber daya perangkat keras (CPU, RAM, Disk I/O, Net I/O) atau status performa aplikasi target.
+_Avoid_: Telemetry point, raw scrape log, gauge event
+
+**Metric Retention**:
+Kebijakan batas masa simpan riwayat data Metric Sample pada basis data lokal Pantau (konfigurasi default 7 hari) yang dieksekusi melalui proses pembersihan otomatis (*auto-prune*) berkala.
+_Avoid_: TTL purge, data expiration, metric cleanup window
+
+**Application Metric Probe**:
+Perintah inspeksi ringan berbasis SSH atau HTTP lokal (baik melalui preset bawaan untuk Nginx, MySQL, PHP-FPM maupun kustom buatan pengguna) untuk mengekstrak nilai numerik status performa aplikasi target secara periodik.
+_Avoid_: Telemetry scraper, custom exporter, agent probe
+

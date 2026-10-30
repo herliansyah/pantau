@@ -769,3 +769,142 @@ func TestProcessNameWithSpacesInSwap(t *testing.T) {
 		t.Errorf("unexpected swap item 0: %+v", swapList[0])
 	}
 }
+
+func TestInspector_MetricSamplesAndProbes(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-inspect-metrics-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name:           "Metrics Host",
+		Host:           "10.0.0.1",
+		Port:           22,
+		User:           "root",
+		MetricsEnabled: 1, // Force ON
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Add an application probe
+	_, err = db.CreateHostMetricProbe(&store.HostMetricProbe{
+		HostID:  hostID,
+		Name:    "Nginx Stub",
+		Command: "curl -s http://127.0.0.1/nginx_status",
+		Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		if strings.Contains(cmd, "uname -r") {
+			parts := []string{
+				"5.15.0-generic", "---",
+				"NAME=\"Ubuntu\"\nVERSION=\"22.04 LTS\"", "---",
+				"up 10 days, 1 user, load average: 0.50, 0.20, 0.15", "---",
+				"Mem: 8000000000 4000000000 4000000000", "---",
+				"/dev/sda1 100000 50000 50000 50% /", "---",
+				"0", "---",
+				"1000 1000", "---",
+				"time=12.5", "---",
+				"1.1.1.1", "---",
+				"127.0.0.1:80 127.0.0.1:12345", "---",
+				"LISTEN 127.0.0.1:80", "---",
+				"0", "---",
+				"2", "---", // 2 cores
+				"01/01/2022", "---",
+				"KVM", "---",
+				"1640995200", "---",
+				"10000 20000",
+			}
+			return strings.Join(parts, "\n"), "", 0, nil
+		}
+		if strings.Contains(cmd, "---PROBE:") {
+			return "---PROBE:1---\nnginx_active: 25\nnginx_reading: 3\nnginx_writing: 5\ncpu: 999.0\nmysql_uptime: 1234 sec\n", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	factory := func(host string, port int, user, key string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}
+
+	ins := New(db, factory, nil)
+	if err := ins.InspectHost(hostID); err != nil {
+		t.Fatalf("inspection failed: %v", err)
+	}
+
+	// Verify metric samples were saved
+	res, err := db.GetMetricSamples(hostID, nil, 0, 0, 0)
+	if err != nil {
+		t.Fatalf("failed getting metrics: %v", err)
+	}
+
+	if len(res.Timestamps) != 1 {
+		t.Fatalf("expected 1 metric timestamp, got %d", len(res.Timestamps))
+	}
+
+	// Check hardware metrics
+	if cpu := res.Series["cpu"]; len(cpu) == 0 || cpu[0] != 25.0 { // 0.50 / 2 cores * 100 = 25%
+		t.Errorf("expected cpu 25.0, got %v", cpu)
+	}
+	if ram := res.Series["ram"]; len(ram) == 0 || ram[0] != 50.0 { // 4GB / 8GB = 50%
+		t.Errorf("expected ram 50.0, got %v", ram)
+	}
+
+	// Check probe metrics
+	if act := res.Series["nginx_active"]; len(act) == 0 || act[0] != 25.0 {
+		t.Errorf("expected nginx_active 25.0, got %v", act)
+	}
+	if w := res.Series["nginx_writing"]; len(w) == 0 || w[0] != 5.0 {
+		t.Errorf("expected nginx_writing 5.0, got %v", w)
+	}
+	if upt := res.Series["mysql_uptime"]; len(upt) == 0 || upt[0] != 1234.0 {
+		t.Errorf("expected mysql_uptime 1234.0, got %v", upt)
+	}
+}
+
+func TestParseProbeOutput_KeyFormats(t *testing.T) {
+	stdout := `
+---PROBE:1---
+nginx_active: 25
+Active Connections: 42
+Slow Queries: 7
+Active Workers = 15
+mysql_qps: 180.5 queries/sec
+redis_ops 120
+# comment line
+invalid line here
+`
+	samples := make(map[string]float64)
+	parseProbeOutput(stdout, samples)
+
+	expected := map[string]float64{
+		"nginx_active":       25.0,
+		"active_connections": 42.0,
+		"slow_queries":       7.0,
+		"active_workers":     15.0,
+		"mysql_qps":          180.5,
+		"redis_ops":          120.0,
+	}
+
+	for k, expVal := range expected {
+		val, ok := samples[k]
+		if !ok {
+			t.Errorf("missing parsed metric %q", k)
+		} else if val != expVal {
+			t.Errorf("metric %q = %f, expected %f", k, val, expVal)
+		}
+	}
+}
+

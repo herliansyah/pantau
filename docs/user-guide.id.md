@@ -20,6 +20,7 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
 4. [Fase 3: Observabilitas, Analisis Drift & Respons Insiden](#4-fase-3-observabilitas-analisis-drift--respons-insiden)
    - [Siklus Inspeksi, Inspeksi Massal & Kesegaran Data](#siklus-inspeksi-inspeksi-massal-inspect-all--kesegaran-data)
    - [Resource Metrics, Process Telemetry & Observabilitas Perangkat Keras](#resource-metrics-process-telemetry--observabilitas-perangkat-keras)
+   - [Metrik Time-Series, Telemetri Aplikasi & Tren Temporal](#metrik-time-series-telemetri-aplikasi--tren-temporal)
    - [Inventarisasi Paket & Audit Higienitas Software](#inventarisasi-paket--audit-higienitas-software)
    - [Mendeteksi Drift & Root Cause Excerpt](#mendeteksi-drift--root-cause-excerpt)
    - [Investigasi Interaktif via Terminal Dock & Terminal Preset](#investigasi-interaktif-via-terminal-dock--terminal-preset)
@@ -158,6 +159,33 @@ Pengambilan telemetri mengekstrak metrik kapasitas komputasi riil secara berkela
   - **Top RAM (Physical RSS)**: Melacak PID, user, `%mem`, jejak memori RSS, dan nama proses via `ps -eo pid,user,%mem,rss,comm --sort=-rss`.
   - **Top Swap (Virtual Memory)**: Diekstrak secara kondisional hanya saat `SwapUsedBytes > 0` dengan mem-parsing baris `VmSwap:` di `/proc/[0-9]*/status`, mendeteksi pemborosan swap tanpa overhead daemon jarak jauh.
   - **Pintasan Terminal Satu-Klik**: Kartu Top Resource Consumers di tab Overview menyediakan tombol **Open Terminal** untuk langsung membuka sesi shell interaktif ke host terkait guna investigasi cepat.
+
+### Metrik Time-Series, Telemetri Aplikasi & Tren Temporal
+
+Selain tangkapan instan (*instantaneous snapshot*), Pantau menyediakan perekaman telemetri time-series historis secara agentless dan visualisasi tren interaktif:
+
+- **Penyimpanan Time-Series Embedded SQLite**: Setiap siklus inspeksi terjadwal merekam metrik perangkat keras secara otomatis ke dalam tabel flat ringan `metric_samples` (`host_id`, `metric`, `value`, `recorded_at`). Composite index memastikan kueri rentang waktu cepat tanpa memerlukan TSDB eksternal berat seperti Prometheus atau InfluxDB.
+- **Kebijakan Retensi Bergulir & Auto-Prune Setiap Jam**: Riwayat sampel metrik dikontrol oleh konfigurasi retensi (`metric_retention_days`, default: 7 hari) pada menu **Settings** > tab **General**. Worker latar belakang berkala (`startMetricsPruneWorker`) secara otomatis membersihkan sampel yang melampaui batas retensi setiap jam, menjaga ukuran file basis data SQLite tetap stabil.
+- **Kontrol Keaktifan Granular (Saklar Global & Tri-State Per-Host)**:
+  - **Saklar Global**: Aktifkan atau nonaktifkan pengumpulan metrik seluruh kluster di **Settings** > tab **General** (`metrics_enabled`).
+  - **Override Per-Host**: Pada formulir host, pilih antara **Inherit Global** (`-1`), **Force ON** (`1`), atau **Force OFF** (`0`), memungkinkan penghematan I/O pada host non-kritis atau mewajibkan telemetri pada server produksi utama.
+- **Visualisasi Dual-Tier Bebas Dependensi Eksternal**:
+  - **Mini-Sparkline Kartu Host**: Garis tren SVG murni (~15 baris vanilla JavaScript tanpa pustaka eksternal) tersemat langsung pada kartu host untuk menyajikan grafik tren CPU dan RAM 1 jam terakhir pada tampilan Grid dan List secara instan.
+  - **Tab `[📊 Metrics & Telemetry]` di Modal Detail Host**: Menggunakan pustaka **uPlot** (`~48 KB` minified, zero CDN dependencies, HTML5 Canvas 2D) yang di-vendor lokal untuk visualisasi ribuan titik data secara mulus dan responsif.
+  - **Sinkronisasi Crosshair & Zoom Interaktif**: Stack multi-grafik (CPU, RAM, Disk I/O, Network I/O, Latency, Probe Aplikasi) terhubung dalam kursor crosshair tersinkronisasi (`uPlot.sync()`) untuk mempermudah analisis korelasi multi-metrik saat investigasi insiden.
+  - **Pemilih Rentang Waktu Dinamis**: Pilih rentang **1h** (resolusi mentah), **6h** (resolusi mentah), **24h** (downsampling SQL 5 menit), dan **7d** (downsampling SQL 30 menit) guna mengoptimalkan transfer data (< 15 KB payload, < 25 ms query response).
+  - **Filter Kategori Metrik**: Tampilkan grafik berdasarkan filter **Semua**, **Hardware**, atau **Aplikasi**.
+- **Application Metric Probe Agentless**:
+  - Jalankan probe inspeksi metrik ringan langsung melalui sesi SSH yang sudah ada tanpa agen tambahan di host target.
+  - **Eksekusi Terisolasi & Fallback Anggun**: Setiap probe dijalankan dalam subshell berbatas waktu ketat (`timeout -k 1s 3s bash -c ...`) dengan supresi error, menjamin down-nya service target tidak pernah memblokir proses inspeksi host.
+  - **Kontrak Format Output Key-Value**: Probe menghasilkan baris teks dengan format `key: value` atau `key=value` (contoh: `nginx_active: 42`, `mysql_qps: 180.5`). Baris komentar (`#`) dan output kosong diabaikan otomatis.
+  - **Preset Probe Bawaan**: Siap pakai dengan deteksi multi-path otomatis:
+    - **Nginx Stub Status**: Mengekstrak `nginx_active`, `nginx_accepts`, `nginx_handled`, `nginx_requests`, `nginx_reading`, `nginx_writing`, dan `nginx_waiting` dari endpoint `/stub_status` atau `/nginx_status`.
+    - **MySQL Status**: Memanggil `mysqladmin status` untuk mencatat `mysql_uptime`, `mysql_threads_connected`, `mysql_questions`, `mysql_slow_queries`, `mysql_opens`, dan `mysql_qps`.
+    - **PHP-FPM Status**: Mendeteksi JSON endpoint status HTTP atau fallback ke penghitungan proses native `ps` untuk `active_processes`, `idle_processes`, dan `total_processes`.
+    - **Redis Info**: Mengekstrak `redis_connected_clients`, `redis_used_memory_bytes`, `redis_ops_per_sec`, `redis_rejected_connections`, `redis_expired_keys`, dan `redis_uptime` via `redis-cli`, mendukung auto-detect password dan UNIX socket.
+    - **PostgreSQL Stats**: Mengambil jumlah koneksi aktif, idle, dan total dari `pg_stat_activity` dengan fallback autentikasi peer (`sudo -u postgres` / `su - postgres`).
+  - **Manajemen Probe Kustom**: Buat, sunting, uji (*test probe*), dan ubah status keaktifan probe melalui modal dialog **Manage Probes** pada tab Metrics.
 
 ### Inventarisasi Paket & Audit Higienitas Software
 
