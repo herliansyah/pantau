@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.29.0] - 2026-10-30
 ### Added
 - Time-Series Metric Observability & Application Telemetry: continuous agentless recording of system resource metrics and application performance telemetry into embedded SQLite with configurable rolling retention.
   - SQLite Time-Series Engine: flat table `metric_samples` with composite index `(host_id, metric, recorded_at)` and index `(recorded_at)` for high-performance range queries and rapid data pruning.
@@ -18,7 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Host Detail Modal `[📊 Metrics & Telemetry]` tab powered by locally vendored **uPlot** (`~48 KB` minified, HTML5 Canvas 2D, zero CDN dependencies) with synchronized crosshair cursor (`uPlot.sync()`), zoom/pan, time-range selectors (1h, 6h, 24h, 7d), and category toggles.
     - Handcrafted pure SVG mini-sparklines (~15 lines vanilla JS, zero dependencies) on Host Cards for instantaneous 1-hour CPU and RAM trends.
   - Probe Manager UI: modal interface for creating, editing, testing, and toggling custom probes and adopting presets.
+- Markdown Preview Modal for Host and Global Notes: rendered Markdown preview by default with in-place edit toggle and zero-dependency micro-parser for rich text formatting in host and global notes.
 - Architectural Decision Record: [ADR-0037](docs/adr/0037-metric-samples-application-telemetry-and-uplot-observability.md).
+
+### Changed
+- Dashboard Header: removed redundant active alert badge cluster from fixed header to streamline visual focus on the primary alert banner.
 
 ## [0.28.1] - 2026-10-29
 ### Fixed
