@@ -486,3 +486,23 @@ _Avoid_: TTL purge, data expiration, metric cleanup window
 Perintah inspeksi ringan berbasis SSH atau HTTP lokal (baik melalui preset bawaan untuk Nginx, MySQL, PHP-FPM maupun kustom buatan pengguna) untuk mengekstrak nilai numerik status performa aplikasi target secara periodik.
 _Avoid_: Telemetry scraper, custom exporter, agent probe
 
+**Public Status Page**:
+Halaman web mandiri tanpa autentikasi yang menyajikan ringkasan status kesehatan operasional, bar ketersediaan historis 90 hari, dan pengumuman insiden atau pemeliharaan.
+_Avoid_: External status page, uptime dashboard, public monitor
+
+**Status Target**:
+Entitas Host atau Desired Rule yang dipilih secara eksplisit oleh administrator untuk dipublikasikan pada Public Status Page dengan nama publik yang disamarkan (*Public Display Name*).
+_Avoid_: Monitored item, public service, exposed host
+
+**Daily Uptime Rollup**:
+Rangkuman agregasi metrik ketersediaan harian per Status Target yang merekam kuantitas inspeksi sukses terhadap total inspeksi dalam rentang 24 jam untuk merender visual bar riwayat 90 hari.
+_Avoid_: Daily uptime stats, uptime log, 90d history dump
+
+**Status Incident**:
+Catatan pengumuman resmi dari administrator mengenai insiden deviasi aktif, penurunan performa, atau jendela pemeliharaan terjadwal yang disematkan pada Public Status Page.
+_Avoid_: Incident report, status announcement, outage ticket
+
+**Status Incident Update**:
+Pembaruan berkala berstempel waktu yang mendokumentasikan perkembangan kronologis penanganan Status Incident (Investigating, Identified, Monitoring, Resolved).
+_Avoid_: Incident log entry, status comment, progress note
+

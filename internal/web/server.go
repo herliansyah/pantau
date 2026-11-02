@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -96,6 +97,24 @@ type Server struct {
 	inspectAllMu      sync.Mutex
 	inspectAllActive  bool
 	lastInspectAll    time.Time
+	statusSnapshot      atomic.Pointer[statusPageSnapshot]
+	statusInvalidateCh  chan struct{}
+	statusLimiter       *shardedRateLimiter
+	statusHTMLContent   []byte
+	statusHTMLContentGz []byte
+	statusHTMLETag      string
+}
+
+func (s *Server) prepareStatusHTML(raw []byte) {
+	s.statusHTMLContent = raw
+	sum := sha256.Sum256(raw)
+	s.statusHTMLETag = fmt.Sprintf(`"%x"`, sum[:8])
+
+	var buf bytes.Buffer
+	gw, _ := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	_, _ = gw.Write(raw)
+	_ = gw.Close()
+	s.statusHTMLContentGz = buf.Bytes()
 }
 
 func (s *Server) prepareHTML(raw []byte) {
@@ -113,18 +132,32 @@ func (s *Server) prepareHTML(raw []byte) {
 
 func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) *Server {
 	s := &Server{
-		db:             db,
-		inspector:      ins,
-		dispatcher:     disp,
-		provisioner:    sshrunner.DefaultKeyProvisioner,
-		transferMgr:    transfer.NewManager(db, nil),
-		snapshotMgr:    snapshot.NewManager(db, nil),
-		netdiagService: netdiag.NewService(db, ins, disp),
-		mux:            http.NewServeMux(),
+		db:                 db,
+		inspector:          ins,
+		dispatcher:         disp,
+		provisioner:        sshrunner.DefaultKeyProvisioner,
+		transferMgr:        transfer.NewManager(db, nil),
+		snapshotMgr:        snapshot.NewManager(db, nil),
+		netdiagService:     netdiag.NewService(db, ins, disp),
+		mux:                http.NewServeMux(),
+		statusInvalidateCh: make(chan struct{}, 1),
+		statusLimiter:      newShardedRateLimiter(1.0, 30.0),
 	}
 	s.prepareHTML(embeddedHTML)
+	s.prepareStatusHTML(embeddedStatusHTML)
+	s.rebuildStatusPageSnapshot()
+	if ins != nil {
+		ins.SetOnStatusChange(s.InvalidateStatusPageCache)
+	}
 	s.routes()
 	return s
+}
+
+func (s *Server) StartStatusPageWorkers(ctx context.Context) {
+	go s.startStatusPageCacheWorker(ctx)
+	if s.statusLimiter != nil {
+		go s.statusLimiter.StartReaper(ctx, 5*time.Minute)
+	}
 }
 
 func (s *Server) StartAutoTriageScheduler(ctx context.Context) {
@@ -171,6 +204,9 @@ func (s *Server) routes() {
 	// Static / UI
 	s.mux.HandleFunc("/", s.handleIndex)
 	s.mux.HandleFunc("/favicon.ico", s.handleFavicon)
+	s.mux.HandleFunc("/status", s.handlePublicStatus)
+	s.mux.HandleFunc("/status/", s.handlePublicStatus)
+	s.mux.HandleFunc("/api/status-page/summary", s.handlePublicStatusSummary)
 
 	// In-App Documentation (Public & Private)
 	s.mux.HandleFunc("/api/docs", s.handleDocs)
@@ -209,6 +245,11 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/settings", s.authMiddleware(s.handleSettings))
 	s.mux.HandleFunc("/api/settings/test-notify", s.authMiddleware(s.handleTestNotify))
 	s.mux.HandleFunc("/api/settings/regenerate-ssh-key", s.authMiddleware(s.handleRegenerateSSHKey))
+	s.mux.HandleFunc("/api/settings/status-page", s.authMiddleware(s.handleStatusPageSettings))
+	s.mux.HandleFunc("/api/settings/status-page/targets", s.authMiddleware(s.handleStatusPageTargets))
+	s.mux.HandleFunc("/api/settings/status-page/targets/", s.authMiddleware(s.handleStatusPageTargetDetail))
+	s.mux.HandleFunc("/api/settings/status-page/incidents", s.authMiddleware(s.handleStatusPageIncidents))
+	s.mux.HandleFunc("/api/settings/status-page/incidents/", s.authMiddleware(s.handleStatusPageIncidentDetail))
 	s.mux.HandleFunc("/api/alerts", s.authMiddleware(s.handleAlerts))
 	s.mux.HandleFunc("/api/alerts/", s.authMiddleware(s.handleAlertDetail))
 

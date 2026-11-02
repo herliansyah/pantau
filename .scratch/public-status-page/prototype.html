@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pantau Status - System Operational Status</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #131b2e;
+      --card-border: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent: #38bdf8;
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.12);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.12);
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.12);
+      --bar-empty: #334155;
+      --tooltip-bg: #1e293b;
+      --tooltip-text: #f8fafc;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+      --accent: #0284c7;
+      --success: #059669;
+      --success-bg: rgba(5, 150, 105, 0.1);
+      --warning: #d97706;
+      --warning-bg: rgba(217, 119, 6, 0.1);
+      --danger: #dc2626;
+      --danger-bg: rgba(220, 38, 38, 0.1);
+      --bar-empty: #e2e8f0;
+      --tooltip-bg: #0f172a;
+      --tooltip-text: #ffffff;
+      --shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    /* Interactive Simulation Toolbar for Testing */
+    .proto-controls {
+      width: 100%;
+      max-width: 860px;
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(8px);
+      border: 1px dashed var(--accent);
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin-bottom: 24px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.82rem;
+    }
+    .proto-controls span { color: var(--accent); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+    .proto-btn-group { display: flex; gap: 6px; }
+    .proto-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.78rem;
+      transition: all 0.15s;
+    }
+    .proto-btn:hover { border-color: var(--accent); }
+    .proto-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+
+    /* Page Container */
+    .container {
+      width: 100%;
+      max-width: 860px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 8px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+    .brand-title h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+    .brand-title p { font-size: 0.85rem; color: var(--text-muted); }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .theme-toggle-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .theme-toggle-btn:hover { color: var(--text-main); border-color: var(--accent); }
+
+    /* Global Status Banner */
+    .status-banner {
+      border-radius: 12px;
+      padding: 18px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: var(--shadow);
+      transition: all 0.3s ease;
+    }
+    .status-banner.operational {
+      background-color: var(--success-bg);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--success);
+    }
+    .status-banner.degraded {
+      background-color: var(--warning-bg);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: var(--warning);
+    }
+    .status-banner.outage {
+      background-color: var(--danger-bg);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--danger);
+    }
+    .status-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .status-pulse-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: currentColor;
+      box-shadow: 0 0 10px currentColor;
+      display: inline-block;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .status-meta {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    /* Active Incident Box */
+    .active-incident-box {
+      background: var(--card-bg);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-left: 5px solid var(--warning);
+      border-radius: 10px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .active-incident-box.critical {
+      border-color: rgba(239, 68, 68, 0.4);
+      border-left-color: var(--danger);
+    }
+    .incident-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .incident-header h3 { font-size: 1.05rem; font-weight: 600; color: var(--text-main); }
+    .incident-badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .incident-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 6px;
+      border-left: 2px solid var(--card-border);
+      padding-left: 16px;
+      margin-left: 4px;
+    }
+    .timeline-item { display: flex; flex-direction: column; gap: 4px; position: relative; }
+    .timeline-item::before {
+      content: "";
+      position: absolute;
+      left: -21px;
+      top: 6px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--warning);
+    }
+    .timeline-status { font-size: 0.8rem; font-weight: 600; color: var(--text-main); }
+    .timeline-msg { font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; }
+    .timeline-time { font-size: 0.75rem; color: var(--text-dim); }
+
+    /* Target Service Groups */
+    .service-group {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .group-header {
+      padding: 14px 20px;
+      background: rgba(30, 41, 59, 0.3);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .group-header h2 { font-size: 0.98rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Target Rows */
+    .target-list { display: flex; flex-direction: column; }
+    .target-row {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .target-row:last-child { border-bottom: none; }
+    .target-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .target-name { font-size: 0.98rem; font-weight: 600; color: var(--text-main); }
+    .target-status-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .target-status-label.operational { color: var(--success); }
+    .target-status-label.degraded { color: var(--warning); }
+    .target-status-label.outage { color: var(--danger); }
+
+    /* 90-Day Uptime Bar Component */
+    .uptime-bar-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .uptime-bars-container {
+      display: flex;
+      align-items: center;
+      gap: 2.5px;
+      height: 32px;
+      width: 100%;
+    }
+    .bar-day {
+      flex: 1;
+      height: 100%;
+      background-color: var(--success);
+      border-radius: 2px;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.1s ease, opacity 0.15s;
+    }
+    .bar-day:hover {
+      transform: scaleY(1.18);
+      opacity: 0.85;
+      z-index: 5;
+    }
+    .bar-day.degraded { background-color: var(--warning); }
+    .bar-day.outage { background-color: var(--danger); }
+    .bar-day.empty { background-color: var(--bar-empty); }
+
+    .uptime-range-labels {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.73rem;
+      color: var(--text-dim);
+    }
+    .uptime-score { font-weight: 600; color: var(--text-muted); }
+
+    /* Global Custom Tooltip */
+    #bar-tooltip {
+      position: fixed;
+      pointer-events: none;
+      background: var(--tooltip-bg);
+      color: var(--tooltip-text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--card-border);
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.12s ease;
+      white-space: nowrap;
+      transform: translate(-50%, -125%);
+    }
+
+    /* Past Incidents Archive */
+    .incidents-archive {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .incidents-archive h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .past-day { display: flex; flex-direction: column; gap: 8px; }
+    .past-date { font-size: 0.88rem; font-weight: 600; color: var(--text-muted); }
+    .no-incidents-text { font-size: 0.82rem; color: var(--text-dim); }
+
+    /* Footer */
+    footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 16px;
+      border-top: 1px solid var(--card-border);
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+    footer a { color: var(--text-muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <!-- Simulation Control Toolbar -->
+  <div class="proto-controls">
+    <span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+      Prototype Simulator
+    </span>
+    <div class="proto-btn-group">
+      <button class="proto-btn active" onclick="setScenario('all_healthy')">All Healthy</button>
+      <button class="proto-btn" onclick="setScenario('incident')">Degraded Incident</button>
+      <button class="proto-btn" onclick="setScenario('outage')">Major Outage</button>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-logo">P</div>
+        <div class="brand-title">
+          <h1 id="brand-name">Pantau Infrastructure</h1>
+          <p id="brand-sub">Real-time service status and incident updates</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+          <svg id="theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Global Status Banner -->
+    <div id="status-banner" class="status-banner operational">
+      <div class="status-title">
+        <span class="status-pulse-dot"></span>
+        <span id="banner-text">All Systems Operational</span>
+      </div>
+      <div class="status-meta">
+        Updated <span id="last-updated">just now</span>
+      </div>
+    </div>
+
+    <!-- Active Incident Area (Hidden by default, shown in degraded scenario) -->
+    <div id="active-incident-container" style="display: none;">
+      <div class="active-incident-box" id="active-incident-card">
+        <div class="incident-header">
+          <h3 id="incident-title">Intermittent Database Query Latency</h3>
+          <span class="incident-badge" id="incident-impact">Minor Impact</span>
+        </div>
+        <div class="incident-timeline">
+          <div class="timeline-item">
+            <div class="timeline-status">Monitoring</div>
+            <div class="timeline-msg">Engineers have provisioned an additional read-replica. Query queue latency has dropped back to baseline. Monitoring connection stabilization.</div>
+            <div class="timeline-time">Today at 06:15 UTC</div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-status">Investigating</div>
+            <div class="timeline-msg">We are observing elevated CPU and connection locks on the primary database cluster. Read queries may take longer than usual.</div>
+            <div class="timeline-time">Today at 05:40 UTC</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Target Service Groups -->
+    <div class="service-group">
+      <div class="group-header">
+        <h2>Core Services & APIs</h2>
+      </div>
+      <div class="target-list" id="group-core-targets">
+        <!-- Rendered dynamically via JS -->
+      </div>
+    </div>
+
+    <div class="service-group">
+      <div class="group-header">
+        <h2>Customer Web Applications</h2>
+      </div>
+      <div class="target-list" id="group-web-targets">
+        <!-- Rendered dynamically via JS -->
+      </div>
+    </div>
+
+    <!-- Recent Past Incidents -->
+    <section class="incidents-archive">
+      <h2>Past Incidents</h2>
+      <div class="past-day">
+        <div class="past-date">October 31, 2026</div>
+        <div class="no-incidents-text">No incidents reported on this day.</div>
+      </div>
+      <div class="past-day">
+        <div class="past-date">October 30, 2026</div>
+        <div class="no-incidents-text">No incidents reported on this day.</div>
+      </div>
+      <div class="past-day">
+        <div class="past-date">October 29, 2026</div>
+        <div class="no-incidents-text">No incidents reported on this day.</div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <div>Powered by <strong>Pantau</strong> • Zero-CDN Airgapped Status Engine</div>
+      <div><a href="#support" id="support-link">Contact Support</a></div>
+    </footer>
+  </div>
+
+  <!-- Shared Hover Tooltip for 90 Days Bar -->
+  <div id="bar-tooltip"></div>
+
+  <script>
+    // Mock Data State
+    const mockTargets = [
+      {
+        id: 1,
+        name: "REST API Gateway (Production)",
+        group: "core",
+        status: "operational",
+        uptime_90d: 99.98,
+        history: generateMockHistory(90, 0, 1) // 0 outage, 1 degraded
+      },
+      {
+        id: 2,
+        name: "Database Cluster (PostgreSQL)",
+        group: "core",
+        status: "operational",
+        uptime_90d: 99.85,
+        history: generateMockHistory(90, 0, 3)
+      },
+      {
+        id: 3,
+        name: "Web Portal Dashboard",
+        group: "web",
+        status: "operational",
+        uptime_90d: 100.0,
+        history: generateMockHistory(90, 0, 0)
+      },
+      {
+        id: 4,
+        name: "Authentication & OAuth Service",
+        group: "web",
+        status: "operational",
+        uptime_90d: 99.92,
+        history: generateMockHistory(90, 0, 1)
+      }
+    ];
+
+    function generateMockHistory(days, outageDays, degradedDays) {
+      const history = [];
+      const today = new Date();
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        
+        let status = "operational";
+        let uptime = 100.0;
+
+        // Spread a few incidents across the 90 days
+        if (i === 15 && outageDays > 0) {
+          status = "outage";
+          uptime = 87.5;
+        } else if ((i === 42 || i === 70) && degradedDays > 0) {
+          status = "degraded";
+          uptime = 98.4;
+        }
+
+        history.push({ date: dateStr, status, uptime });
+      }
+      return history;
+    }
+
+    function renderTargets() {
+      const coreList = document.getElementById("group-core-targets");
+      const webList = document.getElementById("group-web-targets");
+      coreList.innerHTML = "";
+      webList.innerHTML = "";
+
+      mockTargets.forEach(t => {
+        const row = document.createElement("div");
+        row.className = "target-row";
+        
+        // Format status label
+        let statusText = "Operational";
+        if (t.status === "degraded") statusText = "Degraded Performance";
+        if (t.status === "outage") statusText = "Major Outage";
+
+        row.innerHTML = `
+          <div class="target-top">
+            <span class="target-name">${t.name}</span>
+            <span class="target-status-label ${t.status}">
+              <span class="status-pulse-dot" style="width: 8px; height: 8px;"></span>
+              ${statusText}
+            </span>
+          </div>
+          <div class="uptime-bar-wrapper">
+            <div class="uptime-bars-container" id="bars-target-${t.id}"></div>
+            <div class="uptime-range-labels">
+              <span>90 days ago</span>
+              <span class="uptime-score">${t.uptime_90d.toFixed(2)}% uptime</span>
+              <span>Today</span>
+            </div>
+          </div>
+        `;
+
+        if (t.group === "core") coreList.appendChild(row);
+        else webList.appendChild(row);
+
+        // Build 90 bars
+        const barsContainer = row.querySelector(`#bars-target-${t.id}`);
+        t.history.forEach(day => {
+          const bar = document.createElement("div");
+          bar.className = `bar-day ${day.status}`;
+          bar.dataset.date = day.date;
+          bar.dataset.uptime = day.uptime;
+          bar.dataset.status = day.status;
+
+          bar.addEventListener("mouseenter", showBarTooltip);
+          bar.addEventListener("mouseleave", hideBarTooltip);
+          barsContainer.appendChild(bar);
+        });
+      });
+    }
+
+    // Tooltip logic
+    const tooltip = document.getElementById("bar-tooltip");
+    function showBarTooltip(e) {
+      const rect = e.target.getBoundingClientRect();
+      const date = e.target.dataset.date;
+      const uptime = e.target.dataset.uptime;
+      const status = e.target.dataset.status;
+
+      let statusMsg = "No downtime recorded";
+      if (status === "degraded") statusMsg = "Partial degradation experienced";
+      if (status === "outage") statusMsg = "Major outage recorded";
+
+      tooltip.innerHTML = `<strong>${date}</strong>: ${uptime}% uptime (${statusMsg})`;
+      tooltip.style.left = `${rect.left + rect.width / 2}px`;
+      tooltip.style.top = `${rect.top - 4}px`;
+      tooltip.style.opacity = "1";
+    }
+
+    function hideBarTooltip() {
+      tooltip.style.opacity = "0";
+    }
+
+    // Scenarios for interactive prototyping
+    function setScenario(sc) {
+      document.querySelectorAll(".proto-btn").forEach(b => b.classList.remove("active"));
+      event.target.classList.add("active");
+
+      const banner = document.getElementById("status-banner");
+      const bannerText = document.getElementById("banner-text");
+      const incidentContainer = document.getElementById("active-incident-container");
+
+      if (sc === "all_healthy") {
+        banner.className = "status-banner operational";
+        bannerText.textContent = "All Systems Operational";
+        incidentContainer.style.display = "none";
+        mockTargets.forEach(t => t.status = "operational");
+      } else if (sc === "incident") {
+        banner.className = "status-banner degraded";
+        bannerText.textContent = "Active Incident: Degraded Performance";
+        incidentContainer.style.display = "block";
+        document.getElementById("incident-title").textContent = "Intermittent Database Query Latency";
+        document.getElementById("incident-impact").textContent = "Minor Impact";
+        mockTargets[1].status = "degraded"; // DB cluster degraded
+      } else if (sc === "outage") {
+        banner.className = "status-banner outage";
+        bannerText.textContent = "Major Outage Detected";
+        incidentContainer.style.display = "block";
+        document.getElementById("incident-title").textContent = "Core API Gateway Connectivity Down";
+        document.getElementById("incident-impact").textContent = "Critical Impact";
+        mockTargets[0].status = "outage"; // API gateway outage
+      }
+      renderTargets();
+    }
+
+    // Theme toggle
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute("data-theme") || "dark";
+      const next = current === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+    }
+
+    // Initial render
+    renderTargets();
+  </script>
+</body>
+</html>

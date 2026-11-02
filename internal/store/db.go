@@ -439,6 +439,58 @@ func (d *DB) migrate() error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE INDEX IF NOT EXISTS idx_host_metric_probes_host ON host_metric_probes(host_id, enabled);
+
+	CREATE TABLE IF NOT EXISTS status_page_targets (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		target_type TEXT NOT NULL,
+		host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+		desired_rule_id INTEGER NULL REFERENCES desired_rules(id) ON DELETE CASCADE,
+		public_name TEXT NOT NULL,
+		group_name TEXT NOT NULL DEFAULT 'Services',
+		sort_order INTEGER NOT NULL DEFAULT 0,
+		enabled INTEGER NOT NULL DEFAULT 1,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(target_type, host_id, desired_rule_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_status_targets_display ON status_page_targets(enabled, group_name, sort_order ASC);
+
+	CREATE TABLE IF NOT EXISTS status_page_daily_rollups (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		target_id INTEGER NOT NULL REFERENCES status_page_targets(id) ON DELETE CASCADE,
+		date TEXT NOT NULL,
+		total_checks INTEGER NOT NULL DEFAULT 0,
+		successful_checks INTEGER NOT NULL DEFAULT 0,
+		degraded_checks INTEGER NOT NULL DEFAULT 0,
+		outage_checks INTEGER NOT NULL DEFAULT 0,
+		uptime_percentage REAL NOT NULL DEFAULT 100.0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(target_id, date)
+	);
+	CREATE INDEX IF NOT EXISTS idx_status_rollups_lookup ON status_page_daily_rollups(target_id, date DESC);
+	CREATE INDEX IF NOT EXISTS idx_status_rollups_date ON status_page_daily_rollups(date);
+
+	CREATE TABLE IF NOT EXISTS status_page_incidents (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		title TEXT NOT NULL,
+		status TEXT NOT NULL,
+		impact TEXT NOT NULL DEFAULT 'minor',
+		message TEXT NOT NULL,
+		affected_targets TEXT DEFAULT '[]',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		resolved_at DATETIME NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_status_incidents_active ON status_page_incidents(status, created_at DESC);
+
+	CREATE TABLE IF NOT EXISTS status_page_incident_updates (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		incident_id INTEGER NOT NULL REFERENCES status_page_incidents(id) ON DELETE CASCADE,
+		status TEXT NOT NULL,
+		message TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_status_updates_incident ON status_page_incident_updates(incident_id, created_at ASC);
 	`
 	_, err := d.Exec(schema)
 	if err != nil {
