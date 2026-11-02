@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Status - Pantau</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #131b2e;
+      --card-border: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent: #38bdf8;
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.12);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.12);
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.12);
+      --bar-empty: #334155;
+      --tooltip-bg: #1e293b;
+      --tooltip-text: #f8fafc;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #94a3b8;
+      --accent: #0284c7;
+      --success: #059669;
+      --success-bg: rgba(5, 150, 105, 0.1);
+      --warning: #d97706;
+      --warning-bg: rgba(217, 119, 6, 0.1);
+      --danger: #dc2626;
+      --danger-bg: rgba(220, 38, 38, 0.1);
+      --bar-empty: #e2e8f0;
+      --tooltip-bg: #0f172a;
+      --tooltip-text: #ffffff;
+      --shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 860px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 8px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 1.15rem;
+      overflow: hidden;
+    }
+    .brand-logo img { width: 100%; height: 100%; object-fit: contain; }
+    .brand-title h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+    .brand-title p { font-size: 0.85rem; color: var(--text-muted); }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .theme-toggle-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .theme-toggle-btn:hover { color: var(--text-main); border-color: var(--accent); }
+
+    /* Global Status Banner */
+    .status-banner {
+      border-radius: 12px;
+      padding: 18px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: var(--shadow);
+      transition: all 0.3s ease;
+    }
+    .status-banner.operational {
+      background-color: var(--success-bg);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--success);
+    }
+    .status-banner.degraded {
+      background-color: var(--warning-bg);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: var(--warning);
+    }
+    .status-banner.major_outage {
+      background-color: var(--danger-bg);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: var(--danger);
+    }
+    .status-banner.maintenance {
+      background-color: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--accent);
+    }
+    .status-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .status-pulse-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: currentColor;
+      box-shadow: 0 0 10px currentColor;
+      display: inline-block;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .status-meta {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    /* Active Incident Box */
+    .incident-container {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .active-incident-box {
+      background: var(--card-bg);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      border-left: 5px solid var(--warning);
+      border-radius: 10px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .active-incident-box.critical, .active-incident-box.major {
+      border-color: rgba(239, 68, 68, 0.4);
+      border-left-color: var(--danger);
+    }
+    .incident-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .incident-header h3 { font-size: 1.05rem; font-weight: 600; color: var(--text-main); }
+    .incident-badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .incident-badge.critical, .incident-badge.major {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .incident-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 6px;
+      border-left: 2px solid var(--card-border);
+      padding-left: 16px;
+      margin-left: 4px;
+    }
+    .timeline-item { display: flex; flex-direction: column; gap: 4px; position: relative; }
+    .timeline-item::before {
+      content: "";
+      position: absolute;
+      left: -21px;
+      top: 6px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--warning);
+    }
+    .timeline-status { font-size: 0.8rem; font-weight: 600; color: var(--text-main); text-transform: capitalize; }
+    .timeline-msg { font-size: 0.85rem; color: var(--text-muted); line-height: 1.4; white-space: pre-wrap; }
+    .timeline-time { font-size: 0.75rem; color: var(--text-dim); }
+
+    /* Target Service Groups */
+    .service-group {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .group-header {
+      padding: 14px 20px;
+      background: rgba(30, 41, 59, 0.3);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .group-header h2 { font-size: 0.95rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Target Rows */
+    .target-list { display: flex; flex-direction: column; }
+    .target-row {
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .target-row:last-child { border-bottom: none; }
+    .target-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .target-name { font-size: 0.98rem; font-weight: 600; color: var(--text-main); }
+    .target-status-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .target-status-label.operational { color: var(--success); }
+    .target-status-label.degraded { color: var(--warning); }
+    .target-status-label.outage { color: var(--danger); }
+
+    /* 90-Day Uptime Bar Component */
+    .uptime-bar-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .uptime-bars-container {
+      display: flex;
+      align-items: center;
+      gap: 2.5px;
+      height: 32px;
+      width: 100%;
+    }
+    @media (max-width: 640px) {
+      .uptime-bars-container {
+        gap: 1.5px;
+        height: 24px;
+      }
+    }
+    .bar-day {
+      flex: 1;
+      height: 100%;
+      background-color: var(--success);
+      border-radius: 2px;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.1s ease, opacity 0.15s;
+    }
+    .bar-day:hover {
+      transform: scaleY(1.18);
+      opacity: 0.85;
+      z-index: 5;
+    }
+    .bar-day.degraded { background-color: var(--warning); }
+    .bar-day.outage { background-color: var(--danger); }
+    .bar-day.empty { background-color: var(--bar-empty); }
+
+    .uptime-range-labels {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.73rem;
+      color: var(--text-dim);
+    }
+    .uptime-score { font-weight: 600; color: var(--text-muted); }
+
+    /* Global Tooltip */
+    #bar-tooltip {
+      position: fixed;
+      pointer-events: none;
+      background: var(--tooltip-bg);
+      color: var(--tooltip-text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--card-border);
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.12s ease;
+      white-space: nowrap;
+      transform: translate(-50%, -125%);
+    }
+
+    /* Footer */
+    footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 16px;
+      border-top: 1px solid var(--card-border);
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+    footer a { color: var(--text-muted); text-decoration: none; }
+    footer a:hover { color: var(--accent); text-decoration: underline; }
+
+    .empty-state {
+      padding: 32px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-logo" id="brand-logo-container">P</div>
+        <div class="brand-title">
+          <h1 id="brand-name">System Status</h1>
+          <p id="brand-desc">Real-time service status and incident updates</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle Dark/Light Mode">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Global Status Banner -->
+    <div id="status-banner" class="status-banner operational">
+      <div class="status-title">
+        <span class="status-pulse-dot"></span>
+        <span id="banner-text">Loading system status...</span>
+      </div>
+      <div class="status-meta">
+        Updated <span id="last-updated">just now</span>
+      </div>
+    </div>
+
+    <!-- Active Incident Area -->
+    <div id="incident-container" class="incident-container" style="display: none;"></div>
+
+    <!-- Target Groups Container -->
+    <div id="groups-container" style="display: flex; flex-direction: column; gap: 24px;"></div>
+
+    <!-- Footer -->
+    <footer>
+      <div>Powered by <strong>Pantau</strong> • Zero-CDN Airgapped Status Engine</div>
+      <div><a href="#support" id="support-link" style="display: none;">Contact Support</a></div>
+    </footer>
+  </div>
+
+  <div id="bar-tooltip"></div>
+
+  <script>
+    // Theme Manager
+    function initTheme() {
+      const saved = localStorage.getItem("pantau_status_theme") || "dark";
+      document.documentElement.setAttribute("data-theme", saved);
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute("data-theme") || "dark";
+      const next = current === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem("pantau_status_theme", next);
+    }
+    initTheme();
+
+    // Tooltip logic
+    const tooltip = document.getElementById("bar-tooltip");
+    function showBarTooltip(e) {
+      const rect = e.target.getBoundingClientRect();
+      const date = e.target.dataset.date;
+      const rawUptime = parseFloat(e.target.dataset.uptime || "100");
+      const uptime = isNaN(rawUptime) ? "100" : rawUptime.toFixed(2);
+      const status = e.target.dataset.status;
+
+      let statusMsg = "No downtime recorded";
+      if (status === "degraded") statusMsg = "Partial degradation experienced";
+      if (status === "outage") statusMsg = "Major outage recorded";
+
+      tooltip.innerHTML = `<strong>${escapeHtml(date)}</strong>: ${uptime}% uptime (${escapeHtml(statusMsg)})`;
+      
+      let left = rect.left + rect.width / 2;
+      const tooltipWidth = 190;
+      if (left - tooltipWidth / 2 < 12) {
+        left = tooltipWidth / 2 + 12;
+      } else if (left + tooltipWidth / 2 > window.innerWidth - 12) {
+        left = window.innerWidth - tooltipWidth / 2 - 12;
+      }
+
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${rect.top - 4}px`;
+      tooltip.style.opacity = "1";
+    }
+
+    function hideBarTooltip() {
+      tooltip.style.opacity = "0";
+    }
+
+    let lastETag = "";
+
+    async function loadStatus() {
+      try {
+        const headers = {};
+        if (lastETag) {
+          headers["If-None-Match"] = lastETag;
+        }
+
+        const res = await fetch("/api/status-page/summary", { headers });
+        if (res.status === 304) {
+          document.getElementById("last-updated").textContent = new Date().toLocaleTimeString();
+          return;
+        }
+        if (res.status === 404) {
+          document.getElementById("banner-text").textContent = "Status Page is currently disabled.";
+          document.getElementById("status-banner").className = "status-banner degraded";
+          return;
+        }
+        if (!res.ok) throw new Error("Status " + res.status);
+
+        const etag = res.headers.get("ETag");
+        if (etag) lastETag = etag;
+
+        const data = await res.json();
+        renderStatusPage(data);
+      } catch (err) {
+        console.error("Failed to load status summary:", err);
+      }
+    }
+
+    function renderStatusPage(data) {
+      // Branding
+      if (data.page) {
+        document.getElementById("brand-name").textContent = data.page.title || "System Status";
+        document.getElementById("brand-desc").textContent = data.page.description || "";
+        document.title = (data.page.title || "System Status") + " - Pantau";
+
+        if (data.page.logo_url) {
+          const logoUrl = data.page.logo_url.trim();
+          if (logoUrl.startsWith('/') || /^https?:\/\//i.test(logoUrl)) {
+            document.getElementById("brand-logo-container").innerHTML = `<img src="${encodeURI(logoUrl)}" alt="Logo" />`;
+          }
+        }
+        if (data.page.support_url) {
+          const supp = document.getElementById("support-link");
+          supp.href = data.page.support_url;
+          supp.style.display = "inline";
+        }
+      }
+
+      // Global status banner
+      const banner = document.getElementById("status-banner");
+      const bannerText = document.getElementById("banner-text");
+      const indicator = data.status ? data.status.indicator : "operational";
+      const desc = data.status ? data.status.description : "All Systems Operational";
+
+      banner.className = `status-banner ${indicator}`;
+      bannerText.textContent = desc;
+      document.getElementById("last-updated").textContent = new Date().toLocaleTimeString();
+
+      // Active Incidents
+      const incContainer = document.getElementById("incident-container");
+      incContainer.innerHTML = "";
+      if (data.active_incidents && data.active_incidents.length > 0) {
+        incContainer.style.display = "flex";
+        data.active_incidents.forEach(inc => {
+          const card = document.createElement("div");
+          card.className = `active-incident-box ${inc.impact}`;
+          
+          let updatesHtml = "";
+          if (inc.updates && inc.updates.length > 0) {
+            updatesHtml = inc.updates.map(u => `
+              <div class="timeline-item">
+                <div class="timeline-status">${escapeHtml(u.status)}</div>
+                <div class="timeline-msg">${escapeHtml(u.message)}</div>
+                <div class="timeline-time">${new Date(u.created_at).toLocaleString()}</div>
+              </div>
+            `).join("");
+          }
+
+          card.innerHTML = `
+            <div class="incident-header">
+              <h3>${escapeHtml(inc.title)}</h3>
+              <span class="incident-badge ${inc.impact}">${escapeHtml(inc.status)} - ${escapeHtml(inc.impact)}</span>
+            </div>
+            <div class="incident-timeline">
+              ${updatesHtml}
+            </div>
+          `;
+          incContainer.appendChild(card);
+        });
+      } else {
+        incContainer.style.display = "none";
+      }
+
+      // Target Groups
+      const groupsContainer = document.getElementById("groups-container");
+      groupsContainer.innerHTML = "";
+
+      if (!data.targets || data.targets.length === 0) {
+        groupsContainer.innerHTML = `
+          <div class="service-group">
+            <div class="empty-state">No public service targets configured yet.</div>
+          </div>
+        `;
+        return;
+      }
+
+      // Group targets by group name
+      const groups = {};
+      data.targets.forEach(t => {
+        const grp = t.group || "Services";
+        if (!groups[grp]) groups[grp] = [];
+        groups[grp].push(t);
+      });
+
+      Object.keys(groups).forEach(grpName => {
+        const groupCard = document.createElement("div");
+        groupCard.className = "service-group";
+        
+        const listDiv = document.createElement("div");
+        listDiv.className = "target-list";
+
+        groups[grpName].forEach(t => {
+          const row = document.createElement("div");
+          row.className = "target-row";
+
+          let statusLabel = "Operational";
+          if (t.status === "degraded") statusLabel = "Degraded Performance";
+          if (t.status === "outage") statusLabel = "Major Outage";
+
+          row.innerHTML = `
+            <div class="target-top">
+              <span class="target-name">${escapeHtml(t.name)}</span>
+              <span class="target-status-label ${t.status}">
+                <span class="status-pulse-dot" style="width: 8px; height: 8px;"></span>
+                ${statusLabel}
+              </span>
+            </div>
+            <div class="uptime-bar-wrapper">
+              <div class="uptime-bars-container" id="bars-${t.id}"></div>
+              <div class="uptime-range-labels">
+                <span>90 days ago</span>
+                <span class="uptime-score">${(t.uptime_90d || 100).toFixed(2)}% uptime</span>
+                <span>Today</span>
+              </div>
+            </div>
+          `;
+
+          const barsEl = row.querySelector(`#bars-${t.id}`);
+          if (t.daily_history) {
+            t.daily_history.forEach(day => {
+              const bar = document.createElement("div");
+              bar.className = `bar-day ${day.status}`;
+              bar.dataset.date = day.date;
+              bar.dataset.uptime = day.uptime;
+              bar.dataset.status = day.status;
+
+              bar.addEventListener("mouseenter", showBarTooltip);
+              bar.addEventListener("mouseleave", hideBarTooltip);
+              barsEl.appendChild(bar);
+            });
+          }
+
+          listDiv.appendChild(row);
+        });
+
+        groupCard.innerHTML = `
+          <div class="group-header">
+            <h2>${escapeHtml(grpName)}</h2>
+          </div>
+        `;
+        groupCard.appendChild(listDiv);
+        groupsContainer.appendChild(groupCard);
+      });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    // Initial load
+    loadStatus();
+    // Auto refresh every 60s
+    setInterval(loadStatus, 60000);
+  </script>
+</body>
+</html>

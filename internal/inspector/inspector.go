@@ -35,6 +35,7 @@ type Inspector struct {
 	notifier        *notify.Dispatcher
 	inFlight        sync.Map
 	packageInFlight sync.Map
+	onStatusChange  func()
 }
 
 func New(db *store.DB, factory sshrunner.RunnerFactory, notifier *notify.Dispatcher) *Inspector {
@@ -46,6 +47,11 @@ func New(db *store.DB, factory sshrunner.RunnerFactory, notifier *notify.Dispatc
 		factory:  factory,
 		notifier: notifier,
 	}
+}
+
+// SetOnStatusChange registers an optional callback invoked when status page rollups update.
+func (ins *Inspector) SetOnStatusChange(fn func()) {
+	ins.onStatusChange = fn
 }
 
 // IsInspecting reports whether an inspection is currently in-flight for the given host.
@@ -116,6 +122,7 @@ func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration
 	if host == nil {
 		return fmt.Errorf("host %d not found", hostID)
 	}
+	defer ins.updateStatusPageRollups(host)
 
 	runner, err := ins.GetRunnerForHost(host)
 	if err != nil {
@@ -1925,5 +1932,62 @@ func (ins *Inspector) ScanPackagesWithTimeout(hostID int64, timeout time.Duratio
 
 	return ins.db.ReplaceHostPackages(hostID, pkgs)
 }
+
+func (ins *Inspector) updateStatusPageRollups(host *store.Host) {
+	if host == nil || ins.db == nil {
+		return
+	}
+	targets, err := ins.db.GetActiveStatusPageTargetsForHost(host.ID)
+	if err != nil || len(targets) == 0 {
+		return
+	}
+
+	today := time.Now().UTC().Format("2006-01-02")
+	changed := false
+
+	for _, t := range targets {
+		status := "operational"
+		if t.TargetType == "host" {
+			if host.Status == "down" {
+				// Anti-flapping: require 2 consecutive down runs before classifying as outage
+				status = "outage"
+				if runs, err := ins.db.ListInspectionRuns(host.ID, 2); err == nil && len(runs) >= 2 {
+					if runs[0].Status == "down" && runs[1].Status != "down" {
+						status = "degraded"
+					}
+				}
+			} else if host.Status == "degraded" || host.Status == "unknown" {
+				status = "degraded"
+			}
+		} else if t.TargetType == "desired_rule" && t.DesiredRuleID != nil {
+			if host.Status == "down" {
+				status = "outage"
+			} else {
+				var ruleKind, ruleTarget, expected string
+				err := ins.db.QueryRow(`SELECT kind, target, expected FROM desired_rules WHERE id = ?`, *t.DesiredRuleID).Scan(&ruleKind, &ruleTarget, &expected)
+				if err == nil {
+					var actualStatus string
+					err := ins.db.QueryRow(`SELECT status FROM actual_items WHERE host_id = ? AND kind = ? AND target = ?`, host.ID, ruleKind, ruleTarget).Scan(&actualStatus)
+					if err == nil && actualStatus != "" && !strings.EqualFold(actualStatus, expected) && actualStatus != "running" && actualStatus != "active" {
+						if ruleKind == "service" || ruleKind == "port" || ruleKind == "container" || ruleKind == "process" {
+							status = "outage"
+						} else {
+							status = "degraded"
+						}
+					}
+				}
+			}
+		}
+
+		if err := ins.db.RecordDailyRollup(t.ID, today, status); err == nil {
+			changed = true
+		}
+	}
+
+	if changed && ins.onStatusChange != nil {
+		ins.onStatusChange()
+	}
+}
+
 
 

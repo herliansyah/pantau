@@ -320,6 +320,7 @@ func main() {
 	server.SetDocsFS(embeddedDocs)
 	server.StartAutoTriageScheduler(ctx)
 	server.StartTunnelReaper(ctx, 30*time.Second, 3*time.Minute)
+	server.StartStatusPageWorkers(ctx)
 	listener, port, err := listenPort(port, portExplicit)
 	if err != nil {
 		logger.Error("system", "", "Failed to bind port: "+err.Error())
@@ -395,6 +396,7 @@ func startMetricsPruneWorker(ctx context.Context, db *store.DB) {
 	go func() {
 		days := db.GetMetricRetentionDays()
 		_, _ = db.PruneMetricSamples(days)
+		_, _ = db.PruneDailyRollups(90)
 	}()
 
 	for {
@@ -404,6 +406,7 @@ func startMetricsPruneWorker(ctx context.Context, db *store.DB) {
 		case <-ticker.C:
 			days := db.GetMetricRetentionDays()
 			_, _ = db.PruneMetricSamples(days)
+			_, _ = db.PruneDailyRollups(90)
 		}
 	}
 }
