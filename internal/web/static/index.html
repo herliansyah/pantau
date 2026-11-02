@@ -122,6 +122,7 @@ a.btn:hover { text-decoration: none; color: var(--text); }
 .modal-dialog-lg { width: 100%; max-width: 740px; max-height: calc(100vh - clamp(24px, 5vh, 60px) - 30px); }
 .modal-dialog-xl { width: 90vw; max-width: 980px; max-height: calc(100vh - clamp(24px, 5vh, 60px) - 30px); }
 .modal-dialog-host { width: 100%; max-width: 800px; max-height: calc(100vh - clamp(24px, 5vh, 60px) - 30px); }
+.modal-dialog-settings { width: 92vw; max-width: 1040px; min-height: 560px; max-height: calc(100vh - clamp(24px, 5vh, 60px) - 30px); }
 .host-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
 @media (max-width: 768px) {
   .host-form-grid { grid-template-columns: 1fr; gap: 12px; }
@@ -156,7 +157,7 @@ a.btn:hover { text-decoration: none; color: var(--text); }
 .compare-takeaway-card { background: #0f172a; border: 1px solid var(--card-border); border-radius: 8px; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
 @media (max-width: 768px) {
   .modal { padding: 0; }
-  .modal-workspace, .modal-dialog, .modal-dialog-md, .modal-dialog-lg, .modal-dialog-xl, .modal-dialog-host { width: 100vw; height: 100vh; max-width: 100vw; min-width: 100vw; border-radius: 0; border: none; }
+  .modal-workspace, .modal-dialog, .modal-dialog-md, .modal-dialog-lg, .modal-dialog-xl, .modal-dialog-host, .modal-dialog-settings { width: 100vw; height: 100vh; max-width: 100vw; min-width: 100vw; border-radius: 0; border: none; }
   header { padding: 0 12px; height: 52px; }
   footer { padding: 0 12px; height: 32px; font-size: 0.7rem; }
   .container { padding-top: 66px; padding-bottom: 46px; padding-left: 12px; padding-right: 12px; }
@@ -196,9 +197,23 @@ a.btn:hover { text-decoration: none; color: var(--text); }
   .sysinfo-card .stat-row { flex-direction: column; align-items: flex-start; gap: 2px; padding: 4px 0; }
   .sysinfo-card .stat-row > span:first-child { width: 100%; min-width: 0; max-width: 100%; font-size: 0.78rem; }
 }
-/* ponytail: 6-column grid fits comfortably in 740px Action Dialog (modal-dialog-lg); scrollable on mobile */
-#settingsTabs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; overflow-x: auto; }
-#settingsTabs .tab { padding: 10px 4px; text-align: center; justify-content: center; display: flex; align-items: center; white-space: nowrap; font-size: 0.82rem; }
+/* ponytail: settings split sidebar layout - desktop (left navigation ~200px + right content ~660px); mobile switches to top horizontal swipe tabs */
+.settings-layout { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.settings-sidebar { width: 200px; min-width: 200px; background: rgba(15, 23, 42, 0.4); border-right: 1px solid var(--card-border); display: flex; flex-direction: column; padding: 12px 8px; overflow-y: auto; flex-shrink: 0; }
+#settingsTabs { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+#settingsTabs .tab { padding: 10px 14px; border-radius: 6px; font-size: 0.84rem; font-weight: 500; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; gap: 10px; border-bottom: none; border-left: 3px solid transparent; transition: all 0.15s ease; white-space: nowrap; user-select: none; text-align: left; justify-content: flex-start; }
+#settingsTabs .tab:hover { color: #f8fafc; background: rgba(255, 255, 255, 0.05); }
+#settingsTabs .tab.active { color: #fff; background: rgba(14, 165, 233, 0.15); border-left-color: var(--primary); border-bottom-color: transparent; font-weight: 600; }
+.settings-content { flex: 1; min-width: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+@media (max-width: 768px) {
+  .modal-dialog-settings { min-height: 100vh; }
+  .settings-layout { flex-direction: column; }
+  .settings-sidebar { width: 100%; min-width: 100%; border-right: none; border-bottom: 1px solid var(--card-border); padding: 0 12px; overflow-x: auto; overflow-y: hidden; flex-shrink: 0; }
+  #settingsTabs { flex-direction: row; overflow-x: auto; white-space: nowrap; gap: 6px; padding: 8px 0; }
+  #settingsTabs .tab { padding: 8px 12px; border-left: 3px solid transparent; border-bottom: 2px solid transparent; border-radius: 4px; font-size: 0.8rem; flex-shrink: 0; }
+  #settingsTabs .tab.active { border-left-color: transparent; border-bottom-color: var(--primary); }
+  .settings-content { padding: 16px; }
+}
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; text-align: center; color: var(--text-muted); flex: 1; gap: 10px; }
 .empty-state-icon { font-size: 2.5rem; opacity: 0.7; }
 .empty-state-title { font-size: 1rem; font-weight: 600; color: #cbd5e1; }
@@ -2170,22 +2185,24 @@ body.has-workspace-shelf .container {
 
 <!-- Settings Modal -->
 <div id="settingsModal" class="modal">
-  <div class="modal-content modal-dialog-lg">
+  <div class="modal-content modal-dialog-settings">
     <div class="modal-header">
       <h3 data-i18n="settings">⚙️ Settings</h3>
       <button class="btn btn-sm" onclick="closeModal('settingsModal')">✕</button>
     </div>
-    <div class="modal-tabs-bar">
-      <div class="tabs" id="settingsTabs">
-        <div class="tab active" id="tabSettingsGeneral" onclick="switchSettingsTab('general')" data-i18n="tab_settings_general">⚙️ General</div>
-        <div class="tab" id="tabSettingsSecurity" onclick="switchSettingsTab('security')" data-i18n="tab_settings_security">🔒 Security</div>
-        <div class="tab" id="tabSettingsNotif" onclick="switchSettingsTab('notif')" data-i18n="tab_settings_notif">🔔 Notifications</div>
-        <div class="tab" id="tabSettingsBackup" onclick="switchSettingsTab('backup')" data-i18n="tab_settings_backup">💾 Backup</div>
-        <div class="tab" id="tabSettingsPresets" onclick="switchSettingsTab('presets')" data-i18n="tab_settings_presets">💻 Presets</div>
-        <div class="tab" id="tabSettingsUpdates" onclick="switchSettingsTab('updates')" data-i18n="tab_settings_updates">🔄 Updates</div>
-      </div>
-    </div>
-    <div class="modal-body">
+    <div class="settings-layout">
+      <aside class="settings-sidebar">
+        <div class="tabs" id="settingsTabs">
+          <div class="tab active" id="tabSettingsGeneral" onclick="switchSettingsTab('general')" data-i18n="tab_settings_general">⚙️ General</div>
+          <div class="tab" id="tabSettingsSecurity" onclick="switchSettingsTab('security')" data-i18n="tab_settings_security">🔒 Security</div>
+          <div class="tab" id="tabSettingsNotif" onclick="switchSettingsTab('notif')" data-i18n="tab_settings_notif">🔔 Notifications</div>
+          <div class="tab" id="tabSettingsBackup" onclick="switchSettingsTab('backup')" data-i18n="tab_settings_backup">💾 Backup</div>
+          <div class="tab" id="tabSettingsPresets" onclick="switchSettingsTab('presets')" data-i18n="tab_settings_presets">💻 Presets</div>
+          <div class="tab" id="tabSettingsUpdates" onclick="switchSettingsTab('updates')" data-i18n="tab_settings_updates">🔄 Updates</div>
+          <div class="tab" id="tabSettingsStatusPage" onclick="switchSettingsTab('statuspage')" data-i18n="tab_settings_statuspage">🌐 Status Page</div>
+        </div>
+      </aside>
+      <div class="modal-body settings-content">
       <!-- General Tab -->
       <div id="settingsPanelGeneral" style="display: flex; flex-direction: column; gap: 16px;">
         <div class="card" style="padding: 16px;">
@@ -2518,6 +2535,220 @@ body.has-workspace-shelf .container {
           </div>
         </div>
       </div>
+
+      <!-- Status Page Tab Panel -->
+      <div id="settingsPanelStatusPage" style="display: none; flex-direction: column; gap: 16px;">
+        <!-- Global Branding Card -->
+        <div class="card" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div>
+              <h4 style="margin: 0 0 4px 0;">🌐 Public Status Page Configuration</h4>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Publish unauthenticated uptime, 90-day history bars, and incident announcements without exposing internal host credentials.</p>
+            </div>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;">
+              <input type="checkbox" id="settingStatusPageEnabled" style="width: 16px; height: 16px; cursor: pointer;" onchange="toggleStatusPageLink(this.checked)" />
+              <span>Enable Status Page</span>
+            </label>
+          </div>
+          <div id="statusPageLiveLinkBox" style="margin: 10px 0 16px 0; display: none;">
+            <a href="/status" target="_blank" rel="noopener noreferrer" class="btn btn-sm" style="display: inline-flex; align-items: center; gap: 6px; text-decoration: none; border-color: var(--accent); color: var(--accent);">
+              <span>↗ Open Live Status Page (/status)</span>
+            </a>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+            <div>
+              <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Site Title</label>
+              <input type="text" id="settingStatusPageTitle" placeholder="Pantau System Status" style="width: 100%;" />
+            </div>
+            <div>
+              <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Organization Name</label>
+              <input type="text" id="settingStatusPageOrg" placeholder="Pantau Infrastructure" style="width: 100%;" />
+            </div>
+            <div style="grid-column: span 2;">
+              <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Header Description</label>
+              <input type="text" id="settingStatusPageHeader" placeholder="Real-time service status and incident updates" style="width: 100%;" />
+            </div>
+            <div>
+              <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Logo URL / Path (Optional)</label>
+              <input type="text" id="settingStatusPageLogo" placeholder="/vendor/logo.svg" style="width: 100%;" />
+            </div>
+            <div>
+              <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Support URL (Optional)</label>
+              <input type="text" id="settingStatusPageSupport" placeholder="https://help.example.com" style="width: 100%;" />
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; margin-top: 14px;">
+            <button class="btn btn-primary btn-sm" onclick="saveStatusPageSettings()">Save Configuration</button>
+          </div>
+        </div>
+
+        <!-- Opt-in Status Targets Card -->
+        <div class="card" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div>
+              <h4 style="margin: 0 0 4px 0;">🎯 Opt-In Status Targets</h4>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Select hosts or specific desired rules to publish with masked public display names.</p>
+            </div>
+            <button class="btn btn-sm" onclick="openAddStatusTargetModal()">+ Add Status Target</button>
+          </div>
+          <div id="statusTargetsListContainer">
+            <div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px; text-align: center;">Loading targets...</div>
+          </div>
+        </div>
+
+        <!-- Incidents & Maintenance Announcements Card -->
+        <div class="card" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div>
+              <h4 style="margin: 0 0 4px 0;">📢 Incidents &amp; Maintenance Announcements</h4>
+              <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Publish incident alerts, ongoing progress updates, and maintenance schedules.</p>
+            </div>
+            <button class="btn btn-sm" onclick="openAddStatusIncidentModal()">+ New Incident</button>
+          </div>
+          <div id="statusIncidentsListContainer">
+            <div style="color: var(--text-muted); font-size: 0.85rem; padding: 12px; text-align: center;">Loading incidents...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Status Target Action Dialog Modal -->
+<div id="statusTargetModal" class="modal">
+  <div class="modal-content modal-dialog-md">
+    <div class="modal-header">
+      <h3 id="statusTargetModalTitle">🎯 Add Status Target</h3>
+      <button class="btn btn-sm" onclick="closeModal('statusTargetModal')">✕</button>
+    </div>
+    <div class="modal-body" style="gap: 12px;">
+      <input type="hidden" id="targetEditId" value="" />
+      <div>
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Target Entity Type</label>
+        <select id="targetEntityType" onchange="onTargetTypeChange()" style="width: 100%;">
+          <option value="host">Entire Host</option>
+          <option value="desired_rule">Specific Desired Rule (Service / Port / Container)</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Host</label>
+        <select id="targetHostSelect" onchange="onTargetHostSelectChange()" style="width: 100%;"></select>
+      </div>
+      <div id="targetRuleSelectWrapper" style="display: none;">
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Desired Rule</label>
+        <select id="targetRuleSelect" style="width: 100%;"></select>
+      </div>
+      <div>
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Public Display Name (Masked)</label>
+        <input type="text" id="targetPublicName" placeholder="e.g. Public API Gateway" style="width: 100%;" />
+      </div>
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+        <div>
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Group Name</label>
+          <input type="text" id="targetGroupName" list="statusGroupSuggestions" placeholder="e.g. Core Services & APIs" style="width: 100%;" />
+          <datalist id="statusGroupSuggestions">
+            <option value="Core Services & APIs">
+            <option value="Customer Web Applications">
+            <option value="Database Infrastructure">
+            <option value="Network & Gateways">
+          </datalist>
+        </div>
+        <div>
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Display Order</label>
+          <input type="number" id="targetSortOrder" value="0" min="0" style="width: 100%;" />
+        </div>
+      </div>
+      <div style="margin-top: 4px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.85rem;">
+          <input type="checkbox" id="targetEnabled" checked style="width: 16px; height: 16px;" />
+          <span>Active (Visible on Status Page)</span>
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-sm" onclick="closeModal('statusTargetModal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="submitStatusTarget()">Save Target</button>
+    </div>
+  </div>
+</div>
+
+<!-- Status Incident Action Dialog Modal -->
+<div id="statusIncidentModal" class="modal">
+  <div class="modal-content modal-dialog-lg">
+    <div class="modal-header">
+      <h3 id="statusIncidentModalTitle">📢 New Incident Announcement</h3>
+      <button class="btn btn-sm" onclick="closeModal('statusIncidentModal')">✕</button>
+    </div>
+    <div class="modal-body" style="gap: 12px;">
+      <input type="hidden" id="incidentEditId" value="" />
+      <div>
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Incident Title</label>
+        <input type="text" id="incidentTitleInput" placeholder="e.g. Elevated Latency on Database Queries" style="width: 100%;" />
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div>
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Status</label>
+          <select id="incidentStatusSelect" style="width: 100%;">
+            <option value="investigating">Investigating</option>
+            <option value="identified">Identified</option>
+            <option value="monitoring">Monitoring</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Impact Level</label>
+          <select id="incidentImpactSelect" style="width: 100%;">
+            <option value="minor">Minor Impact</option>
+            <option value="major">Major Outage</option>
+            <option value="critical">Critical Outage</option>
+            <option value="none">Scheduled Maintenance</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Affected Services / Targets</label>
+        <div id="incidentTargetsCheckboxList" style="max-height: 120px; overflow-y: auto; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; border: 1px solid var(--card-border); display: flex; flex-direction: column; gap: 6px;"></div>
+      </div>
+      <div>
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Message</label>
+        <textarea id="incidentMessageInput" rows="4" placeholder="Explain the current incident details or maintenance window..." style="width: 100%; font-family: sans-serif; resize: vertical;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-sm" onclick="closeModal('statusIncidentModal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="submitStatusIncident()">Publish Incident</button>
+    </div>
+  </div>
+</div>
+
+<!-- Status Incident Update Action Dialog Modal -->
+<div id="statusIncidentUpdateModal" class="modal">
+  <div class="modal-content modal-dialog">
+    <div class="modal-header">
+      <h3>📝 Post Incident Update</h3>
+      <button class="btn btn-sm" onclick="closeModal('statusIncidentUpdateModal')">✕</button>
+    </div>
+    <div class="modal-body" style="gap: 12px;">
+      <input type="hidden" id="incidentUpdateParentId" value="" />
+      <div>
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">New Status</label>
+        <select id="incidentUpdateStatusSelect" style="width: 100%;">
+          <option value="monitoring">Monitoring</option>
+          <option value="identified">Identified</option>
+          <option value="investigating">Investigating</option>
+          <option value="resolved">Resolved</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 4px;">Progress Update Message</label>
+        <textarea id="incidentUpdateMessageInput" rows="4" placeholder="e.g. Traffic rerouted via secondary provider. Response times have stabilized." style="width: 100%; font-family: sans-serif; resize: vertical;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-sm" onclick="closeModal('statusIncidentUpdateModal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="submitStatusIncidentUpdate()">Post Update</button>
     </div>
   </div>
 </div>
@@ -3185,6 +3416,7 @@ const I18N = {
     "injecting_key": "Injecting Pantau public key...",
     "tab_settings_presets": "💻 Presets",
     "tab_settings_updates": "🔄 Updates",
+    "tab_settings_statuspage": "🌐 Status Page",
     "system_updates": "System Updates",
     "system_updates_desc": "Check for releases and perform zero-ops self-updates.",
     "current_version": "Current Version",
@@ -3909,6 +4141,7 @@ const I18N = {
     "injecting_key": "Menginjeksi public key Pantau...",
     "tab_settings_presets": "💻 Preset",
     "tab_settings_updates": "🔄 Pembaruan",
+    "tab_settings_statuspage": "🌐 Halaman Status",
     "system_updates": "Pembaruan Sistem",
     "system_updates_desc": "Periksa ketersediaan rilis baru dan lakukan pembaruan mandiri satu-klik.",
     "current_version": "Versi Saat Ini",
@@ -12676,6 +12909,7 @@ function switchSettingsTab(tab) {
   else if (tab === 'backup') document.getElementById('tabSettingsBackup')?.classList.add('active');
   else if (tab === 'presets') document.getElementById('tabSettingsPresets')?.classList.add('active');
   else if (tab === 'updates') document.getElementById('tabSettingsUpdates')?.classList.add('active');
+  else if (tab === 'statuspage') document.getElementById('tabSettingsStatusPage')?.classList.add('active');
 
   const panelGeneral = document.getElementById('settingsPanelGeneral');
   const panelSecurity = document.getElementById('settingsPanelSecurity');
@@ -12683,6 +12917,7 @@ function switchSettingsTab(tab) {
   const panelBackup = document.getElementById('settingsPanelBackup');
   const panelPresets = document.getElementById('settingsPanelPresets');
   const panelUpdates = document.getElementById('settingsPanelUpdates');
+  const panelStatusPage = document.getElementById('settingsPanelStatusPage');
 
   if (panelGeneral) panelGeneral.style.display = tab === 'general' ? 'flex' : 'none';
   if (panelSecurity) panelSecurity.style.display = tab === 'security' ? 'flex' : 'none';
@@ -12690,11 +12925,14 @@ function switchSettingsTab(tab) {
   if (panelBackup) panelBackup.style.display = tab === 'backup' ? 'flex' : 'none';
   if (panelPresets) panelPresets.style.display = tab === 'presets' ? 'flex' : 'none';
   if (panelUpdates) panelUpdates.style.display = tab === 'updates' ? 'flex' : 'none';
+  if (panelStatusPage) panelStatusPage.style.display = tab === 'statuspage' ? 'flex' : 'none';
 
   if (tab === 'presets') {
     loadSettingsPresets();
   } else if (tab === 'updates') {
     checkForUpdates(false);
+  } else if (tab === 'statuspage') {
+    loadStatusPageAdmin();
   } else if (tab === 'security') {
     setTimeout(() => {
       const pubKeyEl = document.getElementById('settingPubKey');
@@ -12703,6 +12941,498 @@ function switchSettingsTab(tab) {
         pubKeyEl.style.height = (pubKeyEl.scrollHeight + 4) + 'px';
       }
     }, 30);
+  }
+}
+
+// --- Status Page Administration ---
+let currentStatusTargets = [];
+let currentStatusIncidents = [];
+
+function toggleStatusPageLink(enabled) {
+  const linkBox = document.getElementById('statusPageLiveLinkBox');
+  if (linkBox) linkBox.style.display = enabled ? 'block' : 'none';
+}
+
+async function loadStatusPageAdmin() {
+  await Promise.all([
+    loadStatusPageSettings(),
+    loadStatusPageTargets(),
+    loadStatusPageIncidents()
+  ]);
+}
+
+async function loadStatusPageSettings() {
+  try {
+    const res = await fetch('/api/settings/status-page');
+    if (!res.ok) return;
+    const data = await res.json();
+    const enEl = document.getElementById('settingStatusPageEnabled');
+    if (enEl) {
+      enEl.checked = !!data.enabled;
+      toggleStatusPageLink(data.enabled);
+    }
+    const titleEl = document.getElementById('settingStatusPageTitle');
+    if (titleEl) titleEl.value = data.title || '';
+    const orgEl = document.getElementById('settingStatusPageOrg');
+    if (orgEl) orgEl.value = data.organization || '';
+    const hdrEl = document.getElementById('settingStatusPageHeader');
+    if (hdrEl) hdrEl.value = data.header_text || '';
+    const logoEl = document.getElementById('settingStatusPageLogo');
+    if (logoEl) logoEl.value = data.logo_url || '';
+    const suppEl = document.getElementById('settingStatusPageSupport');
+    if (suppEl) suppEl.value = data.support_url || '';
+  } catch (err) {
+    console.error('Failed to load status page settings:', err);
+  }
+}
+
+async function saveStatusPageSettings() {
+  const payload = {
+    enabled: document.getElementById('settingStatusPageEnabled')?.checked || false,
+    title: document.getElementById('settingStatusPageTitle')?.value.trim() || 'Pantau System Status',
+    organization: document.getElementById('settingStatusPageOrg')?.value.trim() || 'Pantau Infrastructure',
+    header_text: document.getElementById('settingStatusPageHeader')?.value.trim() || 'Real-time service status and incident updates',
+    logo_url: document.getElementById('settingStatusPageLogo')?.value.trim() || '',
+    support_url: document.getElementById('settingStatusPageSupport')?.value.trim() || ''
+  };
+
+  try {
+    const res = await fetch('/api/settings/status-page', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showToast(t('status_settings_saved', 'Status page configuration saved.'), 'success');
+  } catch (err) {
+    showToast(t('failed_to_save', 'Failed to save configuration: ') + err.message, 'error');
+  }
+}
+
+async function loadStatusPageTargets() {
+  const container = document.getElementById('statusTargetsListContainer');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/settings/status-page/targets');
+    if (!res.ok) throw new Error('Status ' + res.status);
+    currentStatusTargets = await res.json();
+
+    if (!currentStatusTargets || currentStatusTargets.length === 0) {
+      container.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem; padding: 16px; text-align: center;">No public status targets registered yet. Click <strong>+ Add Status Target</strong> above.</div>`;
+      return;
+    }
+
+    let rowsHtml = currentStatusTargets.map(t => {
+      const typeLabel = t.target_type === 'host' ? `🖥️ Host (${escapeHtml(t.host_name)})` : `⚙️ Rule (${escapeHtml(t.host_name)}: ${escapeHtml(t.rule_kind)}/${escapeHtml(t.rule_target)})`;
+      return `
+        <tr style="border-bottom: 1px solid var(--card-border); white-space: nowrap;">
+          <td style="padding: 10px 12px; font-weight: 600; white-space: nowrap;">${escapeHtml(t.public_name)}</td>
+          <td style="padding: 10px 12px; font-size: 0.82rem; color: var(--text-muted); white-space: nowrap;">${typeLabel}</td>
+          <td style="padding: 10px 12px; font-size: 0.82rem; white-space: nowrap;"><span class="badge" style="background: rgba(56, 189, 248, 0.15); color: var(--accent); white-space: nowrap;">${escapeHtml(t.group_name)}</span></td>
+          <td style="padding: 10px 12px; font-size: 0.82rem; text-align: center; white-space: nowrap;">${t.sort_order}</td>
+          <td style="padding: 10px 12px; text-align: center; white-space: nowrap;">
+            <input type="checkbox" ${t.enabled ? 'checked' : ''} onchange="toggleStatusTargetEnabled(${t.id}, this.checked)" title="Toggle Active" />
+          </td>
+          <td style="padding: 10px 12px; text-align: right; white-space: nowrap;">
+            <button class="btn btn-sm btn-icon" onclick="openEditStatusTargetModal(${t.id})" title="Edit">✏️</button>
+            <button class="btn btn-sm btn-icon btn-danger" onclick="deleteStatusTarget(${t.id})" title="Delete">🗑️</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    container.innerHTML = `
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; white-space: nowrap;">
+          <thead>
+            <tr style="border-bottom: 2px solid var(--card-border); color: var(--text-muted); text-align: left; white-space: nowrap;">
+              <th style="padding: 8px 12px; white-space: nowrap;">Public Name</th>
+              <th style="padding: 8px 12px; white-space: nowrap;">Source Entity</th>
+              <th style="padding: 8px 12px; white-space: nowrap;">Group</th>
+              <th style="padding: 8px 12px; text-align: center; white-space: nowrap;">Order</th>
+              <th style="padding: 8px 12px; text-align: center; white-space: nowrap;">Active</th>
+              <th style="padding: 8px 12px; text-align: right; white-space: nowrap;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div style="color: var(--danger); font-size: 0.85rem; padding: 12px;">Failed to load targets: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function onTargetTypeChange() {
+  const type = document.getElementById('targetEntityType')?.value;
+  const ruleWrapper = document.getElementById('targetRuleSelectWrapper');
+  if (ruleWrapper) {
+    ruleWrapper.style.display = type === 'desired_rule' ? 'block' : 'none';
+  }
+}
+
+async function onTargetHostSelectChange() {
+  const hostId = document.getElementById('targetHostSelect')?.value;
+  const ruleSelect = document.getElementById('targetRuleSelect');
+  if (!ruleSelect) return;
+  if (!hostId) {
+    ruleSelect.innerHTML = '<option value="">No host selected</option>';
+    return;
+  }
+  ruleSelect.innerHTML = '<option value="">Loading rules...</option>';
+
+  try {
+    const res = await fetch(`/api/hosts/${hostId}/rules`);
+    if (!res.ok) throw new Error('Failed to fetch rules');
+    const rules = await res.json();
+    if (!rules || rules.length === 0) {
+      ruleSelect.innerHTML = '<option value="">No desired rules defined for this host</option>';
+      return;
+    }
+    ruleSelect.innerHTML = rules.map(r => `
+      <option value="${r.id}">${escapeHtml(r.kind)}: ${escapeHtml(r.target)} (Expected: ${escapeHtml(r.expected)})</option>
+    `).join('');
+  } catch (err) {
+    ruleSelect.innerHTML = '<option value="">Error loading rules</option>';
+  }
+}
+
+function openAddStatusTargetModal() {
+  document.getElementById('statusTargetModalTitle').textContent = '🎯 Add Status Target';
+  document.getElementById('targetEditId').value = '';
+  document.getElementById('targetPublicName').value = '';
+  document.getElementById('targetGroupName').value = 'Core Services & APIs';
+  document.getElementById('targetSortOrder').value = '0';
+  document.getElementById('targetEnabled').checked = true;
+
+  const hostSelect = document.getElementById('targetHostSelect');
+  if (hostSelect) {
+    const list = allRawHosts || [];
+    if (list.length > 0) {
+      hostSelect.innerHTML = list.map(h => `<option value="${h.id}">${escapeHtml(h.name)} (${escapeHtml(h.host)})</option>`).join('');
+    } else {
+      hostSelect.innerHTML = '<option value="">No hosts available</option>';
+    }
+  }
+  document.getElementById('targetEntityType').value = 'host';
+  onTargetTypeChange();
+  if (hostSelect && hostSelect.value) {
+    onTargetHostSelectChange();
+  }
+
+  openModal('statusTargetModal');
+}
+
+function openEditStatusTargetModal(targetId) {
+  const t = typeof targetId === 'object' ? targetId : (currentStatusTargets || []).find(item => item.id === targetId);
+  if (!t) return;
+  document.getElementById('statusTargetModalTitle').textContent = '🎯 Edit Status Target';
+  document.getElementById('targetEditId').value = t.id;
+  document.getElementById('targetPublicName').value = t.public_name || '';
+  document.getElementById('targetGroupName').value = t.group_name || 'Core Services & APIs';
+  document.getElementById('targetSortOrder').value = t.sort_order || 0;
+  document.getElementById('targetEnabled').checked = t.enabled;
+  document.getElementById('targetEntityType').value = t.target_type || 'host';
+
+  const hostSelect = document.getElementById('targetHostSelect');
+  if (hostSelect) {
+    const list = allRawHosts || [];
+    if (list.length > 0) {
+      hostSelect.innerHTML = list.map(h => `<option value="${h.id}" ${h.id === t.host_id ? 'selected' : ''}>${escapeHtml(h.name)} (${escapeHtml(h.host)})</option>`).join('');
+    } else {
+      hostSelect.innerHTML = '<option value="">No hosts available</option>';
+    }
+  }
+  onTargetTypeChange();
+  if (t.target_type === 'desired_rule') {
+    onTargetHostSelectChange().then(() => {
+      if (t.desired_rule_id) {
+        document.getElementById('targetRuleSelect').value = t.desired_rule_id;
+      }
+    });
+  }
+
+  openModal('statusTargetModal');
+}
+
+async function submitStatusTarget() {
+  const editId = document.getElementById('targetEditId')?.value;
+  const targetType = document.getElementById('targetEntityType')?.value;
+  const hostId = parseInt(document.getElementById('targetHostSelect')?.value, 10);
+  const publicName = document.getElementById('targetPublicName')?.value.trim();
+  const groupName = document.getElementById('targetGroupName')?.value.trim() || 'Services';
+  const sortOrder = parseInt(document.getElementById('targetSortOrder')?.value, 10) || 0;
+  const enabled = document.getElementById('targetEnabled')?.checked || false;
+
+  if (!publicName) {
+    showToast(t('name_required', 'Public display name is required.'), 'error');
+    return;
+  }
+  if (!hostId) {
+    showToast('Host selection is required.', 'error');
+    return;
+  }
+
+  let desiredRuleId = null;
+  if (targetType === 'desired_rule') {
+    const rId = parseInt(document.getElementById('targetRuleSelect')?.value, 10);
+    if (!rId) {
+      showToast('Desired rule selection is required.', 'error');
+      return;
+    }
+    desiredRuleId = rId;
+  }
+
+  const payload = {
+    target_type: targetType,
+    host_id: hostId,
+    desired_rule_id: desiredRuleId,
+    public_name: publicName,
+    group_name: groupName,
+    sort_order: sortOrder,
+    enabled: enabled
+  };
+
+  try {
+    let res;
+    if (editId) {
+      res = await fetch(`/api/settings/status-page/targets/${editId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      res = await fetch('/api/settings/status-page/targets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    }
+    if (!res.ok) throw new Error(await res.text());
+    closeModal('statusTargetModal');
+    showToast(t('target_saved', 'Status target saved successfully.'), 'success');
+    loadStatusPageTargets();
+  } catch (err) {
+    showToast('Failed to save target: ' + err.message, 'error');
+  }
+}
+
+async function toggleStatusTargetEnabled(id, enabled) {
+  const target = currentStatusTargets.find(t => t.id === id);
+  if (!target) return;
+  target.enabled = enabled;
+
+  try {
+    const res = await fetch(`/api/settings/status-page/targets/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(target)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    showToast(enabled ? 'Target activated.' : 'Target paused.', 'success');
+  } catch (err) {
+    showToast('Failed to toggle target: ' + err.message, 'error');
+    loadStatusPageTargets();
+  }
+}
+
+async function deleteStatusTarget(id) {
+  const confirmed = await showConfirmModal(
+    t('confirm_delete', 'Confirm Deletion'),
+    t('confirm_delete_target_desc', 'Are you sure you want to remove this public status target? Daily rollups history will also be removed.')
+  );
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`/api/settings/status-page/targets/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(await res.text());
+    showToast(t('target_deleted', 'Status target removed.'), 'success');
+    loadStatusPageTargets();
+  } catch (err) {
+    showToast('Failed to delete target: ' + err.message, 'error');
+  }
+}
+
+// --- Status Incidents ---
+async function loadStatusPageIncidents() {
+  const container = document.getElementById('statusIncidentsListContainer');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/settings/status-page/incidents');
+    if (!res.ok) throw new Error('Status ' + res.status);
+    currentStatusIncidents = await res.json();
+
+    if (!currentStatusIncidents || currentStatusIncidents.length === 0) {
+      container.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem; padding: 16px; text-align: center;">No incident announcements recorded yet. Click <strong>+ New Incident</strong> above.</div>`;
+      return;
+    }
+
+    const cardsHtml = currentStatusIncidents.map(inc => {
+      const isResolved = inc.status === 'resolved';
+      const statusBadgeClass = isResolved ? 'badge-success' : (inc.impact === 'critical' || inc.impact === 'major' ? 'badge-danger' : 'badge-warning');
+      
+      let updatesHtml = '';
+      if (inc.updates && inc.updates.length > 0) {
+        updatesHtml = `
+          <div style="margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--card-border); font-size: 0.8rem; display: flex; flex-direction: column; gap: 4px;">
+            ${inc.updates.map(u => `
+              <div>
+                <strong style="text-transform: capitalize;">${escapeHtml(u.status)}:</strong> ${escapeHtml(u.message)}
+                <span style="color: var(--text-dim); margin-left: 6px;">(${new Date(u.created_at).toLocaleTimeString()})</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="card" style="padding: 12px; margin-bottom: 10px; border-left: 4px solid ${isResolved ? 'var(--success)' : (inc.impact === 'critical' ? 'var(--danger)' : 'var(--warning)')};">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <strong style="font-size: 0.95rem;">${escapeHtml(inc.title)}</strong>
+                <span class="badge ${statusBadgeClass}" style="text-transform: uppercase; font-size: 0.72rem;">${escapeHtml(inc.status)}</span>
+                <span class="badge" style="font-size: 0.72rem; background: rgba(255,255,255,0.08);">${escapeHtml(inc.impact)}</span>
+              </div>
+              <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">
+                ${escapeHtml(inc.message)}
+              </div>
+              ${updatesHtml}
+              <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 6px;">
+                Posted: ${new Date(inc.created_at).toLocaleString()} ${inc.resolved_at ? ' • Resolved: ' + new Date(inc.resolved_at).toLocaleString() : ''}
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; flex-shrink: 0;">
+              ${!isResolved ? `<button class="btn btn-sm" onclick="openPostIncidentUpdateModal(${inc.id}, '${escapeHtml(inc.status)}')">+ Update</button>` : ''}
+              <button class="btn btn-sm btn-icon btn-danger" onclick="deleteStatusIncident(${inc.id})" title="Delete Incident">🗑️</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = cardsHtml;
+  } catch (err) {
+    container.innerHTML = `<div style="color: var(--danger); font-size: 0.85rem; padding: 12px;">Failed to load incidents: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function openAddStatusIncidentModal() {
+  document.getElementById('statusIncidentModalTitle').textContent = '📢 New Incident Announcement';
+  document.getElementById('incidentEditId').value = '';
+  document.getElementById('incidentTitleInput').value = '';
+  document.getElementById('incidentStatusSelect').value = 'investigating';
+  document.getElementById('incidentImpactSelect').value = 'minor';
+  document.getElementById('incidentMessageInput').value = '';
+
+  const checkboxList = document.getElementById('incidentTargetsCheckboxList');
+  if (checkboxList) {
+    if (currentStatusTargets && currentStatusTargets.length > 0) {
+      checkboxList.innerHTML = currentStatusTargets.map(t => `
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.82rem;">
+          <input type="checkbox" name="affectedTarget" value="${t.id}" />
+          <span>${escapeHtml(t.public_name)} (${escapeHtml(t.group_name)})</span>
+        </label>
+      `).join('');
+    } else {
+      checkboxList.innerHTML = '<span style="color: var(--text-muted); font-size: 0.8rem;">No status targets configured</span>';
+    }
+  }
+
+  openModal('statusIncidentModal');
+}
+
+async function submitStatusIncident() {
+  const title = document.getElementById('incidentTitleInput')?.value.trim();
+  const status = document.getElementById('incidentStatusSelect')?.value || 'investigating';
+  const impact = document.getElementById('incidentImpactSelect')?.value || 'minor';
+  const message = document.getElementById('incidentMessageInput')?.value.trim();
+
+  if (!title) {
+    showToast('Incident title is required.', 'error');
+    return;
+  }
+  if (!message) {
+    showToast('Incident explanation message is required.', 'error');
+    return;
+  }
+
+  const selectedTargets = [];
+  document.querySelectorAll('input[name="affectedTarget"]:checked').forEach(cb => {
+    selectedTargets.push(parseInt(cb.value, 10));
+  });
+
+  const payload = {
+    title: title,
+    status: status,
+    impact: impact,
+    message: message,
+    affected_targets: selectedTargets
+  };
+
+  try {
+    const res = await fetch('/api/settings/status-page/incidents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    closeModal('statusIncidentModal');
+    showToast('Incident published to Status Page.', 'success');
+    loadStatusPageIncidents();
+  } catch (err) {
+    showToast('Failed to publish incident: ' + err.message, 'error');
+  }
+}
+
+function openPostIncidentUpdateModal(id, currentStatus) {
+  document.getElementById('incidentUpdateParentId').value = id;
+  document.getElementById('incidentUpdateStatusSelect').value = currentStatus || 'monitoring';
+  document.getElementById('incidentUpdateMessageInput').value = '';
+  openModal('statusIncidentUpdateModal');
+}
+
+async function submitStatusIncidentUpdate() {
+  const id = document.getElementById('incidentUpdateParentId')?.value;
+  const status = document.getElementById('incidentUpdateStatusSelect')?.value || 'monitoring';
+  const message = document.getElementById('incidentUpdateMessageInput')?.value.trim();
+
+  if (!message) {
+    showToast('Update message is required.', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/settings/status-page/incidents/${id}/updates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, message })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    closeModal('statusIncidentUpdateModal');
+    showToast('Incident update posted.', 'success');
+    loadStatusPageIncidents();
+  } catch (err) {
+    showToast('Failed to post update: ' + err.message, 'error');
+  }
+}
+
+async function deleteStatusIncident(id) {
+  const confirmed = await showConfirmModal(
+    t('confirm_delete', 'Confirm Deletion'),
+    'Are you sure you want to delete this incident announcement and all its update history?'
+  );
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(`/api/settings/status-page/incidents/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(await res.text());
+    showToast('Incident announcement deleted.', 'success');
+    loadStatusPageIncidents();
+  } catch (err) {
+    showToast('Failed to delete incident: ' + err.message, 'error');
   }
 }
 

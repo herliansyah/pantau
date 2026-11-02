@@ -213,6 +213,9 @@ func TestShellStaticHTML(t *testing.T) {
 		"tabSettingsNotif",
 		"tabSettingsBackup",
 		"tabSettingsPresets",
+		"modal-dialog-settings",
+		"settings-layout",
+		"settings-sidebar",
 		"toggleDropdown",
 		"showConfirm",
 		"showToast",
@@ -830,16 +833,19 @@ func TestSettingsModalLayout(t *testing.T) {
 
 	body := w.Body.String()
 	requiredSnippets := []string{
-		`modal-dialog-lg`,
+		`modal-dialog-settings`,
+		`settings-layout`,
+		`settings-sidebar`,
 		`id="tabSettingsGeneral"`,
 		`id="tabSettingsSecurity"`,
 		`id="tabSettingsNotif"`,
 		`id="tabSettingsBackup"`,
 		`id="tabSettingsPresets"`,
 		`id="tabSettingsUpdates"`,
+		`id="tabSettingsStatusPage"`,
 		`id="settingsPanelGeneral"`,
 		`id="settingsPanelSecurity"`,
-		`repeat(6, 1fr)`,
+		`settings-content`,
 	}
 	for _, snippet := range requiredSnippets {
 		if !strings.Contains(body, snippet) {
