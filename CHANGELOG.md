@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.0] - 2026-11-02
+### Added
+- Zero-Trust Public Status Page & Uptime Rollups: public-facing standalone status page (`/status`) with strict zero-trust boundary isolating internal infrastructure topology and sensitive server telemetry from public visitors.
+  - Public & Admin Data Isolation: public status endpoints exclusively expose explicit opt-in targets with customizable display names and masked IDs, completely hiding internal host IDs, hostnames, IP addresses, credentials, and probe commands.
+  - Per-IP Rate Limiting: in-memory token bucket rate limiter protecting public endpoints against denial-of-service and enumeration scanning.
+  - In-Memory Snapshot Cache: background-refreshed cached JSON snapshots preventing public traffic spikes from saturating SQLite database locks.
+  - Daily Uptime Rollup Engine: daily aggregation worker computing historical uptime percentages and incident duration across 90-day rolling windows.
+  - Interactive 90-Day Uptime Visualization: SVG/CSS interactive uptime bars for each published service target with tooltip hover states and day-by-day availability logs.
+  - Incident Management System: administrative workflow to publish, update, resolve, and manage service maintenance announcements and outage incidents.
+  - Architectural Decision Record: [ADR-0038](docs/adr/0038-public-status-page-zero-trust-isolation-and-uptime-rollups.md).
+- Extended Metric Observability Ranges:
+  - 30-Day Metric Range: preset time filter with dynamic 2-hour downsampling buckets in API and metrics tab.
+  - Custom Date Range Picker: custom start and end timestamp filters (date down to hour:minute) with automatic bucket downsampling.
+  - Disk Chart Clamping: fixed Y-axis scale to [0, 100] for Disk Storage Capacity charts to eliminate micro-variation visual jitter.
+
+### Changed
+- Settings Modal Layout: modernized settings dialog from wrapped horizontal tabs into an ergonomic split sidebar layout with a 200px vertical navigation rail and 1040px wide modal canvas, automatically adapting to a swipeable horizontal tab bar on mobile viewports (<768px).
+
 ## [0.29.0] - 2026-10-30
 ### Added
 - Time-Series Metric Observability & Application Telemetry: continuous agentless recording of system resource metrics and application performance telemetry into embedded SQLite with configurable rolling retention.
