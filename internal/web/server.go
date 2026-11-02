@@ -1502,9 +1502,6 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		}
 
 		timeRange := r.URL.Query().Get("range")
-		if timeRange == "" {
-			timeRange = "24h"
-		}
 		category := r.URL.Query().Get("category")
 
 		now := time.Now().Unix()
@@ -1518,6 +1515,17 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		if to <= 0 {
 			to = now
 		}
+		if from > 0 && from > to {
+			from, to = to, from
+		}
+
+		if timeRange == "" {
+			if from > 0 {
+				timeRange = "custom"
+			} else {
+				timeRange = "24h"
+			}
+		}
 
 		if from <= 0 {
 			switch timeRange {
@@ -1530,12 +1538,28 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			case "7d":
 				from = to - 7*86400
 				step = 1800 // 30 min buckets
+			case "30d":
+				from = to - 30*86400
+				step = 7200 // 2-hour buckets (360 points max)
 			default: // 24h
+				timeRange = "24h"
 				from = to - 86400
 				step = 300 // 5 min buckets
 			}
 		} else if stepStr := r.URL.Query().Get("step"); stepStr != "" {
 			step, _ = strconv.ParseInt(stepStr, 10, 64)
+		} else {
+			// ponytail: dynamic step downsampling based on custom duration to keep payload light (< 15 KB).
+			duration := to - from
+			if duration <= 6*3600 {
+				step = 0 // <= 6h: raw
+			} else if duration <= 24*3600 {
+				step = 300 // <= 24h: 5 min buckets
+			} else if duration <= 7*86400 {
+				step = 1800 // <= 7d: 30 min buckets
+			} else {
+				step = 7200 // > 7d (e.g. up to 30d): 2 hour buckets
+			}
 		}
 
 		var include, exclude []string

@@ -104,6 +104,8 @@ func TestMetricsAndProbesAPI(t *testing.T) {
 	var metricResp struct {
 		Ok         bool                 `json:"ok"`
 		Enabled    bool                 `json:"enabled"`
+		Range      string               `json:"range"`
+		Step       int64                `json:"step"`
 		Timestamps []int64              `json:"timestamps"`
 		Series     map[string][]float64 `json:"series"`
 	}
@@ -113,6 +115,51 @@ func TestMetricsAndProbesAPI(t *testing.T) {
 	}
 	if len(metricResp.Series["cpu"]) == 0 || metricResp.Series["cpu"][0] != 45.0 {
 		t.Errorf("unexpected cpu data in metric response: %v", metricResp.Series)
+	}
+
+	// 4.1. Query GET /api/hosts/{id}/metrics?range=30d
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/hosts/%d/metrics?range=30d", hostID), nil)
+	req.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for range=30d, got %d", rec.Code)
+	}
+	var resp30d struct {
+		Ok    bool   `json:"ok"`
+		Range string `json:"range"`
+		Step  int64  `json:"step"`
+	}
+	_ = json.NewDecoder(rec.Body).Decode(&resp30d)
+	if !resp30d.Ok || resp30d.Range != "30d" || resp30d.Step != 7200 {
+		t.Fatalf("unexpected 30d response: %+v", resp30d)
+	}
+
+	// 4.2. Query GET /api/hosts/{id}/metrics with custom from and to (datetime range)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/hosts/%d/metrics?from=%d&to=%d", hostID, now-3600, now), nil)
+	req.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for custom from/to, got %d", rec.Code)
+	}
+	var respCustom struct {
+		Ok    bool   `json:"ok"`
+		Range string `json:"range"`
+		Step  int64  `json:"step"`
+	}
+	_ = json.NewDecoder(rec.Body).Decode(&respCustom)
+	if !respCustom.Ok || respCustom.Range != "custom" {
+		t.Fatalf("unexpected custom range response: %+v", respCustom)
+	}
+
+	// 4.3. Query with swapped from and to (from > to)
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/hosts/%d/metrics?from=%d&to=%d", hostID, now, now-3600), nil)
+	req.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for swapped from/to, got %d", rec.Code)
 	}
 
 	// 4.5. PUT /api/hosts/{id}/metric-probes/{probe_id}
@@ -257,6 +304,35 @@ func TestUIProbeEditAndEmptyAppsStateRegression(t *testing.T) {
 	}
 	if !strings.Contains(html, "function formatLegendValue") {
 		t.Errorf("expected formatLegendValue for readable comma-separated legend values")
+	}
+
+	// Regression 6: 30-day time range and custom datetime-local range (date down to hour and minute)
+	if !strings.Contains(html, "'30d'") {
+		t.Errorf("expected '30d' preset in index.html metrics range options")
+	}
+	if !strings.Contains(html, "metricCustomRangeBar") || !strings.Contains(html, "metricCustomFrom") || !strings.Contains(html, "metricCustomTo") {
+		t.Errorf("expected custom datetime range controls in index.html")
+	}
+	if !strings.Contains(html, "applyMetricCustomRange") || !strings.Contains(html, "toggleMetricCustomRange") {
+		t.Errorf("expected custom range handler functions in index.html")
+	}
+}
+
+func TestDiskStorageCapacityScaleAndFluctuation(t *testing.T) {
+	htmlBytes, err := os.ReadFile("static/index.html")
+	if err != nil {
+		t.Fatalf("failed to read static/index.html: %v", err)
+	}
+	html := string(htmlBytes)
+
+	// Bug symptom: Disk Storage Capacity (%) graph wildly fluctuates over 0.001% micro-variations
+	// because uPlot Y scale lacks a bounded range [0, 100].
+	// createChartCard must apply a [0, 100] range for percentage metrics / options.range.
+	if !strings.Contains(html, "range: options.range") && !strings.Contains(html, "range: (options.range") && !strings.Contains(html, "options.range ||") {
+		t.Errorf("uPlot y scale in createChartCard does not support options.range or percentage bounding, causing micro-fluctuations to stretch across full canvas height")
+	}
+	if !strings.Contains(html, "range: [0, 100]") && !strings.Contains(html, "options.unit === '%'") {
+		t.Errorf("expected percentage charts like Disk Storage Capacity to be bounded to 0-100 range")
 	}
 }
 

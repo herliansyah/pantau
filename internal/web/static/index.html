@@ -3538,6 +3538,14 @@ const I18N = {
     "view_diagnostics": "View Diagnostic Details",
     "tab_metrics": "Metrics & Telemetry",
     "host_metrics_label": "Metrics & Telemetry Observability",
+    "custom_range": "Custom",
+    "custom_range_label": "Custom Range:",
+    "custom_range_select_both": "Please select both start and end date and time.",
+    "custom_range_invalid": "Invalid date or time format.",
+    "custom_range_order_error": "Start time must be earlier than end time.",
+    "apply": "Apply",
+    "from": "From",
+    "to": "To",
     "tab_files": "File Manager",
     "tab_terminal": "Terminal",
     "sys_info": "System Information",
@@ -4263,6 +4271,14 @@ const I18N = {
     "view_diagnostics": "Lihat Rincian Diagnostik",
     "tab_metrics": "Metrik & Telemetri",
     "host_metrics_label": "Observabilitas Metrik & Telemetri",
+    "custom_range": "Kustom",
+    "custom_range_label": "Rentang Periode:",
+    "custom_range_select_both": "Silakan pilih tanggal dan jam untuk waktu awal dan akhir.",
+    "custom_range_invalid": "Format tanggal dan waktu tidak valid.",
+    "custom_range_order_error": "Waktu awal harus lebih kecil dari waktu akhir.",
+    "apply": "Terapkan",
+    "from": "Dari",
+    "to": "Sampai",
     "tab_files": "File Manager",
     "tab_terminal": "Terminal",
     "sys_info": "Informasi Sistem",
@@ -7447,7 +7463,19 @@ function switchTab(tab, presetID) {
 
 let currentMetricRange = '24h';
 let currentMetricCategory = 'all';
+let customMetricFrom = null; // unix timestamp in seconds
+let customMetricTo = null;   // unix timestamp in seconds
 window.activeUPlots = window.activeUPlots || [];
+
+function formatDatetimeLocal(d) {
+  if (!d || isNaN(d.getTime())) return '';
+  const YYYY = d.getFullYear();
+  const MM = String(d.getMonth() + 1).padStart(2, '0');
+  const DD = String(d.getDate()).padStart(2, '0');
+  const HH = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${YYYY}-${MM}-${DD}T${HH}:${mm}`;
+}
 
 function renderMiniSparkline(values, width = 80, height = 20, strokeColor = '#38bdf8') {
   if (!values || values.length < 2) return '';
@@ -7474,14 +7502,23 @@ async function renderMetricsTab(host) {
     window.activeUPlots = [];
   }
 
+  const nowTs = Math.floor(Date.now() / 1000);
+  const defTo = customMetricTo ? new Date(customMetricTo * 1000) : new Date(nowTs * 1000);
+  const defFrom = customMetricFrom ? new Date(customMetricFrom * 1000) : new Date((nowTs - 86400) * 1000);
+  const defFromStr = formatDatetimeLocal(defFrom);
+  const defToStr = formatDatetimeLocal(defTo);
+
   content.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; flex-shrink: 0;">
       <div style="display: inline-flex; background: #0f172a; border: 1px solid var(--card-border); border-radius: 6px; padding: 2px;">
-        ${['1h', '6h', '24h', '7d'].map(r => `
+        ${['1h', '6h', '24h', '7d', '30d'].map(r => `
           <button class="btn btn-sm ${currentMetricRange === r ? 'btn-primary' : ''}"
-                  style="border: none; border-radius: 4px; padding: 4px 12px; font-size: 0.78rem; cursor: pointer; ${currentMetricRange !== r ? 'background: transparent; color: var(--text-muted);' : ''}"
+                  style="border: none; border-radius: 4px; padding: 4px 10px; font-size: 0.78rem; cursor: pointer; ${currentMetricRange !== r ? 'background: transparent; color: var(--text-muted);' : ''}"
                   onclick="changeMetricRange('${r}')">${r.toUpperCase()}</button>
         `).join('')}
+        <button class="btn btn-sm ${currentMetricRange === 'custom' ? 'btn-primary' : ''}"
+                style="border: none; border-radius: 4px; padding: 4px 10px; font-size: 0.78rem; cursor: pointer; ${currentMetricRange !== 'custom' ? 'background: transparent; color: var(--text-muted);' : ''}"
+                onclick="toggleMetricCustomRange()" title="${escapeHtml(t('custom_range', 'Custom'))}">📅 ${escapeHtml(t('custom_range', 'Custom'))}</button>
       </div>
 
       <div style="display: flex; align-items: center; gap: 8px;">
@@ -7511,7 +7548,7 @@ async function renderMetricsTab(host) {
                 <span style="font-weight: 700; color: #f8fafc; font-size: 0.82rem; letter-spacing: -0.01em;">Visible Charts</span>
                 <span id="filterChartsActiveCounter" style="font-size: 0.67rem; font-family: ui-monospace, SFMono-Regular, monospace; padding: 1px 6px; border-radius: 9999px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35);">--</span>
               </div>
-              <div style="display: flex; gap: 5px;">
+              <div style="display: gap: 5px;">
                 <button class="btn btn-sm" onclick="setAllChartsVisibility(true, ${host.id})" style="padding: 2px 8px; font-size: 0.7rem; font-weight: 500;" title="Show all charts">All</button>
                 <button class="btn btn-sm" onclick="setAllChartsVisibility(false, ${host.id})" style="padding: 2px 8px; font-size: 0.7rem; color: var(--text-muted);" title="Hide all charts">None</button>
               </div>
@@ -7539,13 +7576,31 @@ async function renderMetricsTab(host) {
       </div>
     </div>
 
+    <!-- Custom Date-Time Range Bar (Date to Hour & Minute) -->
+    <div id="metricCustomRangeBar" style="display: ${currentMetricRange === 'custom' ? 'flex' : 'none'}; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; padding: 8px 12px; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--card-border); border-radius: 6px; font-size: 0.78rem;">
+      <span style="color: var(--text-muted); font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px;">📅 <b>${escapeHtml(t('custom_range_label', 'Rentang Periode:'))}</b></span>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <label for="metricCustomFrom" style="color: var(--text-muted); font-size: 0.72rem;">${escapeHtml(t('from', 'Dari'))}:</label>
+        <input type="datetime-local" id="metricCustomFrom" value="${defFromStr}" style="background: #1e293b; border: 1px solid rgba(51, 65, 85, 0.8); border-radius: 4px; color: #f8fafc; padding: 3px 6px; font-size: 0.74rem; color-scheme: dark;" />
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <label for="metricCustomTo" style="color: var(--text-muted); font-size: 0.72rem;">${escapeHtml(t('to', 'Sampai'))}:</label>
+        <input type="datetime-local" id="metricCustomTo" value="${defToStr}" style="background: #1e293b; border: 1px solid rgba(51, 65, 85, 0.8); border-radius: 4px; color: #f8fafc; padding: 3px 6px; font-size: 0.74rem; color-scheme: dark;" />
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="applyMetricCustomRange()" style="padding: 3px 12px; font-size: 0.74rem; white-space: nowrap;">⚡ ${escapeHtml(t('apply', 'Terapkan'))}</button>
+    </div>
+
     <div id="metricsChartsContainer" style="display: flex; flex-direction: column; gap: 16px; overflow-y: auto; padding-right: 4px;">
       <div style="text-align: center; color: var(--text-muted); padding: 30px;">Loading metrics data...</div>
     </div>
   `;
 
   try {
-    const res = await fetch(`/api/hosts/${host.id}/metrics?range=${currentMetricRange}&category=${currentMetricCategory}`);
+    let metricsUrl = `/api/hosts/${host.id}/metrics?range=${currentMetricRange}&category=${currentMetricCategory}`;
+    if (currentMetricRange === 'custom' && customMetricFrom && customMetricTo) {
+      metricsUrl = `/api/hosts/${host.id}/metrics?range=custom&from=${customMetricFrom}&to=${customMetricTo}&category=${currentMetricCategory}`;
+    }
+    const res = await fetch(metricsUrl);
     if (!res.ok) {
       document.getElementById('metricsChartsContainer').innerHTML = `<div class="card" style="padding: 20px; color: var(--danger);">Failed to load metrics</div>`;
       return;
@@ -7582,12 +7637,13 @@ async function renderMetricsTab(host) {
         `;
         return;
       }
+      const rangeDisplay = currentMetricRange === 'custom' ? escapeHtml(t('custom_range', 'Custom')).toUpperCase() : currentMetricRange.toUpperCase();
       container.innerHTML = `
         <div class="card" style="padding: 30px 20px; text-align: center; border: 1px dashed var(--card-border);">
           <div style="font-size: 2.2rem; margin-bottom: 8px; animation: spin 2.5s linear infinite; display: inline-block;">⏳</div>
           <div style="font-size: 1.05rem; font-weight: 600; color: #38bdf8;">Waiting for First Metric Samples...</div>
           <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 6px; max-width: 460px; margin-left: auto; margin-right: auto;">
-            No metric samples recorded yet within the selected ${currentMetricRange.toUpperCase()} window. Samples are recorded automatically during each inspection sweep.
+            No metric samples recorded yet within the selected ${rangeDisplay} window. Samples are recorded automatically during each inspection sweep.
           </div>
           <div style="margin-top: 14px;">
             <button class="btn btn-primary btn-sm" onclick="inspectHost(${host.id}, event)">⚡ Run Inspection Now</button>
@@ -7970,7 +8026,10 @@ async function renderMetricsTab(host) {
         },
         scales: {
           x: { time: true },
-          y: { auto: true }
+          y: {
+            auto: true,
+            range: options.range || (options.unit === '%' ? [0, 100] : undefined)
+          }
         },
         axes: [
           {
@@ -8155,6 +8214,7 @@ async function renderMetricsTab(host) {
         {
           id: 'hw-cpu-ram-swap',
           unit: '%',
+          range: (u, min, max) => [0, Math.max(100, Math.ceil(max || 0))],
           thresholds: [
             { value: 80, color: 'rgba(234, 179, 8, 0.55)', label: '80% WARN' },
             { value: 90, color: 'rgba(244, 63, 94, 0.7)', label: '90% CRIT' }
@@ -8175,6 +8235,7 @@ async function renderMetricsTab(host) {
         {
           id: 'hw-disk-storage',
           unit: '%',
+          range: [0, 100],
           thresholds: [
             { value: 80, color: 'rgba(234, 179, 8, 0.55)', label: '80% WARN' },
             { value: 90, color: 'rgba(244, 63, 94, 0.7)', label: '90% CRIT' }
@@ -8936,6 +8997,52 @@ if (!window._chartsFilterOutsideClickListener) {
 
 function changeMetricRange(range) {
   currentMetricRange = range;
+  const d = window.detailData;
+  if (d && d.host) {
+    renderMetricsTab(d.host);
+  }
+}
+
+function toggleMetricCustomRange() {
+  if (currentMetricRange !== 'custom') {
+    currentMetricRange = 'custom';
+    if (!customMetricFrom || !customMetricTo) {
+      const now = Math.floor(Date.now() / 1000);
+      customMetricTo = now;
+      customMetricFrom = now - 86400;
+    }
+  } else {
+    currentMetricRange = '24h';
+  }
+  const d = window.detailData;
+  if (d && d.host) {
+    renderMetricsTab(d.host);
+  }
+}
+
+function applyMetricCustomRange() {
+  const fromEl = document.getElementById('metricCustomFrom');
+  const toEl = document.getElementById('metricCustomTo');
+  if (!fromEl || !toEl) return;
+  const fromVal = fromEl.value;
+  const toVal = toEl.value;
+  if (!fromVal || !toVal) {
+    showToast(t('custom_range_select_both', 'Silakan pilih tanggal dan jam untuk waktu awal dan akhir.'), 'warning');
+    return;
+  }
+  const fromTs = Math.floor(new Date(fromVal).getTime() / 1000);
+  const toTs = Math.floor(new Date(toVal).getTime() / 1000);
+  if (isNaN(fromTs) || isNaN(toTs)) {
+    showToast(t('custom_range_invalid', 'Format tanggal dan waktu tidak valid.'), 'warning');
+    return;
+  }
+  if (fromTs >= toTs) {
+    showToast(t('custom_range_order_error', 'Waktu awal harus lebih kecil dari waktu akhir.'), 'warning');
+    return;
+  }
+  customMetricFrom = fromTs;
+  customMetricTo = toTs;
+  currentMetricRange = 'custom';
   const d = window.detailData;
   if (d && d.host) {
     renderMetricsTab(d.host);
