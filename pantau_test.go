@@ -1555,8 +1555,8 @@ func TestEmbeddedDocumentationEndpoint(t *testing.T) {
 		t.Fatalf("expected 200 OK for changelog, got %d", resChangelog.StatusCode)
 	}
 	bodyChangelog, _ := io.ReadAll(resChangelog.Body)
-	if !strings.Contains(string(bodyChangelog), "Changelog") || !strings.Contains(string(bodyChangelog), "0.30.0") {
-		t.Errorf("expected embedded CHANGELOG.md to contain 'Changelog' and '0.30.0', got %q", string(bodyChangelog))
+	if !strings.Contains(string(bodyChangelog), "Changelog") || !strings.Contains(string(bodyChangelog), "0.31.0") {
+		t.Errorf("expected embedded CHANGELOG.md to contain 'Changelog' and '0.31.0', got %q", string(bodyChangelog))
 	}
 }
 

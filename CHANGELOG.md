@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.31.0] - 2026-11-02
+## [0.31.0] - 2026-11-03
 ### Added
 - Agentless Storage Triage & Runaway Detection: on-demand diagnostic and remediation suite for diagnosing disk saturation, uncovering space hogs, and safely recovering storage capacity over SSH without remote agents.
   - Tiered Storage Discovery: 1st-level directory space breakdown (`du -kx --max-depth=1`), top large files (>30MB), and detection of active runaway files modified within 60 minutes correlated with Disk I/O Write Rate.
