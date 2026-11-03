@@ -1301,6 +1301,13 @@ body.has-workspace-shelf .container {
   border-radius: 9999px;
   line-height: 1;
 }
+
+/* Storage Triage Styles */
+.triage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.triage-item-card { background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px; display: flex; flex-direction: column; justify-content: space-between; gap: 8px; transition: border-color 0.15s; }
+.triage-item-card:hover { border-color: rgba(56, 189, 248, 0.4); }
+.triage-bar-bg { background: rgba(255, 255, 255, 0.08); border-radius: 4px; height: 8px; overflow: hidden; width: 100%; margin: 6px 0; }
+.triage-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
 </style>
 </head>
 <body>
@@ -1635,6 +1642,30 @@ body.has-workspace-shelf .container {
         <button class="btn" onclick="resolveConfirm(false)" data-i18n="cancel">Cancel</button>
         <button class="btn btn-warning" id="confirmModalExtraBtn" style="display: none;"></button>
         <button class="btn btn-danger" id="confirmModalBtn" onclick="resolveConfirm(true)">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Password Prompt Modal (Sudo / Root Authentication) -->
+<div id="passwordPromptModal" class="modal">
+  <div class="modal-content modal-dialog" style="max-width: 450px;">
+    <div class="modal-header">
+      <h3 id="passwordPromptTitle" data-i18n="sudo_auth_title">Autentikasi Hak Akses (Sudo / Root)</h3>
+      <button class="btn btn-sm" onclick="resolvePasswordPrompt(null)">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="passwordPromptMessage" style="font-size: 0.88rem; margin-bottom: 14px; line-height: 1.5; color: var(--text);"></p>
+      <div class="form-group" style="margin-bottom: 8px;">
+        <label id="passwordPromptLabel" style="font-size: 0.82rem; font-weight: 600; color: #f1f5f9;" data-i18n="sudo_auth_label">Password Sudo / Root Server</label>
+        <input type="password" id="passwordPromptInput" data-i18n-placeholder="sudo_auth_placeholder" placeholder="Masukkan password sudo/root server" autocomplete="new-password" onkeyup="if(event.key==='Enter') submitPasswordPrompt()" style="width: 100%; box-sizing: border-box;" />
+      </div>
+      <p id="passwordPromptNote" style="font-size: 0.74rem; color: var(--text-muted); margin-bottom: 16px; line-height: 1.4;" data-i18n="sudo_auth_note">
+        🔒 <em>Password hanya digunakan sekali di memori SSH untuk perintah ini dan tidak akan pernah disimpan di server maupun database.</em>
+      </p>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn" onclick="resolvePasswordPrompt(null)" data-i18n="cancel">Batal</button>
+        <button class="btn btn-primary" id="passwordPromptBtn" onclick="submitPasswordPrompt()" data-i18n="run">Jalankan</button>
       </div>
     </div>
   </div>
@@ -2108,6 +2139,7 @@ body.has-workspace-shelf .container {
         <div class="tab" data-tab="runs" onclick="switchTab('runs')" data-i18n="tab_runs">Inspection Runs</div>
         <div class="tab" data-tab="metrics" onclick="switchTab('metrics')" data-i18n="tab_metrics">📊 Metrics & Telemetry</div>
         <div class="tab" data-tab="files" onclick="switchTab('files')" data-i18n="tab_files">File Manager</div>
+        <div class="tab" data-tab="storage" onclick="switchTab('storage')" data-i18n="tab_storage">🧹 Storage Triage</div>
       </div>
       <div class="tabs-overflow-container" id="hostDetailMoreContainer" style="display: none;">
         <button type="button" class="tab tabs-more-btn" id="hostDetailMoreBtn" onclick="toggleHostDetailMoreMenu(event)" title="More Tabs" data-i18n-title="more">
@@ -3547,6 +3579,84 @@ const I18N = {
     "from": "From",
     "to": "To",
     "tab_files": "File Manager",
+    "tab_storage": "Storage Triage",
+    "run_triage": "Run Storage Triage",
+    "scanning": "Scanning...",
+    "triage_ready_prompt": "Click \"Run Storage Triage\" to analyze disk partitions, runaway files, and ghost file descriptors.",
+    "triage_ready_sub": "On-demand, 20-second bounded diagnostic without remote daemons to map Space Hogs, runaway logs, and catalog safe reclaimable disk storage.",
+    "triage_scan_cancelled": "Scan Cancelled",
+    "triage_scan_cancelled_toast": "Storage triage scan cancelled",
+    "triage_scan_cancelled_desc": "SSH connection and scan process to the remote host have been stopped.",
+    "triage_rerun": "Rerun Storage Triage",
+    "triage_analyzing_title": "Analyzing Partitions & Storage Space...",
+    "triage_analyzing_sub": "Scanning for Space Hogs, Runaway Logs, Ghost FDs, and Reclaimable Storage...",
+    "triage_active_ssh_cmd": "SSH command currently running on remote host:",
+    "triage_manual_kill_hint": "💡 <em>If you want to stop it manually via server terminal:</em>",
+    "triage_btn_cancel": "Cancel Scan",
+    "triage_failed_title": "Storage Triage Failed",
+    "try_again": "Try Again",
+    "triage_btn_force": "Force Scan",
+    "triage_cooldown_prefix": "Available in",
+    "triage_blocked_busy": "System Very Busy",
+    "triage_state_very_busy": "Very Busy",
+    "triage_state_busy": "Busy",
+    "triage_state_normal": "Normal",
+    "triage_cooldown_badge": "Cooldown",
+    "triage_title_very_busy": "Scan Paused: Server Very Busy",
+    "triage_title_cooldown": "Scan Cooldown Active",
+    "triage_very_busy_desc": "Remote host is currently experiencing heavy disk I/O activity. Scanning is throttled to safeguard system responsiveness.",
+    "triage_cooldown_desc": "Cooldown period is active to protect remote disk queue from I/O spikes.",
+    "triage_force_modal_title": "Force Storage Triage Scan?",
+    "triage_force_modal_desc": "Remote host is currently experiencing high disk activity or cooldown is active. Running intensive du and find probes now may impact database and web application latency.",
+    "triage_metric_write": "Disk Write Rate",
+    "triage_metric_load": "CPU Load",
+    "triage_metric_state": "Load State",
+    "triage_metric_cooldown": "Cooldown Left",
+    "triage_btn_confirm_force": "Force Scan Anyway",
+    "triage_scanned_label": "Scanned:",
+    "triage_snapshot_title": "Last Scan Snapshot",
+    "triage_snapshot_badge": "Snapshot",
+    "triage_badge_live": "Live (Just now)",
+    "triage_snapshot_disclaimer": "⚠️ <strong>Disclaimer:</strong> This is a static point-in-time snapshot from the last storage audit, not live telemetry. Files and disk usage may have changed since this scan.",
+    "triage_btn_rescan": "Rescan Storage Now",
+    "triage_badge_root": "Root",
+    "triage_badge_nopasswd": "Sudo NOPASSWD",
+    "triage_badge_restricted": "Restricted Access",
+    "triage_primary_partition": "PRIMARY PARTITION",
+    "triage_available": "Available",
+    "triage_io_write": "I/O Write",
+    "triage_reclaimable_title": "⚡ RECLAIMABLE STORAGE",
+    "triage_reclaimable_desc": "Estimated total disk space that can be safely freed from package caches, rotated logs, coredumps, or systemd journal.",
+    "triage_scan_duration": "Scan duration:",
+    "triage_safe_catalog": "Safe Reclaim Catalog (Safe to Clean)",
+    "triage_items_detected": "{count} items detected",
+    "triage_no_reclaim": "No significant package cache or rotated log accumulation (>10MB) detected. System is clean.",
+    "triage_clean_btn": "🧹 Clean",
+    "triage_runaway_detected": "Runaway Files Detected ({count})",
+    "triage_runaway_desc": "Large files modified within the last 60 minutes (potential runaway log or infinite loop).",
+    "triage_size": "Size:",
+    "triage_truncate_btn": "✂️ Truncate (0-byte)",
+    "triage_protected_file": "🛡️ Protected File (Non-Log)",
+    "triage_ghost_detected": "Ghost Files Detected ({count})",
+    "triage_ghost_desc": "Files deleted (rm) but disk allocation not released because active processes are still holding open file descriptors.",
+    "triage_ghost_holding": "Process: <strong>{cmd}</strong> (PID: {pid}) • Holding: <strong>{size}</strong>",
+    "triage_reload_service": "🔄 Reload Service",
+    "triage_top_hogs": "Top Level-1 Directories (/...)",
+    "triage_no_hogs": "No level-1 directories detected or scan timed out.",
+    "triage_top_files": "Top 15 Largest Files (>15MB)",
+    "triage_no_top_files": "No individual files over 15MB found.",
+    "triage_db_file_badge": "🛡️ Database File (Protected)",
+    "triage_open_fm": "Open in File Manager",
+    "triage_open_fm_parent": "Open parent directory in File Manager",
+    "triage_open_term_path": "Open Terminal at this path",
+    "triage_truncate_hint": "Empty this file (0-byte)",
+    "triage_clean_now": "Clean Now",
+    "sudo_auth_title": "Elevated Privilege Authentication (Sudo / Root)",
+    "sudo_auth_label": "Server Sudo / Root Password",
+    "sudo_auth_placeholder": "Enter server sudo/root password",
+    "sudo_auth_note": "🔒 <em>Password is only held in SSH memory for this single command and is never stored on server or database.</em>",
+    "sudo_auth_default_msg": "This command requires elevated privileges (sudo/root) to execute cleanup.",
+    "run": "Run",
     "tab_terminal": "Terminal",
     "sys_info": "System Information",
     "kernel": "Kernel:",
@@ -4280,6 +4390,84 @@ const I18N = {
     "from": "Dari",
     "to": "Sampai",
     "tab_files": "File Manager",
+    "tab_storage": "Storage Triage",
+    "run_triage": "Jalankan Storage Triage",
+    "scanning": "Memindai...",
+    "triage_ready_prompt": "Klik \"Run Storage Triage\" untuk menganalisis partisi disk, runaway files, dan ghost file descriptors.",
+    "triage_ready_sub": "Diagnostik on-demand berbatas waktu 20 detik tanpa daemon remote untuk memetakan Space Hogs, file membengkak cepat, dan katalog Reclaimable Storage yang aman dibersihkan.",
+    "triage_scan_cancelled": "Pemindaian Dibatalkan",
+    "triage_scan_cancelled_toast": "Pemindaian storage triage dibatalkan",
+    "triage_scan_cancelled_desc": "Koneksi SSH dan proses pemindaian ke remote host telah dihentikan.",
+    "triage_rerun": "Jalankan Ulang Triage",
+    "triage_analyzing_title": "Menganalisis Partisi & Ruang Penyimpanan...",
+    "triage_analyzing_sub": "Memindai Space Hogs, Runaway Logs, Ghost FDs, dan Katalog Reclaimable Storage...",
+    "triage_active_ssh_cmd": "Perintah SSH yang sedang berjalan di host:",
+    "triage_manual_kill_hint": "💡 <em>Jika Anda ingin menghentikan manual langsung via terminal server:</em>",
+    "triage_btn_cancel": "Batalkan Pemindaian",
+    "triage_failed_title": "Storage Triage Gagal",
+    "try_again": "Coba Lagi",
+    "triage_btn_force": "Paksa Pindai",
+    "triage_cooldown_prefix": "Tersedia dlm",
+    "triage_blocked_busy": "Sistem Sangat Sibuk",
+    "triage_state_very_busy": "Sangat Sibuk",
+    "triage_state_busy": "Sibuk",
+    "triage_state_normal": "Normal",
+    "triage_cooldown_badge": "Jeda",
+    "triage_title_very_busy": "Pemindaian Dijeda: Server Sangat Sibuk",
+    "triage_title_cooldown": "Waktu Jeda (Cooldown) Aktif",
+    "triage_very_busy_desc": "Server remote sedang sibuk dengan aktivitas I/O disk tinggi. Pemindaian dibatasi demi menjaga performa sistem.",
+    "triage_cooldown_desc": "Waktu jeda aktif untuk melindungi antrean I/O disk server dari lonjakan beban.",
+    "triage_force_modal_title": "Paksa Jalankan Storage Triage?",
+    "triage_force_modal_desc": "Server remote saat ini sedang mengalami aktivitas disk tinggi atau jeda proteksi masih aktif. Memaksa pemindaian du dan find dapat meningkatkan latensi database dan web app.",
+    "triage_metric_write": "Laju Tulis Disk",
+    "triage_metric_load": "Beban CPU",
+    "triage_metric_state": "Status Beban",
+    "triage_metric_cooldown": "Sisa Jeda",
+    "triage_btn_confirm_force": "Tetap Paksa Pindai",
+    "triage_scanned_label": "Dipindai:",
+    "triage_snapshot_title": "Snapshot Pemindaian Terakhir",
+    "triage_snapshot_badge": "Snapshot",
+    "triage_badge_live": "Live (Baru saja)",
+    "triage_snapshot_disclaimer": "⚠️ <strong>Disclaimer:</strong> Data ini adalah snapshot statis hasil audit penyimpanan terakhir dan <em>bukan</em> telemetri realtime. Berkas atau penggunaan disk mungkin telah berubah sejak pemindaian ini.",
+    "triage_btn_rescan": "Pindai Ulang Sekarang",
+    "triage_badge_root": "Root",
+    "triage_badge_nopasswd": "Sudo NOPASSWD",
+    "triage_badge_restricted": "Akses Terbatas",
+    "triage_primary_partition": "PARTISI UTAMA",
+    "triage_available": "Tersedia",
+    "triage_io_write": "I/O Write",
+    "triage_reclaimable_title": "⚡ RECLAIMABLE STORAGE",
+    "triage_reclaimable_desc": "Estimasi total ruang yang dapat dibebaskan dengan aman dari cache paket, log rotasi, coredump, atau journal.",
+    "triage_scan_duration": "Waktu scan:",
+    "triage_safe_catalog": "Katalog Safe Reclaim (Aman Dibersihkan)",
+    "triage_items_detected": "{count} item terdeteksi",
+    "triage_no_reclaim": "Tidak ada akumulasi data cache atau log rotasi yang signifikan (>10MB). Sistem dalam kondisi bersih.",
+    "triage_clean_btn": "🧹 Bersihkan",
+    "triage_runaway_detected": "Runaway Files Terdeteksi ({count})",
+    "triage_runaway_desc": "Berkas berukuran besar yang termodifikasi dalam 60 menit terakhir (potensi infinite log loop).",
+    "triage_size": "Ukuran:",
+    "triage_truncate_btn": "✂️ Truncate (0-byte)",
+    "triage_protected_file": "🛡️ File Terlindungi (Bukan Log)",
+    "triage_ghost_detected": "Ghost Files Terdeteksi ({count})",
+    "triage_ghost_desc": "Berkas telah dihapus (rm) tapi alokasi disk belum lepas karena masih di-hold proses aktif.",
+    "triage_ghost_holding": "Proses: <strong>{cmd}</strong> (PID: {pid}) • Menahan: <strong>{size}</strong>",
+    "triage_reload_service": "🔄 Reload Service",
+    "triage_top_hogs": "Top Direktori Level-1 (/...)",
+    "triage_no_hogs": "Tidak ada direktori level-1 yang terdeteksi atau pemindaian terpotong.",
+    "triage_top_files": "Top 15 Berkas Terbesar (>15MB)",
+    "triage_no_top_files": "Tidak ada file tunggal di atas 15MB yang ditemukan.",
+    "triage_db_file_badge": "🛡️ File Database (Terlindungi)",
+    "triage_open_fm": "Buka di File Manager",
+    "triage_open_fm_parent": "Buka direktori induk di File Manager",
+    "triage_open_term_path": "Buka Terminal di path ini",
+    "triage_truncate_hint": "Kosongkan file ini (0-byte)",
+    "triage_clean_now": "Bersihkan Sekarang",
+    "sudo_auth_title": "Autentikasi Hak Akses (Sudo / Root)",
+    "sudo_auth_label": "Password Sudo / Root Server",
+    "sudo_auth_placeholder": "Masukkan password sudo/root server",
+    "sudo_auth_note": "🔒 <em>Password hanya digunakan sekali di memori SSH untuk perintah ini dan tidak akan pernah disimpan di server maupun database.</em>",
+    "sudo_auth_default_msg": "Perintah ini memerlukan hak istimewa (sudo/root) untuk mengeksekusi pembersihan.",
+    "run": "Jalankan",
     "tab_terminal": "Terminal",
     "sys_info": "Informasi Sistem",
     "kernel": "Kernel:",
@@ -4957,6 +5145,53 @@ function resolveConfirm(val) {
     confirmResolver = null;
     res(val);
   }
+}
+
+let passwordPromptResolver = null;
+function showPasswordPrompt(options) {
+  const opts = options || {};
+  return new Promise((resolve) => {
+    passwordPromptResolver = resolve;
+    const titleEl = document.getElementById('passwordPromptTitle');
+    if (titleEl) titleEl.innerText = opts.title || t('sudo_auth_title', 'Elevated Privilege Authentication (Sudo / Root)');
+    const msgEl = document.getElementById('passwordPromptMessage');
+    if (msgEl) msgEl.innerText = opts.message || t('sudo_auth_default_msg', 'This command requires elevated privileges (sudo/root) to execute cleanup.');
+    const inputEl = document.getElementById('passwordPromptInput');
+    if (inputEl) {
+      inputEl.value = '';
+      inputEl.placeholder = opts.placeholder || t('sudo_auth_placeholder', 'Enter server sudo/root password');
+    }
+    const labelEl = document.getElementById('passwordPromptLabel');
+    if (labelEl) labelEl.innerText = opts.label || t('sudo_auth_label', 'Server Sudo / Root Password');
+    const noteEl = document.getElementById('passwordPromptNote');
+    if (noteEl) noteEl.innerHTML = opts.note || t('sudo_auth_note', '🔒 <em>Password is only held in SSH memory for this single command and is never stored on server or database.</em>');
+    const btn = document.getElementById('passwordPromptBtn');
+    if (btn) btn.innerText = opts.confirmText || t('run', 'Run');
+    openModal('passwordPromptModal');
+    setTimeout(() => {
+      if (inputEl) inputEl.focus();
+    }, 100);
+  });
+}
+
+function resolvePasswordPrompt(val) {
+  const el = document.getElementById('passwordPromptModal');
+  if (el) {
+    el.classList.remove('open');
+    el.style.zIndex = '';
+  }
+  openModalStack = openModalStack.filter(mId => mId !== 'passwordPromptModal');
+  if (passwordPromptResolver) {
+    const res = passwordPromptResolver;
+    passwordPromptResolver = null;
+    res(val);
+  }
+}
+
+function submitPasswordPrompt() {
+  const inputEl = document.getElementById('passwordPromptInput');
+  const val = inputEl ? inputEl.value : '';
+  resolvePasswordPrompt(val);
 }
 
 async function doLogout() {
@@ -6199,7 +6434,11 @@ async function refreshActiveHostDetailQuietly(id) {
       badge.className = 'badge badge-' + currentHost.status;
       badge.innerText = currentHost.status;
     }
-    switchTab(currentTab);
+    // ponytail: only auto-refresh tabs backed directly by /api/hosts/{id} payload to avoid wiping interactive tabs
+    const autoRefreshTabs = ['overview', 'network', 'docker', 'timeline', 'runs', 'desired'];
+    if (autoRefreshTabs.includes(currentTab)) {
+      switchTab(currentTab);
+    }
   } catch(e) {}
 }
 
@@ -6282,6 +6521,7 @@ async function loadAlerts() {
                   ` : ''}
                 </div>
                 <div class="alert-overlay-item-actions">
+                  ${a.host_id && a.message && a.message.toLowerCase().includes('disk') ? `<button class="btn btn-sm" style="font-size: 0.75rem; padding: 3px 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5;" onclick="openStorageTriageFromAlert(${a.host_id})">🧹 ${t('tab_storage', 'Storage Triage')}</button>` : ''}
                   ${a.host_id ? `<button class="btn btn-sm" style="font-size: 0.75rem; padding: 3px 8px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="openHostDetailFromAlert(${a.host_id})">${t('open_host', 'Open Host')}</button>` : ''}
                   <button class="btn btn-sm" style="font-size: 0.75rem; padding: 3px 8px;" onclick="ackAlert(${a.id})">${t('dismiss', 'Dismiss')}</button>
                 </div>
@@ -6934,12 +7174,28 @@ function setHostFilesPath(hostId, path) {
   } catch(e) {}
 }
 
-function openTerminalForPath(targetPath) {
+function openTerminalForPath(targetPath, isDir) {
   if (!currentHost) return;
+  let dir = targetPath || '/';
+  if (isDir === false) {
+    if (dir.includes('/')) {
+      const lastSlash = dir.lastIndexOf('/');
+      dir = lastSlash === 0 ? '/' : dir.substring(0, lastSlash);
+    }
+  } else if (isDir === undefined) {
+    // Naive heuristic: if base has extension, treat as file
+    const lastSlash = dir.lastIndexOf('/');
+    if (lastSlash >= 0) {
+      const base = dir.substring(lastSlash + 1);
+      if (base.includes('.')) {
+        dir = lastSlash === 0 ? '/' : dir.substring(0, lastSlash);
+      }
+    }
+  }
   const hostName = currentHost.name || ('Host ' + currentHost.id);
-  const folderName = (targetPath === '/' || !targetPath) ? '/' : targetPath.split('/').filter(Boolean).pop() || targetPath;
+  const folderName = (dir === '/' || !dir) ? '/' : dir.split('/').filter(Boolean).pop() || dir;
   const customTitle = `${hostName}: ${folderName}`;
-  openTerminalForHost(currentHost.id, null, true, customTitle, targetPath);
+  openTerminalForHost(currentHost.id, null, true, customTitle, dir);
 }
 
 async function openHostDetail(id) {
@@ -7066,7 +7322,7 @@ function switchTab(tab, presetID) {
           <div class="stat-row"><span>${t('cpu_label', 'CPU:')}</span> <span>${d.host.cpu_cores || 1} ${(d.host.cpu_cores || 1) > 1 ? t('cores', 'Cores') : t('core', 'Core')} <span style="color: var(--text-muted); font-size: 0.82rem;">(Load: ${escapeHtml(d.host.cpu_load || '-')})</span></span></div>
           <div class="stat-row"><span>${t('phys_mem', 'RAM:')}</span> <span>${formatBytes(d.host.ram_used_bytes || 0)} / ${formatBytes(d.host.ram_total_bytes || 0)} (${d.host.ram_total_bytes > 0 ? Math.round(((d.host.ram_used_bytes || 0) / d.host.ram_total_bytes) * 100) : 0}%)</span></div>
           <div class="stat-row"><span>${t('virtual_mem', 'Swap:')}</span> <span>${d.host.swap_total_bytes > 0 ? formatBytes(d.host.swap_used_bytes || 0) + ' / ' + formatBytes(d.host.swap_total_bytes) + ' (' + Math.round(((d.host.swap_used_bytes || 0) / d.host.swap_total_bytes) * 100) + '%)' : '<span style="color: var(--text-muted);">' + t('swap_disabled', 'Disabled') + '</span>'}</span></div>
-          <div class="stat-row"><span>${t('root_storage', 'Root Storage (/):')}</span> <span>${formatBytes(d.host.disk_used_bytes || 0)} / ${formatBytes(d.host.disk_total_bytes || 0)} (${d.host.disk_total_bytes > 0 ? Math.round(((d.host.disk_used_bytes || 0) / d.host.disk_total_bytes) * 100) : 0}%)</span></div>
+          <div class="stat-row"><span>${t('root_storage', 'Root Storage (/):')}</span> <span style="display: inline-flex; align-items: center; gap: 6px;">${formatBytes(d.host.disk_used_bytes || 0)} / ${formatBytes(d.host.disk_total_bytes || 0)} (${d.host.disk_total_bytes > 0 ? Math.round(((d.host.disk_used_bytes || 0) / d.host.disk_total_bytes) * 100) : 0}%) <button class="btn btn-sm" style="padding: 1px 6px; font-size: 0.7rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);" onclick="switchTab('storage')">🔍 Triage</button></span></div>
           <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(d.host.uptime)}</span></div>
           <div class="stat-row">
             <span>${t('last_inspected_label', 'Last Inspected:')}</span>
@@ -7452,6 +7708,8 @@ function switchTab(tab, presetID) {
   } else if (tab === 'files') {
     const startPath = (currentHost && (currentHost._lastPath || (currentHost.id ? getHostFilesPath(currentHost.id) : null))) || '/';
     loadFiles(startPath);
+  } else if (tab === 'storage') {
+    renderStorageTriageTab(d.host);
   }
   } catch(err) {
     console.error("switchTab error:", err);
@@ -9653,6 +9911,1023 @@ function displayPackagesTable(hostID) {
       </tbody>
     </table>
   `;
+}
+
+let currentStorageTriageData = null;
+let currentTriageAbortController = null;
+let isStorageTriageScanning = false;
+let currentTriageScanningHostId = null;
+const storageTriageCache = {};
+
+function getStorageTriageScanningHTML(hostID) {
+  return `
+    <div style="text-align: center; padding: 36px 20px; color: var(--text-muted);">
+      <div class="spinner" style="margin: 0 auto 14px auto; width: 34px; height: 34px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+      <div style="font-size: 1rem; font-weight: 600; color: #f1f5f9; margin-bottom: 6px;">${t('triage_analyzing_title', 'Analyzing Partitions & Storage Space...')}</div>
+      <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 18px;">${t('triage_analyzing_sub', 'Scanning for Space Hogs, Runaway Logs, Ghost FDs, and Reclaimable Storage...')}</div>
+
+      <!-- Real-time Command & Manual Kill Instruction Card -->
+      <div style="display: inline-flex; flex-direction: column; gap: 8px; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px 18px; max-width: 580px; width: 100%; margin-bottom: 20px; text-align: left; box-sizing: border-box;">
+        <div style="font-size: 0.78rem; color: #38bdf8; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+          <span>🖥️</span> <span>${t('triage_active_ssh_cmd', 'SSH command currently running on remote host:')}</span>
+        </div>
+        <div style="font-family: monospace; font-size: 0.74rem; color: #94a3b8; background: rgba(0,0,0,0.5); padding: 8px 10px; border-radius: 4px; overflow-x: auto; white-space: nowrap;">
+          timeout 10s du -skx /var /tmp ... | timeout 10s find ... -printf
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; margin-top: 4px;">
+          ${t('triage_manual_kill_hint', '💡 <em>If you want to stop it manually via server terminal:</em>')}<br>
+          <code style="color: #f87171; background: rgba(239, 68, 68, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.74rem;">sudo pkill -9 -f "du -skx" ; sudo pkill -9 -f "find /"</code>
+        </div>
+      </div>
+
+      <div>
+        <button class="btn btn-sm btn-danger" onclick="cancelStorageTriageProbe(${hostID})" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; font-weight: 600;">
+          <span>⏹️</span> <span>${t('triage_btn_cancel', 'Cancel Scan')}</span>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function cancelStorageTriageProbe(hostID) {
+  isStorageTriageScanning = false;
+  currentTriageScanningHostId = null;
+  if (currentTriageAbortController) {
+    currentTriageAbortController.abort();
+    currentTriageAbortController = null;
+  }
+  try {
+    await fetch(`/api/hosts/${hostID}/storage-triage-cancel`, { method: 'POST' });
+    showToast(t('triage_scan_cancelled_toast', 'Storage triage scan cancelled'), 'info');
+  } catch (e) {}
+  const container = document.getElementById('storageTriageContainer');
+  if (container) {
+    container.innerHTML = `
+      <div class="card" style="padding: 24px; text-align: center; border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.08);">
+        <div style="font-size: 1.8rem; margin-bottom: 6px;">⏹️</div>
+        <div style="font-weight: 600; color: #fbbf24; margin-bottom: 6px;">${t('triage_scan_cancelled', 'Scan Cancelled')}</div>
+        <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">${t('triage_scan_cancelled_desc', 'SSH connection and scan process to the remote host have been stopped.')}</div>
+        <button class="btn btn-sm btn-primary" onclick="runStorageTriageProbe(${hostID})">${t('triage_rerun', 'Rerun Storage Triage')}</button>
+      </div>
+    `;
+  }
+  const btn = document.getElementById('btnRunStorageTriage');
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = `<span>⚡</span> <span>${t('run_triage', 'Run Storage Triage')}</span>`;
+  }
+}
+
+let triageThrottleState = {}; // hostID -> { allowed, state, remaining_seconds, write_speed_bps, cpu_load_1m, reason }
+let triageThrottleTimer = null;
+
+function startTriageThrottleTicker() {
+  if (triageThrottleTimer) return;
+  triageThrottleTimer = setInterval(() => {
+    for (const hid in triageThrottleState) {
+      const st = triageThrottleState[hid];
+      if (st && st.remaining_seconds > 0) {
+        st.remaining_seconds--;
+        if (st.remaining_seconds <= 0) {
+          st.allowed = true;
+          if (currentHost && currentHost.id === Number(hid)) {
+            checkStorageTriageThrottle(Number(hid));
+          }
+        }
+      }
+    }
+    if (currentHost && currentTab === 'storage') {
+      updateStorageTriageThrottleUI(currentHost.id);
+    }
+  }, 1000);
+}
+
+async function checkStorageTriageThrottle(hostID) {
+  if (!hostID) return;
+  try {
+    const res = await fetch(`/api/hosts/${hostID}/storage-triage-throttle`);
+    if (res.ok) {
+      const data = await res.json();
+      triageThrottleState[hostID] = data;
+      updateStorageTriageThrottleUI(hostID);
+    }
+  } catch (e) {}
+}
+
+function updateStorageTriageThrottleUI(hostID) {
+  if (!currentHost || currentHost.id !== hostID || currentTab !== 'storage') return;
+  const btn = document.getElementById('btnRunStorageTriage');
+  const forceBtn = document.getElementById('btnForceStorageTriage');
+  const badge = document.getElementById('triageThrottleBadge');
+  const isScanning = isStorageTriageScanning && currentTriageScanningHostId === hostID;
+
+  if (isScanning) {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span>⏳</span> <span>${t('scanning', 'Scanning...')}</span>`;
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-primary');
+    }
+    if (forceBtn) forceBtn.style.display = 'none';
+    if (badge) badge.style.display = 'none';
+    return;
+  }
+
+  const st = triageThrottleState[hostID];
+  if (!st) {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<span>⚡</span> <span>${t('run_triage', 'Run Storage Triage')}</span>`;
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-primary');
+    }
+    if (forceBtn) forceBtn.style.display = 'none';
+    if (badge) badge.style.display = 'none';
+    return;
+  }
+
+  // Handle badge
+  if (badge) {
+    if (st.state === 'very_busy') {
+      badge.style.display = 'inline-block';
+      badge.style.background = 'rgba(239, 68, 68, 0.15)';
+      badge.style.color = '#f87171';
+      badge.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+      badge.innerHTML = `🔴 <strong>${t('triage_state_very_busy', 'Very Busy')}</strong>: ${formatBytes(st.write_speed_bps || 0)}/s`;
+    } else if (st.state === 'busy') {
+      badge.style.display = 'inline-block';
+      badge.style.background = 'rgba(245, 158, 11, 0.15)';
+      badge.style.color = '#fbbf24';
+      badge.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+      badge.innerHTML = `🟡 <strong>${t('triage_state_busy', 'Busy')}</strong>: ${formatBytes(st.write_speed_bps || 0)}/s`;
+    } else if (st.remaining_seconds > 0) {
+      badge.style.display = 'inline-block';
+      badge.style.background = 'rgba(100, 116, 139, 0.2)';
+      badge.style.color = '#94a3b8';
+      badge.style.border = '1px solid rgba(100, 116, 139, 0.3)';
+      badge.innerHTML = `⏱️ <strong>${t('triage_cooldown_badge', 'Cooldown')}</strong>: ${formatMMSS(st.remaining_seconds)}`;
+    } else {
+      badge.style.display = 'inline-block';
+      badge.style.background = 'rgba(34, 197, 94, 0.12)';
+      badge.style.color = '#4ade80';
+      badge.style.border = '1px solid rgba(34, 197, 94, 0.25)';
+      badge.innerHTML = `🟢 <strong>${t('triage_state_normal', 'Normal')}</strong>`;
+    }
+  }
+
+  // Handle buttons
+  if (!st.allowed) {
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-secondary');
+      if (st.remaining_seconds > 0) {
+        btn.innerHTML = `<span>⏱️</span> <span>${t('triage_cooldown_prefix', 'Available in')} ${formatMMSS(st.remaining_seconds)}</span>`;
+      } else {
+        btn.innerHTML = `<span>🛑</span> <span>${t('triage_blocked_busy', 'System Very Busy')}</span>`;
+      }
+    }
+    if (forceBtn) {
+      forceBtn.style.display = 'inline-flex';
+    }
+  } else {
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-primary');
+      btn.innerHTML = `<span>⚡</span> <span>${t('run_triage', 'Run Storage Triage')}</span>`;
+    }
+    if (forceBtn) {
+      forceBtn.style.display = 'none';
+    }
+  }
+}
+
+function formatMMSS(totalSec) {
+  if (!totalSec || totalSec <= 0) return '00:00';
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+function showForceScanConfirmModal(hostID) {
+  const st = triageThrottleState[hostID] || {};
+  const writeSpeed = formatBytes(st.write_speed_bps || 0);
+  const loadStr = (st.cpu_load_1m || 0).toFixed(2);
+  const remSec = st.remaining_seconds > 0 ? `${st.remaining_seconds}s` : '-';
+
+  closeForceScanConfirmModal();
+
+  modalZIndexCounter += 20;
+  const targetZIndex = Math.max(modalZIndexCounter, 200000);
+
+  const modalOverlay = document.createElement('div');
+  modalOverlay.id = 'forceScanModalOverlay';
+  modalOverlay.style.cssText = `position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); z-index: ${targetZIndex}; display: flex; align-items: center; justify-content: center; padding: 16px;`;
+
+  modalOverlay.innerHTML = `
+    <div class="card" style="max-width: 480px; width: 100%; padding: 24px; border-color: rgba(245, 158, 11, 0.5); background: #0f172a; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+        <span style="font-size: 1.6rem;">⚠️</span>
+        <h4 style="margin: 0; font-size: 1.1rem; color: #fbbf24;">${t('triage_force_modal_title', 'Force Storage Triage Scan?')}</h4>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 14px;">
+        ${t('triage_force_modal_desc', 'Remote host is currently experiencing high disk activity or cooldown is active. Running intensive du and find probes now may impact database and web application latency.')}
+      </p>
+      <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px 14px; font-size: 0.8rem; margin-bottom: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div><span style="color: var(--text-muted);">${t('triage_metric_write', 'Disk Write Rate')}:</span> <strong>${writeSpeed}/s</strong></div>
+        <div><span style="color: var(--text-muted);">${t('triage_metric_load', 'CPU Load')}:</span> <strong>${loadStr}</strong></div>
+        <div><span style="color: var(--text-muted);">${t('triage_metric_state', 'Load State')}:</span> <strong style="text-transform: capitalize;">${st.state || 'busy'}</strong></div>
+        <div><span style="color: var(--text-muted);">${t('triage_metric_cooldown', 'Cooldown Left')}:</span> <strong>${remSec}</strong></div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn btn-sm btn-secondary" onclick="closeForceScanConfirmModal()">${t('cancel', 'Cancel')}</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmForceScan(${hostID})" style="font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+          <span>⚠️</span> <span>${t('triage_btn_confirm_force', 'Force Scan Anyway')}</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modalOverlay);
+}
+
+function closeForceScanConfirmModal() {
+  const modal = document.getElementById('forceScanModalOverlay');
+  if (modal) modal.remove();
+}
+
+function confirmForceScan(hostID) {
+  closeForceScanConfirmModal();
+  runStorageTriageProbe(hostID, true);
+}
+
+async function renderStorageTriageTab(host) {
+  const content = document.getElementById('tabContent');
+  const d = window.detailData;
+  const hostObj = host || (d ? d.host : null);
+  if (!hostObj) return;
+
+  const isScanning = isStorageTriageScanning && currentTriageScanningHostId === hostObj.id;
+  const cachedData = storageTriageCache[hostObj.id] || (currentStorageTriageData && currentStorageTriageData.host_id === hostObj.id ? currentStorageTriageData : null);
+
+  content.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 14px; height: 100%; overflow-y: auto; padding-right: 2px;">
+      <!-- Header Bar -->
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; background: rgba(15, 23, 42, 0.5); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--card-border);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <h4 style="margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 6px;">
+            <span>🧹</span> <span>${t('tab_storage', 'Storage Triage')}</span>
+          </h4>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(hostObj.name)}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <span id="triageLastScannedBadge" style="font-size: 0.75rem; color: var(--text-muted); display: none;"></span>
+          <span id="triageThrottleBadge" style="font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; display: none;"></span>
+          <button id="btnForceStorageTriage" class="btn btn-sm btn-outline-warning" onclick="showForceScanConfirmModal(${hostObj.id})" style="display: none; align-items: center; gap: 4px; font-size: 0.75rem; padding: 4px 10px; border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; background: rgba(245, 158, 11, 0.1);">
+            <span>⚠️</span> <span>${t('triage_btn_force', 'Force Scan')}</span>
+          </button>
+          <button id="btnRunStorageTriage" class="btn btn-sm btn-primary" onclick="runStorageTriageProbe(${hostObj.id})" ${isScanning ? 'disabled' : ''} style="display: inline-flex; align-items: center; gap: 6px;">
+            <span>${isScanning ? '⏳' : '⚡'}</span> <span>${isScanning ? t('scanning', 'Scanning...') : t('run_triage', 'Run Storage Triage')}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Triage Output Container -->
+      <div id="storageTriageContainer">
+        ${isScanning ? getStorageTriageScanningHTML(hostObj.id) : `
+          <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+            <div style="font-size: 2.2rem; margin-bottom: 8px;">🔍</div>
+            <div style="font-size: 0.95rem; font-weight: 500; margin-bottom: 6px;">${t('triage_ready_prompt', 'Click "Run Storage Triage" to analyze disk partitions, runaway files, and ghost file descriptors.')}</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); max-width: 520px; margin: 0 auto; line-height: 1.4;">${t('triage_ready_sub', 'On-demand, 20-second bounded diagnostic without remote daemons to map Space Hogs, runaway logs, and catalog safe reclaimable disk storage.')}</div>
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+
+  startTriageThrottleTicker();
+  checkStorageTriageThrottle(hostObj.id);
+
+  if (isScanning) {
+    // Already rendered scanning HTML above
+  } else if (cachedData) {
+    currentStorageTriageData = cachedData;
+    renderStorageTriageView(cachedData);
+  } else {
+    // Fetch latest known scan result from backend if available
+    fetch(`/api/hosts/${hostObj.id}/storage-triage-latest`)
+      .then(res => res.json())
+      .then(res => {
+        if (res && res.found && res.data) {
+          storageTriageCache[hostObj.id] = res.data;
+          currentStorageTriageData = res.data;
+          const container = document.getElementById('storageTriageContainer');
+          if (container && (!isStorageTriageScanning || currentTriageScanningHostId !== hostObj.id)) {
+            renderStorageTriageView(res.data);
+          }
+        }
+      })
+      .catch(err => {
+        console.warn('Failed to load last storage triage result:', err);
+      });
+  }
+}
+
+async function runStorageTriageProbe(hostID, force = false) {
+  if (isStorageTriageScanning && currentTriageScanningHostId === hostID) {
+    return;
+  }
+  isStorageTriageScanning = true;
+  currentTriageScanningHostId = hostID;
+
+  const container = document.getElementById('storageTriageContainer');
+  const btn = document.getElementById('btnRunStorageTriage');
+  const forceBtn = document.getElementById('btnForceStorageTriage');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<span>⏳</span> <span>${t('scanning', 'Scanning...')}</span>`;
+  }
+  if (forceBtn) {
+    forceBtn.style.display = 'none';
+  }
+
+  currentTriageAbortController = new AbortController();
+
+  if (container) {
+    container.innerHTML = getStorageTriageScanningHTML(hostID);
+  }
+
+  try {
+    const url = `/api/hosts/${hostID}/storage-triage${force ? '?force=true' : ''}`;
+    const res = await fetch(url, {
+      signal: currentTriageAbortController.signal
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      if (res.status === 429) {
+        handleStorageTriageThrottled(hostID, errData);
+        return;
+      }
+      throw new Error(errData.error || errData.message || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    currentStorageTriageData = data;
+    storageTriageCache[hostID] = data;
+    if (currentHost && currentHost.id === hostID && currentTab === 'storage') {
+      renderStorageTriageView(data);
+    }
+    checkStorageTriageThrottle(hostID);
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return; // Handled cleanly by cancelStorageTriageProbe
+    }
+    if (currentHost && currentHost.id === hostID && currentTab === 'storage') {
+      const currContainer = document.getElementById('storageTriageContainer');
+      if (currContainer) {
+        currContainer.innerHTML = `
+          <div class="card" style="padding: 24px; text-align: center; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08);">
+            <div style="font-size: 1.8rem; margin-bottom: 6px;">⚠️</div>
+            <div style="font-weight: 600; color: #f87171; margin-bottom: 6px;">${t('triage_failed_title', 'Storage Triage Failed')}</div>
+            <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px;">${escapeHtml(err.message)}</div>
+            <button class="btn btn-sm btn-primary" onclick="runStorageTriageProbe(${hostID})">${t('try_again', 'Try Again')}</button>
+          </div>
+        `;
+      }
+    }
+    showToast(`Storage Triage error: ${err.message}`, 'error');
+    checkStorageTriageThrottle(hostID);
+  } finally {
+    isStorageTriageScanning = false;
+    currentTriageScanningHostId = null;
+    currentTriageAbortController = null;
+    updateStorageTriageThrottleUI(hostID);
+  }
+}
+
+function handleStorageTriageThrottled(hostID, data) {
+  isStorageTriageScanning = false;
+  currentTriageScanningHostId = null;
+  currentTriageAbortController = null;
+
+  triageThrottleState[hostID] = {
+    allowed: false,
+    state: data.state || 'busy',
+    remaining_seconds: data.remaining_seconds || 0,
+    cooldown_seconds: data.cooldown_seconds || 120,
+    can_force: data.can_force !== false,
+    reason: data.reason || (currentLang === 'id' ? data.reason_id : '') || 'Rate limited',
+    write_speed_bps: data.write_speed_bps || 0,
+    cpu_load_1m: data.cpu_load_1m || 0
+  };
+
+  updateStorageTriageThrottleUI(hostID);
+
+  const container = document.getElementById('storageTriageContainer');
+  if (container) {
+    const isVeryBusy = data.state === 'very_busy';
+    const stateBadgeColor = isVeryBusy ? '#ef4444' : '#f59e0b';
+    const stateBg = isVeryBusy ? 'rgba(239, 68, 68, 0.08)' : 'rgba(245, 158, 11, 0.08)';
+    const stateBorder = isVeryBusy ? 'rgba(239, 68, 68, 0.3)' : 'rgba(245, 158, 11, 0.3)';
+    const reasonText = escapeHtml(data.reason || (isVeryBusy ? t('triage_very_busy_desc', 'Remote host is very busy with high disk I/O activity.') : t('triage_cooldown_desc', 'Cooldown period is active to protect remote disk performance.')));
+
+    container.innerHTML = `
+      <div class="card" style="padding: 24px; text-align: center; border-color: ${stateBorder}; background: ${stateBg};">
+        <div style="font-size: 2rem; margin-bottom: 8px;">${isVeryBusy ? '🛑' : '⏱️'}</div>
+        <div style="font-weight: 600; color: ${stateBadgeColor}; margin-bottom: 6px; font-size: 1.05rem;">
+          ${isVeryBusy ? t('triage_title_very_busy', 'Scan Paused: Server Very Busy') : t('triage_title_cooldown', 'Scan Cooldown Active')}
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px; max-width: 520px; margin-left: auto; margin-right: auto; line-height: 1.4;">
+          ${reasonText}
+        </div>
+        <div style="display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <button class="btn btn-sm btn-outline-warning" onclick="showForceScanConfirmModal(${hostID})" style="display: inline-flex; align-items: center; gap: 6px; font-weight: 600;">
+            <span>⚠️</span> <span>${t('triage_btn_force', 'Force Scan')}</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+function isDatabasePath(path) {
+  if (!path) return false;
+  const p = path.toLowerCase();
+  if (p.includes('galera.cache') || p.includes('grastate.dat') || p.includes('gvwstate.dat')) {
+    return true;
+  }
+  if (p.includes('/mysql/') || p.includes('/mariadb/') || p.includes('/postgresql/') || p.includes('/postgres/') || p.includes('/redis/') || p.includes('/mongodb/') || p.includes('/docker/volumes/') || p.includes('/containerd/') || p.includes('ibdata')) {
+    return true;
+  }
+  const dbExts = ['.ibd', '.frm', '.myd', '.myi', '.db', '.sqlite', '.sqlite3', '.rdb', '.aof', '.wal', '.mdf', '.ldf', '.qcow2', '.vmdk', '.img', '.raw', '.dbf', '.wt', '.bson'];
+  return dbExts.some(ext => p.endsWith(ext));
+}
+
+function isTruncatableLog(path) {
+  if (!path || isDatabasePath(path)) return false;
+  const p = path.toLowerCase();
+  // Prevent suggesting truncation on protected system territories
+  if (p === '/' || p.startsWith('/etc/') || p === '/etc' || p.startsWith('/bin/') || p === '/bin' ||
+      p.startsWith('/sbin/') || p === '/sbin' || p.startsWith('/usr/') || p === '/usr' ||
+      p.startsWith('/boot/') || p === '/boot' || p.startsWith('/dev/') || p === '/dev' ||
+      p.startsWith('/proc/') || p === '/proc' || p.startsWith('/sys/') || p === '/sys') {
+    return false;
+  }
+  if (p.endsWith('.log') || p.endsWith('.txt') || p.endsWith('.out') || p.endsWith('.err') || p.endsWith('.dump')) {
+    return true;
+  }
+  if (p.startsWith('/var/log/') || p.startsWith('/tmp/') || p.startsWith('/var/tmp/')) {
+    return true;
+  }
+  return false;
+}
+
+function renderStorageTriageView(data) {
+  const container = document.getElementById('storageTriageContainer');
+  if (!container) return;
+
+  const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+
+  const badge = document.getElementById('triageLastScannedBadge');
+  if (badge) {
+    if (data.scanned_at) {
+      const durMs = data.scan_duration_ms || 0;
+      badge.style.display = 'inline-flex';
+      badge.style.alignItems = 'center';
+      badge.style.gap = '6px';
+      badge.style.padding = '3px 9px';
+      badge.style.borderRadius = '6px';
+      badge.style.background = 'rgba(56, 189, 248, 0.1)';
+      badge.style.border = '1px solid rgba(56, 189, 248, 0.25)';
+      badge.style.color = '#38bdf8';
+      badge.style.fontSize = '0.76rem';
+      badge.innerHTML = `<span>📷 ${t('triage_snapshot_badge', 'Snapshot')}: <strong>${escapeHtml(data.scanned_at)}</strong></span> <span style="color: var(--text-muted); opacity: 0.6;">•</span> <span style="color: var(--text-muted);">⏱️ ${durMs} ms</span>`;
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  const part = data.partition || {};
+  const usedPct = part.used_percent || 0;
+  const barColor = usedPct >= 90 ? '#ef4444' : (usedPct >= 75 ? '#f59e0b' : '#34d399');
+
+  const privBadge = data.is_root
+    ? `<span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3);">${t('triage_badge_root', 'Root')}</span>`
+    : (data.has_sudo
+      ? `<span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">${t('triage_badge_nopasswd', 'Sudo NOPASSWD')}</span>`
+      : `<span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3);">${t('triage_badge_restricted', 'Restricted Access')}</span>`);
+
+  const warningText = isID && data.warning_id ? data.warning_id : data.warning;
+
+  container.innerHTML = `
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <!-- Panel 1: Partition & Reclaim Summary -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
+        <div class="card" style="padding: 14px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">${t('triage_primary_partition', 'PRIMARY PARTITION')} (${escapeHtml(part.mount_point || '/')})</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(part.filesystem || '')}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+            <span style="font-size: 1.3rem; font-weight: 700; color: ${barColor};">${usedPct.toFixed(1)}%</span>
+            <span style="font-size: 0.82rem; color: var(--text);">${formatBytes(part.used_bytes || 0)} / ${formatBytes(part.total_bytes || 0)}</span>
+          </div>
+          <div class="triage-bar-bg">
+            <div class="triage-bar-fill" style="width: ${Math.min(100, usedPct)}%; background: ${barColor};"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+            <span>${t('triage_available', 'Available')}: <strong style="color: #38bdf8;">${formatBytes(part.free_bytes || 0)}</strong></span>
+            <span>${t('triage_io_write', 'I/O Write')}: <strong>${formatBytes(data.write_rate_bps || 0)}/s</strong></span>
+          </div>
+        </div>
+
+        <div class="card" style="padding: 14px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 8px; display: flex; flex-direction: column; justify-content: space-between;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 0.8rem; font-weight: 600; color: #34d399;">${t('triage_reclaimable_title', '⚡ RECLAIMABLE STORAGE')}</span>
+            ${privBadge}
+          </div>
+          <div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: #34d399; margin-bottom: 4px;">~${escapeHtml(data.total_reclaim_human || '0 B')}</div>
+            <div style="font-size: 0.78rem; color: var(--text-muted);">${t('triage_reclaimable_desc', 'Estimated total disk space that can be safely freed from package caches, rotated logs, coredumps, or systemd journal.')}</div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; font-size: 0.72rem; color: var(--text-muted); margin-top: 8px;">
+            <span>🕒 ${t('triage_scanned_label', 'Scanned:')} <strong>${escapeHtml(data.scanned_at || '-')}</strong></span>
+            <span>•</span>
+            <span>⏱️ ${t('triage_scan_duration', 'Scan duration:')} ${data.scan_duration_ms} ms</span>
+          </div>
+        </div>
+      </div>
+
+      ${warningText ? `
+        <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 6px; padding: 10px 12px; font-size: 0.8rem; color: #fbbf24; display: flex; align-items: center; gap: 8px;">
+          <span>⚠️</span> <span>${escapeHtml(warningText)}</span>
+        </div>
+      ` : ''}
+
+      <!-- Panel 2: Safe Reclaim Actions -->
+      <div class="card" style="padding: 16px; background: rgba(15, 23, 42, 0.3); border: 1px solid var(--card-border); border-radius: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h5 style="margin: 0; font-size: 0.9rem; display: flex; align-items: center; gap: 6px; color: #34d399;">
+            <span>🛡️</span> <span>${t('triage_safe_catalog', 'Safe Reclaim Catalog (Safe to Clean)')}</span>
+          </h5>
+          <span style="font-size: 0.75rem; color: var(--text-muted);">${(t('triage_items_detected', '{count} items detected')).replace('{count}', data.reclaimables ? data.reclaimables.length : 0)}</span>
+        </div>
+
+        ${(!data.reclaimables || data.reclaimables.length === 0) ? `
+          <div style="padding: 14px; text-align: center; color: var(--text-muted); font-size: 0.82rem; background: rgba(0,0,0,0.2); border-radius: 6px;">
+            ${t('triage_no_reclaim', 'No significant package cache or rotated log accumulation (>10MB) detected. System is clean.')}
+          </div>
+        ` : `
+          <div class="triage-grid">
+            ${data.reclaimables.map(rec => {
+              const recName = (isID && rec.name_id) ? rec.name_id : rec.name;
+              const recDesc = (isID && rec.description_id) ? rec.description_id : rec.description;
+              return `
+              <div class="triage-item-card">
+                <div>
+                  <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+                    <strong style="font-size: 0.85rem; color: #f1f5f9;">${escapeHtml(recName)}</strong>
+                    <span style="font-weight: 700; font-size: 0.82rem; color: #34d399;">${escapeHtml(rec.human_size)}</span>
+                  </div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; line-height: 1.3;">
+                    ${escapeHtml(recDesc)}
+                  </div>
+                  <div style="background: rgba(0,0,0,0.3); border-radius: 4px; padding: 4px 6px; font-family: monospace; font-size: 0.72rem; color: #94a3b8; overflow-x: auto; white-space: nowrap; margin-bottom: 8px;">
+                    ${escapeHtml(rec.command)}
+                  </div>
+                </div>
+                <div style="display: flex; justify-content: flex-end;">
+                  <button class="btn btn-sm btn-primary" onclick="executeSafeReclaim(${data.host_id}, '${rec.key}', decodeURIComponent('${encodeURIComponent(recName)}'), decodeURIComponent('${encodeURIComponent(rec.command)}'))" style="font-size: 0.75rem; padding: 3px 10px;">
+                    ${t('triage_clean_btn', '🧹 Clean')}
+                  </button>
+                </div>
+              </div>
+            `;
+            }).join('')}
+          </div>
+        `}
+      </div>
+
+      <!-- Panel 3: Runaway Files & Ghost Files (Alert Box) -->
+      ${((data.runaway_files && data.runaway_files.length > 0) || (data.ghost_files && data.ghost_files.length > 0)) ? `
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          ${(data.runaway_files && data.runaway_files.length > 0) ? `
+            <div class="card" style="padding: 16px; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05); border-radius: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                <span style="font-size: 1.2rem;">🚨</span>
+                <div>
+                  <div style="font-weight: 600; font-size: 0.88rem; color: #f87171;">${(t('triage_runaway_detected', 'Runaway Files Detected ({count})')).replace('{count}', data.runaway_files.length)}</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">${t('triage_runaway_desc', 'Large files modified within the last 60 minutes (potential runaway log or infinite loop).')}</div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                ${data.runaway_files.map(f => {
+                  const isTruncatable = isTruncatableLog(f.path);
+                  return `
+                  <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 6px; flex-wrap: wrap; gap: 8px;">
+                    <div style="min-width: 0; flex: 1;">
+                      <div style="font-family: monospace; font-size: 0.8rem; color: #f1f5f9; word-break: break-all;">${escapeHtml(f.path)}</div>
+                      <div style="font-size: 0.75rem; color: #f87171; font-weight: 600;">${t('triage_size', 'Size:')} ${escapeHtml(f.human_size)}</div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      ${isTruncatable ? `
+                        <button class="btn btn-sm btn-danger" onclick="executeTruncateFile(${data.host_id}, decodeURIComponent('${encodeURIComponent(f.path)}'))" style="font-size: 0.75rem; padding: 3px 8px;">
+                          ${t('triage_truncate_btn', '✂️ Truncate (0-byte)')}
+                        </button>
+                      ` : `
+                        <span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3);">
+                          ${t('triage_protected_file', '🛡️ Protected File (Non-Log)')}
+                        </span>
+                      `}
+                      <button class="btn btn-sm" onclick="openFileManagerAtPath(decodeURIComponent('${encodeURIComponent(f.path)}'), false)" style="font-size: 0.75rem; padding: 3px 8px;" title="${t('triage_open_fm_parent', 'Open parent directory in File Manager')}">
+                        📂
+                      </button>
+                      <button class="btn btn-sm" onclick="openTerminalForPath(decodeURIComponent('${encodeURIComponent(f.path)}'), false)" style="font-size: 0.75rem; padding: 3px 8px;" title="${t('triage_open_term_path', 'Open Terminal at this path')}">
+                        💻
+                      </button>
+                    </div>
+                  </div>
+                `;
+                }).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          ${(data.ghost_files && data.ghost_files.length > 0) ? `
+            <div class="card" style="padding: 16px; border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.05); border-radius: 8px;">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                <span style="font-size: 1.2rem;">👻</span>
+                <div>
+                  <div style="font-weight: 600; font-size: 0.88rem; color: #fbbf24;">${(t('triage_ghost_detected', 'Ghost Files Detected ({count})')).replace('{count}', data.ghost_files.length)}</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">${t('triage_ghost_desc', 'Files deleted (rm) but disk allocation not released because active processes are still holding open file descriptors.')}</div>
+                </div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                ${data.ghost_files.map(g => {
+                  const ghostHolding = t('triage_ghost_holding', 'Process: <strong>{cmd}</strong> (PID: {pid}) • Holding: <strong>{size}</strong>')
+                    .replace('{cmd}', escapeHtml(g.command))
+                    .replace('{pid}', escapeHtml(g.pid))
+                    .replace('{size}', escapeHtml(g.human_size));
+                  return `
+                  <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 6px; flex-wrap: wrap; gap: 8px;">
+                    <div style="min-width: 0; flex: 1;">
+                      <div style="font-family: monospace; font-size: 0.8rem; color: #f1f5f9; word-break: break-all;">${escapeHtml(g.path)}</div>
+                      <div style="font-size: 0.75rem; color: #fbbf24;">
+                        ${ghostHolding}
+                      </div>
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                      <button class="btn btn-sm" style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; font-size: 0.75rem; padding: 3px 8px;" onclick="executeReloadService(${data.host_id}, decodeURIComponent('${encodeURIComponent(g.command)}'))">
+                        ${t('triage_reload_service', '🔄 Reload Service')}
+                      </button>
+                      <button class="btn btn-sm" onclick="openTerminalForHost(${data.host_id}, null, true, 'PID ${g.pid}', '/')" style="font-size: 0.75rem; padding: 3px 8px;" title="Open Terminal">
+                        💻 Terminal
+                      </button>
+                    </div>
+                  </div>
+                `;
+                }).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
+
+      <!-- Panel 4: Space Hogs & Top Large Files -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px;">
+        <!-- Left: Level-1 Directory Hogs -->
+        <div class="card" style="padding: 16px; background: rgba(15, 23, 42, 0.3); border: 1px solid var(--card-border); border-radius: 8px;">
+          <h5 style="margin: 0 0 12px 0; font-size: 0.88rem; display: flex; align-items: center; gap: 6px;">
+            <span>📁</span> <span>${t('triage_top_hogs', 'Top Level-1 Directories (/...)')}</span>
+          </h5>
+          ${(!data.space_hogs || data.space_hogs.length === 0) ? `
+            <div style="padding: 14px; text-align: center; color: var(--text-muted); font-size: 0.82rem;">${t('triage_no_hogs', 'No level-1 directories detected or scan timed out.')}</div>
+          ` : `
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            ${data.space_hogs.map(h => {
+              const hogPct = part.total_bytes > 0 ? (h.size_bytes / part.total_bytes) * 100 : 0;
+              return `
+                <div style="display: flex; flex-direction: column; gap: 3px; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 6px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
+                    <span style="font-family: monospace; font-weight: 600; color: #38bdf8;">${escapeHtml(h.path)}</span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                      <strong style="color: #f1f5f9;">${escapeHtml(h.human_size)}</strong>
+                      <span style="font-size: 0.72rem; color: var(--text-muted);">(${hogPct.toFixed(1)}%)</span>
+                      <button class="btn btn-sm" onclick="openFileManagerAtPath(decodeURIComponent('${encodeURIComponent(h.path)}'), true)" style="padding: 1px 5px; font-size: 0.7rem;" title="${t('triage_open_fm', 'Open in File Manager')}">📂</button>
+                      <button class="btn btn-sm" onclick="openTerminalForPath(decodeURIComponent('${encodeURIComponent(h.path)}'), true)" style="padding: 1px 5px; font-size: 0.7rem;" title="${t('triage_open_term_path', 'Open Terminal at this path')}">💻</button>
+                    </div>
+                  </div>
+                  <div class="triage-bar-bg" style="margin: 2px 0;">
+                    <div class="triage-bar-fill" style="width: ${Math.min(100, hogPct)}%; background: #38bdf8;"></div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          `}
+        </div>
+
+        <!-- Right: Top 15 Large Files -->
+        <div class="card" style="padding: 16px; background: rgba(15, 23, 42, 0.3); border: 1px solid var(--card-border); border-radius: 8px;">
+          <h5 style="margin: 0 0 12px 0; font-size: 0.88rem; display: flex; align-items: center; gap: 6px;">
+            <span>📄</span> <span>${t('triage_top_files', 'Top 15 Largest Files (>15MB)')}</span>
+          </h5>
+          ${(!data.top_files || data.top_files.length === 0) ? `
+            <div style="padding: 14px; text-align: center; color: var(--text-muted); font-size: 0.82rem;">${t('triage_no_top_files', 'No individual files over 15MB found.')}</div>
+          ` : `
+            <div style="display: flex; flex-direction: column; gap: 6px; max-height: 400px; overflow-y: auto;">
+              ${data.top_files.map(f => {
+                const isTruncatable = isTruncatableLog(f.path);
+                const isDb = isDatabasePath(f.path);
+                return `
+                  <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 6px 10px; border-radius: 6px; font-size: 0.78rem; gap: 8px;">
+                    <div style="min-width: 0; flex: 1;">
+                      <div style="font-family: monospace; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(f.path)}">
+                        ${escapeHtml(f.path)}
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
+                        <span style="color: #38bdf8; font-weight: 600; font-size: 0.72rem;">${escapeHtml(f.human_size)}</span>
+                        ${isDb ? `<span style="font-size: 0.68rem; color: #a78bfa; background: rgba(167, 139, 250, 0.15); border: 1px solid rgba(167, 139, 250, 0.3); border-radius: 3px; padding: 1px 4px;">${t('triage_db_file_badge', '🛡️ Database File (Protected)')}</span>` : ''}
+                      </div>
+                    </div>
+                    <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                      ${isTruncatable ? `
+                        <button class="btn btn-sm btn-danger" onclick="executeTruncateFile(${data.host_id}, decodeURIComponent('${encodeURIComponent(f.path)}'))" style="padding: 2px 6px; font-size: 0.7rem;" title="${t('triage_truncate_hint', 'Empty this file (0-byte)')}">
+                          ✂️
+                        </button>
+                      ` : ''}
+                      <button class="btn btn-sm" onclick="openFileManagerAtPath(decodeURIComponent('${encodeURIComponent(f.path)}'), false)" style="padding: 2px 6px; font-size: 0.7rem;" title="${t('triage_open_fm_parent', 'Open parent directory in File Manager')}">
+                        📂
+                      </button>
+                      <button class="btn btn-sm" onclick="openTerminalForPath(decodeURIComponent('${encodeURIComponent(f.path)}'), false)" style="padding: 2px 6px; font-size: 0.7rem;" title="${t('triage_open_term_path', 'Open Terminal at this path')}">
+                        💻
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function executeSafeReclaim(hostID, actionKey, actionName, command) {
+  const triage = currentStorageTriageData;
+  const needsElevation = triage && !triage.is_root && !triage.has_sudo;
+  const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+
+  let sudoPassword = '';
+  if (needsElevation) {
+    sudoPassword = await showPasswordPrompt({
+      title: isID ? `Autentikasi Sudo / Root: ${actionName}` : `Sudo / Root Authentication: ${actionName}`,
+      message: isID
+        ? `User SSH bukan root dan tidak memiliki hak passwordless sudo.\n\nPerintah:\n${command}\n\nMasukkan password sudo atau root server untuk melanjutkan:`
+        : `SSH user is not root and lacks passwordless sudo privileges.\n\nCommand:\n${command}\n\nEnter server sudo or root password to continue:`,
+      confirmText: t('triage_clean_now', 'Clean Now')
+    });
+    if (sudoPassword === null) return;
+  } else {
+    const confirmed = await showConfirm({
+      title: isID ? `Konfirmasi Pembersihan: ${actionName}` : `Confirm Reclaim: ${actionName}`,
+      message: isID
+        ? `Aksi ini akan menjalankan perintah pembersihan aman melalui SSH:\n\n${command}\n\nLanjutkan eksekusi?`
+        : `This action will execute safe cleanup via SSH:\n\n${command}\n\nProceed?`,
+      confirmText: t('triage_clean_now', 'Clean Now'),
+      danger: false
+    });
+    if (!confirmed) return;
+  }
+
+  try {
+    showToast(isID ? `Menjalankan ${actionName}...` : `Running ${actionName}...`, 'info');
+    const res = await fetch(`/api/hosts/${hostID}/storage-reclaim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_key: actionKey, sudo_password: sudoPassword })
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      const errStr = (result.error || result.output || '').toLowerCase();
+      if (!sudoPassword && (errStr.includes('permission denied') || errStr.includes('hak root/sudo') || errStr.includes('privilege'))) {
+        const retryPass = await showPasswordPrompt({
+          title: isID ? 'Hak Akses Ditolak (Permission Denied)' : 'Access Denied (Permission Denied)',
+          message: isID
+            ? `Eksekusi ditolak server karena user SSH tidak memiliki hak root/sudo.\n\nMasukkan password sudo atau root server untuk mencoba lagi:`
+            : `Execution was denied because SSH user lacks root/sudo privileges.\n\nEnter server sudo or root password to retry:`,
+          confirmText: isID ? 'Coba Lagi dengan Sudo' : 'Retry with Sudo'
+        });
+        if (retryPass !== null && retryPass.trim() !== '') {
+          return executeSafeReclaimWithPassword(hostID, actionKey, actionName, retryPass);
+        }
+      }
+      throw new Error(result.error || result.output || (isID ? 'Gagal mengeksekusi' : 'Execution failed'));
+    }
+    showToast(isID ? `Berhasil membersihkan: ${actionName}` : `Successfully cleaned: ${actionName}`, 'success');
+    runStorageTriageProbe(hostID, true);
+  } catch (err) {
+    showToast(isID ? `Gagal: ${err.message}` : `Failed: ${err.message}`, 'error');
+  }
+}
+
+async function executeSafeReclaimWithPassword(hostID, actionKey, actionName, sudoPassword) {
+  const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  try {
+    showToast(isID ? `Menjalankan ${actionName} dengan hak akses sudo/root...` : `Running ${actionName} with sudo/root privileges...`, 'info');
+    const res = await fetch(`/api/hosts/${hostID}/storage-reclaim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_key: actionKey, sudo_password: sudoPassword })
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      throw new Error(result.error || result.output || (isID ? 'Gagal mengeksekusi' : 'Execution failed'));
+    }
+    showToast(isID ? `Berhasil membersihkan: ${actionName}` : `Successfully cleaned: ${actionName}`, 'success');
+    runStorageTriageProbe(hostID, true);
+  } catch (err) {
+    showToast(isID ? `Gagal: ${err.message}` : `Failed: ${err.message}`, 'error');
+  }
+}
+
+async function executeTruncateFile(hostID, filePath) {
+  const triage = currentStorageTriageData;
+  const needsElevation = triage && !triage.is_root && !triage.has_sudo;
+  const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+
+  let sudoPassword = '';
+  if (needsElevation) {
+    sudoPassword = await showPasswordPrompt({
+      title: isID ? 'Autentikasi Sudo / Root (Truncate Log)' : 'Sudo / Root Authentication (Truncate Log)',
+      message: isID
+        ? `User SSH bukan root. Masukkan password sudo / root server untuk mengosongkan berkas log menjadi 0-byte:\n\nPath: ${filePath}\nPerintah: truncate -s 0 '${filePath}'`
+        : `SSH user is not root. Enter server sudo / root password to truncate log file to 0-byte:\n\nPath: ${filePath}\nCommand: truncate -s 0 '${filePath}'`,
+      confirmText: 'Truncate (0-byte)'
+    });
+    if (sudoPassword === null) return;
+  } else {
+    const confirmed = await showConfirm({
+      title: isID ? 'Konfirmasi Log Truncation' : 'Confirm Log Truncation',
+      message: isID
+        ? `Aksi ini akan mengosongkan berkas log menjadi 0-byte secara in-place:\n\nPath: ${filePath}\nPerintah: truncate -s 0 '${filePath}'\n\nIsi riwayat teks log akan dihapus secara permanen, namun file descriptor proses tetap aman. Lanjutkan?`
+        : `This action will safely empty the log file to 0-byte in-place:\n\nPath: ${filePath}\nCommand: truncate -s 0 '${filePath}'\n\nLog text history will be permanently cleared, but process file descriptors remain intact. Proceed?`,
+      confirmText: 'Truncate (0-byte)',
+      danger: true
+    });
+    if (!confirmed) return;
+  }
+
+  try {
+    showToast(isID ? `Mengosongkan berkas ${filePath}...` : `Truncating file ${filePath}...`, 'info');
+    const res = await fetch(`/api/hosts/${hostID}/storage-reclaim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_key: 'truncate', target_path: filePath, sudo_password: sudoPassword })
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      const errStr = (result.error || result.output || '').toLowerCase();
+      if (!sudoPassword && (errStr.includes('permission denied') || errStr.includes('hak root/sudo') || errStr.includes('privilege'))) {
+        const retryPass = await showPasswordPrompt({
+          title: isID ? 'Hak Akses Ditolak (Permission Denied)' : 'Access Denied (Permission Denied)',
+          message: isID
+            ? `Eksekusi ditolak server karena user SSH tidak memiliki hak menulis ke berkas ini.\n\nMasukkan password sudo atau root server untuk mencoba lagi:`
+            : `Execution was denied because SSH user lacks write permissions for this file.\n\nEnter server sudo or root password to retry:`,
+          confirmText: isID ? 'Coba Lagi dengan Sudo' : 'Retry with Sudo'
+        });
+        if (retryPass !== null && retryPass.trim() !== '') {
+          return executeTruncateFileWithPassword(hostID, filePath, retryPass);
+        }
+      }
+      throw new Error(result.error || result.output || (isID ? 'Gagal mengosongkan berkas' : 'Failed to truncate file'));
+    }
+    showToast(isID ? 'Berkas berhasil dikosongkan (0-byte)' : 'File successfully truncated (0-byte)', 'success');
+    runStorageTriageProbe(hostID, true);
+  } catch (err) {
+    showToast(`Truncate error: ${err.message}`, 'error');
+  }
+}
+
+async function executeTruncateFileWithPassword(hostID, filePath, sudoPassword) {
+  const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  try {
+    showToast(isID ? 'Mengosongkan berkas dengan hak akses sudo/root...' : 'Truncating file with sudo/root privileges...', 'info');
+    const res = await fetch(`/api/hosts/${hostID}/storage-reclaim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_key: 'truncate', target_path: filePath, sudo_password: sudoPassword })
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      throw new Error(result.error || result.output || (isID ? 'Gagal mengosongkan berkas' : 'Failed to truncate file'));
+    }
+    showToast(isID ? 'Berkas berhasil dikosongkan (0-byte)' : 'File successfully truncated (0-byte)', 'success');
+    runStorageTriageProbe(hostID, true);
+  } catch (err) {
+    showToast(`Truncate error: ${err.message}`, 'error');
+  }
+}
+
+async function executeReloadService(hostID, unitName) {
+  const triage = currentStorageTriageData;
+  const needsElevation = triage && !triage.is_root && !triage.has_sudo;
+  const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+
+  let sudoPassword = '';
+  if (needsElevation) {
+    sudoPassword = await showPasswordPrompt({
+      title: isID ? 'Autentikasi Sudo / Root (Reload Service)' : 'Sudo / Root Authentication (Reload Service)',
+      message: isID
+        ? `User SSH bukan root. Masukkan password sudo / root server untuk me-reload service '${unitName}':\n\nPerintah: systemctl reload '${unitName}'`
+        : `SSH user is not root. Enter server sudo / root password to reload service '${unitName}':\n\nCommand: systemctl reload '${unitName}'`,
+      confirmText: isID ? 'Reload Service' : 'Reload Service'
+    });
+    if (sudoPassword === null) return;
+  } else {
+    const confirmed = await showConfirm({
+      title: isID ? 'Konfirmasi Graceful Reload Service' : 'Confirm Graceful Service Reload',
+      message: isID
+        ? `Aksi ini akan memerintahkan systemd untuk me-reload service '${unitName}' agar melepas file descriptor terhapus (Ghost File):\n\nPerintah: systemctl reload '${unitName}'\n\nLanjutkan?`
+        : `This action will instruct systemd to reload service '${unitName}' to release deleted file descriptors (Ghost Files):\n\nCommand: systemctl reload '${unitName}'\n\nProceed?`,
+      confirmText: isID ? 'Reload Service' : 'Reload Service',
+      danger: false
+    });
+    if (!confirmed) return;
+  }
+
+  try {
+    showToast(isID ? `Me-reload service ${unitName}...` : `Reloading service ${unitName}...`, 'info');
+    const res = await fetch(`/api/hosts/${hostID}/storage-reclaim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_key: 'reload_service', target_path: unitName, sudo_password: sudoPassword })
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      const errStr = (result.error || result.output || '').toLowerCase();
+      if (!sudoPassword && (errStr.includes('permission denied') || errStr.includes('hak root/sudo') || errStr.includes('privilege'))) {
+        const retryPass = await showPasswordPrompt({
+          title: isID ? 'Hak Akses Ditolak (Permission Denied)' : 'Access Denied (Permission Denied)',
+          message: isID
+            ? `Eksekusi ditolak server karena user SSH tidak memiliki hak me-reload service '${unitName}'.\n\nMasukkan password sudo atau root server untuk mencoba lagi:`
+            : `Execution was denied because SSH user lacks root/sudo privileges to reload service '${unitName}'.\n\nEnter server sudo or root password to retry:`,
+          confirmText: isID ? 'Coba Lagi dengan Sudo' : 'Retry with Sudo'
+        });
+        if (retryPass !== null && retryPass.trim() !== '') {
+          return executeReloadServiceWithPassword(hostID, unitName, retryPass);
+        }
+      }
+      throw new Error(result.error || result.output || (isID ? 'Gagal me-reload service' : 'Failed to reload service'));
+    }
+    showToast(isID ? `Service ${unitName} berhasil di-reload` : `Service ${unitName} successfully reloaded`, 'success');
+    runStorageTriageProbe(hostID, true);
+  } catch (err) {
+    showToast(`Reload error: ${err.message}`, 'error');
+  }
+}
+
+async function executeReloadServiceWithPassword(hostID, unitName, sudoPassword) {
+  const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  try {
+    showToast(isID ? `Me-reload service ${unitName} dengan hak akses sudo/root...` : `Reloading service ${unitName} with sudo/root privileges...`, 'info');
+    const res = await fetch(`/api/hosts/${hostID}/storage-reclaim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_key: 'reload_service', target_path: unitName, sudo_password: sudoPassword })
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      throw new Error(result.error || result.output || (isID ? 'Gagal me-reload service' : 'Failed to reload service'));
+    }
+    showToast(isID ? `Service ${unitName} berhasil di-reload` : `Service ${unitName} successfully reloaded`, 'success');
+    runStorageTriageProbe(hostID, true);
+  } catch (err) {
+    showToast(`Reload error: ${err.message}`, 'error');
+  }
+}
+
+function openStorageTriageFromAlert(hostID) {
+  closeAlertOverlay();
+  openHostDetail(hostID).then(() => {
+    switchTab('storage');
+  });
+}
+
+function openFileManagerAtPath(targetPath, isDir = false) {
+  let p = targetPath || '/';
+  if (!isDir && p.includes('/') && !p.endsWith('/')) {
+    const lastSlash = p.lastIndexOf('/');
+    p = lastSlash === 0 ? '/' : p.substring(0, lastSlash);
+  }
+  if (currentHost) {
+    currentHost._lastPath = p;
+    if (currentHost.id) {
+      setHostFilesPath(currentHost.id, p);
+    }
+  }
+  switchTab('files');
 }
 
 async function generateBaseline(hostID) {

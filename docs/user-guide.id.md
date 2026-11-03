@@ -23,6 +23,7 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
    - [Metrik Time-Series, Telemetri Aplikasi & Tren Temporal](#metrik-time-series-telemetri-aplikasi--tren-temporal)
    - [Inventarisasi Paket & Audit Higienitas Software](#inventarisasi-paket--audit-higienitas-software)
    - [Mendeteksi Drift & Root Cause Excerpt](#mendeteksi-drift--root-cause-excerpt)
+   - [Triage Penyimpanan Tanpa Agen, Deteksi File Runaway & Pembersihan Aman](#triage-penyimpanan-tanpa-agen-deteksi-file-runaway--pembersihan-aman)
    - [Investigasi Interaktif via Terminal Dock & Terminal Preset](#investigasi-interaktif-via-terminal-dock--terminal-preset)
    - [Jembatan Native Terminal & Akses Shell Desktop](#jembatan-native-terminal--akses-shell-desktop)
    - [In-App Activity Console & Live Telemetry Stream](#in-app-activity-console--live-telemetry-stream)
@@ -212,6 +213,42 @@ Pada setiap siklus **Inspection** berkala (standar: setiap 5 menit) atau saat di
    - Exit code container beserta indikator terminasi kehabisan memori (`OOMKilled`).
    - Potongan 50 baris log terakhir penyebab crash melalui `docker logs --tail 50 <container>` atau `journalctl -u <service> -n 50 --no-pager`.
 4. **Root Cause Excerpt** langsung disajikan di lini masa insiden pada **Workspace Modal** dan dikirimkan ke **Notification Channel** (Telegram bot / Webhook).
+
+### Triage Penyimpanan Tanpa Agen, Deteksi File Runaway & Pembersihan Aman
+
+Ketika utilisasi kapasitas partisi disk melonjak mendekati kejenuhan (>85% atau >90%), pembacaan metrik konvensional (`df`) hanya memberi tahu *bahwa* disk penuh, tetapi tidak mengungkap *mengapa* atau *apa* yang menyerap kapasitas tersebut. Fitur **Storage Triage** Pantau menyediakan mesin investigasi forensik interaktif berbasis on-demand untuk mengidentifikasi space hogs, melacak stealth unlinked ghost files, mendeteksi runaway logs, serta membersihkan ruang penyimpanan secara aman tanpa perlu memasang daemon telemetri latar belakang:
+
+- **Probe Forensik On-Demand 1-Klik**:
+  - Triage dieksekusi murni secara on-demand—bukan bagian dari background polling periodik yang berpotensi membebani I/O disk server produksi.
+  - Eksekusi dibatasi secara deterministik dengan batas waktu aman (20–40 detik) menggunakan wrapper POSIX (`timeout -k 2s 40s`).
+  - **Triage Concurrency Guard**: Penguncian in-memory singleflight per host mencegah penumpukan pemindaian paralel jika banyak administrator memicu triage secara bersamaan.
+- **Load-Aware Throttling & Cooldown Guard**:
+  - **Interval Cooldown Adaptif**: Menetapkan masa jeda 2 menit pada kondisi beban normal, dan secara adaptif diperpanjang menjadi 5 menit jika aktivitas penulisan disk host berada di antara 15 MB/s hingga 40 MB/s.
+  - **Proteksi Beban Tinggi**: Pemindaian otomatis ditolak sementara (`HTTP 429 Too Many Requests`) apabila laju penulisan disk melebihi 40 MB/s atau rata-rata CPU load melampaui 2× jumlah core CPU, melindungi server produksi yang sedang sibuk dari risiko bottleneck I/O.
+  - **Emergency Force Scan**: Administrator dapat mengabaikan timer cooldown yang sedang berjalan selama penanganan insiden kritis menggunakan opsi force scan darurat (`?force=true`) dengan dialog konfirmasi risiko.
+  - **Reset Cooldown Otomatis**: Setiap eksekusi aksi pembersihan aman (*safe reclaim*) atau pemangkasan log (*log truncation*) yang berhasil akan otomatis mereset timer cooldown host, memungkinkan verifikasi instan terhadap ruang disk yang baru saja dibebaskan.
+- **Deteksi Kapasitas Bertingkat POSIX**:
+  - **Space Hogs (Direktori Tingkat Pertama)**: Mengukur konsumsi ruang pada subdirektori langsung di mount target menggunakan `du -kx --max-depth=1 /` dengan flag `-x` (*one-file-system*), mencegah pemindaian menyeberang ke filesystem virtual (`/proc`, `/sys`) atau mount jaringan (NFS/CIFS). Nama folder yang mengandung spasi dipertahankan utuh tanpa terpotong.
+  - **Top Large Files**: Mengidentifikasi 15 berkas terbesar pada partisi yang melebihi 15MB (`find <mount> -xdev -type f -size +15M`), disajikan lengkap dengan ukuran dan tautan aksi cepat.
+  - **Runaway Files (Lonjakan Pembengkakan Cepat)**: Melacak berkas berukuran besar yang termodifikasi aktif dalam 60 menit terakhir (`mmin -60`) yang berkorelasi dengan laju penulisan disk tinggi. Untuk mencegah alarm palsu, Pantau menerapkan **eksklusi ketat mesin DBMS**, secara sengaja mengabaikan direktori database aktif (`mysql`, `mariadb`, `postgresql`, `redis`, `mongodb`, Docker volumes) serta file database relasional (`.ibd`, `.frm`, `.myd`, `.sqlite*`, `.db`, `.rdb`, `.wal`) di mana frekuensi modifikasi tinggi merupakan karakteristik transaksi operasional normal.
+  - **Ghost Files (Unlinked Open File Descriptors)**: Menemukan berkas yang telah dihapus (*unlinked*) namun alokasi blok disknya masih tertahan karena file descriptor-nya masih dibuka oleh proses aktif. Dipindai via `lsof +L1` atau audit procfs fallback (`/proc/*/fd` dengan `stat -L -c %s`), menampilkan nama proses penahan, PID, path asli berkas, dan kuantitas byte yang tertahan.
+- **Katalog Pembersihan Aman Terkurasi (Safe Reclaim)**:
+  Pantau mendeteksi distribusi Linux dan paket yang terpasang pada host target, hanya menyajikan aksi pembersihan yang terbukti aman (*idempotent & non-destructive*):
+  - **Systemd Journal Vacuum**: `journalctl --vacuum-time=3d` atau `journalctl --vacuum-size=200M`.
+  - **Package Manager Cache**: `apt-get clean` (Debian/Ubuntu), `dnf clean all` (RHEL/Rocky/Alma), `pacman -Scc --noconfirm` (Arch), atau `apk cache clean` (Alpine).
+  - **Rotated Archive Logs**: Menghapus arsip log rotasi terkompresi di `/var/log/` yang berakhiran `*.gz`, `*.[0-9].gz`, atau `*.1`.
+  - **Systemd Core Dumps**: Membersihkan berkas crash dump di `/var/lib/systemd/coredump/*`.
+  - **Docker Prune**: Mengeksekusi secara aman `docker system prune -af` (membersihkan image yang tidak digunakan, container yang berhenti, dan build cache) serta `docker builder prune -f` jika daemon Docker aktif.
+  - **Eksklusi Mutlak `/tmp`**: Pantau melarang keras penghapusan direktori `/tmp` secara serampangan untuk melindungi socket UNIX domain yang sedang aktif dan berkas sesi aplikasi.
+- **Log Truncation Aman Secara In-Place**:
+  - Alih-alih menjalankan perintah berbahaya `rm` pada file log aktif (yang justru melahirkan ghost files), Pantau menerapkan **pemangkasan in-place ke 0-byte** (`truncate -s 0 <path>`), membebaskan ruang disk seketika tanpa mengubah inode atau memutus file descriptor proses yang berjalan.
+  - **Proteksi Keamanan & Path Traversal**: Permintaan pemangkasan disanitasi menggunakan `path.Clean`, menolak traversal path relatif (`..`), dan memblokir direktori sistem krusial (`/`, `/etc`, `/usr`, `/boot`, `/lib`, `/dev`, `/proc`, `/sys`).
+- **Graceful Service Reload untuk Ghost Files**:
+  - Memungkinkan administrator memicu `systemctl reload <service>` langsung dari panel ghost files, melepas file descriptor yang tertahan dan membebaskan kapasitas disk tanpa mematikan layanan (*zero downtime*).
+  - Menyediakan tombol pintas untuk membuka Terminal Dock langsung ke direktori proses penahan.
+- **Tautan Cepat Deep-Links & Peringatan Dashboard**:
+  - **Pintasan Alert Banner**: Saat kapasitas partisi melampaui batas waspada (>85%), bilah alert global menampilkan tombol deep-link instan `[🔍 Buka Storage Triage]`.
+  - **Aksi Cepat Kartu Host**: Kartu host pada tampilan Grid dan List menyematkan tombol triage kontekstual di sebelah indikator penggunaan penyimpanan.
 
 ### Investigasi Interaktif via Terminal Dock & Terminal Preset
 

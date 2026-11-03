@@ -23,6 +23,7 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
    - [Time-Series Metrics, Application Telemetry & Temporal Trends](#time-series-metrics-application-telemetry--temporal-trends)
    - [Package Inventory & Software Hygiene Audit](#package-inventory--software-hygiene-audit)
    - [Detecting Drift & Root Cause Excerpts](#detecting-drift--root-cause-excerpts)
+   - [Agentless Storage Triage, Runaway Detection & Safe Reclaim](#agentless-storage-triage-runaway-detection--safe-reclaim)
    - [Interactive Diagnostics via Terminal Dock & Terminal Presets](#interactive-diagnostics-via-terminal-dock--terminal-presets)
    - [Native OS Terminal Bridge & Desktop Shell Access](#native-os-terminal-bridge--desktop-shell-access)
    - [In-App Activity Console & Live Telemetry Stream](#in-app-activity-console--live-telemetry-stream)
@@ -212,6 +213,42 @@ During every scheduled **Inspection** cycle (default: every 5 minutes) or upon m
    - Container exit code and `OOMKilled` status flag.
    - Last 50 lines of crash output from `docker logs --tail 50 <container>` or `journalctl -u <service> -n 50 --no-pager`.
 4. The **Root Cause Excerpt** is rendered directly in the **Workspace Modal** incident timeline and dispatched to configured **Notification Channels** (Telegram bot / Webhooks).
+
+### Agentless Storage Triage, Runaway Detection & Safe Reclaim
+
+When disk partition usage escalates toward saturation (>85% or >90%), standard metric gauges (`df`) indicate *that* storage is depleted, but cannot identify *why* or *what* is consuming capacity. Pantau's **Storage Triage** delivers an interactive, on-demand forensic investigation engine designed to rapidly identify space hogs, discover stealth unlinked ghost files, detect runaway logs, and safely reclaim storage without installing background telemetry daemons:
+
+- **1-Click Forensic On-Demand Probes**:
+  - Triage runs entirely on-demand—never as an aggressive background polling task that could saturate production disk I/O.
+  - Execution is bounded by a deterministic timeout (20–40 seconds) using POSIX wrappers (`timeout -k 2s 40s`).
+  - **Triage Concurrency Guard**: An in-memory singleflight lock per host prevents concurrent overlapping scans when multiple operators trigger triage simultaneously.
+- **Load-Aware Throttling & Cooldown Guard**:
+  - **Adaptive Cooldown Intervals**: Enforces a 2-minute cooldown under normal conditions, extending to a 5-minute cooldown if host disk write activity is between 15 MB/s and 40 MB/s.
+  - **High Load Protection**: Scans are proactively blocked (`HTTP 429 Too Many Requests`) if disk write speed exceeds 40 MB/s or CPU load exceeds 2× available CPU cores, shielding busy production servers from I/O bottlenecks.
+  - **Emergency Force Scan**: Operators can bypass active cooldown timers during critical outage responses via the emergency force scan option (`?force=true`) with an explicit confirmation dialog.
+  - **Automatic Cooldown Reset**: Successfully executing any safe reclaim action or log truncation instantly clears the host's cooldown lock, allowing immediate re-verification of newly freed capacity.
+- **Tiered POSIX Space Discovery**:
+  - **Space Hogs (Level-1 Directories)**: Measures storage consumption across immediate subdirectories on the root mount via `du -kx --max-depth=1 /` with the `-x` (*one-file-system*) flag, strictly preventing scans from crossing into virtual filesystems (`/proc`, `/sys`) or network mounts (NFS/CIFS). Directory paths with spaces are preserved without truncation.
+  - **Top Large Files**: Identifies the 15 largest individual files on the mount point exceeding 15MB (`find <mount> -xdev -type f -size +15M`), displayed with size and quick-action links.
+  - **Runaway Files (Accelerated Growth)**: Detects large files actively modified within the trailing 60 minutes (`mmin -60`) that correlate with elevated disk write rates. To prevent false alarms, Pantau enforces **strict DBMS exclusions**, deliberately ignoring active database engine directories (`mysql`, `mariadb`, `postgresql`, `redis`, `mongodb`, Docker volumes) and relational database files (`.ibd`, `.frm`, `.myd`, `.sqlite*`, `.db`, `.rdb`, `.wal`) where high modification frequency is part of standard transactional workloads.
+  - **Ghost Files (Unlinked Open File Descriptors)**: Discovers deleted files whose disk blocks remain allocated because active processes retain open file descriptors. Scanned via `lsof +L1` or procfs fallback (`/proc/*/fd` with `stat -L -c %s`), revealing the holding process name, PID, original file path, and withheld bytes.
+- **Curated Safe Reclaim Catalog**:
+  Pantau inspects the target distribution and packages, presenting only idempotent, non-destructive reclaim operations:
+  - **Systemd Journal Vacuum**: `journalctl --vacuum-time=3d` or `journalctl --vacuum-size=200M`.
+  - **Package Manager Cache**: `apt-get clean` (Debian/Ubuntu), `dnf clean all` (RHEL/Rocky/Alma), `pacman -Scc --noconfirm` (Arch), or `apk cache clean` (Alpine).
+  - **Rotated Archive Logs**: Purges compressed archive logs in `/var/log/` matching `*.gz`, `*.[0-9].gz`, or `*.1`.
+  - **Systemd Core Dumps**: Clears system crash dumps in `/var/lib/systemd/coredump/*`.
+  - **Docker Prune**: Safely triggers `docker system prune -af` (reclaiming unused images, stopped containers, and build cache) and `docker builder prune -f` when the Docker daemon is active.
+  - **Strict `/tmp` Exclusion**: Pantau categorically excludes arbitrary `/tmp` directory deletion to safeguard active UNIX domain sockets and live session handles.
+- **Prescriptive In-Place Log Truncation**:
+  - Rather than executing dangerous `rm` commands on active logs (which spawns ghost files), Pantau performs **in-place zero-byte truncation** (`truncate -s 0 <path>`), instantly liberating disk space without altering inodes or breaking process file descriptors.
+  - **Security & Path Traversal Guards**: Truncation requests are sanitized with `path.Clean`, strictly reject relative path traversal (`..`), and reject critical system paths (`/`, `/etc`, `/usr`, `/boot`, `/lib`, `/dev`, `/proc`, `/sys`).
+- **Graceful Service Reload for Ghost Files**:
+  - Allows operators to trigger `systemctl reload <service>` directly from the ghost files panel, releasing open file descriptors and reclaiming withheld disk space with zero downtime.
+  - Includes a quick-launch shortcut to open the active Terminal Dock directly focused on the holding process directory.
+- **Deep-Links & Dashboard Alerts**:
+  - **Alert Banner Shortcut**: When partition capacity exceeds warning levels (>85%), the global alert banner surfaces an immediate `[🔍 Run Storage Triage]` deep-link button.
+  - **Host Card Quick Launch**: Host cards in Grid and List views feature contextual triage buttons next to storage usage gauges.
 
 ### Interactive Diagnostics via Terminal Dock & Terminal Presets
 

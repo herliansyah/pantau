@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.0] - 2026-11-02
+### Added
+- Agentless Storage Triage & Runaway Detection: on-demand diagnostic and remediation suite for diagnosing disk saturation, uncovering space hogs, and safely recovering storage capacity over SSH without remote agents.
+  - Tiered Storage Discovery: 1st-level directory space breakdown (`du -kx --max-depth=1`), top large files (>30MB), and detection of active runaway files modified within 60 minutes correlated with Disk I/O Write Rate.
+  - Ghost File Detection: identifies unlinked deleted file descriptors still held open by running processes (`lsof +L1` and `/proc/*/fd` inspection), displaying process name, PID, held bytes, and one-click graceful service reload.
+  - Curated Reclaimable Storage Catalog: distro-aware detection and one-click remediation for systemd journals (`journalctl --vacuum-time=3d`), package manager caches (APT, DNF, Pacman, APK), old rotated logs (`/var/log/*.gz`, `*.1`), coredumps, and Docker system prune.
+  - Safe Log Truncation: in-place 0-byte truncation (`truncate -s 0 <path>`) for runaway log files to prevent ghost files and protect application file descriptors, with strict protected system path rejection.
+  - Triage Concurrency Guard & Timeout Protection: singleflight lock per host preventing parallel disk scan thrashing and 20s timeout wrapper mitigating hung network/NFS mounts.
+  - Host Detail Storage Triage Tab: interactive 4-panel visual dashboard with partition usage bars, reclaimable storage summaries, alert badges, and directory navigation links.
+  - Alert Banner & Overview Deep Links: direct one-click triage navigation from disk saturation alerts in Alert Banner and Root Storage widget in Overview tab.
+  - Bilingual i18n Localization: full bilingual support (Indonesian & English) integrated with language switcher across all Storage Triage components, modals, alerts, and tooltips.
+  - Local & LAN Network Binding: automatic LAN IP discovery and CLI banner display (`-host` / `PANTAU_HOST` env support) allowing seamless browser access from network devices.
+  - Storage Triage Load-Aware Throttling & Cooldown Guard: protects remote hosts from disk I/O saturation and self-inflicted DoS through in-memory tiered rate limiting and telemetry load sensing.
+    - Tiered Cooldowns: enforces 2-minute cooldown on healthy hosts, 5-minute cooldown on busy hosts (Disk Write 15-40 MB/s), and blocks scans on very busy hosts (Disk Write >40 MB/s or CPU Load >2.0x core count).
+    - Backend API Enforcement: `GET /api/hosts/{id}/storage-triage` rejects premature scans with HTTP 429 Too Many Requests, returning remaining cooldown seconds and load metrics. Dedicated `/api/hosts/{id}/storage-triage-throttle` endpoint returns real-time permission status.
+    - Emergency Force Scan: supports `?force=true` override parameter with risk confirmation modal in the UI allowing operators to bypass limits during critical incidents.
+    - Interactive Countdown & Load Badge: dynamic button countdown timer (`Tersedia dlm 01:45`), load state badges (`🟢 Normal`, `🟡 Sibuk`, `🔴 Sangat Sibuk`), and full bilingual localization.
+  - Architectural Decision Record: [ADR-0039](docs/adr/0039-agentless-storage-triage-runaway-detection-and-safe-reclaim.md).
+
+### Changed
+- Pure On-Demand Storage Triage: removed automatic scan execution on disk saturation >= 85% in `renderStorageTriageTab`, ensuring triage probes run purely when explicitly triggered via 'Run Storage Triage' to prevent unexpected remote SSH disk I/O load.
+- Storage Triage Snapshot Display: implemented persistent snapshot view when opening the Storage Triage tab. Displays the most recent scan snapshot immediately (backed by in-memory cache and new `/api/hosts/{id}/storage-triage-latest` backend API) with clean timestamp badge (`Dipindai: [Waktu]`) and direct one-click rescan button, without any intrusive disclaimer cards.
+- Docker System Prune Full Image Cleanup: updated `docker system prune` command from `-f` to `-af` in `ValidateReclaimRequest` and `ReclaimItem.Command`. Docker's default prune without `-a` only removes untagged (dangling) images, causing unused tagged images to remain untouched (0B reclaimed). `-af` thoroughly removes all unused images, inactive containers, networks, and build cache safely without touching persistent docker volumes.
+- Automatic Throttle Reset on Reclaim: automatically clears scan cooldown when a safe reclaim action succeeds, allowing immediate post-remediation rescanning to reflect recovered disk space.
+
+### Fixed
+- Storage Triage Force Scan Modal Stacking: fixed modal overlay appearing behind the active Host Detail modal by dynamically allocating `z-index` above `modalZIndexCounter` (`>= 200000`).
+- Storage Triage Directory & File Navigation: fixed issue where clicking on top level-1 directories (e.g. `/var`, `/tmp`) or files in File Manager or Terminal opened `/` (root) instead of the actual target directory. `openFileManagerAtPath` now sets `_lastPath` before switching tabs, and `openTerminalForPath` strips filenames to target the enclosing directory cleanly with enhanced PTY readiness delay.
+- Storage Triage Zsh Word-Splitting & Probe Resiliency: added `setopt SH_WORD_SPLIT` for hosts where the default SSH user shell is Zsh, resolving an issue where unquoted variable expansions (`$RUN_TIMED`) failed silently with `command not found: timeout 14s stdbuf -oL` causing Top level-1 directory and Top 15 largest files cards to return empty.
+- Storage Triage Per-Directory Traversal: replaced monolithic multi-directory `du` execution with isolated per-directory iteration and cache pruning (`.cache`, `.npm`, `go/pkg/mod`, `.cargo`), ensuring large or slow directory trees do not starve other root partitions or exceed probe timeouts.
+- Storage Triage Scanning State Resilience: fixed race condition where `refreshActiveHostDetailQuietly` background polling every 1.5s called `switchTab` and wiped the active scanning spinner/prompt back to idle while the SSH triage probe was still running in the background.
+- Scoped Host Detail Fast Poll: restricted `refreshActiveHostDetailQuietly` to only update tabs backed by `/api/hosts/{id}` payload (`overview`, `network`, `docker`, `timeline`, `runs`, `desired`), preserving interactive client-side tabs (`storage`, `files`, `metrics`, `netdiag`, `packages`).
+- Triage Scan In-Flight Rendering: updated `renderStorageTriageTab` to detect active scan state and render the running spinner, active SSH command card, and disabled button across tab switches and language toggles.
+- Path Traversal & System Protection in Log Truncation: sanitized paths using `path.Clean`, strictly rejected relative traversal segments (`..`), and blocked truncation against root and critical system directories (`/etc`, `/usr`, `/boot`, `/lib`, `/dev`, `/proc`, `/sys`).
+- Ghost File Size & Path Detection: fixed procfs fallback to compute unlinked file descriptor byte sizes accurately using `stat -L -c %s "$fd"` and resolved `lsof` awk parsing dropping the original path when handling `(deleted)` status tags.
+- Space Hogs Directory Name Whitespace: preserved directory names containing spaces during POSIX `du` output parsing.
+- IPv6 Socket Binding in Port Auto-Scan: used `net.JoinHostPort` in `tryListen` preventing `too many colons in address` parse errors when binding IPv6 addresses.
+- WebSocket Terminal Initial Directory Path: preserved full directory names containing dot characters when launching terminal sessions into specific folder paths.
+- Inline Handler Special Character Escaping: safeguarded inline `onclick` arguments using URI encoding/decoding preventing syntax errors on complex hostnames or directory paths.
+
 ## [0.30.0] - 2026-11-02
 ### Added
 - Zero-Trust Public Status Page & Uptime Rollups: public-facing standalone status page (`/status`) with strict zero-trust boundary isolating internal infrastructure topology and sensitive server telemetry from public visitors.

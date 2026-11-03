@@ -506,3 +506,43 @@ _Avoid_: Incident report, status announcement, outage ticket
 Pembaruan berkala berstempel waktu yang mendokumentasikan perkembangan kronologis penanganan Status Incident (Investigating, Identified, Monitoring, Resolved).
 _Avoid_: Incident log entry, status comment, progress note
 
+**Storage Triage**:
+Modul observabilitas diagnostik on-demand berbasis SSH untuk membedah akar masalah saturasi ruang penyimpanan pada Host tanpa instalasi agen remote.
+_Avoid_: Disk cleaner, space auditor, disk scanner, storage cleaner
+
+**Space Hog**:
+Direktori atau berkas yang mengonsumsi proporsi kapasitas penyimpanan dominan pada partisi target.
+_Avoid_: Big folder, heavy file, disk eater, disk consumer
+
+**Runaway File**:
+Berkas teks log atau temporary dump yang mengalami peningkatan ukuran secara masif dalam rentang waktu singkat (misal akibat error loop tak berhingga), mengecualikan secara mutlak berkas data relasional atau stateful engine (seperti MySQL InnoDB `.ibd`, PostgreSQL base, SQLite `.db`, atau Redis `.rdb`) yang aktif menulis transaksi operasional normal.
+_Avoid_: Rapid file, fast growing log, exploding file, active database file
+
+**Ghost File**:
+Berkas yang telah dihapus (*unlinked*) dari sistem berkas namun alokasi blok disknya masih tertahan karena file descriptor-nya masih dibuka oleh proses aktif.
+_Avoid_: Orphan file, locked deleted file, unreleased file, unlinked fd
+
+**Reclaimable Storage**:
+Kumpulan data non-kritis (cache paket distro, log rotasi kompresi usang, journal vacuumable, atau container build cache) yang dapat dibersihkan dengan aman tanpa mengganggu kestabilan sistem operasi.
+_Avoid_: Junk files, temp trash, safe to delete data, disposable files
+
+**Log Truncation**:
+Prosedur pengosongan isi berkas log aktif ke ukuran 0-byte secara in-place tanpa menghapus inode atau memutus file descriptor proses yang sedang berjalan. Dibatasi secara ketat hanya untuk berkas log/teks non-kritis dan dilarang keras dieksekusi pada berkas biner atau mesin basis data.
+_Avoid_: Log wipe, file delete, log clear, log reset
+
+**Storage Triage Probe**:
+Satu sesi eksekusi diagnostik investigasi ruang penyimpanan yang dijalankan secara asinkron dan berbatas waktu (timeout 20 detik) pada Host target untuk memetakan Space Hog, Runaway File, Ghost File, dan estimasi Reclaimable Storage.
+_Avoid_: Disk scan job, triage test, du runner, storage probe
+
+**Triage Concurrency Guard**:
+Mekanisme penguncian in-flight pada level Host untuk mencegah eksekusi ganda atau penumpukan pemindaian disk paralel saat Storage Triage dipicu berulang kali oleh administrator.
+_Avoid_: Triage lock, scan mutex, du debounce
+
+**Triage Throttle Guard**:
+Mekanisme pembatasan frekuensi eksekusi pemindaian Storage Triage berbasis beban I/O Host target (cooldown 2 menit dalam kondisi normal, 5 menit jika I/O write 15–40 MB/s, dan pemblokiran scan jika write rate > 40 MB/s atau load CPU > 2x core) untuk mencegah saturasi I/O disk, dilengkapi opsi pemindaian darurat (*emergency force scan*) dan reset cooldown otomatis saat aksi reclaim berhasil.
+_Avoid_: Rate limiter, scan throttle, disk blocker, triage cooldown
+
+**Storage Triage Snapshot**:
+Struktur data hasil eksekusi Storage Triage Probe terakhir yang disimpan sementara dalam memori server (TTL in-memory) untuk rendering instan pada Workspace Modal tanpa persistensi permanen ke basis data.
+_Avoid_: Triage cache, disk report, storage dump, storage snapshot
+

@@ -128,23 +128,61 @@ func resolveLogLevel(flagLevel string, quiet bool) slog.Level {
 	return slog.LevelError
 }
 
+func getLANIP() string {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err == nil {
+		defer conn.Close()
+		if localAddr, ok := conn.LocalAddr().(*net.UDPAddr); ok {
+			return localAddr.IP.String()
+		}
+	}
+
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, a := range addrs {
+		if ipNet, ok := a.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+			if ip4 := ipNet.IP.To4(); ip4 != nil {
+				return ip4.String()
+			}
+		}
+	}
+	return ""
+}
+
 // tryListen checks if port p is free on both IPv4 loopback and wildcard interfaces.
 // ponytail: on Windows Winsock, net.Listen("tcp", ":p") binds dual-stack IPv6 without error even if an IPv4 service (e.g. SQLFox) occupies 127.0.0.1:p.
 // Probing 127.0.0.1 via Dial and verifying IPv4 binding ensures busy ports are correctly detected across OSes.
-func tryListen(p int) net.Listener {
-	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", p), 50*time.Millisecond)
-	if err == nil {
-		_ = conn.Close()
-		return nil
+func tryListen(host string, p int) net.Listener {
+	bindAddr := net.JoinHostPort(host, strconv.Itoa(p))
+	if host == "" || host == "0.0.0.0" {
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", p), 50*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+
+		l4, err := net.Listen("tcp4", fmt.Sprintf("127.0.0.1:%d", p))
+		if err != nil {
+			return nil
+		}
+		_ = l4.Close()
+	} else if host == "127.0.0.1" {
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", p), 50*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+	} else {
+		conn, err := net.DialTimeout("tcp", bindAddr, 50*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
 	}
 
-	l4, err := net.Listen("tcp4", fmt.Sprintf("127.0.0.1:%d", p))
-	if err != nil {
-		return nil
-	}
-	_ = l4.Close()
-
-	l, err := net.Listen("tcp", fmt.Sprintf(":%d", p))
+	l, err := net.Listen("tcp", bindAddr)
 	if err != nil {
 		return nil
 	}
@@ -152,8 +190,12 @@ func tryListen(p int) net.Listener {
 }
 
 func listenPort(port int, portExplicit bool) (net.Listener, int, error) {
+	return listenHostPort("", port, portExplicit)
+}
+
+func listenHostPort(host string, port int, portExplicit bool) (net.Listener, int, error) {
 	if portExplicit {
-		l := tryListen(port)
+		l := tryListen(host, port)
 		if l == nil {
 			return nil, port, fmt.Errorf("port %d is already in use", port)
 		}
@@ -161,7 +203,7 @@ func listenPort(port int, portExplicit bool) (net.Listener, int, error) {
 	}
 
 	for p := port; p <= port+19; p++ {
-		if l := tryListen(p); l != nil {
+		if l := tryListen(host, p); l != nil {
 			if p != port {
 				fmt.Printf("⚠️ Port %d was in use, auto-scanned and bound to port %d\n", port, p)
 			}
@@ -180,6 +222,7 @@ func main() {
 	checkUpdateFlag := flag.Bool("check-update", false, "Check for newer Pantau release and exit")
 	updateFlag := flag.Bool("update", false, "Self-update Pantau to latest release and exit")
 	disableUpdateCheckFlag := flag.Bool("disable-update-check", false, "Disable background update checks (recommended for airgapped environments)")
+	hostFlag := flag.String("host", "", "HTTP server bind address (default: all interfaces / LAN) [env: PANTAU_HOST]")
 	portFlag := flag.Int("port", 8080, "HTTP server port")
 	dbFlag := flag.String("db", "pantau.db", "SQLite database file path")
 	openBrowserFlag := flag.Bool("open", runtime.GOOS == "windows", "Open default browser on start")
@@ -248,6 +291,11 @@ func main() {
 		portExplicit = true
 	}
 
+	bindHost := *hostFlag
+	if bindHost == "" {
+		bindHost = os.Getenv("PANTAU_HOST")
+	}
+
 	// ponytail: AcquireWithTimeout allows graceful handover when Pantau restarts itself.
 	guard, runningMeta, err := instance.AcquireWithTimeout(dbPath, port, 3*time.Second)
 	if err == instance.ErrAlreadyRunning {
@@ -259,10 +307,15 @@ func main() {
 			}
 			activePID = runningMeta.PID
 		}
+		lanIP := getLANIP()
 		if activePID > 0 {
-			fmt.Printf("ℹ️ Pantau is already running on http://localhost:%d (PID %d)\n", activePort, activePID)
+			fmt.Printf("ℹ️ Pantau is already running (PID %d):\n", activePID)
 		} else {
-			fmt.Printf("ℹ️ Pantau is already running on http://localhost:%d\n", activePort)
+			fmt.Printf("ℹ️ Pantau is already running:\n")
+		}
+		fmt.Printf("  • Local:   http://localhost:%d\n", activePort)
+		if lanIP != "" {
+			fmt.Printf("  • LAN:     http://%s:%d\n", lanIP, activePort)
 		}
 		if *openBrowserFlag {
 			openBrowser(fmt.Sprintf("http://localhost:%d", activePort))
@@ -321,7 +374,7 @@ func main() {
 	server.StartAutoTriageScheduler(ctx)
 	server.StartTunnelReaper(ctx, 30*time.Second, 3*time.Minute)
 	server.StartStatusPageWorkers(ctx)
-	listener, port, err := listenPort(port, portExplicit)
+	listener, port, err := listenHostPort(bindHost, port, portExplicit)
 	if err != nil {
 		logger.Error("system", "", "Failed to bind port: "+err.Error())
 		fmt.Fprintf(os.Stderr, "❌ Failed to bind port: %v\n", err)
@@ -348,8 +401,16 @@ func main() {
 	})
 
 	go func() {
-		fmt.Printf("🛡️ Pantau running on http://0.0.0.0:%d (Default password: admin)\n\n", port)
-		logger.Info("system", "", fmt.Sprintf("🛡️ Pantau running on http://0.0.0.0:%d", port), "port", port)
+		lanIP := getLANIP()
+		fmt.Printf("🛡️ Pantau running on:\n")
+		fmt.Printf("  • Local:   http://localhost:%d\n", port)
+		if lanIP != "" {
+			fmt.Printf("  • LAN:     http://%s:%d\n", lanIP, port)
+		} else {
+			fmt.Printf("  • Network: http://0.0.0.0:%d\n", port)
+		}
+		fmt.Printf("  (Default credentials: admin / admin)\n\n")
+		logger.Info("system", "", fmt.Sprintf("🛡️ Pantau running on port %d", port), "port", port, "lan_ip", lanIP)
 		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Error("system", "", "HTTP server error: "+err.Error())
 			fmt.Fprintf(os.Stderr, "❌ HTTP server error: %v\n", err)
