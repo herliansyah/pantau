@@ -89,13 +89,21 @@ Pantau menginspeksi host remote melalui koneksi SSH standar menggunakan perintah
 - **Metrik time-series & probing aplikasi**: Penyimpanan riwayat sampel metrik berbasis SQLite lokal dengan kebijakan retensi terkonfigurasi (default 7 hari) dan pembersihan otomatis (*auto-prune*) setiap jam. Visualisasi tren multi-grafik interaktif menggunakan uPlot bawaan (rentang 1h/6h/24h/7d dengan downsampling SQL dinamis), mini-sparkline pada kartu host, serta preset probe bawaan untuk Nginx, MySQL, PHP-FPM, Redis, dan PostgreSQL.
 - Baca selengkapnya pada [Panduan Inspeksi & Observabilitas](docs/user-guide.id.md#4-fase-3-observabilitas-analisis-drift--respons-insiden).
 
-### 2. Desired State Baseline & Diagnostik Insiden
+### 2. Triage Penyimpanan & Deteksi File Runaway Tanpa Agen
+Diagnosis kejenuhan ruang disk seketika tanpa agen, tanpa polling periodik, dan tanpa scanner latar belakang yang membebani server.
+- **Probe triage on-demand**: Inspeksi forensik satu klik dibatasi aman 20–40 detik, dilindungi *concurrency guard* dan *load-aware throttling*.
+- **Peta konsumsi disk bertingkat**: Rincian utilisasi mount point, direktori penyerap ruang utama (*space hogs* level-1 `du`), file berukuran besar (>15MB), dan file runaway yang membesar cepat dalam 60 menit terakhir (mengecualikan mesin DBMS aktif).
+- **Deteksi ghost file**: Mengidentifikasi file terhapus yang masih ditahan oleh proses aktif via inspeksi `lsof` dan `/proc/*/fd` (`stat -L`), lengkap dengan aksi *graceful reload* layanan terkait dalam satu klik.
+- **Pembersihan aman & pemangkasan log**: Katalog kurasi pembersihan untuk journal systemd, cache paket (`apt`, `dnf`, `pacman`, `apk`), file rotasi log, coredump, dan Docker prune (`docker system prune -af`), serta pemangkasan log in-place nol-byte (`truncate -s 0`) yang diproteksi dari directory traversal dan direktori sistem penting.
+- Baca selengkapnya pada [Panduan Triage Penyimpanan](docs/user-guide.id.md#triage-penyimpanan-tanpa-agen-deteksi-file-runaway--pembersihan-aman).
+
+### 3. Desired State Baseline & Diagnostik Insiden
 Definisikan baseline kondisi operasional yang diharapkan untuk kontainer, layanan sistem, batas toleransi disk, dan jadwal backup.
 - **Deteksi drift otomatis**: Memberikan peringatan ketika kontainer berhenti mendadak, layanan systemd gagal berjalan, cron job hilang, atau penggunaan partisi disk melampaui ambang batas aman.
 - **Tangkapan akar penyebab (Root Cause Excerpt)**: Saat layanan atau kontainer mengalami kegagalan (*crash*), Pantau otomatis mencatat *exit code*, status bendera `OOMKilled`, dan potongan log terakhir dari `journalctl` atau `docker logs`.
 - Baca selengkapnya pada [Panduan Desired State & Proteksi](docs/user-guide.id.md#3-fase-2-baseline-desired-state--proteksi-sistem).
 
-### 3. Web Terminal Terpadu & Operasional Remote
+### 4. Web Terminal Terpadu & Operasional Remote
 Kelola server target langsung dari browser tanpa perlu berganti-ganti aplikasi terminal eksternal.
 - **Web terminal multi-tab**: Sesi interaktif PTY berbasis `xterm.js` dan WebSocket, mendukung tampilan terpisah (*split-pane* `Alt+\`), penyesuaian ukuran otomatis, dan *preset* perintah berulang.
 - **SFTP file editor & bookmark**: Navigasi struktur direktori remote, sematkan (*pin*) file konfigurasi atau log penting, dan sunting skrip secara langsung dengan *syntax highlighting*.
@@ -103,14 +111,14 @@ Kelola server target langsung dari browser tanpa perlu berganti-ganti aplikasi t
 - **Bridge terminal desktop lokal**: Buka aplikasi terminal desktop lokal Anda (Windows Terminal, GNOME Terminal, iTerm2, Alacritty) langsung ke server remote dengan 1-klik menggunakan kunci SSH efemeral sementara di RAM.
 - Baca selengkapnya pada [Panduan Terminal & Operasional Remote](docs/user-guide.id.md#investigasi-interaktif-via-terminal-dock--terminal-preset).
 
-### 4. Zero-Disk Streaming & Backup Terenkripsi
+### 5. Zero-Disk Streaming & Backup Terenkripsi
 Transfer data antar-server secara aman dan lindungi seluruh konfigurasi kluster Anda.
 - **Transfer streaming lintas host**: Salin file dan folder antar dua server remote melalui *memory pipe* (`tar` streaming), tanpa pernah menyimpan (*spooling*) data ke disk lokal Pantau, dilengkapi verifikasi integritas opsional SHA-256.
 - **Snapshot sistem terenkripsi**: Ekspor konfigurasi host, baseline, dan kredensial SSH ke dalam arsip snapshot portabel yang diamankan dengan algoritma Argon2id dan AES-256-GCM.
 - **Sinkronisasi pemulihan bencana**: Jadwalkan sinkronisasi otomatis snapshot terenkripsi ke repositori privat GitHub untuk pemulihan cepat saat terjadi bencana (*disaster recovery*).
 - Baca selengkapnya pada [Panduan Transfer Streaming Lintas-Host](docs/user-guide.id.md#cross-host-transfer-pipa-memori-tanpa-disk-lokal).
 
-### 5. Arsitektur Ramah Lingkungan Airgapped
+### 6. Arsitektur Ramah Lingkungan Airgapped
 Dirancang dari awal untuk kebutuhan kepatuhan keamanan tinggi, VPC tertutup, dan intranet tanpa akses internet publik.
 - **Bebas dependensi runtime**: Binary Go mandiri dengan basis data embedded SQLite beroperasi dalam mode Write-Ahead Logging (WAL).
 - **Aset web mandiri (Zero-CDN)**: Seluruh pustaka antarmuka, font, ikon, dan skrip klien (`xterm.js`, `CodeMirror`) disematkan langsung melalui `go:embed` tanpa permintaan jaringan ke CDN eksternal.
@@ -196,6 +204,7 @@ Pantau mendukung konfigurasi melalui flag CLI atau variabel lingkungan (*environ
 | Flag | Variabel Lingkungan | Default | Deskripsi |
 | :--- | :--- | :--- | :--- |
 | `-port` | `PANTAU_PORT` (atau `PORT`) | `8080` | Port listening HTTP (otomatis memindai `8080`–`8099` jika port default terpakai) |
+| `-host` | `PANTAU_HOST` | `""` (semua interface) | Alamat IP atau hostname bind server HTTP (contoh: `127.0.0.1`, `0.0.0.0`, `::1`) |
 | `-db` | `PANTAU_DB` (atau `DB_PATH`) | `pantau.db` | Jalur file basis data SQLite |
 | `-open` | - | `true` (Win) / `false` | Membuka browser default secara otomatis saat dijalankan |
 | `-disable-2fa` | - | `false` | Flag darurat untuk menonaktifkan 2FA TOTP langsung dari terminal host |

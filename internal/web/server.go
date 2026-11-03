@@ -37,6 +37,7 @@ import (
 	"pantau/internal/notify"
 	"pantau/internal/snapshot"
 	"pantau/internal/sshrunner"
+	"pantau/internal/storagetriage"
 	"pantau/internal/store"
 	"pantau/internal/transfer"
 	"pantau/internal/updater"
@@ -83,6 +84,7 @@ type Server struct {
 	snapshotMgr       *snapshot.Manager
 	updaterMgr        *updater.Manager
 	netdiagService    *netdiag.Service
+	storageTriage     *storagetriage.Service
 	mux               *http.ServeMux
 	sessions          sync.Map // token -> expiry
 	temp2FAChallenges sync.Map // tempToken -> *temp2FAChallenge
@@ -139,6 +141,7 @@ func NewServer(db *store.DB, ins *inspector.Inspector, disp *notify.Dispatcher) 
 		transferMgr:        transfer.NewManager(db, nil),
 		snapshotMgr:        snapshot.NewManager(db, nil),
 		netdiagService:     netdiag.NewService(db, ins, disp),
+		storageTriage:      storagetriage.NewService(db, ins),
 		mux:                http.NewServeMux(),
 		statusInvalidateCh: make(chan struct{}, 1),
 		statusLimiter:      newShardedRateLimiter(1.0, 30.0),
@@ -168,6 +171,10 @@ func (s *Server) StartAutoTriageScheduler(ctx context.Context) {
 
 func (s *Server) SetNetdiagService(ns *netdiag.Service) {
 	s.netdiagService = ns
+}
+
+func (s *Server) SetStorageTriageService(st *storagetriage.Service) {
+	s.storageTriage = st
 }
 
 func (s *Server) SetKeyProvisioner(p sshrunner.KeyProvisioner) {
@@ -1489,6 +1496,122 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, "not found", http.StatusNotFound)
 
+	case "storage-triage-throttle":
+		// GET /api/hosts/{id}/storage-triage-throttle
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if s.storageTriage == nil {
+			http.Error(w, "storage triage service not available", http.StatusServiceUnavailable)
+			return
+		}
+		force := r.URL.Query().Get("force") == "true" || r.URL.Query().Get("force") == "1"
+		status, err := s.storageTriage.CheckThrottle(hostID, force)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, status)
+		return
+
+	case "storage-triage-latest":
+		// GET /api/hosts/{id}/storage-triage-latest
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if s.storageTriage == nil {
+			http.Error(w, "storage triage service not available", http.StatusServiceUnavailable)
+			return
+		}
+		res := s.storageTriage.GetLastResult(hostID)
+		if res == nil {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"found": false})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{"found": true, "data": res})
+		return
+
+	case "storage-triage":
+		// GET /api/hosts/{id}/storage-triage
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if s.storageTriage == nil {
+			http.Error(w, "storage triage service not available", http.StatusServiceUnavailable)
+			return
+		}
+		force := r.URL.Query().Get("force") == "true" || r.URL.Query().Get("force") == "1"
+		res, err := s.storageTriage.RunTriage(r.Context(), hostID, force)
+		if err != nil {
+			var rlErr *storagetriage.RateLimitError
+			if errors.As(err, &rlErr) {
+				writeJSON(w, http.StatusTooManyRequests, map[string]interface{}{
+					"ok":                false,
+					"error":             "rate_limited",
+					"reason":            rlErr.Status.Reason,
+					"reason_id":         rlErr.Status.ReasonID,
+					"state":             rlErr.Status.State,
+					"remaining_seconds": rlErr.Status.RemainingSeconds,
+					"cooldown_seconds":  rlErr.Status.CooldownSeconds,
+					"can_force":         rlErr.Status.CanForce,
+					"write_speed_bps":   rlErr.Status.WriteSpeedBps,
+					"cpu_load_1m":       rlErr.Status.CPULoad1m,
+				})
+				return
+			}
+			if errors.Is(err, storagetriage.ErrBusy) {
+				writeJSON(w, http.StatusConflict, map[string]interface{}{"ok": false, "error": err.Error()})
+				return
+			}
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, res)
+		return
+
+	case "storage-triage-cancel":
+		// POST /api/hosts/{id}/storage-triage-cancel
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if s.storageTriage == nil {
+			http.Error(w, "storage triage service not available", http.StatusServiceUnavailable)
+			return
+		}
+		canceled := s.storageTriage.CancelTriage(hostID)
+		writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "canceled": canceled})
+		return
+
+	case "storage-reclaim":
+		// POST /api/hosts/{id}/storage-reclaim
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if s.storageTriage == nil {
+			http.Error(w, "storage triage service not available", http.StatusServiceUnavailable)
+			return
+		}
+		var req storagetriage.ReclaimRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		res, err := s.storageTriage.ExecuteReclaim(r.Context(), hostID, req)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": err.Error()})
+			return
+		}
+		if res.Success {
+			s.storageTriage.ResetThrottle(hostID)
+		}
+		writeJSON(w, http.StatusOK, res)
+		return
+
 	case "metrics":
 		// GET /api/hosts/{id}/metrics?range=24h&category=all
 		if r.Method != http.MethodGet {
@@ -2455,10 +2578,13 @@ func (s *Server) handleWSTerminal(w http.ResponseWriter, r *http.Request) {
 	// Handle initial working directory (Terminal From Path) and preset command execution
 	if strings.TrimSpace(dirParam) != "" || strings.TrimSpace(initialCmd) != "" {
 		go func() {
-			time.Sleep(150 * time.Millisecond)
+			time.Sleep(350 * time.Millisecond)
 			if strings.TrimSpace(dirParam) != "" {
-				escapedDir := strings.ReplaceAll(dirParam, `'`, `'\''`)
-				_, _ = inWriter.Write([]byte(fmt.Sprintf("cd '%s'\n", escapedDir)))
+				cleanDir := strings.TrimSpace(dirParam)
+				escapedDir := strings.ReplaceAll(cleanDir, `'`, `'\''`)
+				// ponytail: If target is a file, navigate to its parent directory; if directory (even with dots in name), cd directly.
+				cdCmd := fmt.Sprintf("cd '%[1]s' 2>/dev/null || ( [ -f '%[1]s' ] && cd \"$(dirname '%[1]s')\" ) 2>/dev/null || true\n", escapedDir)
+				_, _ = inWriter.Write([]byte(cdCmd))
 				if strings.TrimSpace(initialCmd) != "" {
 					time.Sleep(100 * time.Millisecond)
 					execPayload := formatPresetExecution(initialCmd, useTmux)

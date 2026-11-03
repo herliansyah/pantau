@@ -1495,6 +1495,18 @@ func TestPortAutoScanFallback(t *testing.T) {
 	}
 }
 
+func TestListenHostPortIPv6(t *testing.T) {
+	// Verify listenHostPort handles IPv6 address without 'too many colons in address' error
+	l, port, err := listenHostPort("::1", 0, true)
+	if err != nil {
+		t.Fatalf("expected listenHostPort to bind ::1:0, got error: %v", err)
+	}
+	defer l.Close()
+	if port < 0 {
+		t.Fatalf("expected non-negative port, got %d", port)
+	}
+}
+
 func TestEmbeddedDocumentationEndpoint(t *testing.T) {
 	env := setupTestEnv(t)
 
