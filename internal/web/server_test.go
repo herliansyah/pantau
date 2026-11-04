@@ -2305,7 +2305,7 @@ func TestHostListDropdownPositioning(t *testing.T) {
 	if !strings.Contains(html, ".btn-sm.btn-icon { min-width: 24px; height: 24px;") {
 		t.Errorf("expected .btn-sm.btn-icon to define compact 24px height matching view and terminal buttons")
 	}
-	if !strings.Contains(html, ".btn-host-view, .btn-host-terminal { height: 24px; }") {
+	if !strings.Contains(html, ".btn-host-view, .btn-host-terminal, .btn-host-metrics { height: 24px; }") {
 		t.Errorf("expected .btn-host-view and .btn-host-terminal to enforce 24px height")
 	}
 	if !strings.Contains(html, ".dropdown { position: relative; display: inline-flex; }") {

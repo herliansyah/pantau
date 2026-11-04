@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.1] - 2026-11-04
+### Added
+- Host Switcher & Telemetry Shortcut: quick metrics shortcut button on host cards and table rows, host switcher dropdown and prev/next controls in host details modal, and keyboard navigation shortcuts (`[` and `]`) for switching hosts. (#81)
+
+### Fixed
+- Host List Action Button CSS & Alignment: synchronized compact button height (24px) for `.btn-host-metrics` alongside `.btn-host-view` and `.btn-host-terminal`.
+
 ## [0.31.0] - 2026-11-03
 ### Added
 - Agentless Storage Triage & Runaway Detection: on-demand diagnostic and remediation suite for diagnosing disk saturation, uncovering space hogs, and safely recovering storage capacity over SSH without remote agents.
