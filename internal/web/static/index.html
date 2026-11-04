@@ -64,10 +64,25 @@ a.btn:hover { text-decoration: none; color: var(--text); }
 .btn-icon { position: relative; min-width: 32px; height: 32px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; }
 .btn-sm.btn-icon { min-width: 24px; height: 24px; padding: 0 4px; font-size: 0.85rem; line-height: 1; }
 .btn-icon .header-btn-badge, .header-btn-badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 3px; font-size: 0.68rem; font-weight: 700; line-height: 16px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; background: #34d399 !important; color: #064e3b !important; box-shadow: 0 0 0 1.5px var(--card-bg); pointer-events: none; text-align: center; }
-.btn-host-view, .btn-host-terminal { height: 24px; }
+.btn-host-view, .btn-host-terminal, .btn-host-metrics { height: 24px; }
 .host-list-table .btn-inspect-quick { width: 24px; min-width: 24px; height: 24px; border-radius: 6px; }
 .btn-host-terminal { position: relative; width: 26px; min-width: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 .btn-host-terminal .host-terminal-badge { position: absolute; top: -4px; right: -5px; min-width: 14px; height: 14px; padding: 0 3px; font-size: 0.65rem; font-weight: 700; line-height: 14px; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; background: #34d399 !important; color: #064e3b !important; box-shadow: 0 0 0 1.5px var(--card-bg); pointer-events: none; text-align: center; }
+.btn-host-metrics { position: relative; width: 26px; min-width: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: #38bdf8; transition: all 0.15s ease; }
+.btn-host-metrics:hover { color: #fff; background: rgba(56, 189, 248, 0.2); border-color: #38bdf8; }
+.host-nav-btn { width: 26px; height: 26px; min-width: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 5px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--card-border); color: var(--text-muted); cursor: pointer; transition: all 0.15s ease; }
+.host-nav-btn:hover { color: #f8fafc; border-color: #38bdf8; background: rgba(56, 189, 248, 0.15); }
+.host-switcher-trigger { cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
+.host-switcher-trigger:hover { border-color: #38bdf8 !important; background: rgba(56, 189, 248, 0.15) !important; color: #f8fafc !important; }
+.host-switcher-dropdown { box-shadow: 0 16px 36px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(56, 189, 248, 0.25); }
+.host-switch-header { display: grid; grid-template-columns: 60px 1fr 115px 95px; gap: 8px; padding: 4px 8px; font-size: 0.65rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid rgba(51, 65, 85, 0.6); user-select: none; }
+.host-switch-row { display: grid; grid-template-columns: 60px 1fr 115px 95px; gap: 8px; align-items: center; padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: 0.74rem; transition: background 0.12s ease; text-align: left; color: var(--text); border: none; background: transparent; width: 100%; user-select: none; white-space: nowrap; box-sizing: border-box; }
+.host-switch-row:hover, .host-switch-row.highlighted { background: rgba(56, 189, 248, 0.15); color: #f8fafc; }
+.host-switch-row.active { background: rgba(56, 189, 248, 0.22); color: #38bdf8; font-weight: 600; }
+.host-switch-col { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.host-switch-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; transition: background 0.12s ease; text-align: left; color: var(--text); border: none; background: transparent; width: 100%; user-select: none; }
+.host-switch-item:hover, .host-switch-item.highlighted { background: rgba(56, 189, 248, 0.15); color: #f8fafc; }
+.host-switch-item.active { background: rgba(56, 189, 248, 0.25); font-weight: 600; color: #38bdf8; }
 .btn-inspect-quick { width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--card-border); color: var(--text-muted); border-radius: 4px; cursor: pointer; transition: all 0.15s; }
 .btn-inspect-quick:hover { color: #60a5fa; border-color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -2119,7 +2134,47 @@ body.has-workspace-shelf .container {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
         </button>
       </div>
-      <div style="display: flex; align-items: center; gap: 6px;">
+      <div style="display: flex; align-items: center; gap: 6px;" onclick="event.stopPropagation()">
+        <!-- Host Switcher Navigation (Positioned on the Right) -->
+        <div style="display: inline-flex; align-items: center; gap: 3px; margin-right: 4px; padding-right: 8px; border-right: 1px solid var(--card-border);">
+          <button type="button" class="btn btn-sm host-nav-btn" id="btnHostNavPrev" onclick="navigateDetailHost(-1, event)" title="Previous Host ( [ )" data-i18n-title="prev_host">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+
+          <div class="host-switcher-container" style="position: relative; display: inline-flex; align-items: center;">
+            <button type="button" class="btn btn-sm host-switcher-trigger" id="hostSwitcherTriggerBtn" onclick="toggleHostSwitcherDropdown(event)" title="Switch Host" data-i18n-title="host_switcher_title" style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem; padding: 3px 8px; height: 26px; border-radius: 5px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--card-border); color: var(--text-muted);">
+              <span>🖥️</span>
+              <span id="switcherCurrentHostName" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600;">Switch Host</span>
+              <span style="font-size: 0.68rem; opacity: 0.7;">▾</span>
+            </button>
+
+            <!-- Searchable Host Switcher Dropdown Popover (Aligned Right) -->
+            <div id="hostSwitcherDropdown" class="host-switcher-dropdown" style="display: none; position: absolute; top: calc(100% + 5px); right: 0; z-index: 1050; width: 460px; max-width: 92vw; background: #0f172a; border: 1px solid var(--card-border); border-radius: 8px; padding: 8px; backdrop-filter: blur(10px);">
+              <div style="margin-bottom: 6px; position: relative;">
+                <input type="text" id="hostSwitcherSearch" class="form-control" style="width: 100%; box-sizing: border-box; padding: 5px 8px 5px 24px; font-size: 0.76rem; background: #1e293b; border: 1px solid rgba(51, 65, 85, 0.8); border-radius: 5px; color: #f8fafc;" placeholder="Search hosts by name, IP, group..." data-i18n-placeholder="host_switcher_search_ph" oninput="filterHostSwitcherList(this.value)" onkeydown="handleHostSwitcherKeydown(event)" />
+                <span style="position: absolute; left: 7px; top: 50%; transform: translateY(-50%); font-size: 0.72rem; opacity: 0.5;">🔍</span>
+              </div>
+              <div class="host-switch-header">
+                <div>Status</div>
+                <div>Host Name</div>
+                <div>Address / IP</div>
+                <div style="text-align: right;">Group</div>
+              </div>
+              <div id="hostSwitchList" style="max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; margin-top: 2px;">
+                <!-- Populated dynamically as tabular rows -->
+              </div>
+              <div style="border-top: 1px solid rgba(51, 65, 85, 0.4); margin-top: 6px; padding-top: 4px; display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-muted);">
+                <span>Shortcuts: <kbd>[</kbd> Prev / <kbd>]</kbd> Next</span>
+                <span id="hostSwitcherCount">0 hosts</span>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" class="btn btn-sm host-nav-btn" id="btnHostNavNext" onclick="navigateDetailHost(1, event)" title="Next Host ( ] )" data-i18n-title="next_host">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+
         <button class="btn btn-sm btn-modal-minimize" onclick="minimizeHostDetail()" title="Minimize to Workspace Shelf" data-i18n-title="btn_minimize">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
@@ -3481,6 +3536,12 @@ const I18N = {
     "font_size_decrease": "Decrease font size",
     "font_size_increase": "Increase font size",
     "btn_terminal": "Terminal",
+    "btn_metrics_telemetry": "Metrics & Telemetry",
+    "host_switcher_title": "Switch Host",
+    "host_switcher_search_ph": "Search hosts by name, IP, group...",
+    "prev_host": "Previous Host ([)",
+    "next_host": "Next Host (])",
+    "no_hosts_found": "No matching hosts found",
     "open_native_terminal": "Native Terminal",
     "native_term_intro": "Temporary credentials have been prepared for Host <strong id=\"nativeTermHostName\" style=\"color: var(--text);\"></strong>. SSH key will be automatically removed after the session.",
     "native_term_tab_protocol": "⚡ Direct Launch (1-Click)",
@@ -4292,6 +4353,12 @@ const I18N = {
     "font_size_decrease": "Kecilkan ukuran font",
     "font_size_increase": "Besarkan ukuran font",
     "btn_terminal": "Terminal",
+    "btn_metrics_telemetry": "Metrik & Telemetri",
+    "host_switcher_title": "Ganti Host",
+    "host_switcher_search_ph": "Cari host nama, IP, grup...",
+    "prev_host": "Host Sebelumnya ([)",
+    "next_host": "Host Berikutnya (])",
+    "no_hosts_found": "Host tidak ditemukan",
     "open_native_terminal": "Native Terminal",
     "native_term_intro": "Kredensial sementara telah disiapkan untuk Host <strong id=\"nativeTermHostName\" style=\"color: var(--text);\"></strong>. Kunci SSH otomatis dibersihkan setelah sesi digunakan.",
     "native_term_tab_protocol": "⚡ Buka Langsung (1-Klik)",
@@ -6135,6 +6202,7 @@ function renderGridView(grid, isManualSort) {
             ${t('btn_view')}
             <span class="badge host-session-badge" style="${hasActiveSession ? '' : 'display: none;'} font-size: 0.68rem; padding: 1px 4px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);" title="${t('active_session_badge')}">📂</span>
           </button>
+          <button class="btn btn-sm btn-host-metrics" data-host-id="${h.id}" onclick="openHostDetail(${h.id}, 'metrics')" title="${t('btn_metrics_telemetry', 'Metrics & Telemetry')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></button>
           <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'}">${hostTabsCount}</span></button>
           <div class="dropdown" style="margin-left: auto;">
             <button class="btn btn-sm btn-icon" onclick="toggleDropdown(event, ${h.id})" title="${t('more_actions', 'More Actions')}">⋮</button>
@@ -6301,6 +6369,7 @@ function renderListView(listContainer, isManualSort) {
               ${t('btn_view')}
               <span class="badge host-session-badge" style="${hasActiveSession ? '' : 'display: none;'} font-size: 0.68rem; padding: 1px 4px; background: rgba(56, 189, 248, 0.25); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);" title="${t('active_session_badge')}">📂</span>
             </button>
+            <button class="btn btn-sm btn-host-metrics" data-host-id="${h.id}" onclick="openHostDetail(${h.id}, 'metrics')" title="${t('btn_metrics_telemetry', 'Metrics & Telemetry')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></button>
             <button class="btn btn-sm btn-host-terminal" data-host-id="${h.id}" onclick="openHostTerminal(${h.id})" title="${t('btn_terminal')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span class="badge badge-healthy host-terminal-badge" style="${hostTabsCount > 0 ? '' : 'display: none;'}">${hostTabsCount}</span></button>
             <button class="btn btn-sm btn-icon btn-inspect-quick ${h.is_inspecting ? 'spinning' : ''}" id="inspectBtnList-${h.id}" onclick="inspectHost(${h.id}, event)" title="${t('btn_inspect_title', 'Run Inspection (Refresh)')}">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
@@ -6881,6 +6950,7 @@ function closeAllDropdowns() {
   });
   const moreDd = document.getElementById('hostDetailMoreDropdown');
   if (moreDd) moreDd.classList.remove('open');
+  closeHostSwitcherDropdown();
 }
 window.addEventListener('click', closeAllDropdowns);
 
@@ -7198,11 +7268,173 @@ function openTerminalForPath(targetPath, isDir) {
   openTerminalForHost(currentHost.id, null, true, customTitle, dir);
 }
 
-async function openHostDetail(id) {
+function getNavigableHosts() {
+  if (typeof getFilteredAndSortedHosts === 'function') {
+    const list = getFilteredAndSortedHosts();
+    if (list && list.length > 0) return list;
+  }
+  return allRawHosts || [];
+}
+
+async function switchDetailHost(targetId, keepCurrentTab = true) {
+  targetId = parseInt(targetId);
+  if (isNaN(targetId) || !targetId) return;
+  closeHostSwitcherDropdown();
+  if (currentHost && currentHost.id === targetId) return;
+
+  const tabToKeep = (keepCurrentTab && currentTab) ? currentTab : getHostActiveTab(targetId);
+
+  try {
+    const res = await fetch('/api/hosts/' + targetId);
+    if (!res.ok) return;
+    const data = await res.json();
+    currentHost = data.host;
+    currentDetailHostId = targetId;
+    window.detailData = data;
+
+    const nameEl = document.getElementById('detailHostName');
+    if (nameEl) nameEl.innerText = currentHost.name + ' (' + currentHost.host + ')';
+    const badge = document.getElementById('detailHostBadge');
+    if (badge) {
+      badge.className = 'badge badge-' + currentHost.status;
+      badge.innerText = currentHost.status;
+    }
+    const switcherLabel = document.getElementById('switcherCurrentHostName');
+    if (switcherLabel) switcherLabel.innerText = currentHost.name;
+
+    switchTab(tabToKeep);
+    setTimeout(updateHostDetailTabsOverflow, 30);
+
+    const inspectBtn = document.getElementById('inspectBtnModal');
+    if (inspectBtn) {
+      inspectBtn.classList.toggle('spinning', !!currentHost.is_inspecting);
+    }
+
+    if (!currentHost.last_inspected || currentHost.is_inspecting) {
+      scheduleFastPollIfNeeded();
+    }
+  } catch (err) {
+    console.error('switchDetailHost error:', err);
+  }
+}
+
+function navigateDetailHost(delta, event) {
+  if (event) event.stopPropagation();
+  const hosts = getNavigableHosts();
+  if (!hosts || hosts.length <= 1) return;
+  const curId = currentDetailHostId || (currentHost ? currentHost.id : 0);
+  let idx = hosts.findIndex(h => h.id === curId);
+  if (idx === -1) idx = 0;
+  let nextIdx = (idx + delta + hosts.length) % hosts.length;
+  switchDetailHost(hosts[nextIdx].id, true);
+}
+
+function toggleHostSwitcherDropdown(event) {
+  if (event) event.stopPropagation();
+  const dd = document.getElementById('hostSwitcherDropdown');
+  if (!dd) return;
+  const isOpen = dd.style.display === 'block';
+  if (isOpen) {
+    closeHostSwitcherDropdown();
+  } else {
+    closeAllDropdowns();
+    dd.style.display = 'block';
+    renderHostSwitcherList();
+    const input = document.getElementById('hostSwitcherSearch');
+    if (input) {
+      input.value = '';
+      setTimeout(() => input.focus(), 50);
+    }
+  }
+}
+
+function closeHostSwitcherDropdown() {
+  const dd = document.getElementById('hostSwitcherDropdown');
+  if (dd) dd.style.display = 'none';
+}
+
+function renderHostSwitcherList(filterText = '') {
+  const listEl = document.getElementById('hostSwitchList');
+  const countEl = document.getElementById('hostSwitcherCount');
+  if (!listEl) return;
+  const q = (filterText || '').trim().toLowerCase();
+  const hosts = (allRawHosts && allRawHosts.length > 0) ? allRawHosts : getNavigableHosts();
+  const filtered = q
+    ? hosts.filter(h => {
+        const name = (h.name || '').toLowerCase();
+        const host = (h.host || '').toLowerCase();
+        const group = (h.group_name || '').toLowerCase();
+        return name.includes(q) || host.includes(q) || group.includes(q);
+      })
+    : hosts;
+
+  if (countEl) {
+    countEl.innerText = `${filtered.length} / ${hosts.length} hosts`;
+  }
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = `<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 0.75rem;">${escapeHtml(t('no_hosts_found', 'No matching hosts found'))}</div>`;
+    return;
+  }
+
+  const curId = currentDetailHostId || (currentHost ? currentHost.id : 0);
+  listEl.innerHTML = filtered.map((h, idx) => {
+    const isActive = h.id === curId;
+    return `
+      <button type="button" class="host-switch-row ${isActive ? 'active' : ''} ${idx === 0 ? 'highlighted' : ''}" data-host-id="${h.id}" onclick="switchDetailHost(${h.id}, true)">
+        <div class="host-switch-col"><span class="badge badge-${h.status}" style="font-size: 0.62rem; padding: 1px 4px; display: inline-block; width: 50px; text-align: center; text-transform: uppercase;">${h.status}</span></div>
+        <div class="host-switch-col" style="font-weight: 600; color: ${isActive ? '#38bdf8' : 'var(--text)'}; font-size: 0.76rem;">${escapeHtml(h.name)}</div>
+        <div class="host-switch-col" style="font-size: 0.72rem; color: var(--text-muted); font-family: monospace;">${escapeHtml(h.host)}</div>
+        <div class="host-switch-col" style="text-align: right;">${h.group_name ? `<span class="badge" style="font-size: 0.62rem; padding: 1px 4px; background: rgba(56, 189, 248, 0.12); color: #38bdf8;">📁 ${escapeHtml(h.group_name)}</span>` : '<span style="color: var(--text-muted); opacity: 0.35;">-</span>'}</div>
+      </button>
+    `;
+  }).join('');
+}
+
+function filterHostSwitcherList(query) {
+  renderHostSwitcherList(query);
+}
+
+function handleHostSwitcherKeydown(e) {
+  const listEl = document.getElementById('hostSwitchList');
+  if (!listEl) return;
+  const items = Array.from(listEl.querySelectorAll('.host-switch-row, .host-switch-item'));
+  if (items.length === 0) return;
+  let curHighlight = items.findIndex(el => el.classList.contains('highlighted'));
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (curHighlight === -1 || curHighlight >= items.length - 1) curHighlight = 0;
+    else curHighlight++;
+    items.forEach((el, i) => el.classList.toggle('highlighted', i === curHighlight));
+    items[curHighlight]?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (curHighlight <= 0) curHighlight = items.length - 1;
+    else curHighlight--;
+    items.forEach((el, i) => el.classList.toggle('highlighted', i === curHighlight));
+    items[curHighlight]?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const targetItem = (curHighlight >= 0 && items[curHighlight]) ? items[curHighlight] : items[0];
+    if (targetItem) {
+      const hid = parseInt(targetItem.getAttribute('data-host-id'));
+      if (hid) switchDetailHost(hid, true);
+    }
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeHostSwitcherDropdown();
+  }
+}
+
+async function openHostDetail(id, preferredTab) {
   // Smart Resume: restore existing minimized session if present (ADR-0026)
   const existingSession = workspaceSessions.find(s => s.type === 'host' && s.hostId === id);
   if (existingSession) {
     restoreWorkspaceSession(existingSession.id);
+    if (preferredTab) {
+      switchTab(preferredTab);
+    }
     return;
   }
   const res = await fetch('/api/hosts/' + id);
@@ -7215,10 +7447,12 @@ async function openHostDetail(id) {
   const badge = document.getElementById('detailHostBadge');
   badge.className = 'badge badge-' + currentHost.status;
   badge.innerText = currentHost.status;
+  const switcherLabel = document.getElementById('switcherCurrentHostName');
+  if (switcherLabel) switcherLabel.innerText = currentHost.name;
   openModal('hostDetailModal');
   applyHostDetailMaximizeState();
   initHostDetailTabsObserver();
-  const targetTab = getHostActiveTab(currentHost.id);
+  const targetTab = preferredTab || getHostActiveTab(currentHost.id) || 'overview';
   switchTab(targetTab);
   setTimeout(updateHostDetailTabsOverflow, 30);
   if (!currentHost.last_inspected || currentHost.is_inspecting) {
@@ -14271,9 +14505,24 @@ window.addEventListener('resize', () => {
 });
 
 window.addEventListener('keydown', (e) => {
+  const modal = document.getElementById('hostDetailModal');
+  const isModalOpen = modal && modal.classList.contains('open');
+
+  if (isModalOpen) {
+    const isEditing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
+    if (!isEditing) {
+      if (e.key === '[' || (e.altKey && e.key === 'ArrowLeft')) {
+        e.preventDefault();
+        navigateDetailHost(-1);
+      } else if (e.key === ']' || (e.altKey && e.key === 'ArrowRight')) {
+        e.preventDefault();
+        navigateDetailHost(1);
+      }
+    }
+  }
+
   if (e.altKey && (e.key === '\\' || e.code === 'Backslash')) {
-    const modal = document.getElementById('hostDetailModal');
-    if (modal && modal.classList.contains('open') && currentTab === 'terminal') {
+    if (isModalOpen && currentTab === 'terminal') {
       e.preventDefault();
       toggleTerminalSplit();
     }
