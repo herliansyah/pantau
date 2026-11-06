@@ -11427,9 +11427,10 @@ function renderQuickAccessBar() {
 
 function renderBreadcrumbs(currentPath) {
   const isWindows = currentHost && currentHost.os_type === 'windows';
-  if (!currentPath || currentPath === '/' || (isWindows && (currentPath === 'C:' || currentPath === 'C:/'))) {
-    const rootLabel = isWindows ? '📁 C:' : '📁 /';
-    const rootPath = isWindows ? 'C:/' : '/';
+  if (!currentPath || currentPath === '/' || (isWindows && /^[a-zA-Z]:\/?$/.test(currentPath))) {
+    const drive = isWindows ? currentPath.slice(0, 2).toUpperCase() : '';
+    const rootLabel = isWindows ? `📁 ${drive}` : '📁 /';
+    const rootPath = isWindows ? `${drive}/` : '/';
     return `<span class="file-breadcrumb-item active" onclick="loadFiles('${rootPath}')">${rootLabel}</span>`;
   }
   const parts = currentPath.split('/').filter(Boolean);
@@ -11440,14 +11441,14 @@ function renderBreadcrumbs(currentPath) {
   if (isWindows && parts.length > 0 && parts[0].includes(':')) {
     const drive = parts[0].toUpperCase();
     html += `<span class="file-breadcrumb-item" onclick="loadFiles('${drive}/')" title="Root Drive">📁 ${escapeHtml(drive)}</span>`;
-    accum = drive;
+    accum = drive.endsWith('/') ? drive : drive + '/';
     startIndex = 1;
   } else {
     html += `<span class="file-breadcrumb-item" onclick="loadFiles('/')" title="Root">📁 /</span>`;
   }
 
   for (let i = startIndex; i < parts.length; i++) {
-    accum += (accum.endsWith('/') || accum.endsWith(':') ? '' : '/') + parts[i];
+    accum += (accum.endsWith('/') ? '' : '/') + parts[i];
     const isLast = (i === parts.length - 1);
     html += `<span class="file-breadcrumb-separator">/</span>`;
     if (isLast) {

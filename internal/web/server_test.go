@@ -2587,6 +2587,10 @@ func TestWindowsResolveRemotePathAndClean(t *testing.T) {
 		{"Administrator", "~/Documents", "C:/Users/Administrator/Documents"},
 		{"Administrator", "C:/inetpub/wwwroot", "C:/inetpub/wwwroot"},
 		{"Administrator", "/C:/inetpub/wwwroot", "C:/inetpub/wwwroot"},
+		{"Administrator", "C:", "C:/"},
+		{"Administrator", "C:/", "C:/"},
+		{"Administrator", "/C:", "C:/"},
+		{"Administrator", "/C:/", "C:/"},
 		{"Administrator", `C:\Data\app`, "C:/Data/app"},
 		{"", "/", "C:/"},
 		{"", "", "C:/"},
@@ -2664,6 +2668,16 @@ func TestTestRemoteConnection(t *testing.T) {
 	}
 	if len(executedAutoCmds) != 2 {
 		t.Fatalf("expected 2 probes (uname then ver), got: %v", executedAutoCmds)
+	}
+
+	// 4. Test with Auto osType on default runner (uname succeeds with empty stdout, returns Connected (Linux))
+	mockDefault := sshrunner.NewMockRunner()
+	outDef, err := testRemoteConnection(mockDefault, "auto")
+	if err != nil {
+		t.Fatalf("unexpected error for default mock runner testRemoteConnection: %v", err)
+	}
+	if outDef != "Connected (Linux)" {
+		t.Fatalf("expected Connected (Linux), got: %q", outDef)
 	}
 }
 

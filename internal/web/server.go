@@ -865,24 +865,41 @@ func testRemoteConnection(runner sshrunner.Runner, osType string) (string, error
 		if err != nil || exitCode != 0 {
 			return "", fmt.Errorf("exit %d: %s %s", exitCode, stdout, stderr)
 		}
-		return strings.TrimSpace(stdout), nil
+		out := strings.TrimSpace(stdout)
+		if out == "" {
+			out = "Connected (Windows)"
+		}
+		return out, nil
 	}
 	if osType == "linux" {
 		stdout, stderr, exitCode, err := runner.ExecTimeout("uname -srm; uptime", 5*time.Second)
 		if err != nil || exitCode != 0 {
 			return "", fmt.Errorf("exit %d: %s %s", exitCode, stdout, stderr)
 		}
-		return strings.TrimSpace(stdout), nil
+		out := strings.TrimSpace(stdout)
+		if out == "" {
+			out = "Connected (Linux)"
+		}
+		return out, nil
 	}
 
-	// Auto / unknown probe: Try uname first; if not recognized/failed, probe with cmd.exe ver.
-	stdout, stderr, exitCode, err := runner.ExecTimeout("uname -srm", 4*time.Second)
-	if err == nil && exitCode == 0 && strings.TrimSpace(stdout) != "" {
-		return strings.TrimSpace(stdout), nil
+	// Auto / unknown probe: Try uname first; if it fails, probe with cmd.exe ver for Windows.
+	stdout, stderr, exitCode, err := runner.ExecTimeout("uname -srm; uptime", 4*time.Second)
+	if err == nil && exitCode == 0 {
+		out := strings.TrimSpace(stdout)
+		if out == "" {
+			out = "Connected (Linux)"
+		}
+		return out, nil
 	}
+
 	winOut, _, winCode, winErr := runner.ExecTimeout(`cmd.exe /c "ver"`, 4*time.Second)
-	if winErr == nil && winCode == 0 && strings.TrimSpace(winOut) != "" {
-		return strings.TrimSpace(winOut), nil
+	if winErr == nil && winCode == 0 {
+		out := strings.TrimSpace(winOut)
+		if out == "" {
+			out = "Connected (Windows)"
+		}
+		return out, nil
 	}
 	if err != nil {
 		return "", fmt.Errorf("%v (win fallback: %v)", err, winErr)
@@ -1950,7 +1967,11 @@ func resolveRemotePath(sftpClient *sftp.Client, user, targetPath string, hostOST
 		} else {
 			cleaned := path.Clean(normPath)
 			if isWindows {
-				return sshrunner.CleanWindowsRemotePath(cleaned)
+				cleaned = sshrunner.CleanWindowsRemotePath(cleaned)
+				if len(cleaned) == 2 && cleaned[1] == ':' {
+					cleaned += "/"
+				}
+				return cleaned
 			}
 			return cleaned
 		}
@@ -2382,6 +2403,9 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 
 			if host.OSType == "windows" {
 				cleanParent := sshrunner.CleanWindowsRemotePath(parent)
+				if strings.HasSuffix(cleanParent, ":") {
+					cleanParent += "/"
+				}
 				cleanBase := sshrunner.CleanWindowsRemotePath(base)
 				w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", base+".tar.gz"))
 				w.Header().Set("Content-Type", "application/gzip")
