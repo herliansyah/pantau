@@ -51,6 +51,7 @@ type NativeTicket struct {
 	HostAddress  string        `json:"host_address"`
 	HostPort     int           `json:"host_port"`
 	HostUser     string        `json:"host_user"`
+	HostOSType   string        `json:"host_os_type,omitempty"`
 	InitialDir   string        `json:"initial_dir,omitempty"`
 	EphemeralKey *EphemeralKey `json:"-"`
 	ExpiresAt    time.Time     `json:"expires_at"`
@@ -70,10 +71,21 @@ func cleanInitialDir(dir string) string {
 // It supports absolute paths, ~, and ~/subpath with safe single quoting without breaking tilde expansion.
 // ponytail: uses semicolon-free shell chaining ('|| true &&') so arguments do not trigger command
 // splitting on Windows Terminal (wt.exe), PowerShell, or POSIX shells across all client operating systems.
-func buildRemoteCdClause(initialDir string) string {
+func buildRemoteCdClause(initialDir string, hostOSType ...string) string {
 	cleaned := cleanInitialDir(initialDir)
 	if cleaned == "" {
 		return ""
+	}
+	targetOS := ""
+	if len(hostOSType) > 0 {
+		targetOS = strings.ToLower(strings.TrimSpace(hostOSType[0]))
+	}
+	if targetOS == "windows" {
+		if cleaned == "~" {
+			return ""
+		}
+		escaped := strings.ReplaceAll(cleaned, "'", "''")
+		return fmt.Sprintf(`powershell.exe -NoExit -Command "Set-Location -LiteralPath '%s'"`, escaped)
 	}
 	if cleaned == "~" {
 		return `cd ~ 2>/dev/null || true && exec bash -l || exec sh -l`
@@ -182,19 +194,49 @@ func (s *Server) injectEphemeralKey(ctx context.Context, host *store.Host, key *
 	}
 	defer runner.Close()
 
-	// 1. Opportunistic sweep before injection to clean old stale keys
-	_ = s.sweepExpiredKeysOnHost(ctx, runner)
-
-	// 2. Safe atomic append with directory & file permission hardening and trailing newline check
 	cleanKey := strings.TrimSpace(key.PublicKey)
-	injectCmd := fmt.Sprintf(
-		`mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && ( [ -s ~/.ssh/authorized_keys ] && [ -n "$(tail -c1 ~/.ssh/authorized_keys 2>/dev/null)" ] && echo "" >> ~/.ssh/authorized_keys ; true ) && echo %q >> ~/.ssh/authorized_keys`,
-		cleanKey,
-	)
 
-	_, stderr, exitCode, err := runner.ExecTimeout(injectCmd, 15*time.Second)
-	if err != nil || exitCode != 0 {
-		return fmt.Errorf("inject key failed (exit %d): %s %v", exitCode, stderr, err)
+	if host.OSType == "windows" {
+		_ = s.sweepExpiredKeysOnHostWindows(ctx, runner)
+		b64Key := base64.StdEncoding.EncodeToString([]byte(cleanKey))
+		psScript := fmt.Sprintf(`
+$key = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(%q)).Trim()
+$userSsh = "$env:USERPROFILE\.ssh"
+if (!(Test-Path $userSsh)) { New-Item -ItemType Directory -Path $userSsh -Force | Out-Null }
+$userAuth = "$userSsh\authorized_keys"
+if (!(Test-Path $userAuth) -or !(Get-Content $userAuth -Raw -ErrorAction SilentlyContinue | Select-String -SimpleMatch $key -Quiet)) {
+    Add-Content -Path $userAuth -Value $key -Force
+}
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if ($isAdmin) {
+    $progData = "$env:ProgramData\ssh"
+    if (Test-Path $progData) {
+        $adminAuth = "$progData\administrators_authorized_keys"
+        if (!(Test-Path $adminAuth) -or !(Get-Content $adminAuth -Raw -ErrorAction SilentlyContinue | Select-String -SimpleMatch $key -Quiet)) {
+            Add-Content -Path $adminAuth -Value $key -Force
+        }
+        & icacls $adminAuth /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F" | Out-Null
+    }
+}
+`, b64Key)
+		_, stderr, exitCode, err := runner.ExecTimeout(sshrunner.PowershellEncodedCmd(psScript), 15*time.Second)
+		if err != nil || exitCode != 0 {
+			return fmt.Errorf("inject key failed on Windows (exit %d): %s %v", exitCode, stderr, err)
+		}
+	} else {
+		// 1. Opportunistic sweep before injection to clean old stale keys
+		_ = s.sweepExpiredKeysOnHost(ctx, runner)
+
+		// 2. Safe atomic append with directory & file permission hardening and trailing newline check
+		injectCmd := fmt.Sprintf(
+			`mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && ( [ -s ~/.ssh/authorized_keys ] && [ -n "$(tail -c1 ~/.ssh/authorized_keys 2>/dev/null)" ] && echo "" >> ~/.ssh/authorized_keys ; true ) && echo %q >> ~/.ssh/authorized_keys`,
+			cleanKey,
+		)
+
+		_, stderr, exitCode, err := runner.ExecTimeout(injectCmd, 15*time.Second)
+		if err != nil || exitCode != 0 {
+			return fmt.Errorf("inject key failed (exit %d): %s %v", exitCode, stderr, err)
+		}
 	}
 
 	// 3. Schedule Proactive Go Timer cleanup (Tier 1)
@@ -209,7 +251,7 @@ func (s *Server) injectEphemeralKey(ctx context.Context, host *store.Host, key *
 	return nil
 }
 
-// cleanupEphemeralKeyByID prunes the specific key ID from authorized_keys using atomic AWK filter.
+// cleanupEphemeralKeyByID prunes the specific key ID from authorized_keys using atomic filter.
 func (s *Server) cleanupEphemeralKeyByID(ctx context.Context, host *store.Host, keyID string) error {
 	if host == nil {
 		return nil
@@ -238,12 +280,46 @@ func (s *Server) cleanupEphemeralKeyByID(ctx context.Context, host *store.Host, 
 		return nil
 	}
 
+	if host.OSType == "windows" {
+		psScript := fmt.Sprintf(`
+$id = "pantau-ephemeral-%s-"
+foreach ($p in @("$env:USERPROFILE\.ssh\authorized_keys", "$env:ProgramData\ssh\administrators_authorized_keys")) {
+    if (Test-Path $p) {
+        $lines = Get-Content $p -ErrorAction SilentlyContinue | Where-Object { $_ -notmatch [regex]::Escape($id) }
+        Set-Content -Path $p -Value $lines -Force -ErrorAction SilentlyContinue
+    }
+}
+`, cleanID)
+		_, _, _, err = runner.ExecTimeout(sshrunner.PowershellEncodedCmd(psScript), 15*time.Second)
+		return err
+	}
+
 	cleanupCmd := fmt.Sprintf(
 		`ak="$HOME/.ssh/authorized_keys"; tmp="$HOME/.ssh/authorized_keys.tmp.$$"; if [ -f "$ak" ]; then awk -v id="pantau-ephemeral-%s-" '$0 !~ id { print $0 }' "$ak" > "$tmp" && chmod 600 "$tmp" && mv -f "$tmp" "$ak"; rm -f "$tmp" 2>/dev/null || true; fi`,
 		cleanID,
 	)
 
 	_, _, _, err = runner.ExecTimeout(cleanupCmd, 15*time.Second)
+	return err
+}
+
+func (s *Server) sweepExpiredKeysOnHostWindows(ctx context.Context, runner sshrunner.Runner) error {
+	psScript := `
+$now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+$cutoff = $now - 600
+foreach ($p in @("$env:USERPROFILE\.ssh\authorized_keys", "$env:ProgramData\ssh\administrators_authorized_keys")) {
+    if (Test-Path $p) {
+        $lines = Get-Content $p -ErrorAction SilentlyContinue | Where-Object {
+            if ($_ -match 'pantau-ephemeral-[0-9a-fA-F]+-(\d+)') {
+                $exp = [int64]$matches[1]
+                $exp -gt $cutoff
+            } else { $true }
+        }
+        Set-Content -Path $p -Value $lines -Force -ErrorAction SilentlyContinue
+    }
+}
+`
+	_, _, _, err := runner.ExecTimeout(sshrunner.PowershellEncodedCmd(psScript), 15*time.Second)
 	return err
 }
 
@@ -368,9 +444,9 @@ func detectDefaultTerminal(goos string) (termType, termPath string) {
 }
 
 // buildLaunchCommand constructs the exec.Cmd for native terminal execution.
-func buildLaunchCommand(goos, termPath, customTemplate, keyPath, user, host string, port int, initialDir string) (*exec.Cmd, error) {
+func buildLaunchCommand(goos, termPath, customTemplate, keyPath, user, host string, port int, initialDir string, hostOSType ...string) (*exec.Cmd, error) {
 	sshBase := fmt.Sprintf(`ssh -i "%s" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s`, keyPath, port, user, host)
-	cdClause := buildRemoteCdClause(initialDir)
+	cdClause := buildRemoteCdClause(initialDir, hostOSType...)
 	if cdClause != "" {
 		sshBase = fmt.Sprintf(`%s -t "%s"`, sshBase, cdClause)
 	}
@@ -481,7 +557,7 @@ func (s *Server) launchLocalTerminal(host *store.Host, customTemplate string, in
 	if port <= 0 {
 		port = 22
 	}
-	cmd, err := buildLaunchCommand(runtime.GOOS, termPath, customTemplate, keyFile, host.User, host.Host, port, initialDir)
+	cmd, err := buildLaunchCommand(runtime.GOOS, termPath, customTemplate, keyFile, host.User, host.Host, port, initialDir, host.OSType)
 	if err != nil {
 		_ = os.Remove(keyFile)
 		_ = s.cleanupEphemeralKeyByID(context.Background(), host, key.ID)
@@ -545,7 +621,7 @@ func generateWindowsCmdScript(ticket *NativeTicket) string {
 	keyB64 := base64.StdEncoding.EncodeToString(ticket.EphemeralKey.PrivateKey)
 
 	var remoteCmd string
-	cdClause := buildRemoteCdClause(ticket.InitialDir)
+	cdClause := buildRemoteCdClause(ticket.InitialDir, ticket.HostOSType)
 	if cdClause != "" {
 		escaped := strings.ReplaceAll(cdClause, `"`, `\"`)
 		remoteCmd = fmt.Sprintf(` -t \"%s\"`, escaped)
@@ -571,7 +647,7 @@ func generateUnixScript(ticket *NativeTicket, isMac bool) string {
 		port = 22
 	}
 	var remoteCmd string
-	cdClause := buildRemoteCdClause(ticket.InitialDir)
+	cdClause := buildRemoteCdClause(ticket.InitialDir, ticket.HostOSType)
 	if cdClause != "" {
 		remoteCmd = fmt.Sprintf(` -t "%s"`, cdClause)
 	}
@@ -773,6 +849,7 @@ func (s *Server) handleNativeTerminalTicket(w http.ResponseWriter, r *http.Reque
 		HostAddress:  host.Host,
 		HostPort:     port,
 		HostUser:     host.User,
+		HostOSType:   host.OSType,
 		InitialDir:   targetDir,
 		EphemeralKey: key,
 		ExpiresAt:    time.Now().Add(60 * time.Second),
@@ -870,7 +947,7 @@ func (s *Server) handleNativeTerminalRun(w http.ResponseWriter, r *http.Request)
 	var content string
 	if strings.Contains(ua, "powershell") || strings.Contains(ua, "windows") {
 		var remoteCmd string
-		cdClause := buildRemoteCdClause(ticket.InitialDir)
+		cdClause := buildRemoteCdClause(ticket.InitialDir, ticket.HostOSType)
 		if cdClause != "" {
 			remoteCmd = fmt.Sprintf(` -t "%s"`, cdClause)
 		}

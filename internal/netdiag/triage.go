@@ -107,6 +107,9 @@ func (s *Service) ExecuteTriage(ctx context.Context, req TriageRequest, eventSin
 	if strings.EqualFold(sourceHost.Status, "down") {
 		return nil, fmt.Errorf("source host '%s' is offline", sourceHost.Name)
 	}
+	if sourceHost.OSType == "windows" {
+		return nil, errors.New("network diagnostics probe execution from Windows source hosts is not supported")
+	}
 
 	// 3. Singleflight concurrency guard per source host
 	if _, loaded := s.inFlight.LoadOrStore(req.SourceHostID, struct{}{}); loaded {

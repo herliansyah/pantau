@@ -114,6 +114,9 @@ func (s *Service) ExecuteProbe(ctx context.Context, req ProbeRequest, eventSink 
 	if strings.EqualFold(sourceHost.Status, "down") {
 		return fmt.Errorf("source host '%s' is offline", sourceHost.Name)
 	}
+	if sourceHost.OSType == "windows" {
+		return errors.New("network diagnostics probe execution from Windows source hosts is not supported")
+	}
 
 	// 4. Singleflight guard per source host
 	if _, loaded := s.inFlight.LoadOrStore(req.SourceHostID, struct{}{}); loaded {

@@ -1913,6 +1913,41 @@ func TestHostTestConnection_AdHoc(t *testing.T) {
 	if res["auth_method"] != "key" {
 		t.Fatalf("expected auth_method=key, got %v", res["auth_method"])
 	}
+
+	// 3. Test existing Windows host connection test (/api/hosts/{id}/test-connection)
+	winID, err := db.CreateHost(&store.Host{
+		Name:   "Windows Node",
+		Host:   "10.0.0.77",
+		Port:   22,
+		User:   "Administrator",
+		OSType: "windows",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		if strings.Contains(cmd, "ver") {
+			return "Microsoft Windows [Version 10.0.20348.1]", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	req = httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/test-connection", winID), nil)
+	authReq(req)
+	w = httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", w.Code, w.Body.String())
+	}
+	var winRes map[string]interface{}
+	_ = json.NewDecoder(w.Body).Decode(&winRes)
+	if winRes["ok"] != true {
+		t.Fatalf("expected ok=true for Windows host test-connection, got: %+v", winRes)
+	}
+	if !strings.Contains(winRes["output"].(string), "Microsoft Windows") {
+		t.Fatalf("expected Windows ver output, got: %v", winRes["output"])
+	}
 }
 
 func TestHostCreate_ImmediateInspectionAndEnrichment(t *testing.T) {
@@ -2348,6 +2383,10 @@ func TestResolveRemotePath(t *testing.T) {
 		{user: "ubuntu", target: "/var/log/../etc", expected: "/var/etc"},
 		{user: "ubuntu", target: "/var/log/../../etc", expected: "/etc"},
 		{user: "ubuntu", target: "myapp/logs", expected: "/home/ubuntu/myapp/logs"},
+		{user: "Administrator", target: `C:\inetpub\wwwroot`, expected: "C:/inetpub/wwwroot"},
+		{user: "Administrator", target: "C:/Windows", expected: "C:/Windows"},
+		{user: "Administrator", target: "/C:/Windows", expected: "/C:/Windows"},
+		{user: "Administrator", target: `D:\data\logs`, expected: "D:/data/logs"},
 	}
 
 	for _, tc := range tests {
@@ -2355,6 +2394,276 @@ func TestResolveRemotePath(t *testing.T) {
 		if got != tc.expected {
 			t.Errorf("resolveRemotePath(nil, %q, %q) = %q, expected %q", tc.user, tc.target, got, tc.expected)
 		}
+	}
+}
+
+func TestWindowsFileProtection(t *testing.T) {
+	protected := []string{
+		"C:", "C:/", "/C:", "/C:/",
+		"C:/Windows", `C:\Windows\System32`, "/C:/Windows/System32",
+		"C:/Program Files", `C:\Program Files\App`,
+		"C:/ProgramData", `C:\ProgramData\ssh`,
+	}
+	for _, p := range protected {
+		if !isProtectedPath(p, nil) {
+			t.Errorf("expected %q to be protected on Windows", p)
+		}
+	}
+
+	notProtected := []string{
+		"C:/inetpub/wwwroot",
+		"C:/Users/Administrator/Documents/app.txt",
+		"D:/data/app",
+	}
+	for _, p := range notProtected {
+		if isProtectedPath(p, nil) {
+			t.Errorf("expected %q NOT to be protected", p)
+		}
+	}
+}
+
+func TestHostDetailUpdate_PreserveOSType(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-win-preserve-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	winID, err := db.CreateHost(&store.Host{
+		Name:   "Win Production Server",
+		Host:   "10.0.0.90",
+		Port:   22,
+		User:   "Administrator",
+		OSType: "windows",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv := NewServer(db, nil, nil)
+	sessionToken := "test_preserve_token"
+	srv.sessions.Store(sessionToken, time.Now().Add(1*time.Hour))
+
+	// PUT request without os_type (e.g. updating only name and notes)
+	updateBody := `{"name":"Win Production Server (Renamed)","notes":"Updated notes"}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/hosts/%d", winID), strings.NewReader(updateBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "pantau_session", Value: sessionToken})
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK on PUT, got %d: %s", w.Code, w.Body.String())
+	}
+
+	updated, err := db.GetHost(winID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.OSType != "windows" {
+		t.Fatalf("expected host OSType to remain 'windows', got %q", updated.OSType)
+	}
+	if updated.Name != "Win Production Server (Renamed)" {
+		t.Fatalf("expected host Name to be updated, got %q", updated.Name)
+	}
+}
+
+func TestCrossHostTransfer_RejectsWindowsHosts(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-transfer-win-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	winID, _ := db.CreateHost(&store.Host{
+		Name:   "Windows Host",
+		Host:   "10.0.0.10",
+		Port:   22,
+		User:   "Administrator",
+		OSType: "windows",
+	})
+	linuxID, _ := db.CreateHost(&store.Host{
+		Name:   "Linux Host",
+		Host:   "10.0.0.20",
+		Port:   22,
+		User:   "root",
+		OSType: "linux",
+	})
+
+	srv := NewServer(db, nil, nil)
+	sessionToken := "test_transfer_token"
+	srv.sessions.Store(sessionToken, time.Now().Add(1*time.Hour))
+
+	// Transfer from Windows to Linux
+	payload := fmt.Sprintf(`{"source_host_id":%d,"source_path":"C:/data","dest_host_id":%d,"dest_path":"/tmp","mode":"fast"}`, winID, linuxID)
+	req := httptest.NewRequest(http.MethodPost, "/api/transfers", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(&http.Cookie{Name: "pantau_session", Value: sessionToken})
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request when transferring from Windows, got %d: %s", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "Linux hosts") {
+		t.Fatalf("expected error mentioning Linux hosts, got: %s", w.Body.String())
+	}
+
+	// Transfer from Linux to Windows
+	payload2 := fmt.Sprintf(`{"source_host_id":%d,"source_path":"/tmp/data","dest_host_id":%d,"dest_path":"C:/data","mode":"fast"}`, linuxID, winID)
+	req2 := httptest.NewRequest(http.MethodPost, "/api/transfers", strings.NewReader(payload2))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.AddCookie(&http.Cookie{Name: "pantau_session", Value: sessionToken})
+	w2 := httptest.NewRecorder()
+	srv.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request when transferring to Windows, got %d: %s", w2.Code, w2.Body.String())
+	}
+}
+
+func TestWindowsDockerLogsAndDownload_Commands(t *testing.T) {
+	winHost := &store.Host{ID: 1, OSType: "windows"}
+	winContainer := "my-app"
+	var winCmd string
+	if winHost.OSType == "windows" {
+		winCmd = sshrunner.PowershellEncodedCmd(fmt.Sprintf("docker logs -f --tail 100 '%s'", strings.ReplaceAll(winContainer, "'", "''")))
+	}
+	if !strings.Contains(winCmd, "powershell.exe") {
+		t.Fatalf("unexpected Windows docker logs cmd: %s", winCmd)
+	}
+
+	// Verify Windows tar directory download command
+	parent := `C:/inetpub`
+	base := `wwwroot`
+	cleanParent := sshrunner.CleanWindowsRemotePath(parent)
+	cleanBase := sshrunner.CleanWindowsRemotePath(base)
+	tarCmd := fmt.Sprintf(`tar.exe -czf - -C "%s" "%s"`, strings.ReplaceAll(cleanParent, `"`, `""`), strings.ReplaceAll(cleanBase, `"`, `""`))
+	if tarCmd != `tar.exe -czf - -C "C:/inetpub" "wwwroot"` {
+		t.Fatalf("unexpected Windows tar cmd: %s", tarCmd)
+	}
+}
+
+func TestWindowsResolveRemotePathAndClean(t *testing.T) {
+	// 1. CleanWindowsRemotePath
+	cleanCases := []struct {
+		input    string
+		expected string
+	}{
+		{"/C:/Users/Admin", "C:/Users/Admin"},
+		{`\C:\Users\Admin`, "C:/Users/Admin"},
+		{"C:/Users/Admin", "C:/Users/Admin"},
+		{"/d:/data/project", "d:/data/project"},
+		{"/etc/nginx", "/etc/nginx"},
+		{"", ""},
+	}
+	for _, tc := range cleanCases {
+		got := sshrunner.CleanWindowsRemotePath(tc.input)
+		if got != tc.expected {
+			t.Errorf("CleanWindowsRemotePath(%q) = %q, expected %q", tc.input, got, tc.expected)
+		}
+	}
+
+	// 2. resolveRemotePath on Windows targets
+	winTests := []struct {
+		user     string
+		target   string
+		expected string
+	}{
+		{"Administrator", "", "C:/Users/Administrator"},
+		{"Administrator", "/", "C:/Users/Administrator"},
+		{"Administrator", "~", "C:/Users/Administrator"},
+		{"Administrator", "~/Documents", "C:/Users/Administrator/Documents"},
+		{"Administrator", "C:/inetpub/wwwroot", "C:/inetpub/wwwroot"},
+		{"Administrator", "/C:/inetpub/wwwroot", "C:/inetpub/wwwroot"},
+		{"Administrator", `C:\Data\app`, "C:/Data/app"},
+		{"", "/", "C:/"},
+		{"", "", "C:/"},
+	}
+	for _, tc := range winTests {
+		got := resolveRemotePath(nil, tc.user, tc.target, "windows")
+		if got != tc.expected {
+			t.Errorf("resolveRemotePath(nil, %q, %q, 'windows') = %q, expected %q", tc.user, tc.target, got, tc.expected)
+		}
+	}
+}
+
+func TestTestRemoteConnection(t *testing.T) {
+	// 1. Test with Windows osType: should execute cmd.exe /c "ver"
+	mockWin := sshrunner.NewMockRunner()
+	var executedCmds []string
+	mockWin.DefaultExec = func(cmd string) (string, string, int, error) {
+		executedCmds = append(executedCmds, cmd)
+		if strings.Contains(cmd, "ver") {
+			return "Microsoft Windows [Version 10.0.20348.1]", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	out, err := testRemoteConnection(mockWin, "windows")
+	if err != nil {
+		t.Fatalf("unexpected error for windows testRemoteConnection: %v", err)
+	}
+	if !strings.Contains(out, "Microsoft Windows") {
+		t.Fatalf("expected Windows output, got: %q", out)
+	}
+	if len(executedCmds) != 1 || !strings.Contains(executedCmds[0], "ver") {
+		t.Fatalf("expected single cmd.exe ver command, got: %v", executedCmds)
+	}
+
+	// 2. Test with Linux osType: should execute uname -srm
+	mockLinux := sshrunner.NewMockRunner()
+	var executedLinuxCmds []string
+	mockLinux.DefaultExec = func(cmd string) (string, string, int, error) {
+		executedLinuxCmds = append(executedLinuxCmds, cmd)
+		if strings.Contains(cmd, "uname") {
+			return "Linux 5.15.0-89-generic x86_64", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	outLinux, err := testRemoteConnection(mockLinux, "linux")
+	if err != nil {
+		t.Fatalf("unexpected error for linux testRemoteConnection: %v", err)
+	}
+	if !strings.Contains(outLinux, "Linux") {
+		t.Fatalf("expected Linux output, got: %q", outLinux)
+	}
+
+	// 3. Test with Auto osType on Windows target (uname fails, cmd.exe ver succeeds)
+	mockAutoWin := sshrunner.NewMockRunner()
+	var executedAutoCmds []string
+	mockAutoWin.DefaultExec = func(cmd string) (string, string, int, error) {
+		executedAutoCmds = append(executedAutoCmds, cmd)
+		if strings.Contains(cmd, "uname") {
+			return "", "'uname' is not recognized", 1, nil
+		}
+		if strings.Contains(cmd, "ver") {
+			return "Microsoft Windows [Version 10.0.19045.2965]", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	outAuto, err := testRemoteConnection(mockAutoWin, "auto")
+	if err != nil {
+		t.Fatalf("unexpected error for auto-detected Windows testRemoteConnection: %v", err)
+	}
+	if !strings.Contains(outAuto, "Microsoft Windows") {
+		t.Fatalf("expected Windows output for auto, got: %q", outAuto)
+	}
+	if len(executedAutoCmds) != 2 {
+		t.Fatalf("expected 2 probes (uname then ver), got: %v", executedAutoCmds)
 	}
 }
 

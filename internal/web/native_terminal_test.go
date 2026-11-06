@@ -744,3 +744,58 @@ func TestNativeTerminalActivePath(t *testing.T) {
 		t.Errorf("expected Global Bookmarks modal to have openNativeTerminalFromGlobalPin button")
 	}
 }
+
+func TestWindowsNativeTerminalKeyInjectionAndCdClause(t *testing.T) {
+	// 1. Test buildRemoteCdClause with Windows OS
+	cdEmpty := buildRemoteCdClause("", "windows")
+	if cdEmpty != "" {
+		t.Errorf("expected empty cdClause for empty dir, got %q", cdEmpty)
+	}
+
+	cdTilde := buildRemoteCdClause("~", "windows")
+	if cdTilde != "" {
+		t.Errorf("expected empty cdClause for tilde on Windows, got %q", cdTilde)
+	}
+
+	cdWin := buildRemoteCdClause(`C:\inetpub\wwwroot`, "windows")
+	if !strings.Contains(cdWin, "Set-Location -LiteralPath 'C:\\inetpub\\wwwroot'") {
+		t.Errorf("expected Set-Location for Windows path, got %q", cdWin)
+	}
+
+	// 2. Test Ephemeral key injection & cleanup on Windows host
+	mockRunner := &mockTestSSHRunner{}
+	s, _, host := setupTestServerWithDB(t, mockRunner)
+	host.OSType = "windows"
+	_ = s.db.UpdateHostOSType(host.ID, "windows")
+
+	key, err := GenerateEphemeralKey(host.ID, 5*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = s.injectEphemeralKey(context.Background(), host, key)
+	if err != nil {
+		t.Fatalf("unexpected inject error: %v", err)
+	}
+
+	mockRunner.mu.Lock()
+	logs := append([]string{}, mockRunner.execLogs...)
+	mockRunner.mu.Unlock()
+
+	foundPs := false
+	for _, l := range logs {
+		if strings.Contains(l, "powershell.exe") && strings.Contains(l, "-EncodedCommand") {
+			foundPs = true
+			break
+		}
+	}
+	if !foundPs {
+		t.Errorf("expected powershell.exe -EncodedCommand during Windows key injection, logs: %v", logs)
+	}
+
+	// Test cleanup
+	err = s.cleanupEphemeralKeyByID(context.Background(), host, key.ID)
+	if err != nil {
+		t.Fatalf("unexpected cleanup error: %v", err)
+	}
+}

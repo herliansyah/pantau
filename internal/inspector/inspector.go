@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"path"
 	"regexp"
 	"sort"
 	"strconv"
@@ -22,6 +23,12 @@ import (
 
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
+// powershellEncodedCmd converts a PowerShell script into a UTF-16LE Base64 encoded command string.
+// ponytail: Base64 encoding avoids quote and shell escaping discrepancies across Windows OpenSSH configurations.
+func powershellEncodedCmd(psScript string) string {
+	return sshrunner.PowershellEncodedCmd(psScript)
 }
 
 var (
@@ -156,7 +163,18 @@ func (ins *Inspector) InspectHostWithTimeout(hostID int64, timeout time.Duration
 	}()
 
 	// 1. Inspect System Metrics
-	if err := ins.scrapeSystemMetrics(host, runner); err != nil || ctx.Err() != nil {
+	if host.OSType == "" || host.OSType == "auto" {
+		ins.detectHostOS(host, runner)
+	}
+
+	var scrapeErr error
+	if host.OSType == "windows" {
+		scrapeErr = ins.scrapeWindowsMetrics(host, runner)
+	} else {
+		scrapeErr = ins.scrapeSystemMetrics(host, runner)
+	}
+	if scrapeErr != nil || ctx.Err() != nil {
+		err := scrapeErr
 		if err == nil {
 			err = ctx.Err()
 		}
@@ -262,7 +280,9 @@ func (ins *Inspector) collectMetricSamples(h *store.Host, runner sshrunner.Runne
 		parts := strings.Split(h.CPULoad, ",")
 		if len(parts) > 0 {
 			if val, err := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64); err == nil {
-				if h.CPUCores > 0 {
+				if h.OSType == "windows" {
+					samples["cpu"] = math.Min(100.0, math.Max(0.0, val))
+				} else if h.CPUCores > 0 {
 					samples["cpu"] = math.Min(100.0, (val/float64(h.CPUCores))*100.0)
 				} else {
 					samples["cpu"] = val
@@ -297,17 +317,32 @@ func (ins *Inspector) collectMetricSamples(h *store.Host, runner sshrunner.Runne
 	probes, err := ins.db.GetHostMetricProbes(h.ID)
 	if err == nil && len(probes) > 0 {
 		var probeCmds []string
-		for _, p := range probes {
-			if !p.Enabled || strings.TrimSpace(p.Command) == "" {
-				continue
+		if h.OSType == "windows" {
+			for _, p := range probes {
+				if !p.Enabled || strings.TrimSpace(p.Command) == "" {
+					continue
+				}
+				escapedCmd := strings.ReplaceAll(p.Command, "'", "''")
+				probeCmds = append(probeCmds, fmt.Sprintf(`Write-Output "---PROBE:%d---"; try { Invoke-Expression '%s' } catch {}`, p.ID, escapedCmd))
 			}
-			quotedCmd := shellQuote(p.Command)
-			probeCmds = append(probeCmds, fmt.Sprintf("echo '---PROBE:%d---'; (timeout -k 1s 3s bash -c %s 2>/dev/null || timeout 3s bash -c %s 2>/dev/null || bash -c %s 2>/dev/null || true)", p.ID, quotedCmd, quotedCmd, quotedCmd))
-		}
-		if len(probeCmds) > 0 {
-			combined := strings.Join(probeCmds, "; ")
-			out, _, _, _ := runner.Exec(combined)
-			parseProbeOutput(out, samples)
+			if len(probeCmds) > 0 {
+				combined := strings.Join(probeCmds, "; ")
+				out, _, _, _ := runner.Exec(powershellEncodedCmd(combined))
+				parseProbeOutput(out, samples)
+			}
+		} else {
+			for _, p := range probes {
+				if !p.Enabled || strings.TrimSpace(p.Command) == "" {
+					continue
+				}
+				quotedCmd := shellQuote(p.Command)
+				probeCmds = append(probeCmds, fmt.Sprintf("echo '---PROBE:%d---'; (timeout -k 1s 3s bash -c %s 2>/dev/null || timeout 3s bash -c %s 2>/dev/null || bash -c %s 2>/dev/null || true)", p.ID, quotedCmd, quotedCmd, quotedCmd))
+			}
+			if len(probeCmds) > 0 {
+				combined := strings.Join(probeCmds, "; ")
+				out, _, _, _ := runner.Exec(combined)
+				parseProbeOutput(out, samples)
+			}
 		}
 	}
 
@@ -357,6 +392,45 @@ func parseProbeOutput(stdout string, samples map[string]float64) {
 		samples[cleanKeyStr] = val
 	}
 }
+
+// detectHostOS executes a fast in-band probe to classify remote OS as linux or windows.
+// ponytail: Tests uname and cmd.exe ver without compound || to avoid PowerShell 5.1 parse errors.
+func (ins *Inspector) detectHostOS(h *store.Host, runner sshrunner.Runner) {
+	out, _, exitCode, err := runner.Exec(`uname -s`)
+	out = strings.TrimSpace(out)
+	lower := strings.ToLower(out)
+	if err == nil && exitCode == 0 && (strings.Contains(lower, "linux") || strings.Contains(lower, "darwin") || strings.Contains(lower, "bsd")) {
+		h.OSType = "linux"
+		_ = ins.db.UpdateHostOSType(h.ID, h.OSType)
+		return
+	}
+	if strings.Contains(lower, "windows") || strings.Contains(lower, "microsoft") {
+		h.OSType = "windows"
+		_ = ins.db.UpdateHostOSType(h.ID, h.OSType)
+		return
+	}
+
+	// Fallback probe for Windows (works in cmd.exe, powershell.exe, and pwsh)
+	winOut, _, winExit, winErr := runner.Exec(`cmd.exe /c "ver"`)
+	winLower := strings.ToLower(strings.TrimSpace(winOut))
+	if winErr == nil && winExit == 0 && (strings.Contains(winLower, "windows") || strings.Contains(winLower, "microsoft")) {
+		h.OSType = "windows"
+		_ = ins.db.UpdateHostOSType(h.ID, h.OSType)
+		return
+	}
+
+	// If both failed due to connection error, do not overwrite "auto"
+	if err != nil && winErr != nil {
+		return
+	}
+
+	h.OSType = "linux"
+	_ = ins.db.UpdateHostOSType(h.ID, h.OSType)
+}
+
+// WindowsMetricsBatchScript is the single-shot compact PowerShell script to gather system, network, and process metrics on Windows.
+// ponytail: Kept under 2000 chars raw (5370 chars in UTF-16LE Base64) to strictly obey Windows cmd.exe 8191-character command limit.
+const WindowsMetricsBatchScript = `$ProgressPreference='SilentlyContinue';[System.Environment]::OSVersion.Version.ToString();"---";$o=gcim Win32_OperatingSystem -ea 0;$o.Caption;"---";$b=$o.LastBootUpTime;$d=(Get-Date)-$b;$u="{0} days, {1:D2}:{2:D2}" -f $d.Days,$d.Hours,$d.Minutes;$c=(gcim Win32_Processor -ea 0|measure -p LoadPercentage -ave).Average;if(!$c){$c=0};"up $u, load average: $c, $c, $c";"---";$t=[int64]$o.TotalVisibleMemorySize*1024;$f=[int64]$o.FreePhysicalMemory*1024;"Mem: $t $($t-$f)";"---";$k=gcim Win32_LogicalDisk -f "DeviceID='C:'" -ea 0;if($k){$tk=[math]::Round([int64]$k.Size/1KB);$fk=[math]::Round([int64]$k.FreeSpace/1KB);$uk=$tk-$fk;"Filesystem 1024-blocks Used Available Capacity Mounted on` + "\n" + `C: $tk $uk $fk 50% /"};"---";"0";"---";$n=Get-NetAdapterStatistics -ea 0|measure -p ReceivedBytes,SentBytes -sum;$rx=0;$tx=0;if($n){foreach($m in $n){if($m.Property -eq "ReceivedBytes"){$rx=[int64]$m.Sum}if($m.Property -eq "SentBytes"){$tx=[int64]$m.Sum}}};"$rx $tx";"---";try{$p=Test-Connection 1.1.1.1 -count 1 -ea 1;$p.ResponseTime}catch{try{$p=Test-Connection 8.8.8.8 -count 1 -ea 1;$p.ResponseTime}catch{"OFFLINE"}};"---";try{(iwr "https://icanhazip.com" -useb -timeout 3).Trim()}catch{try{(iwr "https://ifconfig.me/ip" -useb -timeout 3).Trim()}catch{""}};"---";Get-NetTCPConnection -State Established -ea 0|select -f 30|%{"$($_.LocalAddress):$($_.LocalPort) $($_.RemoteAddress):$($_.RemotePort)"};"---";Get-NetTCPConnection -State Listen -ea 0|select -f 30|%{"tcp $($_.LocalAddress):$($_.LocalPort) $($_.OwningProcess)"};"---";"0";"---";$env:NUMBER_OF_PROCESSORS;"---";try{(gcim Win32_BIOS -ea 0).ReleaseDate.ToString("yyyy-MM-dd")}catch{""};"---";try{$s=gcim Win32_ComputerSystem -ea 0;"$($s.Manufacturer) $($s.Model)"}catch{""};"---";try{[int64]([DateTimeOffset]$o.InstallDate).ToUnixTimeSeconds()}catch{"0"};"---";try{$d=gcim Win32_PerfRawData_PerfDisk_PhysicalDisk -f "Name='_Total'" -ea 1;"$([int64]$d.DiskReadBytesPerSec) $([int64]$d.DiskWriteBytesPerSec)"}catch{"0 0"};"---";gcim Win32_PerfFormattedData_PerfProc_Process -ea 0|?{$_.Name -notmatch 'Idle|_Total'}|sort PercentProcessorTime -desc|select -f 5|%{"$($_.IDProcess) SYSTEM $($_.PercentProcessorTime) 0.0 $([math]::Round([int64]$_.WorkingSetPrivate/1KB)) $($_.Name -replace '#\d+$','')"};"---";gps -ea 0|sort WorkingSet64 -desc|select -f 5|%{"$($_.Id) SYSTEM 0.0 0.0 $([math]::Round($_.WorkingSet64/1KB)) $($_.ProcessName)"}`
 
 // SystemMetricsBatchCmd is the single-shot batch command to gather system, network, and security metrics.
 // ponytail: Universal polyglot batching keeps agentless overhead near zero on modern & legacy Linux.
@@ -492,6 +566,121 @@ func (ins *Inspector) scrapeSystemMetrics(h *store.Host, runner sshrunner.Runner
 	return nil
 }
 
+func (ins *Inspector) scrapeWindowsMetrics(h *store.Host, runner sshrunner.Runner) error {
+	stdout, stderr, exitCode, err := runner.Exec(powershellEncodedCmd(WindowsMetricsBatchScript))
+	if err != nil {
+		return fmt.Errorf("exec windows metrics batch: %w", err)
+	}
+	if exitCode != 0 && strings.TrimSpace(stdout) == "" {
+		return fmt.Errorf("exec windows metrics batch failed (exit %d): %s", exitCode, strings.TrimSpace(stderr))
+	}
+
+	sections := splitMetricsSections(stdout)
+	if len(sections) >= 1 {
+		h.Kernel = strings.TrimSpace(sections[0])
+	}
+	if len(sections) >= 2 {
+		winOS := strings.TrimSpace(sections[1])
+		if winOS != "" {
+			h.OSInfo = winOS
+		} else {
+			h.OSInfo = parseOSInfo(sections[1])
+		}
+	}
+	if len(sections) >= 3 {
+		uptimeOut := strings.TrimSpace(sections[2])
+		h.Uptime, h.CPULoad = parseUptime(uptimeOut)
+	}
+	if len(sections) >= 4 {
+		h.RAMUsedBytes, h.RAMTotalBytes, h.SwapUsedBytes, h.SwapTotalBytes = parseFree(sections[3])
+	}
+	if len(sections) >= 5 {
+		h.DiskUsedBytes, h.DiskTotalBytes = parseDf(sections[4])
+	}
+
+	ioErrors := 0
+	if len(sections) >= 6 {
+		ioErrors, _ = strconv.Atoi(strings.TrimSpace(sections[5]))
+	}
+
+	cpuCores := 1
+	if len(sections) >= 13 {
+		if c, err := strconv.Atoi(strings.TrimSpace(sections[12])); err == nil && c > 0 {
+			cpuCores = c
+		}
+	}
+	h.CPUCores = cpuCores
+
+	biosDateStr := ""
+	if len(sections) >= 14 {
+		biosDateStr = strings.TrimSpace(sections[13])
+	}
+	vendorStr := ""
+	if len(sections) >= 15 {
+		vendorStr = strings.TrimSpace(sections[14])
+	}
+	h.HardwareModel = vendorStr
+	h.BIOSDate = biosDateStr
+	osInstallEpoch := int64(0)
+	if len(sections) >= 16 {
+		osInstallEpoch, _ = strconv.ParseInt(strings.TrimSpace(sections[15]), 10, 64)
+	}
+	h.OSInstallEpoch = osInstallEpoch
+
+	// Calculate Lifecycle Score (0-100) and transparent breakdown
+	score, notes, breakdownJSON := calculateLifecycleScore(h.OSInfo, h.CPULoad, cpuCores, h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, ioErrors, biosDateStr, vendorStr, osInstallEpoch, h.CommissionDate)
+	h.LifecycleScore = score
+	h.LifecycleNotes = notes
+	h.LifecycleBreakdown = breakdownJSON
+
+	// Parse Network & Security Observability Metrics
+	var netDevSec, pingSec, pubIPSec, estSec, listenSec, failedSec string
+	if len(sections) >= 7 {
+		netDevSec = sections[6]
+	}
+	if len(sections) >= 8 {
+		pingSec = sections[7]
+	}
+	if len(sections) >= 9 {
+		pubIPSec = sections[8]
+	}
+	if len(sections) >= 10 {
+		estSec = sections[9]
+	}
+	if len(sections) >= 11 {
+		listenSec = sections[10]
+	}
+	if len(sections) >= 12 {
+		failedSec = sections[11]
+	}
+	parseNetworkMetrics(h, netDevSec, pingSec, pubIPSec, estSec, listenSec, failedSec)
+
+	// Disk I/O Metrics
+	if len(sections) >= 17 {
+		parseDiskIOMetrics(h, sections[16])
+	}
+
+	// Top Processes Telemetry
+	var topCPUSec, topRAMSec string
+	if len(sections) >= 18 {
+		topCPUSec = sections[17]
+	}
+	if len(sections) >= 19 {
+		topRAMSec = sections[18]
+	}
+
+	topCPU := parseTopProcesses(topCPUSec)
+	topRAM := parseTopProcesses(topRAMSec)
+
+	topCPUBytes, _ := json.Marshal(topCPU)
+	topRAMBytes, _ := json.Marshal(topRAM)
+	h.TopCPUProcesses = string(topCPUBytes)
+	h.TopRAMProcesses = string(topRAMBytes)
+	h.TopSwapProcesses = "[]"
+
+	return nil
+}
+
 // parseTopProcesses parses the output of ps -eo pid,user,%cpu,%mem,rss,comm.
 func parseTopProcesses(out string) []store.ProcessInfo {
 	lines := strings.Split(strings.TrimSpace(out), "\n")
@@ -601,7 +790,13 @@ func parseNetworkMetrics(h *store.Host, netDevSec, pingSec, pubIPSec, estSec, li
 		if len(parts) >= 2 {
 			totalActive++
 			remote := parts[1]
-			host, _, err := net.SplitHostPort(remote)
+			cleanRemote := remote
+			if strings.Count(cleanRemote, ":") > 1 && !strings.HasPrefix(cleanRemote, "[") {
+				if lastColon := strings.LastIndex(cleanRemote, ":"); lastColon != -1 {
+					cleanRemote = "[" + cleanRemote[:lastColon] + "]:" + cleanRemote[lastColon+1:]
+				}
+			}
+			host, _, err := net.SplitHostPort(cleanRemote)
 			if err != nil {
 				host = remote
 			}
@@ -651,16 +846,24 @@ func parseNetworkMetrics(h *store.Host, netDevSec, pingSec, pubIPSec, estSec, li
 		}
 		parts := strings.Fields(line)
 		if len(parts) >= 2 {
-			addr := parts[1] // e.g. 0.0.0.0:80, *:22, 127.0.0.1:3306
+			addr := parts[1] // e.g. 0.0.0.0:80, *:22, 127.0.0.1:3306, :::80
 			proc := ""
 			if len(parts) >= 3 {
 				proc = parts[2]
 			}
-			host, port, err := net.SplitHostPort(addr)
+			cleanAddr := addr
+			if strings.HasPrefix(cleanAddr, ":::") {
+				cleanAddr = "[::]:" + strings.TrimPrefix(cleanAddr, ":::")
+			} else if strings.Count(cleanAddr, ":") > 1 && !strings.HasPrefix(cleanAddr, "[") {
+				if lastColon := strings.LastIndex(cleanAddr, ":"); lastColon != -1 {
+					cleanAddr = "[" + cleanAddr[:lastColon] + "]:" + cleanAddr[lastColon+1:]
+				}
+			}
+			host, port, err := net.SplitHostPort(cleanAddr)
 			if err != nil {
 				continue
 			}
-			isPublic := host == "0.0.0.0" || host == "*" || host == "::" || host == ""
+			isPublic := host == "0.0.0.0" || host == "*" || host == "::" || host == "" || host == "[::]"
 			risk := "low"
 			if isPublic && sensitivePorts[port] {
 				risk = "high"
@@ -741,7 +944,7 @@ func parseOSInfo(osRelease string) string {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		if strings.Contains(line, "release") || strings.Contains(line, "Linux") || strings.Contains(line, "Debian") || strings.Contains(line, "Ubuntu") {
+		if strings.Contains(line, "release") || strings.Contains(line, "Linux") || strings.Contains(line, "Debian") || strings.Contains(line, "Ubuntu") || strings.Contains(line, "Windows") || strings.Contains(line, "Microsoft") {
 			return line
 		}
 	}
@@ -815,7 +1018,7 @@ func parseDf(output string) (used, total int64) {
 	lines := strings.Split(output, "\n")
 	for _, l := range lines {
 		fields := strings.Fields(l)
-		if len(fields) >= 6 && (fields[5] == "/" || strings.HasSuffix(fields[5], "/")) {
+		if len(fields) >= 6 && (fields[5] == "/" || fields[5] == "C:" || fields[5] == "C:\\" || strings.HasSuffix(fields[5], "/")) {
 			totK, _ := strconv.ParseInt(fields[1], 10, 64)
 			usdK, _ := strconv.ParseInt(fields[2], 10, 64)
 			return usdK * 1024, totK * 1024
@@ -836,7 +1039,7 @@ func ParseBIOSDate(s string) (time.Time, bool) {
 	if s == "" {
 		return time.Time{}, false
 	}
-	layouts := []string{"01/02/2006", "2006-01-02", "01/02/06", "2006/01/02", "02-01-2006"}
+	layouts := []string{"01/02/2006", "2006-01-02", "01/02/06", "2006/01/02", "02-01-2006", "20060102"}
 	for _, l := range layouts {
 		if t, err := time.Parse(l, s); err == nil && t.Year() > 1990 && t.Year() <= time.Now().Year()+1 {
 			return t, true
@@ -897,6 +1100,7 @@ func calculateLifecycleScore(osInfo, loadStr string, cpuCores int, ramUsed, ramT
 		"CentOS Linux 8", "CentOS release 8",
 		"Red Hat Enterprise Linux Server release 6",
 		"Red Hat Enterprise Linux Server release 7",
+		"Windows Server 2008", "Windows Server 2012", "Windows 7", "Windows 8",
 	}
 	osEOL := false
 	matchedEOL := ""
@@ -1053,7 +1257,7 @@ func calculateLifecycleScore(osInfo, loadStr string, cpuCores int, ramUsed, ramT
 		})
 	}
 
-	// 3. CPU Saturation check (load 1m / vCPU > 2.0 = -20 points)
+	// 3. CPU Saturation check (load 1m / vCPU > 2.0 = -20 points; Windows: >90% CPU = -20 points)
 	loadVal := 0.0
 	if loadStr != "" {
 		loads := strings.Split(loadStr, ",")
@@ -1061,24 +1265,46 @@ func calculateLifecycleScore(osInfo, loadStr string, cpuCores int, ramUsed, ramT
 			loadVal, _ = strconv.ParseFloat(strings.TrimSpace(loads[0]), 64)
 		}
 	}
-	loadRatio := loadVal / float64(cpuCores)
-	if loadRatio > 2.0 {
-		score -= 20
-		msg := fmt.Sprintf("High CPU saturation (load %.2f on %d vCPU, ratio %.2f)", loadVal, cpuCores, loadRatio)
-		notes = append(notes, msg)
-		factors = append(factors, LifecycleFactor{
-			Name:           "CPU Saturation",
-			Status:         "fail",
-			ScoreDeduction: -20,
-			Detail:         msg,
-		})
+	isWindowsOS := strings.Contains(strings.ToLower(osInfo), "windows")
+	if isWindowsOS {
+		if loadVal > 90.0 {
+			score -= 20
+			msg := fmt.Sprintf("High CPU saturation (%.1f%% CPU utilization)", loadVal)
+			notes = append(notes, msg)
+			factors = append(factors, LifecycleFactor{
+				Name:           "CPU Saturation",
+				Status:         "fail",
+				ScoreDeduction: -20,
+				Detail:         msg,
+			})
+		} else {
+			factors = append(factors, LifecycleFactor{
+				Name:           "CPU Saturation",
+				Status:         "pass",
+				ScoreDeduction: 0,
+				Detail:         fmt.Sprintf("CPU load within capacity (%.1f%% CPU utilization)", loadVal),
+			})
+		}
 	} else {
-		factors = append(factors, LifecycleFactor{
-			Name:           "CPU Saturation",
-			Status:         "pass",
-			ScoreDeduction: 0,
-			Detail:         fmt.Sprintf("CPU load within capacity (load %.2f on %d vCPU)", loadVal, cpuCores),
-		})
+		loadRatio := loadVal / float64(cpuCores)
+		if loadRatio > 2.0 {
+			score -= 20
+			msg := fmt.Sprintf("High CPU saturation (load %.2f on %d vCPU, ratio %.2f)", loadVal, cpuCores, loadRatio)
+			notes = append(notes, msg)
+			factors = append(factors, LifecycleFactor{
+				Name:           "CPU Saturation",
+				Status:         "fail",
+				ScoreDeduction: -20,
+				Detail:         msg,
+			})
+		} else {
+			factors = append(factors, LifecycleFactor{
+				Name:           "CPU Saturation",
+				Status:         "pass",
+				ScoreDeduction: 0,
+				Detail:         fmt.Sprintf("CPU load within capacity (load %.2f on %d vCPU)", loadVal, cpuCores),
+			})
+		}
 	}
 
 	// 4. Disk Capacity check (>90% = -20 points)
@@ -1230,7 +1456,260 @@ func (ins *Inspector) evaluateDesiredRules(h *store.Host, runner sshrunner.Runne
 	return driftFound, driftSummaries, checkedCount, nil
 }
 
+// evaluateWindowsRule evaluates desired state rules on Windows targets using Base64 encoded PowerShell commands.
+// ponytail: Reuses native PowerShell cmdlets (Get-Service, Get-CimInstance, Get-NetTCPConnection, Get-Process, Get-Item).
+func (ins *Inspector) evaluateWindowsRule(h *store.Host, runner sshrunner.Runner, rule *store.DesiredRule) (current, status, details, rootCause string) {
+	switch rule.Kind {
+	case "service":
+		escapedTarget := strings.ReplaceAll(rule.Target, "'", "''")
+		ps := fmt.Sprintf(`$s = Get-Service -Name '%[1]s' -ErrorAction SilentlyContinue; if (!$s) { $s = Get-Service -DisplayName '%[1]s' -ErrorAction SilentlyContinue }; if ($s) { $s.Status.ToString() } else { 'not_found' }`, escapedTarget)
+		out, _, _, err := runner.Exec(powershellEncodedCmd(ps))
+		if err != nil {
+			current = "exec_error"
+			status = "drift"
+			rootCause = fmt.Sprintf("Failed to query Windows service: %v", err)
+			return
+		}
+		rawStatus := strings.TrimSpace(out)
+		current = rawStatus
+		normalized := rawStatus
+		if strings.EqualFold(rawStatus, "Running") {
+			normalized = "active"
+		}
+		if strings.EqualFold(normalized, rule.Expected) || strings.EqualFold(rawStatus, rule.Expected) {
+			status = "ok"
+		} else {
+			status = "drift"
+			diagPS := `Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Service Control Manager'} -MaxEvents 5 -ErrorAction SilentlyContinue | ForEach-Object { "$($_.TimeCreated.ToString('HH:mm:ss')): $($_.Message.Trim())" }`
+			diagOut, _, _, _ := runner.Exec(powershellEncodedCmd(diagPS))
+			rootCause = fmt.Sprintf("Service %s is %s (expected %s)", rule.Target, rawStatus, rule.Expected)
+			if strings.TrimSpace(diagOut) != "" {
+				rootCause += fmt.Sprintf("\n--- System event diagnostics ---\n%s", strings.TrimSpace(diagOut))
+			}
+		}
+		return
+
+	case "disk":
+		target := sshrunner.CleanWindowsRemotePath(rule.Target)
+		if target == "" || target == "/" {
+			target = "C:"
+		}
+		target = strings.TrimRight(target, `/\`)
+		if !strings.HasSuffix(target, ":") {
+			target += ":"
+		}
+		target = strings.ToUpper(target)
+		escapedTarget := strings.ReplaceAll(target, "'", "''")
+		ps := fmt.Sprintf(`$d = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='%s'" -ErrorAction SilentlyContinue; if ($d) { "$([int64]$d.Size)|$([int64]$d.FreeSpace)" } else { 'not_found' }`, escapedTarget)
+		out, _, _, err := runner.Exec(powershellEncodedCmd(ps))
+		out = strings.TrimSpace(out)
+		if err != nil || out == "" || out == "not_found" {
+			current = "unreachable"
+			status = "drift"
+			rootCause = fmt.Sprintf("Drive %s not found on host", target)
+			return
+		}
+		parts := strings.Split(out, "|")
+		if len(parts) >= 2 {
+			size, _ := strconv.ParseInt(parts[0], 10, 64)
+			free, _ := strconv.ParseInt(parts[1], 10, 64)
+			if size > 0 {
+				used := size - free
+				pct := int(float64(used) / float64(size) * 100)
+				current = fmt.Sprintf("%d%%", pct)
+
+				limit := 85
+				cleanExp := strings.TrimSpace(strings.TrimPrefix(strings.TrimSuffix(rule.Expected, "%"), "<"))
+				if l, err := strconv.Atoi(cleanExp); err == nil {
+					limit = l
+				}
+				if pct < limit {
+					status = "ok"
+				} else {
+					status = "drift"
+					rootCause = fmt.Sprintf("Disk usage on %s is %d%%, exceeding threshold <%d%%", target, pct, limit)
+				}
+				return
+			}
+		}
+		current = "unknown"
+		status = "drift"
+		rootCause = "Could not parse drive usage"
+		return
+
+	case "port":
+		target := strings.TrimSpace(rule.Target)
+		port := target
+		if idx := strings.LastIndex(target, ":"); idx != -1 {
+			port = target[idx+1:]
+		}
+		pNum, err := strconv.Atoi(port)
+		if err != nil || pNum <= 0 || pNum > 65535 {
+			current = "invalid_port"
+			status = "drift"
+			rootCause = fmt.Sprintf("Invalid port target: %s", target)
+			return
+		}
+		ps := fmt.Sprintf(`try { $c = Get-NetTCPConnection -LocalPort %[1]d -State Listen -ErrorAction Stop; if ($c) { 'listening' } else { 'closed' } } catch { if ((netstat -ano | Select-String ':%[1]d\s+.*LISTENING') -or (netstat -ano | Select-String ':%[1]d\s+')) { 'listening' } else { 'closed' } }`, pNum)
+		out, _, _, _ := runner.Exec(powershellEncodedCmd(ps))
+		isListening := strings.Contains(strings.ToLower(out), "listening")
+		expectedListening := !strings.EqualFold(rule.Expected, "closed") && !strings.EqualFold(rule.Expected, "stopped")
+		if isListening {
+			current = "listening"
+			if expectedListening {
+				status = "ok"
+			} else {
+				status = "drift"
+				rootCause = fmt.Sprintf("Port %d is listening, but expected to be closed", pNum)
+			}
+		} else {
+			current = "closed"
+			if !expectedListening {
+				status = "ok"
+			} else {
+				status = "drift"
+				rootCause = fmt.Sprintf("Port %d is not listening (expected %s)", pNum, rule.Expected)
+			}
+		}
+		return
+
+	case "process":
+		target := strings.TrimSpace(rule.Target)
+		target = strings.ReplaceAll(target, "\\", "/")
+		target = path.Base(target)
+		target = strings.TrimSuffix(target, ".exe")
+		escapedTarget := strings.ReplaceAll(target, "'", "''")
+		ps := fmt.Sprintf(`$p = Get-Process -Name '%s' -ErrorAction SilentlyContinue; if ($p) { 'running' } else { 'not_found' }`, escapedTarget)
+		out, _, _, _ := runner.Exec(powershellEncodedCmd(ps))
+		isRunning := strings.Contains(strings.ToLower(out), "running")
+		expectedRunning := !strings.EqualFold(rule.Expected, "stopped") && !strings.EqualFold(rule.Expected, "absent")
+		if isRunning {
+			current = "running"
+			if expectedRunning {
+				status = "ok"
+			} else {
+				status = "drift"
+				rootCause = fmt.Sprintf("Process %s is running (expected stopped)", target)
+			}
+		} else {
+			current = "not_found"
+			if !expectedRunning {
+				status = "ok"
+			} else {
+				status = "drift"
+				rootCause = fmt.Sprintf("Process %s is not running", target)
+			}
+		}
+		return
+
+	case "backup":
+		target := sshrunner.CleanWindowsRemotePath(rule.Target)
+		escapedTarget := strings.ReplaceAll(target, "'", "''")
+		ps := fmt.Sprintf(`$f = Get-Item -LiteralPath '%s' -ErrorAction SilentlyContinue; if ($f) { "$($f.Length) $([int64]([DateTimeOffset]$f.LastWriteTime).ToUnixTimeSeconds())" } else { 'missing' }`, escapedTarget)
+		out, _, _, _ := runner.Exec(powershellEncodedCmd(ps))
+		out = strings.TrimSpace(out)
+		if out == "" || out == "missing" {
+			current = "missing"
+			status = "drift"
+			rootCause = fmt.Sprintf("Backup file does not exist at path: %s", target)
+			return
+		}
+		fields := strings.Fields(out)
+		if len(fields) >= 2 {
+			sizeBytes, _ := strconv.ParseInt(fields[0], 10, 64)
+			mtimeUnix, _ := strconv.ParseInt(fields[1], 10, 64)
+			modTime := time.Unix(mtimeUnix, 0)
+			ageHours := time.Since(modTime).Hours()
+			details = fmt.Sprintf("Size: %d bytes, Modified: %s (%.1fh ago)", sizeBytes, modTime.Format(time.RFC3339), ageHours)
+
+			if sizeBytes == 0 {
+				current = "empty_file (0 bytes)"
+				status = "drift"
+				rootCause = fmt.Sprintf("Backup file exists but is 0 bytes empty at %s", target)
+				return
+			}
+			maxHours := 24.0
+			if strings.HasPrefix(rule.Expected, "fresh_") {
+				raw := strings.TrimSuffix(strings.TrimPrefix(rule.Expected, "fresh_"), "h")
+				if h, err := strconv.ParseFloat(raw, 64); err == nil {
+					maxHours = h
+				}
+			}
+			if ageHours <= maxHours {
+				current = fmt.Sprintf("fresh (%.1fh ago, %d B)", ageHours, sizeBytes)
+				status = "ok"
+			} else {
+				current = fmt.Sprintf("stale (%.1fh ago)", ageHours)
+				status = "drift"
+				rootCause = fmt.Sprintf("Backup file at %s is stale (age: %.1f hours, max allowed: %.1f hours)", target, ageHours, maxHours)
+			}
+			return
+		}
+		current = "stat_error"
+		status = "drift"
+		rootCause = "Could not parse backup file metadata"
+		return
+
+	case "cron", "task", "scheduled_task":
+		escapedTarget := strings.ReplaceAll(rule.Target, "'", "''")
+		ps := fmt.Sprintf(`$t = Get-ScheduledTask -TaskName '*%[1]s*' -ErrorAction SilentlyContinue; if (!$t) { $t = Get-ScheduledTask | Where-Object { $_.TaskName -like '*%[1]s*' -or $_.TaskPath -like '*%[1]s*' } }; if ($t) { 'configured' } else { 'missing' }`, escapedTarget)
+		out, _, _, _ := runner.Exec(powershellEncodedCmd(ps))
+		out = strings.TrimSpace(out)
+		if strings.EqualFold(out, "configured") {
+			current = "configured"
+			status = "ok"
+		} else {
+			current = "missing"
+			status = "drift"
+			rootCause = fmt.Sprintf("Scheduled task matching '%s' was not found", rule.Target)
+		}
+		return
+
+	case "container":
+		target := strings.TrimSpace(rule.Target)
+		escapedTarget := strings.ReplaceAll(target, "'", "''")
+		ps := fmt.Sprintf(`docker inspect -f '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}|{{.State.Error}}' '%s' 2>$null`, escapedTarget)
+		out, _, exitCode, _ := runner.Exec(powershellEncodedCmd(ps))
+		out = strings.TrimSpace(out)
+		if exitCode != 0 || out == "" {
+			current = "not_found"
+			status = "drift"
+			rootCause = fmt.Sprintf("Container %s is not running or not found", target)
+			return
+		}
+		parts := strings.Split(out, "|")
+		cStatus := parts[0]
+		current = cStatus
+		if cStatus == "running" {
+			status = "ok"
+		} else {
+			status = "drift"
+			var diag strings.Builder
+			diag.WriteString(fmt.Sprintf("Container %s is %s", target, cStatus))
+			if len(parts) >= 4 {
+				diag.WriteString(fmt.Sprintf(" (ExitCode: %s, OOMKilled: %s, Error: %s)\n", parts[1], parts[2], parts[3]))
+			} else {
+				diag.WriteString("\n")
+			}
+			logOut, _, _, _ := runner.Exec(powershellEncodedCmd(fmt.Sprintf(`docker logs --tail 50 '%s' 2>&1`, escapedTarget)))
+			diag.WriteString("--- Last 50 lines of container logs ---\n")
+			diag.WriteString(strings.TrimSpace(logOut))
+			rootCause = diag.String()
+		}
+		return
+
+	default:
+		current = "unsupported"
+		status = "drift"
+		rootCause = fmt.Sprintf("Rule kind '%s' is not supported on Windows hosts", rule.Kind)
+		return
+	}
+}
+
 func (ins *Inspector) evaluateRule(h *store.Host, runner sshrunner.Runner, rule *store.DesiredRule) (current, status, details, rootCause string) {
+	if h.OSType == "windows" {
+		return ins.evaluateWindowsRule(h, runner, rule)
+	}
 	switch rule.Kind {
 	case "container":
 		// Check docker container status
@@ -1480,6 +1959,71 @@ func (ins *Inspector) GenerateBaseline(hostID int64) ([]store.DesiredRule, error
 
 	var rules []store.DesiredRule
 
+	if host.OSType == "windows" {
+		diskRule := store.DesiredRule{
+			HostID:   hostID,
+			Kind:     "disk",
+			Target:   "C:",
+			Expected: "<85%",
+			Enabled:  true,
+		}
+		_ = ins.db.SaveDesiredRule(&diskRule)
+		rules = append(rules, diskRule)
+
+		for _, svc := range []string{"W3SVC", "MSSQLSERVER", "w32time", "sshd"} {
+			ps := fmt.Sprintf(`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($s -and $s.Status -eq 'Running') { 'active' }`, svc)
+			out, _, _, _ := runner.Exec(powershellEncodedCmd(ps))
+			if strings.TrimSpace(out) == "active" {
+				r := store.DesiredRule{
+					HostID:   hostID,
+					Kind:     "service",
+					Target:   svc,
+					Expected: "active",
+					Enabled:  true,
+				}
+				_ = ins.db.SaveDesiredRule(&r)
+				rules = append(rules, r)
+			}
+		}
+
+		dockerOut, _, code, _ := runner.Exec(powershellEncodedCmd(`docker ps --format "{{.Names}}" 2>$null`))
+		if code == 0 && strings.TrimSpace(dockerOut) != "" {
+			for _, name := range strings.Split(strings.TrimSpace(dockerOut), "\n") {
+				name = strings.TrimSpace(name)
+				if name != "" {
+					r := store.DesiredRule{
+						HostID:   hostID,
+						Kind:     "container",
+						Target:   name,
+						Expected: "running",
+						Enabled:  true,
+					}
+					_ = ins.db.SaveDesiredRule(&r)
+					rules = append(rules, r)
+				}
+			}
+		}
+
+		taskOut, _, tCode, _ := runner.Exec(powershellEncodedCmd(`Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object { $_.State -ne 'Disabled' -and $_.TaskPath -notlike '\Microsoft*' } | Select-Object -First 3 -ExpandProperty TaskName`))
+		if tCode == 0 && strings.TrimSpace(taskOut) != "" {
+			for _, tName := range strings.Split(strings.TrimSpace(taskOut), "\n") {
+				tName = strings.TrimSpace(tName)
+				if tName != "" {
+					r := store.DesiredRule{
+						HostID:   hostID,
+						Kind:     "cron",
+						Target:   tName,
+						Expected: "configured",
+						Enabled:  true,
+					}
+					_ = ins.db.SaveDesiredRule(&r)
+					rules = append(rules, r)
+				}
+			}
+		}
+		return rules, nil
+	}
+
 	// 1. Root disk rule
 	diskRule := store.DesiredRule{
 		HostID:   hostID,
@@ -1579,7 +2123,13 @@ func (ins *Inspector) DockerAction(hostID int64, containerName, action string) (
 	}
 	defer runner.Close()
 
-	cmd := fmt.Sprintf("docker %s %s", action, shellQuote(containerName))
+	var cmd string
+	if host.OSType == "windows" {
+		cleanName := strings.ReplaceAll(containerName, "'", "''")
+		cmd = powershellEncodedCmd(fmt.Sprintf("docker %s '%s'", action, cleanName))
+	} else {
+		cmd = fmt.Sprintf("docker %s %s", action, shellQuote(containerName))
+	}
 	stdout, stderr, exitCode, err := runner.Exec(cmd)
 	if err != nil || exitCode != 0 {
 		return "", fmt.Errorf("docker %s failed (exit %d): %s %s", action, exitCode, stdout, stderr)
@@ -1857,6 +2407,11 @@ func (ins *Inspector) ScanPackagesWithTimeout(hostID int64, timeout time.Duratio
 	}
 	if host == nil {
 		return fmt.Errorf("host %d not found", hostID)
+	}
+
+	if host.OSType == "windows" {
+		// ponytail: Windows package inventory deferred per ADR-0040 (YAGNI/minimal scope)
+		return fmt.Errorf("package scanning is not supported on Windows hosts")
 	}
 
 	runner, err := ins.GetRunnerForHost(host)
