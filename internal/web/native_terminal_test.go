@@ -762,6 +762,16 @@ func TestWindowsNativeTerminalKeyInjectionAndCdClause(t *testing.T) {
 		t.Errorf("expected Set-Location for Windows path, got %q", cdWin)
 	}
 
+	cdTildeSub := buildRemoteCdClause(`~/Documents`, "windows")
+	if !strings.Contains(cdTildeSub, "Set-Location -LiteralPath (Join-Path $HOME 'Documents')") {
+		t.Errorf("expected Set-Location with Join-Path for tilde subpath on Windows, got %q", cdTildeSub)
+	}
+
+	cdSlashWin := buildRemoteCdClause(`/C:/inetpub`, "windows")
+	if !strings.Contains(cdSlashWin, "Set-Location -LiteralPath 'C:/inetpub'") {
+		t.Errorf("expected stripped leading slash for Windows path, got %q", cdSlashWin)
+	}
+
 	// 2. Test Ephemeral key injection & cleanup on Windows host
 	mockRunner := &mockTestSSHRunner{}
 	s, _, host := setupTestServerWithDB(t, mockRunner)

@@ -81,8 +81,16 @@ func buildRemoteCdClause(initialDir string, hostOSType ...string) string {
 		targetOS = strings.ToLower(strings.TrimSpace(hostOSType[0]))
 	}
 	if targetOS == "windows" {
-		if cleaned == "~" {
+		if len(cleaned) >= 3 && cleaned[0] == '/' && (('a' <= cleaned[1] && cleaned[1] <= 'z') || ('A' <= cleaned[1] && cleaned[1] <= 'Z')) && cleaned[2] == ':' {
+			cleaned = cleaned[1:]
+		}
+		if cleaned == "~" || cleaned == "~/" {
 			return ""
+		}
+		if strings.HasPrefix(cleaned, "~/") || strings.HasPrefix(cleaned, `~\`) {
+			subPath := strings.TrimPrefix(strings.TrimPrefix(cleaned, "~/"), `~\`)
+			escapedSub := strings.ReplaceAll(subPath, "'", "''")
+			return fmt.Sprintf(`powershell.exe -NoExit -Command "Set-Location -LiteralPath (Join-Path $HOME '%s')"`, escapedSub)
 		}
 		escaped := strings.ReplaceAll(cleaned, "'", "''")
 		return fmt.Sprintf(`powershell.exe -NoExit -Command "Set-Location -LiteralPath '%s'"`, escaped)

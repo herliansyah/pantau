@@ -6763,10 +6763,12 @@ async function testConnectionInModal() {
   }
 
   try {
+    const osSelect = document.getElementById('hostOSType');
+    const os_type = osSelect?.value || 'auto';
     const res = await fetch('/api/hosts/test-connection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host, port, user, password, custom_key, host_id })
+      body: JSON.stringify({ host, port, user, password, custom_key, host_id, os_type })
     });
     const data = await res.json();
     if (data.ok) {
@@ -6783,6 +6785,14 @@ async function testConnectionInModal() {
           <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 4px;">✅ ${escapeHtml(t('ssh_test_success', 'SSH Connection Success:'))}${methodNote}</div>
           <div style="color:var(--text, #e2e8f0); font-family:monospace; font-size:0.75rem; white-space:pre-wrap; line-height:1.3;">${escapeHtml(data.output || 'Authenticated')}</div>
         `;
+      }
+      if (osSelect && osSelect.value === 'auto' && data.output) {
+        const outLower = data.output.toLowerCase();
+        if (outLower.includes('windows') || outLower.includes('microsoft')) {
+          osSelect.value = 'windows';
+        } else if (outLower.includes('linux') || outLower.includes('darwin') || outLower.includes('bsd')) {
+          osSelect.value = 'linux';
+        }
       }
     } else {
       if (resBox) {
@@ -11521,7 +11531,7 @@ function renderFilesView() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m6 10 3 2-3 2"/><path d="M12 14h4"/></svg> <span>${t('open_native_terminal', 'Native Terminal')}</span>
         </button>
         <button class="btn btn-sm" onclick="loadFiles('${escapeHtml(data.path)}')" title="${t('refresh')}">🔄</button>
-        <input type="file" id="fileUploadInput" style="display: none;" onchange="uploadFile('${data.path}')" />
+        <input type="file" id="fileUploadInput" style="display: none;" onchange="uploadFile('${escapeHtml(data.path)}')" />
         <button class="btn btn-primary btn-sm" ${isProtectedDir ? 'disabled title="' + t('cannot_upload_protected') + '"' : ''} onclick="document.getElementById('fileUploadInput').click()">${t('upload_file')}</button>
       </div>
     </div>
@@ -11649,7 +11659,7 @@ function renderFilesTableBody() {
         <td style="word-break: break-all;">
           <button type="button" class="btn-file-pin ${isPinned ? 'pinned' : ''}" onclick="openPinModal('${escapeHtml(fullPath)}', ${f.is_dir})" title="${isPinned ? escapeHtml(pin.note || t('pinned')) : t('pin_this_item')}">${isPinned ? '📌' : '📍'}</button>
           ${f.is_dir 
-            ? '<a class="folder-link" href="javascript:void(0)" onclick="loadFiles(\'' + fullPath + '\')"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>' + escapeHtml(f.name) + '</b></a>' 
+            ? `<a class="folder-link" href="javascript:void(0)" onclick="loadFiles('${escapeHtml(fullPath)}')"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>${escapeHtml(f.name)}</b></a>` 
             : '<span style="font-size: 1.05em; margin-right: 4px;">' + icon + '</span> ' + escapeHtml(f.name)}
           ${isPinned && pin.note ? `<span class="file-pin-badge" title="${escapeHtml(pin.note)}">📝 ${escapeHtml(pin.note)}</span>` : ''}
           ${isItemProtected ? '<span title="' + t('protected_path') + '" style="margin-left: 6px; font-size: 0.85em;">🔒</span>' : ''}

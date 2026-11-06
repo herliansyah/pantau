@@ -1475,6 +1475,8 @@ func (ins *Inspector) evaluateWindowsRule(h *store.Host, runner sshrunner.Runner
 		normalized := rawStatus
 		if strings.EqualFold(rawStatus, "Running") {
 			normalized = "active"
+		} else if strings.EqualFold(rawStatus, "Stopped") {
+			normalized = "inactive"
 		}
 		if strings.EqualFold(normalized, rule.Expected) || strings.EqualFold(rawStatus, rule.Expected) {
 			status = "ok"
@@ -1680,12 +1682,12 @@ func (ins *Inspector) evaluateWindowsRule(h *store.Host, runner sshrunner.Runner
 		parts := strings.Split(out, "|")
 		cStatus := parts[0]
 		current = cStatus
-		if cStatus == "running" {
+		if strings.EqualFold(cStatus, rule.Expected) {
 			status = "ok"
 		} else {
 			status = "drift"
 			var diag strings.Builder
-			diag.WriteString(fmt.Sprintf("Container %s is %s", target, cStatus))
+			diag.WriteString(fmt.Sprintf("Container %s is %s (expected %s)", target, cStatus, rule.Expected))
 			if len(parts) >= 4 {
 				diag.WriteString(fmt.Sprintf(" (ExitCode: %s, OOMKilled: %s, Error: %s)\n", parts[1], parts[2], parts[3]))
 			} else {

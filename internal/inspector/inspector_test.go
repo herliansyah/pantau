@@ -991,6 +991,20 @@ func TestWindowsRuleEvaluation(t *testing.T) {
 		t.Fatalf("expected service ok with current Running, got status=%s current=%s", status, current)
 	}
 
+	// 1b. Service rule with 'Stopped' normalized to 'inactive'
+	svcStoppedMock := sshrunner.NewMockRunner()
+	svcStoppedMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "Stopped\r\n", "", 0, nil
+	}
+	current, status, _, _ = ins.evaluateRule(host, svcStoppedMock, &store.DesiredRule{
+		Kind:     "service",
+		Target:   "w32time",
+		Expected: "inactive",
+	})
+	if status != "ok" || current != "Stopped" {
+		t.Fatalf("expected stopped service ok with expected inactive, got status=%s current=%s", status, current)
+	}
+
 	// 2. Disk rule normalized to C:
 	diskMock := sshrunner.NewMockRunner()
 	diskMock.DefaultExec = func(cmd string) (string, string, int, error) {
@@ -1066,6 +1080,20 @@ func TestWindowsRuleEvaluation(t *testing.T) {
 	}
 	if !strings.Contains(rootCause, "OOMKilled") || !strings.Contains(rootCause, "ExitCode: 137") {
 		t.Fatalf("expected OOMKilled diagnostics in rootCause, got: %s", rootCause)
+	}
+
+	// 5c. Container expected exited
+	containerExitedMock := sshrunner.NewMockRunner()
+	containerExitedMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "exited|0|false|\n", "", 0, nil
+	}
+	current, status, _, _ = ins.evaluateRule(host, containerExitedMock, &store.DesiredRule{
+		Kind:     "container",
+		Target:   "batch-job",
+		Expected: "exited",
+	})
+	if status != "ok" || current != "exited" {
+		t.Fatalf("expected container exited ok, got status=%s current=%s", status, current)
 	}
 
 	// 6. Backup rule
