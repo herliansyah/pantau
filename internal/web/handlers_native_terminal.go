@@ -80,8 +80,13 @@ func buildRemoteCdClause(initialDir string, hostOSType ...string) string {
 	if len(hostOSType) > 0 {
 		targetOS = strings.ToLower(strings.TrimSpace(hostOSType[0]))
 	}
-	if targetOS == "windows" {
-		cleaned = sshrunner.CleanWindowsRemotePath(cleaned)
+	isWindowsPath := false
+	winNorm := sshrunner.CleanWindowsRemotePath(cleaned)
+	if len(winNorm) >= 2 && winNorm[1] == ':' && ((winNorm[0] >= 'a' && winNorm[0] <= 'z') || (winNorm[0] >= 'A' && winNorm[0] <= 'Z')) {
+		isWindowsPath = true
+	}
+	if targetOS == "windows" || (targetOS != "linux" && isWindowsPath) {
+		cleaned = winNorm
 		if cleaned == "~" || cleaned == "~/" {
 			return ""
 		}

@@ -792,6 +792,17 @@ func TestWindowsNativeTerminalKeyInjectionAndCdClause(t *testing.T) {
 		t.Errorf("expected root 'C:/' for / path on Windows, got %q", cdRoot)
 	}
 
+	// Test auto/untyped host with Windows drive path
+	cdAutoWin := buildRemoteCdClause(`C:\inetpub\wwwroot`, "auto")
+	if !strings.Contains(cdAutoWin, "Set-Location -LiteralPath 'C:/inetpub/wwwroot'") {
+		t.Errorf("expected Set-Location for auto host with Windows path, got %q", cdAutoWin)
+	}
+
+	cdEmptyOSWin := buildRemoteCdClause(`D:/data`)
+	if !strings.Contains(cdEmptyOSWin, "Set-Location -LiteralPath 'D:/data'") {
+		t.Errorf("expected Set-Location for empty OS host with Windows drive path, got %q", cdEmptyOSWin)
+	}
+
 	// 2. Test Ephemeral key injection & cleanup on Windows host
 	mockRunner := &mockTestSSHRunner{}
 	s, _, host := setupTestServerWithDB(t, mockRunner)

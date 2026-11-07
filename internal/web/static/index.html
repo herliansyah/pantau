@@ -7284,7 +7284,8 @@ function getHostFilesPath(hostId) {
     const saved = sessionStorage.getItem('pantau_host_files_path_' + hostId);
     if (saved) return saved;
   } catch(e) {}
-  return '/';
+  const hostObj = (allRawHosts || []).find(h => h.id === hostId);
+  return (hostObj && hostObj.os_type === 'windows') ? 'C:/' : '/';
 }
 
 function setHostFilesPath(hostId, path) {
@@ -7297,11 +7298,18 @@ function setHostFilesPath(hostId, path) {
 
 function openTerminalForPath(targetPath, isDir) {
   if (!currentHost) return;
-  let dir = targetPath || '/';
+  const isWin = currentHost.os_type === 'windows';
+  let dir = (targetPath || (isWin ? 'C:/' : '/')).replace(/\\/g, '/');
   if (isDir === false) {
     if (dir.includes('/')) {
       const lastSlash = dir.lastIndexOf('/');
-      dir = lastSlash === 0 ? '/' : dir.substring(0, lastSlash);
+      if (lastSlash > 2) {
+        dir = dir.substring(0, lastSlash);
+      } else if (lastSlash === 2 && dir[1] === ':') {
+        dir = dir.substring(0, 3);
+      } else {
+        dir = lastSlash === 0 ? '/' : dir.substring(0, lastSlash);
+      }
     }
   } else if (isDir === undefined) {
     // Naive heuristic: if base has extension, treat as file
@@ -7309,12 +7317,18 @@ function openTerminalForPath(targetPath, isDir) {
     if (lastSlash >= 0) {
       const base = dir.substring(lastSlash + 1);
       if (base.includes('.')) {
-        dir = lastSlash === 0 ? '/' : dir.substring(0, lastSlash);
+        if (lastSlash > 2) {
+          dir = dir.substring(0, lastSlash);
+        } else if (lastSlash === 2 && dir[1] === ':') {
+          dir = dir.substring(0, 3);
+        } else {
+          dir = lastSlash === 0 ? '/' : dir.substring(0, lastSlash);
+        }
       }
     }
   }
   const hostName = currentHost.name || ('Host ' + currentHost.id);
-  const folderName = (dir === '/' || !dir) ? '/' : dir.split('/').filter(Boolean).pop() || dir;
+  const folderName = (dir === '/' || dir === 'C:/' || !dir) ? '/' : dir.split('/').filter(Boolean).pop() || dir;
   const customTitle = `${hostName}: ${folderName}`;
   openTerminalForHost(currentHost.id, null, true, customTitle, dir);
 }
@@ -11474,9 +11488,9 @@ function renderBreadcrumbs(currentPath) {
 function getFileIcon(fileName) {
   const ext = fileName.split('.').pop().toLowerCase();
   switch (ext) {
-    case 'sh': case 'bash': case 'zsh':
+    case 'sh': case 'bash': case 'zsh': case 'ps1': case 'psm1': case 'bat': case 'cmd':
       return '🐚';
-    case 'json': case 'yml': case 'yaml': case 'conf': case 'ini': case 'env': case 'toml': case 'cfg':
+    case 'json': case 'yml': case 'yaml': case 'conf': case 'ini': case 'env': case 'toml': case 'cfg': case 'config':
       return '⚙️';
     case 'log': case 'txt': case 'md': case 'rtf':
       return '📝';
@@ -11484,8 +11498,10 @@ function getFileIcon(fileName) {
       return '🗜️';
     case 'jpg': case 'jpeg': case 'png': case 'gif': case 'svg': case 'ico': case 'webp':
       return '🖼️';
-    case 'js': case 'ts': case 'jsx': case 'tsx': case 'php': case 'py': case 'go': case 'rs': case 'c': case 'cpp': case 'h': case 'html': case 'css':
+    case 'js': case 'ts': case 'jsx': case 'tsx': case 'php': case 'py': case 'go': case 'rs': case 'c': case 'cpp': case 'h': case 'html': case 'css': case 'cs':
       return '💻';
+    case 'exe': case 'dll': case 'msi':
+      return '📦';
     default:
       return '📄';
   }
@@ -12273,12 +12289,13 @@ function getEditorModeForPath(filePath) {
   const map = {
     'js': 'javascript', 'ts': 'javascript', 'json': 'javascript',
     'sh': 'shell', 'bash': 'shell', 'zsh': 'shell', 'env': 'shell',
+    'ps1': 'shell', 'psm1': 'shell', 'psd1': 'shell', 'bat': 'shell', 'cmd': 'shell',
     'php': 'php',
     'yml': 'yaml', 'yaml': 'yaml',
     'css': 'css', 'scss': 'css',
     'html': 'htmlmixed', 'htm': 'htmlmixed',
-    'xml': 'xml', 'svg': 'xml',
-    'c': 'clike', 'cpp': 'clike', 'h': 'clike', 'java': 'clike'
+    'xml': 'xml', 'svg': 'xml', 'config': 'xml',
+    'c': 'clike', 'cpp': 'clike', 'h': 'clike', 'java': 'clike', 'cs': 'clike'
   };
   return map[ext] || 'shell';
 }
@@ -13061,6 +13078,11 @@ function extractPathFromTerminalTitle(title) {
   let str = title.trim().replace(/[\x00\x07]/g, '').trim();
   // Strip trailing shell or window manager indicators (e.g. " - bash", " (tmux)")
   str = str.replace(/\s*-\s*[A-Za-z0-9_.-]+$/, '').replace(/\s*\([^)]*\)$/, '').trim();
+  // Check for Windows drive path pattern e.g. C:\Users\Admin or C:/Users/Admin
+  const winMatch = str.match(/(?:^|[:\s])([a-zA-Z]:[\\/][^\s]*)/);
+  if (winMatch) {
+    return winMatch[1].replace(/\\/g, '/');
+  }
   const colonIdx = str.lastIndexOf(':');
   if (colonIdx !== -1) {
     str = str.substring(colonIdx + 1).trim();
@@ -13092,8 +13114,8 @@ function extractPathFromTerminalBuffer(term) {
     // 3. user:~/dir$
     const m3 = text.match(/[:]([~/][^\s\$#%>]*)\s*[\$#%>]/);
     if (m3 && m3[1]) return m3[1].trim();
-    // 4. Windows prompts: PS C:\Users\Admin> or C:\Users\Admin>
-    const mWin = text.match(/(?:PS\s+)?([a-zA-Z]:\\[^>]*?)>\s*$/);
+    // 4. Windows prompts: PS C:\Users\Admin> or C:\Users\Admin> or PS C:/Users/Admin>
+    const mWin = text.match(/(?:PS\s+)?([a-zA-Z]:[\\/][^>]*?)>\s*$/);
     if (mWin && mWin[1]) return mWin[1].trim().replace(/\\/g, '/');
   }
   return null;
@@ -13175,24 +13197,47 @@ function setupTerminalPathTracking(tab, pane, term) {
       if (ch === '\r' || ch === '\n') {
         const cmd = inputBuffer.trim();
         inputBuffer = '';
-        const cdMatch = cmd.match(/^cd(?:\s+(.*))?$/);
+        const driveMatch = cmd.match(/^([a-zA-Z]):$/);
+        if (driveMatch) {
+          setTabActivePath(tab, pane, driveMatch[1].toUpperCase() + ':/');
+        }
+        const cdMatch = cmd.match(/^(?:cd|Set-Location|sl)(?:\s+(.*))?$/i);
         if (cdMatch) {
           let target = (cdMatch[1] || '').trim();
           target = target.replace(/^['"]|['"]$/g, '').trim();
-          if (!target || target === '~') {
+          if (!target || target === '~' || target === '~/') {
             setTabActivePath(tab, pane, '~');
+          } else if (target === '/' || target === '\\') {
+            const cur = (pane === 'right' ? tab.currentDirRight : tab.currentDirLeft) || '';
+            if (cur && cur.length >= 2 && cur[1] === ':') {
+              setTabActivePath(tab, pane, cur.substring(0, 2).toUpperCase() + '/');
+            } else {
+              const hostObj = (allRawHosts || []).find(h => h.id === (tab ? (pane === 'right' && tab.isSplit ? (tab.hostIDRight || tab.hostID) : tab.hostID) : null));
+              setTabActivePath(tab, pane, (hostObj && hostObj.os_type === 'windows') ? 'C:/' : '/');
+            }
           } else if (target.startsWith('/') || target.startsWith('~')) {
             setTabActivePath(tab, pane, target);
+          } else if (/^[a-zA-Z]:[\\/]/.test(target) || /^[a-zA-Z]:$/.test(target)) {
+            let winP = target.replace(/\\/g, '/');
+            if (winP.length === 2 && winP[1] === ':') winP += '/';
+            setTabActivePath(tab, pane, winP);
           } else if (target === '..') {
             const cur = (pane === 'right' ? tab.currentDirRight : tab.currentDirLeft) || '';
             if (cur && cur !== '/' && cur !== '~') {
-              const parent = cur.substring(0, cur.lastIndexOf('/')) || '/';
-              setTabActivePath(tab, pane, parent);
+              const lastSlash = cur.lastIndexOf('/');
+              if (lastSlash > 2) {
+                setTabActivePath(tab, pane, cur.substring(0, lastSlash));
+              } else if (lastSlash === 2 && cur[1] === ':') {
+                setTabActivePath(tab, pane, cur.substring(0, 3));
+              } else {
+                const parent = cur.substring(0, lastSlash) || '/';
+                setTabActivePath(tab, pane, parent);
+              }
             }
           } else if (target !== '.' && !target.includes(' ')) {
             const cur = (pane === 'right' ? tab.currentDirRight : tab.currentDirLeft);
             if (cur && cur !== '/' && cur !== '~') {
-              setTabActivePath(tab, pane, cur.replace(/\/$/, '') + '/' + target);
+              setTabActivePath(tab, pane, cur.replace(/\/$/, '') + '/' + target.replace(/\\/g, '/'));
             }
           }
         }

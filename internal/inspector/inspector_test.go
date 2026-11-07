@@ -1320,7 +1320,7 @@ func TestWindowsDockerActionAndBaseline(t *testing.T) {
 			return "AppSyncTask\n", "", 0, nil
 		}
 		if strings.Contains(decoded, "Get-Service") {
-			return "active\n", "", 0, nil
+			return "W3SVC\n", "", 0, nil
 		}
 		if strings.Contains(decoded, "docker restart") {
 			return "sql-server\n", "", 0, nil
@@ -1337,7 +1337,7 @@ func TestWindowsDockerActionAndBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateBaseline error: %v", err)
 	}
-	var hasContainer, hasTask bool
+	var hasContainer, hasTask, hasService bool
 	for _, r := range rules {
 		if r.Kind == "container" && r.Target == "sql-server" {
 			hasContainer = true
@@ -1345,12 +1345,18 @@ func TestWindowsDockerActionAndBaseline(t *testing.T) {
 		if r.Kind == "cron" && r.Target == "AppSyncTask" {
 			hasTask = true
 		}
+		if r.Kind == "service" && r.Target == "W3SVC" {
+			hasService = true
+		}
 	}
 	if !hasContainer {
 		t.Fatalf("expected sql-server container in generated baseline, got rules: %+v", rules)
 	}
 	if !hasTask {
 		t.Fatalf("expected AppSyncTask scheduled task in generated baseline, got rules: %+v", rules)
+	}
+	if !hasService {
+		t.Fatalf("expected W3SVC service in generated baseline, got rules: %+v", rules)
 	}
 
 	// 2. DockerAction on Windows should execute via powershellEncodedCmd
@@ -1428,4 +1434,36 @@ func TestWindowsApplicationMetricProbes(t *testing.T) {
 		t.Fatalf("expected probe metric iis_active=42, got %v", res.Series)
 	}
 }
+
+func TestWindowsLocaleDecimalAndTopProcesses(t *testing.T) {
+	// Test parseTopProcesses with non-English locale comma decimals (e.g. 15,2% CPU, 4,8% MEM)
+	outComma := "101 SYSTEM 15,2 4,8 102400 svchost\n102 SYSTEM 8,5 2,1 51200 w3wp\n"
+	procs := parseTopProcesses(outComma)
+	if len(procs) != 2 {
+		t.Fatalf("expected 2 processes, got %d", len(procs))
+	}
+	if procs[0].CPU != 15.2 {
+		t.Errorf("expected CPU 15.2, got %v", procs[0].CPU)
+	}
+	if procs[0].MEM != 4.8 {
+		t.Errorf("expected MEM 4.8, got %v", procs[0].MEM)
+	}
+	if procs[1].CPU != 8.5 {
+		t.Errorf("expected CPU 8.5, got %v", procs[1].CPU)
+	}
+
+	// Test calculateLifecycleScore with Windows and comma CPU load
+	score, _, _ := calculateLifecycleScore("Microsoft Windows Server 2022", "12,5, 12,5, 12,5", 4, 1000, 2000, 1000, 2000, 0, "", "", 0, "")
+	if score <= 0 {
+		t.Errorf("expected positive score, got %d", score)
+	}
+
+	// Test parseProbeOutput with comma decimals
+	samples := make(map[string]float64)
+	parseProbeOutput("custom_metric: 89,75\n", samples)
+	if val, ok := samples["custom_metric"]; !ok || val != 89.75 {
+		t.Errorf("expected 89.75, got %v (found: %v)", val, ok)
+	}
+}
+
 

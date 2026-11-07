@@ -2604,6 +2604,11 @@ func TestWindowsResolveRemotePathAndClean(t *testing.T) {
 		{"Administrator", "/C:", "C:/"},
 		{"Administrator", "/C:/", "C:/"},
 		{"Administrator", `C:\Data\app`, "C:/Data/app"},
+		{"Administrator", "C:/..", "C:/"},
+		{"Administrator", "C:/Users/..", "C:/"},
+		{"Administrator", "C:/Users/Admin/../../..", "C:/"},
+		{"Administrator", "../../..", "C:/"},
+		{"Administrator", "../Logs", "C:/Users/Logs"},
 		{"", "/", "C:/"},
 		{"", "", "C:/"},
 	}
@@ -2722,7 +2727,7 @@ func TestWindowsTerminalUIAndPathHandling(t *testing.T) {
 	html := string(embeddedHTML)
 
 	// Verify Windows terminal prompt regex exists in extractPathFromTerminalBuffer
-	if !strings.Contains(html, `(?:PS\s+)?([a-zA-Z]:\\[^>]*?)>\s*$`) {
+	if !strings.Contains(html, `(?:PS\s+)?([a-zA-Z]:[\\/][^>]*?)>\s*$`) {
 		t.Errorf("expected extractPathFromTerminalBuffer to contain Windows prompt regex")
 	}
 
@@ -2740,6 +2745,21 @@ func TestWindowsTerminalUIAndPathHandling(t *testing.T) {
 	resolvedDrive := resolveRemotePath(nil, "Administrator", "C:", "windows")
 	if resolvedDrive != "C:/" {
 		t.Errorf("expected resolveRemotePath for C: on Windows to return C:/, got %q", resolvedDrive)
+	}
+
+	// Verify Windows terminal title path regex
+	if !strings.Contains(html, `const winMatch = str.match(/(?:^|[:\s])([a-zA-Z]:[\\/][^\s]*)/);`) {
+		t.Errorf("expected extractPathFromTerminalTitle to contain Windows path regex")
+	}
+
+	// Verify Windows terminal drive switch in path tracking
+	if !strings.Contains(html, `cmd.match(/^([a-zA-Z]):$/)`) {
+		t.Errorf("expected setupTerminalPathTracking to handle Windows drive switch")
+	}
+
+	// Verify Windows config / ps1 editor modes
+	if !strings.Contains(html, `'config': 'xml'`) || !strings.Contains(html, `'ps1': 'shell'`) {
+		t.Errorf("expected getEditorModeForPath to contain config and ps1 modes")
 	}
 }
 

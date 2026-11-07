@@ -279,7 +279,7 @@ func (ins *Inspector) collectMetricSamples(h *store.Host, runner sshrunner.Runne
 	if h.CPULoad != "" {
 		parts := strings.Split(h.CPULoad, ",")
 		if len(parts) > 0 {
-			if val, err := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64); err == nil {
+			if val, err := strconv.ParseFloat(strings.TrimSpace(strings.ReplaceAll(parts[0], ",", ".")), 64); err == nil {
 				if h.OSType == "windows" {
 					samples["cpu"] = math.Min(100.0, math.Max(0.0, val))
 				} else if h.CPUCores > 0 {
@@ -385,7 +385,7 @@ func parseProbeOutput(stdout string, samples map[string]float64) {
 		if len(fields) == 0 {
 			continue
 		}
-		val, err := strconv.ParseFloat(fields[0], 64)
+		val, err := strconv.ParseFloat(strings.ReplaceAll(fields[0], ",", "."), 64)
 		if err != nil {
 			continue
 		}
@@ -430,7 +430,7 @@ func (ins *Inspector) detectHostOS(h *store.Host, runner sshrunner.Runner) {
 
 // WindowsMetricsBatchScript is the single-shot compact PowerShell script to gather system, network, and process metrics on Windows.
 // ponytail: Kept under 2000 chars raw (5370 chars in UTF-16LE Base64) to strictly obey Windows cmd.exe 8191-character command limit.
-const WindowsMetricsBatchScript = `$ProgressPreference='SilentlyContinue';[System.Environment]::OSVersion.Version.ToString();"---";$o=gcim Win32_OperatingSystem -ea 0;$o.Caption;"---";$b=$o.LastBootUpTime;$d=(Get-Date)-$b;$u="{0} days, {1:D2}:{2:D2}" -f $d.Days,$d.Hours,$d.Minutes;$c=(gcim Win32_Processor -ea 0|measure -p LoadPercentage -ave).Average;if(!$c){$c=0};"up $u, load average: $c, $c, $c";"---";$t=[int64]$o.TotalVisibleMemorySize*1024;$f=[int64]$o.FreePhysicalMemory*1024;"Mem: $t $($t-$f)";"---";$k=gcim Win32_LogicalDisk -f "DeviceID='C:'" -ea 0;if(!$k){$k=gcim Win32_LogicalDisk -f "DriveType=3" -ea 0|select -f 1};if($k){$tk=[math]::Round([int64]$k.Size/1KB);$fk=[math]::Round([int64]$k.FreeSpace/1KB);$uk=$tk-$fk;$pk=if($tk -gt 0){[math]::Round($uk/$tk*100)}else{0};"Filesystem 1024-blocks Used Available Capacity Mounted on` + "\n" + `C: $tk $uk $fk ${pk}% /"};"---";"0";"---";$n=Get-NetAdapterStatistics -ea 0|measure -p ReceivedBytes,SentBytes -sum;$rx=0;$tx=0;if($n){foreach($m in $n){if($m.Property -eq "ReceivedBytes"){$rx=[int64]$m.Sum}if($m.Property -eq "SentBytes"){$tx=[int64]$m.Sum}}};"$rx $tx";"---";try{$p=Test-Connection 1.1.1.1 -count 1 -ea 1;if($p.ResponseTime){$p.ResponseTime}elseif($p.Latency){$p.Latency}else{0}}catch{try{$p=Test-Connection 8.8.8.8 -count 1 -ea 1;if($p.ResponseTime){$p.ResponseTime}elseif($p.Latency){$p.Latency}else{0}}catch{"OFFLINE"}};"---";try{(iwr "https://icanhazip.com" -useb -timeout 3).Trim()}catch{try{(iwr "https://ifconfig.me/ip" -useb -timeout 3).Trim()}catch{""}};"---";Get-NetTCPConnection -State Established -ea 0|select -f 30|%{"$($_.LocalAddress):$($_.LocalPort) $($_.RemoteAddress):$($_.RemotePort)"};"---";Get-NetTCPConnection -State Listen -ea 0|select -f 30|%{"tcp $($_.LocalAddress):$($_.LocalPort) $($_.OwningProcess)"};"---";"0";"---";$env:NUMBER_OF_PROCESSORS;"---";try{(gcim Win32_BIOS -ea 0).ReleaseDate.ToString("yyyy-MM-dd")}catch{""};"---";try{$s=gcim Win32_ComputerSystem -ea 0;"$($s.Manufacturer) $($s.Model)"}catch{""};"---";try{[int64]([DateTimeOffset]$o.InstallDate).ToUnixTimeSeconds()}catch{"0"};"---";try{$d=gcim Win32_PerfRawData_PerfDisk_PhysicalDisk -f "Name='_Total'" -ea 1;"$([int64]$d.DiskReadBytesPerSec) $([int64]$d.DiskWriteBytesPerSec)"}catch{"0 0"};"---";gcim Win32_PerfFormattedData_PerfProc_Process -ea 0|?{$_.Name -notmatch 'Idle|_Total'}|sort PercentProcessorTime -desc|select -f 5|%{"$($_.IDProcess) SYSTEM $($_.PercentProcessorTime) 0.0 $([math]::Round([int64]$_.WorkingSetPrivate/1KB)) $($_.Name -replace '#\d+$','')"};"---";gps -ea 0|sort WorkingSet64 -desc|select -f 5|%{"$($_.Id) SYSTEM 0.0 0.0 $([math]::Round($_.WorkingSet64/1KB)) $($_.ProcessName)"}`
+const WindowsMetricsBatchScript = `[System.Threading.Thread]::CurrentThread.CurrentCulture=[System.Globalization.CultureInfo]::InvariantCulture;$ProgressPreference='SilentlyContinue';[System.Environment]::OSVersion.Version.ToString();"---";$o=gcim Win32_OperatingSystem -ea 0;$o.Caption;"---";$b=$o.LastBootUpTime;$d=(Get-Date)-$b;$u="{0} days, {1:D2}:{2:D2}" -f $d.Days,$d.Hours,$d.Minutes;$c=(gcim Win32_Processor -ea 0|measure -p LoadPercentage -ave).Average;if(!$c){$c=0};"up $u, load average: $c, $c, $c";"---";$t=[int64]$o.TotalVisibleMemorySize*1024;$f=[int64]$o.FreePhysicalMemory*1024;"Mem: $t $($t-$f)";"---";$k=gcim Win32_LogicalDisk -f "DeviceID='C:'" -ea 0;if(!$k){$k=gcim Win32_LogicalDisk -f "DriveType=3" -ea 0|select -f 1};if($k){$tk=[math]::Round([int64]$k.Size/1KB);$fk=[math]::Round([int64]$k.FreeSpace/1KB);$uk=$tk-$fk;$pk=if($tk -gt 0){[math]::Round($uk/$tk*100)}else{0};"Filesystem 1024-blocks Used Available Capacity Mounted on` + "\n" + `C: $tk $uk $fk ${pk}% /"};"---";"0";"---";$n=Get-NetAdapterStatistics -ea 0|measure -p ReceivedBytes,SentBytes -sum;$rx=0;$tx=0;if($n){foreach($m in $n){if($m.Property -eq "ReceivedBytes"){$rx=[int64]$m.Sum}if($m.Property -eq "SentBytes"){$tx=[int64]$m.Sum}}};"$rx $tx";"---";try{$p=Test-Connection 1.1.1.1 -count 1 -ea 1;if($p.ResponseTime){$p.ResponseTime}elseif($p.Latency){$p.Latency}else{0}}catch{try{$p=Test-Connection 8.8.8.8 -count 1 -ea 1;if($p.ResponseTime){$p.ResponseTime}elseif($p.Latency){$p.Latency}else{0}}catch{"OFFLINE"}};"---";try{(iwr "https://icanhazip.com" -useb -timeout 3).Trim()}catch{try{(iwr "https://ifconfig.me/ip" -useb -timeout 3).Trim()}catch{""}};"---";Get-NetTCPConnection -State Established -ea 0|select -f 30|%{"$($_.LocalAddress):$($_.LocalPort) $($_.RemoteAddress):$($_.RemotePort)"};"---";Get-NetTCPConnection -State Listen -ea 0|select -f 30|%{"tcp $($_.LocalAddress):$($_.LocalPort) $($_.OwningProcess)"};"---";"0";"---";$env:NUMBER_OF_PROCESSORS;"---";try{(gcim Win32_BIOS -ea 0).ReleaseDate.ToString("yyyy-MM-dd")}catch{""};"---";try{$s=gcim Win32_ComputerSystem -ea 0;"$($s.Manufacturer) $($s.Model)"}catch{""};"---";try{[int64]([DateTimeOffset]$o.InstallDate).ToUnixTimeSeconds()}catch{"0"};"---";try{$d=gcim Win32_PerfRawData_PerfDisk_PhysicalDisk -f "Name='_Total'" -ea 1;"$([int64]$d.DiskReadBytesPerSec) $([int64]$d.DiskWriteBytesPerSec)"}catch{"0 0"};"---";gcim Win32_PerfFormattedData_PerfProc_Process -ea 0|?{$_.Name -notmatch 'Idle|_Total'}|sort PercentProcessorTime -desc|select -f 5|%{"$($_.IDProcess) SYSTEM $($_.PercentProcessorTime) 0.0 $([math]::Round([int64]$_.WorkingSetPrivate/1KB)) $($_.Name -replace '#\d+$','')"};"---";gps -ea 0|sort WorkingSet64 -desc|select -f 5|%{"$($_.Id) SYSTEM 0.0 0.0 $([math]::Round($_.WorkingSet64/1KB)) $($_.ProcessName)"}`
 
 // SystemMetricsBatchCmd is the single-shot batch command to gather system, network, and security metrics.
 // ponytail: Universal polyglot batching keeps agentless overhead near zero on modern & legacy Linux.
@@ -698,8 +698,8 @@ func parseTopProcesses(out string) []store.ProcessInfo {
 			continue
 		}
 		user := fields[1]
-		cpu, _ := strconv.ParseFloat(fields[2], 64)
-		mem, _ := strconv.ParseFloat(fields[3], 64)
+		cpu, _ := strconv.ParseFloat(strings.ReplaceAll(fields[2], ",", "."), 64)
+		mem, _ := strconv.ParseFloat(strings.ReplaceAll(fields[3], ",", "."), 64)
 		rssKB, _ := strconv.ParseInt(fields[4], 10, 64)
 		cmd := strings.Join(fields[5:], " ")
 		list = append(list, store.ProcessInfo{
@@ -1263,7 +1263,7 @@ func calculateLifecycleScore(osInfo, loadStr string, cpuCores int, ramUsed, ramT
 	if loadStr != "" {
 		loads := strings.Split(loadStr, ",")
 		if len(loads) >= 1 {
-			loadVal, _ = strconv.ParseFloat(strings.TrimSpace(loads[0]), 64)
+			loadVal, _ = strconv.ParseFloat(strings.TrimSpace(strings.ReplaceAll(loads[0], ",", ".")), 64)
 		}
 	}
 	isWindowsOS := strings.Contains(strings.ToLower(osInfo), "windows")
@@ -1661,7 +1661,7 @@ func (ins *Inspector) evaluateWindowsRule(h *store.Host, runner sshrunner.Runner
 
 	case "cron", "task", "scheduled_task":
 		escapedTarget := strings.ReplaceAll(rule.Target, "'", "''")
-		ps := fmt.Sprintf(`$t = Get-ScheduledTask -TaskName '*%[1]s*' -ErrorAction SilentlyContinue; if (!$t) { $t = Get-ScheduledTask | Where-Object { $_.TaskName -like '*%[1]s*' -or $_.TaskPath -like '*%[1]s*' } | Select-Object -First 1 }; if ($t) { if ($t.State -eq 'Disabled') { 'disabled' } else { 'configured' } } else { 'missing' }`, escapedTarget)
+		ps := fmt.Sprintf(`$t = @(Get-ScheduledTask -TaskName '*%[1]s*' -ErrorAction SilentlyContinue); if (!$t -or $t.Count -eq 0) { $t = @(Get-ScheduledTask -ErrorAction SilentlyContinue | Where-Object { $_.TaskName -like '*%[1]s*' -or $_.TaskPath -like '*%[1]s*' }) }; if ($t -and $t.Count -gt 0) { if ($t[0].State -eq 'Disabled') { 'disabled' } else { 'configured' } } else { 'missing' }`, escapedTarget)
 		out, _, _, _ := runner.Exec(powershellEncodedCmd(ps))
 		out = strings.TrimSpace(out)
 		current = out
@@ -1982,10 +1982,11 @@ func (ins *Inspector) GenerateBaseline(hostID int64) ([]store.DesiredRule, error
 		_ = ins.db.SaveDesiredRule(&diskRule)
 		rules = append(rules, diskRule)
 
-		for _, svc := range []string{"W3SVC", "MSSQLSERVER", "w32time", "sshd"} {
-			ps := fmt.Sprintf(`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($s -and $s.Status -eq 'Running') { 'active' }`, svc)
-			out, _, _, _ := runner.Exec(powershellEncodedCmd(ps))
-			if strings.TrimSpace(out) == "active" {
+		svcPS := `Get-Service -Name 'W3SVC','MSSQLSERVER','w32time','sshd' -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Running' } | ForEach-Object { $_.Name }`
+		svcOut, _, _, _ := runner.Exec(powershellEncodedCmd(svcPS))
+		for _, svc := range strings.Split(strings.TrimSpace(svcOut), "\n") {
+			svc = strings.TrimSpace(svc)
+			if svc != "" {
 				r := store.DesiredRule{
 					HostID:   hostID,
 					Kind:     "service",

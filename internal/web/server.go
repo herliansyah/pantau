@@ -1974,6 +1974,18 @@ func resolveRemotePath(sftpClient *sftp.Client, user, targetPath string, hostOST
 		if isWindows && (normPath == "/" || normPath == "") {
 			// On Windows, '/' or '' is not a valid absolute directory; fall through to homeDir / C:/
 		} else {
+			if isWindows && len(normPath) >= 2 && normPath[1] == ':' && ((normPath[0] >= 'a' && normPath[0] <= 'z') || (normPath[0] >= 'A' && normPath[0] <= 'Z')) {
+				drive := normPath[:2]
+				sub := normPath[2:]
+				if !strings.HasPrefix(sub, "/") {
+					sub = "/" + sub
+				}
+				cleaned := drive + path.Clean(sub)
+				if len(cleaned) == 2 && cleaned[1] == ':' {
+					cleaned += "/"
+				}
+				return sshrunner.CleanWindowsRemotePath(cleaned)
+			}
 			cleaned := path.Clean(normPath)
 			if isWindows {
 				cleaned = sshrunner.CleanWindowsRemotePath(cleaned)
@@ -2015,10 +2027,24 @@ func resolveRemotePath(sftpClient *sftp.Client, user, targetPath string, hostOST
 		if normPath == "~" || normPath == "~/" || normPath == "." || normPath == "/" || normPath == "" {
 			return sshrunner.CleanWindowsRemotePath(homeDir)
 		}
-		if strings.HasPrefix(normPath, "~/") {
-			return sshrunner.CleanWindowsRemotePath(path.Join(homeDir, strings.TrimPrefix(normPath, "~/")))
+		sub := normPath
+		if strings.HasPrefix(sub, "~/") {
+			sub = strings.TrimPrefix(sub, "~/")
 		}
-		return sshrunner.CleanWindowsRemotePath(path.Join(homeDir, normPath))
+		drive := "C:"
+		homeRest := homeDir
+		if len(homeDir) >= 2 && homeDir[1] == ':' && ((homeDir[0] >= 'a' && homeDir[0] <= 'z') || (homeDir[0] >= 'A' && homeDir[0] <= 'Z')) {
+			drive = homeDir[:2]
+			homeRest = homeDir[2:]
+		}
+		if !strings.HasPrefix(homeRest, "/") {
+			homeRest = "/" + homeRest
+		}
+		combined := drive + path.Clean(path.Join(homeRest, sub))
+		if len(combined) == 2 && combined[1] == ':' {
+			combined += "/"
+		}
+		return sshrunner.CleanWindowsRemotePath(combined)
 	}
 
 	if normPath == "~" || normPath == "~/" || normPath == "." {
@@ -2270,7 +2296,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			if len(cleanTarget) >= 2 && cleanTarget[1] == ':' {
 				drive = strings.ToUpper(cleanTarget[:2])
 			}
-			ps := fmt.Sprintf(`$f = Get-Item -LiteralPath '%[1]s' -ErrorAction SilentlyContinue; if ($f) { if ($f.PSIsContainer) { (Get-ChildItem -LiteralPath '%[1]s' -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum } else { $f.Length } } else { 0 }; "---"; $d = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='%[2]s'" -ErrorAction SilentlyContinue; if ($d) { [int64]$d.FreeSpace } else { 0 }`, strings.ReplaceAll(cleanTarget, "'", "''"), drive)
+			ps := fmt.Sprintf(`$f = Get-Item -LiteralPath '%[1]s' -ErrorAction SilentlyContinue; if ($f) { if ($f.PSIsContainer) { $s = (Get-ChildItem -LiteralPath '%[1]s' -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; if ($s) { [int64]$s } else { 0 } } else { $f.Length } } else { 0 }; "---"; $d = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='%[2]s'" -ErrorAction SilentlyContinue; if ($d) { [int64]$d.FreeSpace } else { 0 }`, strings.ReplaceAll(cleanTarget, "'", "''"), drive)
 			out, _, _, _ := runner.Exec(sshrunner.PowershellEncodedCmd(ps))
 			parts := strings.Split(out, "---")
 			if len(parts) >= 1 {
@@ -2340,7 +2366,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			if len(cleanSrc) >= 2 && cleanSrc[1] == ':' {
 				drive = strings.ToUpper(cleanSrc[:2])
 			}
-			ps := fmt.Sprintf(`$f = Get-Item -LiteralPath '%[1]s' -ErrorAction SilentlyContinue; if ($f) { if ($f.PSIsContainer) { (Get-ChildItem -LiteralPath '%[1]s' -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum } else { $f.Length } } else { 0 }; "---"; $d = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='%[2]s'" -ErrorAction SilentlyContinue; if ($d) { [int64]$d.FreeSpace } else { 0 }`, strings.ReplaceAll(cleanSrc, "'", "''"), drive)
+			ps := fmt.Sprintf(`$f = Get-Item -LiteralPath '%[1]s' -ErrorAction SilentlyContinue; if ($f) { if ($f.PSIsContainer) { $s = (Get-ChildItem -LiteralPath '%[1]s' -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; if ($s) { [int64]$s } else { 0 } } else { $f.Length } } else { 0 }; "---"; $d = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='%[2]s'" -ErrorAction SilentlyContinue; if ($d) { [int64]$d.FreeSpace } else { 0 }`, strings.ReplaceAll(cleanSrc, "'", "''"), drive)
 			out, _, _, _ := runner.Exec(sshrunner.PowershellEncodedCmd(ps))
 			parts := strings.Split(out, "---")
 			if len(parts) >= 1 {
@@ -2476,7 +2502,10 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 				_, _, _, _ = runner.Exec(fmt.Sprintf(`rm -rf -- %s`, shellQuote(req.Path)))
 			}
 		} else {
-			_ = sftpClient.Remove(req.Path)
+			if err := sftpClient.Remove(req.Path); err != nil && host.OSType == "windows" {
+				cleanP := sshrunner.CleanWindowsRemotePath(req.Path)
+				_, _, _, _ = runner.Exec(sshrunner.PowershellEncodedCmd(fmt.Sprintf(`Remove-Item -LiteralPath '%s' -Force`, strings.ReplaceAll(cleanP, "'", "''"))))
+			}
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 

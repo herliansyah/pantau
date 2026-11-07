@@ -20,6 +20,8 @@ func TestCleanWindowsRemotePath(t *testing.T) {
 		{`C:\inetpub\wwwroot`, "C:/inetpub/wwwroot"},
 		{`C:/inetpub/wwwroot`, "C:/inetpub/wwwroot"},
 		{`/C:/inetpub/wwwroot`, "C:/inetpub/wwwroot"},
+		{`//C:/inetpub/wwwroot`, "C:/inetpub/wwwroot"},
+		{`///c/inetpub/wwwroot`, "c:/inetpub/wwwroot"},
 		{`/c/inetpub/wwwroot`, "c:/inetpub/wwwroot"},
 		{`/c`, "c:"},
 		{`/c/`, "c:/"},

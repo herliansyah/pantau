@@ -208,6 +208,9 @@ func PowershellEncodedCmd(psScript string) string {
 func CleanWindowsRemotePath(p string) string {
 	p = strings.TrimSpace(p)
 	p = strings.ReplaceAll(p, "\\", "/")
+	for len(p) >= 3 && p[0] == '/' && p[1] == '/' {
+		p = p[1:]
+	}
 	if len(p) >= 3 && p[0] == '/' && (('a' <= p[1] && p[1] <= 'z') || ('A' <= p[1] && p[1] <= 'Z')) && p[2] == ':' {
 		p = p[1:]
 	} else if len(p) >= 2 && p[0] == '/' && (('a' <= p[1] && p[1] <= 'z') || ('A' <= p[1] && p[1] <= 'Z')) && (len(p) == 2 || p[2] == '/') {
