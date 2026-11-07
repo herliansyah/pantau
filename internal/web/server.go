@@ -2173,11 +2173,10 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		defer f.Close()
 
 		// Read up to 2MB for text editor
-		buf := make([]byte, 2*1024*1024)
-		n, _ := f.Read(buf)
+		buf, _ := io.ReadAll(io.LimitReader(f, 2*1024*1024))
 		writeJSON(w, http.StatusOK, map[string]string{
 			"path":    pathParam,
-			"content": string(buf[:n]),
+			"content": string(buf),
 		})
 
 	case "write":

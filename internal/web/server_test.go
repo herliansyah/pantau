@@ -2718,12 +2718,28 @@ func TestTestRemoteConnection(t *testing.T) {
 	}
 }
 
+func TestWindowsTerminalUIAndPathHandling(t *testing.T) {
+	html := string(embeddedHTML)
 
+	// Verify Windows terminal prompt regex exists in extractPathFromTerminalBuffer
+	if !strings.Contains(html, `(?:PS\s+)?([a-zA-Z]:\\[^>]*?)>\s*$`) {
+		t.Errorf("expected extractPathFromTerminalBuffer to contain Windows prompt regex")
+	}
 
+	// Verify Windows terminal pin command formatting
+	if !strings.Contains(html, `sendTabCommand(tabId, `+"`${drive}\\r\\ncd \"${cleanP}\"`") {
+		t.Errorf("expected triggerPinAction to format Windows drive change and cd command")
+	}
 
+	// Verify resolveRemotePath handles Windows root correctly
+	resolvedRoot := resolveRemotePath(nil, "Administrator", "/", "windows")
+	if resolvedRoot != "C:/Users/Administrator" && resolvedRoot != "C:/" {
+		t.Errorf("expected resolveRemotePath for / on Windows to return user profile or C:/, got %q", resolvedRoot)
+	}
 
-
-
-
-
+	resolvedDrive := resolveRemotePath(nil, "Administrator", "C:", "windows")
+	if resolvedDrive != "C:/" {
+		t.Errorf("expected resolveRemotePath for C: on Windows to return C:/, got %q", resolvedDrive)
+	}
+}
 

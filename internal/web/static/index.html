@@ -12227,7 +12227,8 @@ async function jumpToHostFile(hostId, targetPath, isDir) {
   if (isDir) {
     loadFiles(targetPath);
   } else {
-    const parentDir = targetPath.substring(0, targetPath.lastIndexOf('/')) || '/';
+    let parentDir = targetPath.substring(0, targetPath.lastIndexOf('/')) || '/';
+    if (parentDir.endsWith(':')) parentDir += '/';
     await loadFiles(parentDir);
     setTimeout(() => {
       openEditor(targetPath);
@@ -13091,6 +13092,9 @@ function extractPathFromTerminalBuffer(term) {
     // 3. user:~/dir$
     const m3 = text.match(/[:]([~/][^\s\$#%>]*)\s*[\$#%>]/);
     if (m3 && m3[1]) return m3[1].trim();
+    // 4. Windows prompts: PS C:\Users\Admin> or C:\Users\Admin>
+    const mWin = text.match(/(?:PS\s+)?([a-zA-Z]:\\[^>]*?)>\s*$/);
+    if (mWin && mWin[1]) return mWin[1].trim().replace(/\\/g, '/');
   }
   return null;
 }
@@ -13125,7 +13129,9 @@ function getTerminalActivePath(tabId) {
   if (currentPath && currentPath !== '/') {
     return currentPath;
   }
-  return tab.initialDir || getHostFilesPath(targetHostId) || '/';
+  const hostObj = (allRawHosts || []).find(h => h.id === targetHostId);
+  const defaultRoot = (hostObj && hostObj.os_type === 'windows') ? 'C:/' : '/';
+  return tab.initialDir || getHostFilesPath(targetHostId) || defaultRoot;
 }
 
 function setupTerminalPathTracking(tab, pane, term) {
@@ -13140,8 +13146,11 @@ function setupTerminalPathTracking(tab, pane, term) {
           const match = p.match(/^file:\/\/[^\/]*(\/.*)$/);
           if (match) p = decodeURIComponent(match[1]);
         }
-        if (p && (p.startsWith('/') || p.startsWith('~'))) {
-          setTabActivePath(tab, pane, p);
+        if (p && (p.startsWith('/') || p.startsWith('~') || /^[a-zA-Z]:/.test(p))) {
+          if (p.startsWith('/') && p.length >= 3 && p[2] === ':') {
+            p = p.slice(1);
+          }
+          setTabActivePath(tab, pane, p.replace(/\\/g, '/'));
         }
       } catch (e) {}
       return true;
@@ -13492,9 +13501,9 @@ function sendTabCommand(tabId, cmd) {
   if (!tab) return;
   if (cmd && typeof cmd === 'string') {
     const trimmed = cmd.trim();
-    const cdMatch = trimmed.match(/^cd\s+['"]?([^'";\s]+)['"]?/);
-    if (cdMatch && cdMatch[1] && (cdMatch[1].startsWith('/') || cdMatch[1].startsWith('~'))) {
-      setTabActivePath(tab, tab.focusedPane, cdMatch[1]);
+    const cdMatch = trimmed.match(/^cd\s+['"]?([^'";\s]+)['"]?/i);
+    if (cdMatch && cdMatch[1] && (cdMatch[1].startsWith('/') || cdMatch[1].startsWith('~') || /^[a-zA-Z]:/.test(cdMatch[1]))) {
+      setTabActivePath(tab, tab.focusedPane, cdMatch[1].replace(/\\/g, '/'));
     }
   }
   const ws = (tab.focusedPane === 'right' && tab.isSplit) ? tab.socketRight : tab.socketLeft;
@@ -13717,16 +13726,29 @@ function renderTerminalPinsList(tabId, hostId, pins) {
 function triggerPinAction(tabId, path, isDir) {
   const menu = document.getElementById('pinsDropdownMenu_' + tabId);
   if (menu) menu.style.display = 'none';
+  const tab = terminalTabs.find(t => t.id === tabId);
+  const targetHostId = (tab && tab.isSplit && tab.focusedPane === 'right') ? (tab.hostIDRight || tab.hostID) : (tab ? tab.hostID : null);
+  const hostObj = (allRawHosts || []).find(h => h.id === targetHostId);
+  const isWindows = hostObj && hostObj.os_type === 'windows';
+
   if (isDir) {
-    const tab = terminalTabs.find(t => t.id === tabId);
     if (tab) {
       setTabActivePath(tab, tab.focusedPane, path);
     }
-    sendTabCommand(tabId, "cd '" + path.replace(/'/g, "'\\''") + "'");
+    if (isWindows) {
+      const cleanP = path.replace(/\\/g, '/');
+      const drive = (cleanP.length >= 2 && cleanP[1] === ':') ? cleanP.slice(0, 2).toUpperCase() : '';
+      if (drive) {
+        sendTabCommand(tabId, `${drive}\r\ncd "${cleanP}"`);
+      } else {
+        sendTabCommand(tabId, `cd "${cleanP}"`);
+      }
+    } else {
+      sendTabCommand(tabId, "cd '" + path.replace(/'/g, "'\\''") + "'");
+    }
   } else {
     // Inject path into active terminal session with quotes and trailing space without newline
-    const escaped = "'" + path.replace(/'/g, "'\\''") + "' ";
-    const tab = terminalTabs.find(t => t.id === tabId);
+    const escaped = isWindows ? ('"' + path.replace(/\\/g, '/').replace(/"/g, '""') + '" ') : ("'" + path.replace(/'/g, "'\\''") + "' ");
     if (!tab) return;
     const ws = (tab.focusedPane === 'right' && tab.isSplit) ? tab.socketRight : tab.socketLeft;
     if (ws && ws.readyState === WebSocket.OPEN) {

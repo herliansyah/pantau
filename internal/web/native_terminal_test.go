@@ -787,6 +787,11 @@ func TestWindowsNativeTerminalKeyInjectionAndCdClause(t *testing.T) {
 		t.Errorf("expected drive root 'c:/' for /c Git Bash path, got %q", cdGitBashDrive)
 	}
 
+	cdRoot := buildRemoteCdClause(`/`, "windows")
+	if !strings.Contains(cdRoot, "Set-Location -LiteralPath 'C:/'") {
+		t.Errorf("expected root 'C:/' for / path on Windows, got %q", cdRoot)
+	}
+
 	// 2. Test Ephemeral key injection & cleanup on Windows host
 	mockRunner := &mockTestSSHRunner{}
 	s, _, host := setupTestServerWithDB(t, mockRunner)

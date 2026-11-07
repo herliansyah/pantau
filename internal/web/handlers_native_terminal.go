@@ -85,6 +85,9 @@ func buildRemoteCdClause(initialDir string, hostOSType ...string) string {
 		if cleaned == "~" || cleaned == "~/" {
 			return ""
 		}
+		if cleaned == "/" || cleaned == "\\" {
+			cleaned = "C:/"
+		}
 		if len(cleaned) == 2 && cleaned[1] == ':' {
 			cleaned += "/"
 		}
