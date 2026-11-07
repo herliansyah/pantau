@@ -758,7 +758,7 @@ func TestWindowsNativeTerminalKeyInjectionAndCdClause(t *testing.T) {
 	}
 
 	cdWin := buildRemoteCdClause(`C:\inetpub\wwwroot`, "windows")
-	if !strings.Contains(cdWin, "Set-Location -LiteralPath 'C:\\inetpub\\wwwroot'") {
+	if !strings.Contains(cdWin, "Set-Location -LiteralPath 'C:/inetpub/wwwroot'") {
 		t.Errorf("expected Set-Location for Windows path, got %q", cdWin)
 	}
 
@@ -770,6 +770,21 @@ func TestWindowsNativeTerminalKeyInjectionAndCdClause(t *testing.T) {
 	cdSlashWin := buildRemoteCdClause(`/C:/inetpub`, "windows")
 	if !strings.Contains(cdSlashWin, "Set-Location -LiteralPath 'C:/inetpub'") {
 		t.Errorf("expected stripped leading slash for Windows path, got %q", cdSlashWin)
+	}
+
+	cdGitBash := buildRemoteCdClause(`/c/inetpub`, "windows")
+	if !strings.Contains(cdGitBash, "Set-Location -LiteralPath 'c:/inetpub'") {
+		t.Errorf("expected normalized Git Bash path for Windows, got %q", cdGitBash)
+	}
+
+	cdDriveOnly := buildRemoteCdClause(`C:`, "windows")
+	if !strings.Contains(cdDriveOnly, "Set-Location -LiteralPath 'C:/'") {
+		t.Errorf("expected drive root 'C:/' for drive-only Windows path, got %q", cdDriveOnly)
+	}
+
+	cdGitBashDrive := buildRemoteCdClause(`/c`, "windows")
+	if !strings.Contains(cdGitBashDrive, "Set-Location -LiteralPath 'c:/'") {
+		t.Errorf("expected drive root 'c:/' for /c Git Bash path, got %q", cdGitBashDrive)
 	}
 
 	// 2. Test Ephemeral key injection & cleanup on Windows host

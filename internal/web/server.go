@@ -887,6 +887,14 @@ func testRemoteConnection(runner sshrunner.Runner, osType string) (string, error
 	stdout, stderr, exitCode, err := runner.ExecTimeout("uname -srm; uptime", 4*time.Second)
 	if err == nil && exitCode == 0 {
 		out := strings.TrimSpace(stdout)
+		if strings.Contains(strings.ToLower(out), "_nt-") {
+			// Windows target with Git Bash or MSYS2 in PATH (e.g. MINGW64_NT-10.0...)
+			winOut, _, winCode, winErr := runner.ExecTimeout(`cmd.exe /c "ver"`, 4*time.Second)
+			if winErr == nil && winCode == 0 && strings.TrimSpace(winOut) != "" {
+				return strings.TrimSpace(winOut), nil
+			}
+			return out, nil
+		}
 		if out == "" {
 			out = "Connected (Linux)"
 		}
@@ -1875,6 +1883,7 @@ func isRemoteAbs(p string) bool {
 
 func isProtectedPathString(p string) bool {
 	clean := strings.ReplaceAll(path.Clean(p), "\\", "/")
+	clean = sshrunner.CleanWindowsRemotePath(clean)
 	cleanLower := strings.ToLower(clean)
 	if cleanLower == "/" || cleanLower == "." {
 		return true
@@ -3072,6 +3081,18 @@ var defaultMetricProbePresets = []map[string]string{
 		"category":    "Database",
 		"command":     `q="SELECT 'pg_active_connections: ' || count(CASE WHEN state = 'active' THEN 1 END) || E'\npg_idle_connections: ' || count(CASE WHEN state LIKE 'idle%' THEN 1 END) || E'\npg_total_connections: ' || count(*) FROM pg_stat_activity WHERE pid <> pg_backend_pid();"; (echo "$q" | sudo -u postgres psql -t -A 2>/dev/null || echo "$q" | su - postgres -c "psql -t -A" 2>/dev/null || echo "$q" | psql -U postgres -t -A 2>/dev/null || true)`,
 		"description": "Ekstrak active, idle, dan total connections dari pg_stat_activity (support peer auth & sudo/su)",
+	},
+	{
+		"name":        "IIS Web Service (Windows)",
+		"category":    "Web Server",
+		"command":     "Get-CimInstance Win32_PerfFormattedData_W3SVC_WebService -Filter \"Name='_Total'\" -ErrorAction SilentlyContinue | ForEach-Object { \"iis_current_connections: $($_.CurrentConnections)\"; \"iis_requests_per_sec: $($_.TotalMethodRequestsPerSec)\" }",
+		"description": "Ekstrak active connections dan requests/sec dari IIS Web Service (_Total) via CIM",
+	},
+	{
+		"name":        "MS SQL Server (Windows)",
+		"category":    "Database",
+		"command":     "Get-CimInstance Win32_PerfFormattedData_MSSQLSERVER_SQLServerGeneralStatistics -ErrorAction SilentlyContinue | ForEach-Object { \"mssql_user_connections: $($_.UserConnections)\" }",
+		"description": "Ekstrak user connections dari Microsoft SQL Server General Statistics via CIM",
 	},
 }
 

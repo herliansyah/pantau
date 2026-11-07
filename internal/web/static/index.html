@@ -6788,7 +6788,7 @@ async function testConnectionInModal() {
       }
       if (osSelect && osSelect.value === 'auto' && data.output) {
         const outLower = data.output.toLowerCase();
-        if (outLower.includes('windows') || outLower.includes('microsoft')) {
+        if (outLower.includes('windows') || outLower.includes('microsoft') || outLower.includes('_nt-')) {
           osSelect.value = 'windows';
         } else if (outLower.includes('linux') || outLower.includes('darwin') || outLower.includes('bsd')) {
           osSelect.value = 'linux';
@@ -11677,7 +11677,7 @@ function renderFilesTableBody() {
             ${f.is_dir 
               ? `<button class="btn btn-sm action-btn-download" title="${t('download_folder', 'Download Folder Archive')}" onclick="downloadFolder('${escapeHtml(fullPath)}')">⬇️</button>` 
               : `<a class="btn btn-sm action-btn-download" title="${t('download_file', 'Download File')}" href="/api/hosts/${currentHost.id}/files/download?path=${encodeURIComponent(fullPath)}" download>⬇️</a>`}
-            <button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(fullPath)}', ${f.is_dir})">${t('copy_to_host')}</button>
+            ${currentHost && currentHost.os_type === 'windows' ? '' : `<button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(fullPath)}', ${f.is_dir})">${t('copy_to_host')}</button>`}
             <button class="btn btn-danger btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_delete_protected') + '"' : ''} onclick="deleteRemoteFile('${escapeHtml(fullPath)}', '${escapeHtml(currentFilesData.path)}')">🗑️</button>
           </div>
         </td>

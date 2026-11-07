@@ -966,6 +966,53 @@ func TestDetectHostOS(t *testing.T) {
 	}
 }
 
+func TestDetectHostOS_GitBash(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-win-detect-gitbash-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name: "WinServerGitBash",
+		Host: "192.168.1.51",
+		Port: 22,
+		User: "Administrator",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h, _ := db.GetHost(hostID)
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		if strings.Contains(cmd, "uname -s") {
+			return "MINGW64_NT-10.0-19045\n", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	ins := New(db, func(h string, p int, u, k string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	ins.detectHostOS(h, mockRunner)
+	if h.OSType != "windows" {
+		t.Fatalf("expected OSType 'windows', got %q", h.OSType)
+	}
+
+	saved, _ := db.GetHost(hostID)
+	if saved.OSType != "windows" {
+		t.Fatalf("expected saved OSType in DB 'windows', got %q", saved.OSType)
+	}
+}
+
 func TestWindowsRuleEvaluation(t *testing.T) {
 	ins := &Inspector{}
 	host := &store.Host{ID: 10, Host: "10.0.0.5", OSType: "windows"}
@@ -1003,6 +1050,16 @@ func TestWindowsRuleEvaluation(t *testing.T) {
 	})
 	if status != "ok" || current != "Stopped" {
 		t.Fatalf("expected stopped service ok with expected inactive, got status=%s current=%s", status, current)
+	}
+
+	// 1c. Service rule with 'Stopped' matching expected 'stopped'
+	current, status, _, _ = ins.evaluateRule(host, svcStoppedMock, &store.DesiredRule{
+		Kind:     "service",
+		Target:   "w32time",
+		Expected: "stopped",
+	})
+	if status != "ok" || current != "Stopped" {
+		t.Fatalf("expected stopped service ok with expected stopped, got status=%s current=%s", status, current)
 	}
 
 	// 2. Disk rule normalized to C:
@@ -1125,9 +1182,25 @@ func TestWindowsRuleEvaluation(t *testing.T) {
 		t.Fatalf("expected windows cron rule ok, got status=%s current=%s", status, current)
 	}
 
-	// 8. Disk normalization with various formats (C:/, c:, \, D:)
+	// 7b. Scheduled task rule disabled drift
+	taskDisabledMock := sshrunner.NewMockRunner()
+	taskDisabledMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "disabled\r\n", "", 0, nil
+	}
+	current, status, _, rootCause = ins.evaluateRule(host, taskDisabledMock, &store.DesiredRule{
+		Kind:     "task",
+		Target:   "NightlySync",
+		Expected: "configured",
+	})
+	if status != "drift" || current != "disabled" || !strings.Contains(rootCause, "Disabled") {
+		t.Fatalf("expected disabled scheduled task drift, got status=%s current=%s rootCause=%s", status, current, rootCause)
+	}
+
+	// 8. Disk normalization with various formats (C:/, c:, \, D:, D:\data)
+	var capturedDiskCmd string
 	diskNormMock := sshrunner.NewMockRunner()
 	diskNormMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		capturedDiskCmd = cmd
 		return "1000|500", "", 0, nil
 	}
 	current, status, _, _ = ins.evaluateRule(host, diskNormMock, &store.DesiredRule{
@@ -1137,6 +1210,52 @@ func TestWindowsRuleEvaluation(t *testing.T) {
 	})
 	if status != "ok" || current != "50%" {
 		t.Fatalf("expected C:/ disk ok, got status=%s current=%s", status, current)
+	}
+
+	// 8b. Disk normalization for path D:\data
+	current, status, _, _ = ins.evaluateRule(host, diskNormMock, &store.DesiredRule{
+		Kind:     "disk",
+		Target:   `D:\data\app`,
+		Expected: "<85%",
+	})
+	if status != "ok" || current != "50%" {
+		t.Fatalf("expected D:\\data\\app disk ok, got status=%s current=%s", status, current)
+	}
+	// Verify captured command encodes D: and not D:\data or D:/DATA:
+	// Decoding the base64 UTF-16LE in capturedDiskCmd:
+	b64Part := strings.TrimPrefix(capturedDiskCmd, "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ")
+	decodedBytes, err := base64.StdEncoding.DecodeString(b64Part)
+	if err == nil {
+		u16 := make([]uint16, len(decodedBytes)/2)
+		for i := 0; i < len(u16); i++ {
+			u16[i] = uint16(decodedBytes[i*2]) | (uint16(decodedBytes[i*2+1]) << 8)
+		}
+		decodedStr := string(utf16.Decode(u16))
+		if !strings.Contains(decodedStr, "DeviceID='D:'") {
+			t.Fatalf("expected powershell command to query DeviceID='D:', got: %s", decodedStr)
+		}
+	}
+
+	// 8c. Disk normalization for Git Bash path /d/data
+	current, status, _, _ = ins.evaluateRule(host, diskNormMock, &store.DesiredRule{
+		Kind:     "disk",
+		Target:   "/d/data",
+		Expected: "<85%",
+	})
+	if status != "ok" || current != "50%" {
+		t.Fatalf("expected /d/data disk ok, got status=%s current=%s", status, current)
+	}
+	b64Part = strings.TrimPrefix(capturedDiskCmd, "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ")
+	decodedBytes, err = base64.StdEncoding.DecodeString(b64Part)
+	if err == nil {
+		u16 := make([]uint16, len(decodedBytes)/2)
+		for i := 0; i < len(u16); i++ {
+			u16[i] = uint16(decodedBytes[i*2]) | (uint16(decodedBytes[i*2+1]) << 8)
+		}
+		decodedStr := string(utf16.Decode(u16))
+		if !strings.Contains(decodedStr, "DeviceID='D:'") {
+			t.Fatalf("expected powershell command for /d/data to query DeviceID='D:', got: %s", decodedStr)
+		}
 	}
 }
 

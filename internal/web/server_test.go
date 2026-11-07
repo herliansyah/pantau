@@ -2371,28 +2371,39 @@ func TestResolveRemotePath(t *testing.T) {
 	tests := []struct {
 		user     string
 		target   string
+		osType   string
 		expected string
 	}{
-		{user: "ubuntu", target: "", expected: "/home/ubuntu"},
-		{user: "root", target: "", expected: "/root"},
-		{user: "ubuntu", target: "~", expected: "/home/ubuntu"},
-		{user: "ubuntu", target: "~/", expected: "/home/ubuntu"},
-		{user: "ubuntu", target: "~/projects", expected: "/home/ubuntu/projects"},
-		{user: "ubuntu", target: "~/projects/sub", expected: "/home/ubuntu/projects/sub"},
-		{user: "ubuntu", target: "/var/log", expected: "/var/log"},
-		{user: "ubuntu", target: "/var/log/../etc", expected: "/var/etc"},
-		{user: "ubuntu", target: "/var/log/../../etc", expected: "/etc"},
-		{user: "ubuntu", target: "myapp/logs", expected: "/home/ubuntu/myapp/logs"},
-		{user: "Administrator", target: `C:\inetpub\wwwroot`, expected: "C:/inetpub/wwwroot"},
-		{user: "Administrator", target: "C:/Windows", expected: "C:/Windows"},
-		{user: "Administrator", target: "/C:/Windows", expected: "/C:/Windows"},
-		{user: "Administrator", target: `D:\data\logs`, expected: "D:/data/logs"},
+		{user: "ubuntu", target: "", osType: "linux", expected: "/home/ubuntu"},
+		{user: "root", target: "", osType: "linux", expected: "/root"},
+		{user: "ubuntu", target: "~", osType: "linux", expected: "/home/ubuntu"},
+		{user: "ubuntu", target: "~/", osType: "linux", expected: "/home/ubuntu"},
+		{user: "ubuntu", target: "~/projects", osType: "linux", expected: "/home/ubuntu/projects"},
+		{user: "ubuntu", target: "~/projects/sub", osType: "linux", expected: "/home/ubuntu/projects/sub"},
+		{user: "ubuntu", target: "/var/log", osType: "linux", expected: "/var/log"},
+		{user: "ubuntu", target: "/var/log/../etc", osType: "linux", expected: "/var/etc"},
+		{user: "ubuntu", target: "/var/log/../../etc", osType: "linux", expected: "/etc"},
+		{user: "ubuntu", target: "myapp/logs", osType: "linux", expected: "/home/ubuntu/myapp/logs"},
+		{user: "Administrator", target: `C:\inetpub\wwwroot`, osType: "windows", expected: "C:/inetpub/wwwroot"},
+		{user: "Administrator", target: "C:/Windows", osType: "windows", expected: "C:/Windows"},
+		{user: "Administrator", target: "/C:/Windows", osType: "windows", expected: "C:/Windows"},
+		{user: "Administrator", target: `D:\data\logs`, osType: "windows", expected: "D:/data/logs"},
+		{user: "Administrator", target: "/c/inetpub", osType: "windows", expected: "c:/inetpub"},
+		{user: "Administrator", target: "/c", osType: "windows", expected: "c:/"},
+		{user: "Administrator", target: "/c/", osType: "windows", expected: "c:/"},
+		{user: "Administrator", target: "~", osType: "windows", expected: "C:/Users/Administrator"},
+		{user: "Administrator", target: "~/Documents", osType: "windows", expected: "C:/Users/Administrator/Documents"},
 	}
 
 	for _, tc := range tests {
-		got := resolveRemotePath(nil, tc.user, tc.target)
+		var got string
+		if tc.osType != "" {
+			got = resolveRemotePath(nil, tc.user, tc.target, tc.osType)
+		} else {
+			got = resolveRemotePath(nil, tc.user, tc.target)
+		}
 		if got != tc.expected {
-			t.Errorf("resolveRemotePath(nil, %q, %q) = %q, expected %q", tc.user, tc.target, got, tc.expected)
+			t.Errorf("resolveRemotePath(nil, %q, %q, %q) = %q, expected %q", tc.user, tc.target, tc.osType, got, tc.expected)
 		}
 	}
 }
@@ -2400,9 +2411,10 @@ func TestResolveRemotePath(t *testing.T) {
 func TestWindowsFileProtection(t *testing.T) {
 	protected := []string{
 		"C:", "C:/", "/C:", "/C:/",
-		"C:/Windows", `C:\Windows\System32`, "/C:/Windows/System32",
-		"C:/Program Files", `C:\Program Files\App`,
-		"C:/ProgramData", `C:\ProgramData\ssh`,
+		"/c", "/c/", "/d", "/d/",
+		"C:/Windows", `C:\Windows\System32`, "/C:/Windows/System32", "/c/windows",
+		"C:/Program Files", `C:\Program Files\App`, "/c/program files",
+		"C:/ProgramData", `C:\ProgramData\ssh`, "/c/programdata",
 	}
 	for _, p := range protected {
 		if !isProtectedPath(p, nil) {
@@ -2678,6 +2690,31 @@ func TestTestRemoteConnection(t *testing.T) {
 	}
 	if outDef != "Connected (Linux)" {
 		t.Fatalf("expected Connected (Linux), got: %q", outDef)
+	}
+
+	// 5. Test with Auto osType on Windows target with Git Bash (uname returns MINGW64_NT-10.0)
+	mockGitBashWin := sshrunner.NewMockRunner()
+	var executedGitBashCmds []string
+	mockGitBashWin.DefaultExec = func(cmd string) (string, string, int, error) {
+		executedGitBashCmds = append(executedGitBashCmds, cmd)
+		if strings.Contains(cmd, "uname") {
+			return "MINGW64_NT-10.0-19045 x86_64", "", 0, nil
+		}
+		if strings.Contains(cmd, "ver") {
+			return "Microsoft Windows [Version 10.0.19045.2965]", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	outGitBash, err := testRemoteConnection(mockGitBashWin, "auto")
+	if err != nil {
+		t.Fatalf("unexpected error for Git Bash Windows testRemoteConnection: %v", err)
+	}
+	if !strings.Contains(outGitBash, "Microsoft Windows") {
+		t.Fatalf("expected Windows output for Git Bash target, got: %q", outGitBash)
+	}
+	if len(executedGitBashCmds) != 2 {
+		t.Fatalf("expected 2 probes (uname then ver), got: %v", executedGitBashCmds)
 	}
 }
 

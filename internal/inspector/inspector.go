@@ -404,7 +404,7 @@ func (ins *Inspector) detectHostOS(h *store.Host, runner sshrunner.Runner) {
 		_ = ins.db.UpdateHostOSType(h.ID, h.OSType)
 		return
 	}
-	if strings.Contains(lower, "windows") || strings.Contains(lower, "microsoft") {
+	if strings.Contains(lower, "windows") || strings.Contains(lower, "microsoft") || strings.Contains(lower, "_nt-") {
 		h.OSType = "windows"
 		_ = ins.db.UpdateHostOSType(h.ID, h.OSType)
 		return
@@ -419,8 +419,8 @@ func (ins *Inspector) detectHostOS(h *store.Host, runner sshrunner.Runner) {
 		return
 	}
 
-	// If both failed due to connection error, do not overwrite "auto"
-	if err != nil && winErr != nil {
+	// If both failed due to connection error or non-zero exit code without matching signatures, do not overwrite "auto"
+	if (err != nil || exitCode != 0) && (winErr != nil || winExit != 0) {
 		return
 	}
 
@@ -430,7 +430,7 @@ func (ins *Inspector) detectHostOS(h *store.Host, runner sshrunner.Runner) {
 
 // WindowsMetricsBatchScript is the single-shot compact PowerShell script to gather system, network, and process metrics on Windows.
 // ponytail: Kept under 2000 chars raw (5370 chars in UTF-16LE Base64) to strictly obey Windows cmd.exe 8191-character command limit.
-const WindowsMetricsBatchScript = `$ProgressPreference='SilentlyContinue';[System.Environment]::OSVersion.Version.ToString();"---";$o=gcim Win32_OperatingSystem -ea 0;$o.Caption;"---";$b=$o.LastBootUpTime;$d=(Get-Date)-$b;$u="{0} days, {1:D2}:{2:D2}" -f $d.Days,$d.Hours,$d.Minutes;$c=(gcim Win32_Processor -ea 0|measure -p LoadPercentage -ave).Average;if(!$c){$c=0};"up $u, load average: $c, $c, $c";"---";$t=[int64]$o.TotalVisibleMemorySize*1024;$f=[int64]$o.FreePhysicalMemory*1024;"Mem: $t $($t-$f)";"---";$k=gcim Win32_LogicalDisk -f "DeviceID='C:'" -ea 0;if($k){$tk=[math]::Round([int64]$k.Size/1KB);$fk=[math]::Round([int64]$k.FreeSpace/1KB);$uk=$tk-$fk;"Filesystem 1024-blocks Used Available Capacity Mounted on` + "\n" + `C: $tk $uk $fk 50% /"};"---";"0";"---";$n=Get-NetAdapterStatistics -ea 0|measure -p ReceivedBytes,SentBytes -sum;$rx=0;$tx=0;if($n){foreach($m in $n){if($m.Property -eq "ReceivedBytes"){$rx=[int64]$m.Sum}if($m.Property -eq "SentBytes"){$tx=[int64]$m.Sum}}};"$rx $tx";"---";try{$p=Test-Connection 1.1.1.1 -count 1 -ea 1;$p.ResponseTime}catch{try{$p=Test-Connection 8.8.8.8 -count 1 -ea 1;$p.ResponseTime}catch{"OFFLINE"}};"---";try{(iwr "https://icanhazip.com" -useb -timeout 3).Trim()}catch{try{(iwr "https://ifconfig.me/ip" -useb -timeout 3).Trim()}catch{""}};"---";Get-NetTCPConnection -State Established -ea 0|select -f 30|%{"$($_.LocalAddress):$($_.LocalPort) $($_.RemoteAddress):$($_.RemotePort)"};"---";Get-NetTCPConnection -State Listen -ea 0|select -f 30|%{"tcp $($_.LocalAddress):$($_.LocalPort) $($_.OwningProcess)"};"---";"0";"---";$env:NUMBER_OF_PROCESSORS;"---";try{(gcim Win32_BIOS -ea 0).ReleaseDate.ToString("yyyy-MM-dd")}catch{""};"---";try{$s=gcim Win32_ComputerSystem -ea 0;"$($s.Manufacturer) $($s.Model)"}catch{""};"---";try{[int64]([DateTimeOffset]$o.InstallDate).ToUnixTimeSeconds()}catch{"0"};"---";try{$d=gcim Win32_PerfRawData_PerfDisk_PhysicalDisk -f "Name='_Total'" -ea 1;"$([int64]$d.DiskReadBytesPerSec) $([int64]$d.DiskWriteBytesPerSec)"}catch{"0 0"};"---";gcim Win32_PerfFormattedData_PerfProc_Process -ea 0|?{$_.Name -notmatch 'Idle|_Total'}|sort PercentProcessorTime -desc|select -f 5|%{"$($_.IDProcess) SYSTEM $($_.PercentProcessorTime) 0.0 $([math]::Round([int64]$_.WorkingSetPrivate/1KB)) $($_.Name -replace '#\d+$','')"};"---";gps -ea 0|sort WorkingSet64 -desc|select -f 5|%{"$($_.Id) SYSTEM 0.0 0.0 $([math]::Round($_.WorkingSet64/1KB)) $($_.ProcessName)"}`
+const WindowsMetricsBatchScript = `$ProgressPreference='SilentlyContinue';[System.Environment]::OSVersion.Version.ToString();"---";$o=gcim Win32_OperatingSystem -ea 0;$o.Caption;"---";$b=$o.LastBootUpTime;$d=(Get-Date)-$b;$u="{0} days, {1:D2}:{2:D2}" -f $d.Days,$d.Hours,$d.Minutes;$c=(gcim Win32_Processor -ea 0|measure -p LoadPercentage -ave).Average;if(!$c){$c=0};"up $u, load average: $c, $c, $c";"---";$t=[int64]$o.TotalVisibleMemorySize*1024;$f=[int64]$o.FreePhysicalMemory*1024;"Mem: $t $($t-$f)";"---";$k=gcim Win32_LogicalDisk -f "DeviceID='C:'" -ea 0;if(!$k){$k=gcim Win32_LogicalDisk -f "DriveType=3" -ea 0|select -f 1};if($k){$tk=[math]::Round([int64]$k.Size/1KB);$fk=[math]::Round([int64]$k.FreeSpace/1KB);$uk=$tk-$fk;$pk=if($tk -gt 0){[math]::Round($uk/$tk*100)}else{0};"Filesystem 1024-blocks Used Available Capacity Mounted on` + "\n" + `C: $tk $uk $fk ${pk}% /"};"---";"0";"---";$n=Get-NetAdapterStatistics -ea 0|measure -p ReceivedBytes,SentBytes -sum;$rx=0;$tx=0;if($n){foreach($m in $n){if($m.Property -eq "ReceivedBytes"){$rx=[int64]$m.Sum}if($m.Property -eq "SentBytes"){$tx=[int64]$m.Sum}}};"$rx $tx";"---";try{$p=Test-Connection 1.1.1.1 -count 1 -ea 1;if($p.ResponseTime){$p.ResponseTime}elseif($p.Latency){$p.Latency}else{0}}catch{try{$p=Test-Connection 8.8.8.8 -count 1 -ea 1;if($p.ResponseTime){$p.ResponseTime}elseif($p.Latency){$p.Latency}else{0}}catch{"OFFLINE"}};"---";try{(iwr "https://icanhazip.com" -useb -timeout 3).Trim()}catch{try{(iwr "https://ifconfig.me/ip" -useb -timeout 3).Trim()}catch{""}};"---";Get-NetTCPConnection -State Established -ea 0|select -f 30|%{"$($_.LocalAddress):$($_.LocalPort) $($_.RemoteAddress):$($_.RemotePort)"};"---";Get-NetTCPConnection -State Listen -ea 0|select -f 30|%{"tcp $($_.LocalAddress):$($_.LocalPort) $($_.OwningProcess)"};"---";"0";"---";$env:NUMBER_OF_PROCESSORS;"---";try{(gcim Win32_BIOS -ea 0).ReleaseDate.ToString("yyyy-MM-dd")}catch{""};"---";try{$s=gcim Win32_ComputerSystem -ea 0;"$($s.Manufacturer) $($s.Model)"}catch{""};"---";try{[int64]([DateTimeOffset]$o.InstallDate).ToUnixTimeSeconds()}catch{"0"};"---";try{$d=gcim Win32_PerfRawData_PerfDisk_PhysicalDisk -f "Name='_Total'" -ea 1;"$([int64]$d.DiskReadBytesPerSec) $([int64]$d.DiskWriteBytesPerSec)"}catch{"0 0"};"---";gcim Win32_PerfFormattedData_PerfProc_Process -ea 0|?{$_.Name -notmatch 'Idle|_Total'}|sort PercentProcessorTime -desc|select -f 5|%{"$($_.IDProcess) SYSTEM $($_.PercentProcessorTime) 0.0 $([math]::Round([int64]$_.WorkingSetPrivate/1KB)) $($_.Name -replace '#\d+$','')"};"---";gps -ea 0|sort WorkingSet64 -desc|select -f 5|%{"$($_.Id) SYSTEM 0.0 0.0 $([math]::Round($_.WorkingSet64/1KB)) $($_.ProcessName)"}`
 
 // SystemMetricsBatchCmd is the single-shot batch command to gather system, network, and security metrics.
 // ponytail: Universal polyglot batching keeps agentless overhead near zero on modern & legacy Linux.
@@ -837,6 +837,7 @@ func parseNetworkMetrics(h *store.Host, netDevSec, pingSec, pubIPSec, estSec, li
 	sensitivePorts := map[string]bool{
 		"3306": true, "5432": true, "6379": true, "27017": true,
 		"9200": true, "2375": true, "11211": true,
+		"1433": true, "3389": true, "445": true, "135": true,
 	}
 	listening := []store.ListeningPort{}
 	for _, line := range strings.Split(listenSec, "\n") {
@@ -1462,7 +1463,7 @@ func (ins *Inspector) evaluateWindowsRule(h *store.Host, runner sshrunner.Runner
 	switch rule.Kind {
 	case "service":
 		escapedTarget := strings.ReplaceAll(rule.Target, "'", "''")
-		ps := fmt.Sprintf(`$s = Get-Service -Name '%[1]s' -ErrorAction SilentlyContinue; if (!$s) { $s = Get-Service -DisplayName '%[1]s' -ErrorAction SilentlyContinue }; if ($s) { $s.Status.ToString() } else { 'not_found' }`, escapedTarget)
+		ps := fmt.Sprintf(`$s = @(Get-Service -Name '%[1]s' -ErrorAction SilentlyContinue); if (!$s -or $s.Count -eq 0) { $s = @(Get-Service -DisplayName '%[1]s' -ErrorAction SilentlyContinue) }; if ($s -and $s.Count -gt 0) { $s[0].Status.ToString() } else { 'not_found' }`, escapedTarget)
 		out, _, _, err := runner.Exec(powershellEncodedCmd(ps))
 		if err != nil {
 			current = "exec_error"
@@ -1478,7 +1479,7 @@ func (ins *Inspector) evaluateWindowsRule(h *store.Host, runner sshrunner.Runner
 		} else if strings.EqualFold(rawStatus, "Stopped") {
 			normalized = "inactive"
 		}
-		if strings.EqualFold(normalized, rule.Expected) || strings.EqualFold(rawStatus, rule.Expected) {
+		if strings.EqualFold(normalized, rule.Expected) || strings.EqualFold(rawStatus, rule.Expected) || (strings.EqualFold(rule.Expected, "stopped") && (strings.EqualFold(rawStatus, "Stopped") || normalized == "inactive")) {
 			status = "ok"
 		} else {
 			status = "drift"
@@ -1493,12 +1494,18 @@ func (ins *Inspector) evaluateWindowsRule(h *store.Host, runner sshrunner.Runner
 
 	case "disk":
 		target := sshrunner.CleanWindowsRemotePath(rule.Target)
-		if target == "" || target == "/" {
+		if target == "" || target == "/" || target == "\\" {
 			target = "C:"
 		}
-		target = strings.TrimRight(target, `/\`)
-		if !strings.HasSuffix(target, ":") {
+		if len(target) == 1 && ((target[0] >= 'a' && target[0] <= 'z') || (target[0] >= 'A' && target[0] <= 'Z')) {
 			target += ":"
+		} else if len(target) >= 2 && target[1] == ':' {
+			target = target[:2]
+		} else {
+			target = strings.TrimRight(target, `/\`)
+			if !strings.HasSuffix(target, ":") {
+				target += ":"
+			}
 		}
 		target = strings.ToUpper(target)
 		escapedTarget := strings.ReplaceAll(target, "'", "''")
@@ -1552,7 +1559,7 @@ func (ins *Inspector) evaluateWindowsRule(h *store.Host, runner sshrunner.Runner
 			rootCause = fmt.Sprintf("Invalid port target: %s", target)
 			return
 		}
-		ps := fmt.Sprintf(`try { $c = Get-NetTCPConnection -LocalPort %[1]d -State Listen -ErrorAction Stop; if ($c) { 'listening' } else { 'closed' } } catch { if ((netstat -ano | Select-String ':%[1]d\s+.*LISTENING') -or (netstat -ano | Select-String ':%[1]d\s+')) { 'listening' } else { 'closed' } }`, pNum)
+		ps := fmt.Sprintf(`$c = Get-NetTCPConnection -LocalPort %[1]d -State Listen -ErrorAction SilentlyContinue; if ($c) { 'listening' } else { if (netstat -ano | Select-String 'TCP\s+\S*:%[1]d\s+\S+\s+LISTENING') { 'listening' } else { 'closed' } }`, pNum)
 		out, _, _, _ := runner.Exec(powershellEncodedCmd(ps))
 		isListening := strings.Contains(strings.ToLower(out), "listening")
 		expectedListening := !strings.EqualFold(rule.Expected, "closed") && !strings.EqualFold(rule.Expected, "stopped")
@@ -1607,7 +1614,7 @@ func (ins *Inspector) evaluateWindowsRule(h *store.Host, runner sshrunner.Runner
 	case "backup":
 		target := sshrunner.CleanWindowsRemotePath(rule.Target)
 		escapedTarget := strings.ReplaceAll(target, "'", "''")
-		ps := fmt.Sprintf(`$f = Get-Item -LiteralPath '%s' -ErrorAction SilentlyContinue; if ($f) { "$($f.Length) $([int64]([DateTimeOffset]$f.LastWriteTime).ToUnixTimeSeconds())" } else { 'missing' }`, escapedTarget)
+		ps := fmt.Sprintf(`$f = Get-ChildItem -Path '%[1]s' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if (!$f) { $f = Get-Item -LiteralPath '%[1]s' -ErrorAction SilentlyContinue }; if ($f) { "$($f.Length) $([int64]([DateTimeOffset]$f.LastWriteTime).ToUnixTimeSeconds())" } else { 'missing' }`, escapedTarget)
 		out, _, _, _ := runner.Exec(powershellEncodedCmd(ps))
 		out = strings.TrimSpace(out)
 		if out == "" || out == "missing" {
@@ -1654,16 +1661,19 @@ func (ins *Inspector) evaluateWindowsRule(h *store.Host, runner sshrunner.Runner
 
 	case "cron", "task", "scheduled_task":
 		escapedTarget := strings.ReplaceAll(rule.Target, "'", "''")
-		ps := fmt.Sprintf(`$t = Get-ScheduledTask -TaskName '*%[1]s*' -ErrorAction SilentlyContinue; if (!$t) { $t = Get-ScheduledTask | Where-Object { $_.TaskName -like '*%[1]s*' -or $_.TaskPath -like '*%[1]s*' } }; if ($t) { 'configured' } else { 'missing' }`, escapedTarget)
+		ps := fmt.Sprintf(`$t = Get-ScheduledTask -TaskName '*%[1]s*' -ErrorAction SilentlyContinue; if (!$t) { $t = Get-ScheduledTask | Where-Object { $_.TaskName -like '*%[1]s*' -or $_.TaskPath -like '*%[1]s*' } | Select-Object -First 1 }; if ($t) { if ($t.State -eq 'Disabled') { 'disabled' } else { 'configured' } } else { 'missing' }`, escapedTarget)
 		out, _, _, _ := runner.Exec(powershellEncodedCmd(ps))
 		out = strings.TrimSpace(out)
-		if strings.EqualFold(out, "configured") {
-			current = "configured"
+		current = out
+		if strings.EqualFold(out, rule.Expected) || (strings.EqualFold(rule.Expected, "configured") && strings.EqualFold(out, "configured")) {
 			status = "ok"
 		} else {
-			current = "missing"
 			status = "drift"
-			rootCause = fmt.Sprintf("Scheduled task matching '%s' was not found", rule.Target)
+			if out == "disabled" {
+				rootCause = fmt.Sprintf("Scheduled task matching '%s' is Disabled", rule.Target)
+			} else {
+				rootCause = fmt.Sprintf("Scheduled task matching '%s' was not found", rule.Target)
+			}
 		}
 		return
 

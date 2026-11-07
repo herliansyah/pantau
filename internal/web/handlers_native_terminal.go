@@ -81,19 +81,20 @@ func buildRemoteCdClause(initialDir string, hostOSType ...string) string {
 		targetOS = strings.ToLower(strings.TrimSpace(hostOSType[0]))
 	}
 	if targetOS == "windows" {
-		if len(cleaned) >= 3 && cleaned[0] == '/' && (('a' <= cleaned[1] && cleaned[1] <= 'z') || ('A' <= cleaned[1] && cleaned[1] <= 'Z')) && cleaned[2] == ':' {
-			cleaned = cleaned[1:]
-		}
+		cleaned = sshrunner.CleanWindowsRemotePath(cleaned)
 		if cleaned == "~" || cleaned == "~/" {
 			return ""
+		}
+		if len(cleaned) == 2 && cleaned[1] == ':' {
+			cleaned += "/"
 		}
 		if strings.HasPrefix(cleaned, "~/") || strings.HasPrefix(cleaned, `~\`) {
 			subPath := strings.TrimPrefix(strings.TrimPrefix(cleaned, "~/"), `~\`)
 			escapedSub := strings.ReplaceAll(subPath, "'", "''")
-			return fmt.Sprintf(`powershell.exe -NoExit -Command "Set-Location -LiteralPath (Join-Path $HOME '%s')"`, escapedSub)
+			return fmt.Sprintf(`powershell.exe -NoExit -Command Set-Location -LiteralPath (Join-Path $HOME '%s')`, escapedSub)
 		}
 		escaped := strings.ReplaceAll(cleaned, "'", "''")
-		return fmt.Sprintf(`powershell.exe -NoExit -Command "Set-Location -LiteralPath '%s'"`, escaped)
+		return fmt.Sprintf(`powershell.exe -NoExit -Command Set-Location -LiteralPath '%s'`, escaped)
 	}
 	if cleaned == "~" {
 		return `cd ~ 2>/dev/null || true && exec bash -l || exec sh -l`
@@ -212,18 +213,27 @@ $key = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String
 $userSsh = "$env:USERPROFILE\.ssh"
 if (!(Test-Path $userSsh)) { New-Item -ItemType Directory -Path $userSsh -Force | Out-Null }
 $userAuth = "$userSsh\authorized_keys"
+if (Test-Path $userAuth) {
+    $rawUser = Get-Content $userAuth -Raw -ErrorAction SilentlyContinue
+    if ($rawUser -and !$rawUser.EndsWith([char]10)) { [IO.File]::AppendAllText($userAuth, [Environment]::NewLine) }
+}
 if (!(Test-Path $userAuth) -or !(Get-Content $userAuth -Raw -ErrorAction SilentlyContinue | Select-String -SimpleMatch $key -Quiet)) {
     Add-Content -Path $userAuth -Value $key -Force
 }
+& icacls $userAuth /inheritance:r /grant:r "$($env:USERNAME):(F)" /grant:r "*S-1-5-18:(F)" /grant:r "*S-1-5-32-544:(F)" | Out-Null
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if ($isAdmin) {
     $progData = "$env:ProgramData\ssh"
     if (Test-Path $progData) {
         $adminAuth = "$progData\administrators_authorized_keys"
+        if (Test-Path $adminAuth) {
+            $rawAdmin = Get-Content $adminAuth -Raw -ErrorAction SilentlyContinue
+            if ($rawAdmin -and !$rawAdmin.EndsWith([char]10)) { [IO.File]::AppendAllText($adminAuth, [Environment]::NewLine) }
+        }
         if (!(Test-Path $adminAuth) -or !(Get-Content $adminAuth -Raw -ErrorAction SilentlyContinue | Select-String -SimpleMatch $key -Quiet)) {
             Add-Content -Path $adminAuth -Value $key -Force
         }
-        & icacls $adminAuth /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F" | Out-Null
+        & icacls $adminAuth /inheritance:r /grant:r "*S-1-5-32-544:(F)" /grant:r "*S-1-5-18:(F)" | Out-Null
     }
 }
 `, b64Key)
@@ -456,7 +466,8 @@ func buildLaunchCommand(goos, termPath, customTemplate, keyPath, user, host stri
 	sshBase := fmt.Sprintf(`ssh -i "%s" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s`, keyPath, port, user, host)
 	cdClause := buildRemoteCdClause(initialDir, hostOSType...)
 	if cdClause != "" {
-		sshBase = fmt.Sprintf(`%s -t "%s"`, sshBase, cdClause)
+		escapedCD := strings.ReplaceAll(cdClause, `"`, `\"`)
+		sshBase = fmt.Sprintf(`%s -t "%s"`, sshBase, escapedCD)
 	}
 
 	if customTemplate != "" {
@@ -657,7 +668,8 @@ func generateUnixScript(ticket *NativeTicket, isMac bool) string {
 	var remoteCmd string
 	cdClause := buildRemoteCdClause(ticket.InitialDir, ticket.HostOSType)
 	if cdClause != "" {
-		remoteCmd = fmt.Sprintf(` -t "%s"`, cdClause)
+		escapedCD := strings.ReplaceAll(cdClause, `"`, `\"`)
+		remoteCmd = fmt.Sprintf(` -t "%s"`, escapedCD)
 	}
 
 	var sb strings.Builder
@@ -957,7 +969,8 @@ func (s *Server) handleNativeTerminalRun(w http.ResponseWriter, r *http.Request)
 		var remoteCmd string
 		cdClause := buildRemoteCdClause(ticket.InitialDir, ticket.HostOSType)
 		if cdClause != "" {
-			remoteCmd = fmt.Sprintf(` -t "%s"`, cdClause)
+			escapedCD := strings.ReplaceAll(cdClause, `"`, `\"`)
+			remoteCmd = fmt.Sprintf(` -t "%s"`, escapedCD)
 		}
 
 		// Output PowerShell friendly script
