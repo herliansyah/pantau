@@ -393,6 +393,11 @@ func parseProbeOutput(stdout string, samples map[string]float64) {
 	}
 }
 
+// DetectHostOS performs a remote probe to determine if the target host is Linux or Windows.
+func (ins *Inspector) DetectHostOS(h *store.Host, runner sshrunner.Runner) {
+	ins.detectHostOS(h, runner)
+}
+
 // detectHostOS executes a fast in-band probe to classify remote OS as linux or windows.
 // ponytail: Tests uname and cmd.exe ver without compound || to avoid PowerShell 5.1 parse errors.
 func (ins *Inspector) detectHostOS(h *store.Host, runner sshrunner.Runner) {

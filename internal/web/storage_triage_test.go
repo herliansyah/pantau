@@ -189,9 +189,17 @@ func TestStorageTriageUIInIndexHTML(t *testing.T) {
 		}
 	}
 
-	// 4. Verify Alert banner deep link
+	// 4. Verify Alert banner and host card deep links
 	if !strings.Contains(html, "openStorageTriageFromAlert") {
 		t.Errorf("expected openStorageTriageFromAlert in alert banner overlay")
+	}
+	if !strings.Contains(html, "diskPct > 85 ?") || !strings.Contains(html, "openStorageTriageFromAlert(${h.id})") {
+		t.Errorf("expected host card disk widget deep link when diskPct > 85")
+	}
+
+	// 4b. Verify executeSafeReclaim defines isWin to prevent ReferenceError
+	if !strings.Contains(html, "async function executeSafeReclaim") || !strings.Contains(html, "const isWin = currentHost && currentHost.os_type === 'windows';") {
+		t.Errorf("expected executeSafeReclaim to define isWin")
 	}
 
 	// 5. Verify i18n dictionary keys and modal data-i18n attributes
@@ -203,11 +211,212 @@ func TestStorageTriageUIInIndexHTML(t *testing.T) {
 		`"triage_safe_catalog"`,
 		`"triage_runaway_detected"`,
 		`"triage_ghost_detected"`,
+		`"triage_top_hogs_win"`,
+		`"triage_badge_admin"`,
+		`"triage_reclaimable_desc_win"`,
+		`"triage_analyzing_sub_win"`,
+		`"triage_no_reclaim_win"`,
+		`"triage_no_hogs_win"`,
+		`Stop-Process -Name robocopy -Force`,
 	}
 	for _, check := range i18nChecks {
 		if !strings.Contains(html, check) {
 			t.Errorf("expected i18n marker %s in index.html", check)
 		}
+	}
+}
+
+func TestWindowsStorageTriageEndpoints(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-win-triage-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	srv := NewServer(db, nil, nil)
+	token := "test_win_triage_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authCookie := &http.Cookie{Name: "pantau_session", Value: token}
+
+	winHostID, err := db.CreateHost(&store.Host{
+		Name:   "Windows Target Server",
+		Host:   "127.0.0.1",
+		Port:   22,
+		User:   "Administrator",
+		OSType: "windows",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Storage Triage on Offline/Unconnected Windows Host returns 500 cleanly
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/hosts/%d/storage-triage", winHostID), nil)
+	req.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusInternalServerError && rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 500 or 400 for unconnectable host, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// 2. Windows Storage Reclaim Validation: Protected system path rejection
+	reclaimBody, _ := json.Marshal(storagetriage.ReclaimRequest{
+		ActionKey:  "truncate",
+		TargetPath: `C:\Windows\System32\cmd.exe`,
+	})
+	rec2 := httptest.NewRecorder()
+	req2 := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-reclaim", winHostID), bytes.NewReader(reclaimBody))
+	req2.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec2, req2)
+
+	if rec2.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for protected Windows path truncate, got %d: %s", rec2.Code, rec2.Body.String())
+	}
+
+	// 2b. Windows Storage Reclaim Validation: Protected system path on non-C drive (e.g. D:\)
+	reclaimBody2b, _ := json.Marshal(storagetriage.ReclaimRequest{
+		ActionKey:  "truncate",
+		TargetPath: `D:\Windows\System32\cmd.exe`,
+	})
+	rec2b := httptest.NewRecorder()
+	req2b := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-reclaim", winHostID), bytes.NewReader(reclaimBody2b))
+	req2b.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec2b, req2b)
+
+	if rec2b.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for protected Windows path on D: drive, got %d: %s", rec2b.Code, rec2b.Body.String())
+	}
+
+	// 3. Windows Storage Reclaim Validation: Database file rejection (e.g. MSSQL .mdf)
+	reclaimBody3, _ := json.Marshal(storagetriage.ReclaimRequest{
+		ActionKey:  "truncate",
+		TargetPath: `C:\data\sql\mydb.mdf`,
+	})
+	rec3 := httptest.NewRecorder()
+	req3 := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-reclaim", winHostID), bytes.NewReader(reclaimBody3))
+	req3.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec3, req3)
+
+	if rec3.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for MSSQL .mdf truncate, got %d: %s", rec3.Code, rec3.Body.String())
+	}
+
+	// 3b. Windows Storage Reclaim Validation: Database secondary file rejection (MSSQL .ndf)
+	reclaimBody3b, _ := json.Marshal(storagetriage.ReclaimRequest{
+		ActionKey:  "truncate",
+		TargetPath: `C:\data\sql\mydb_sec.ndf`,
+	})
+	rec3b := httptest.NewRecorder()
+	req3b := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-reclaim", winHostID), bytes.NewReader(reclaimBody3b))
+	req3b.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec3b, req3b)
+
+	if rec3b.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for MSSQL .ndf truncate, got %d: %s", rec3b.Code, rec3b.Body.String())
+	}
+
+	// 3c. Windows Storage Reclaim Validation: Virtual disk snapshot rejection (.avhdx)
+	reclaimBody3c, _ := json.Marshal(storagetriage.ReclaimRequest{
+		ActionKey:  "truncate",
+		TargetPath: `C:\vm\disk.avhdx`,
+	})
+	rec3c := httptest.NewRecorder()
+	req3c := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-reclaim", winHostID), bytes.NewReader(reclaimBody3c))
+	req3c.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec3c, req3c)
+
+	if rec3c.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for Hyper-V .avhdx truncate, got %d: %s", rec3c.Code, rec3c.Body.String())
+	}
+
+	// 4. Windows Storage Reclaim Validation: Path traversal rejection
+	reclaimBody4, _ := json.Marshal(storagetriage.ReclaimRequest{
+		ActionKey:  "truncate",
+		TargetPath: `C:\temp\..\Windows\System32\cmd.exe`,
+	})
+	rec4 := httptest.NewRecorder()
+	req4 := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-reclaim", winHostID), bytes.NewReader(reclaimBody4))
+	req4.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec4, req4)
+
+	if rec4.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for path traversal truncate, got %d: %s", rec4.Code, rec4.Body.String())
+	}
+
+	// 4b. Windows Storage Reclaim Validation: Directory path rejection (trailing slash)
+	reclaimBody4b, _ := json.Marshal(storagetriage.ReclaimRequest{
+		ActionKey:  "truncate",
+		TargetPath: `C:\inetpub\logs\`,
+	})
+	rec4b := httptest.NewRecorder()
+	req4b := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-reclaim", winHostID), bytes.NewReader(reclaimBody4b))
+	req4b.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec4b, req4b)
+
+	if rec4b.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for directory path truncate, got %d: %s", rec4b.Code, rec4b.Body.String())
+	}
+
+	// 4c. Windows Storage Reclaim Validation: dumpstack.log rejection
+	reclaimBody4c, _ := json.Marshal(storagetriage.ReclaimRequest{
+		ActionKey:  "truncate",
+		TargetPath: `C:\dumpstack.log`,
+	})
+	rec4c := httptest.NewRecorder()
+	req4c := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-reclaim", winHostID), bytes.NewReader(reclaimBody4c))
+	req4c.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec4c, req4c)
+
+	if rec4c.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for dumpstack.log truncate, got %d: %s", rec4c.Code, rec4c.Body.String())
+	}
+
+	// 4d. Windows Storage Reclaim Validation: Database backup .bak rejection
+	reclaimBody4d, _ := json.Marshal(storagetriage.ReclaimRequest{
+		ActionKey:  "truncate",
+		TargetPath: `C:\backup\mydb.bak`,
+	})
+	rec4d := httptest.NewRecorder()
+	req4d := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-reclaim", winHostID), bytes.NewReader(reclaimBody4d))
+	req4d.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec4d, req4d)
+
+	if rec4d.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for .bak truncate, got %d: %s", rec4d.Code, rec4d.Body.String())
+	}
+
+	// 4e. Windows Storage Reclaim Validation: Archive .7z rejection
+	reclaimBody4e, _ := json.Marshal(storagetriage.ReclaimRequest{
+		ActionKey:  "truncate",
+		TargetPath: `C:\temp\archive.7z`,
+	})
+	rec4e := httptest.NewRecorder()
+	req4e := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-reclaim", winHostID), bytes.NewReader(reclaimBody4e))
+	req4e.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec4e, req4e)
+
+	if rec4e.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for .7z truncate, got %d: %s", rec4e.Code, rec4e.Body.String())
+	}
+
+	// 5. Windows Storage Reclaim Validation: Invalid service reload command injection
+	reclaimBody5, _ := json.Marshal(storagetriage.ReclaimRequest{
+		ActionKey:  "reload_service",
+		TargetPath: `W3SVC; Stop-Computer`,
+	})
+	rec5 := httptest.NewRecorder()
+	req5 := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-reclaim", winHostID), bytes.NewReader(reclaimBody5))
+	req5.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec5, req5)
+
+	if rec5.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for invalid Windows service name, got %d: %s", rec5.Code, rec5.Body.String())
 	}
 }
 
