@@ -515,19 +515,19 @@ Direktori atau berkas yang mengonsumsi proporsi kapasitas penyimpanan dominan pa
 _Avoid_: Big folder, heavy file, disk eater, disk consumer
 
 **Runaway File**:
-Berkas teks log atau temporary dump yang mengalami peningkatan ukuran secara masif dalam rentang waktu singkat (misal akibat error loop tak berhingga), mengecualikan secara mutlak berkas data relasional atau stateful engine (seperti MySQL InnoDB `.ibd`, PostgreSQL base, SQLite `.db`, atau Redis `.rdb`) yang aktif menulis transaksi operasional normal.
+Berkas teks log atau temporary dump yang mengalami peningkatan ukuran secara masif dalam rentang waktu singkat (misal akibat error loop tak berhingga), mengecualikan secara mutlak berkas data relasional atau stateful engine (seperti MySQL InnoDB `.ibd`, PostgreSQL base, SQLite `.db`, Redis `.rdb`, Microsoft SQL Server `.mdf`/`.ldf`/`.ndf`, Active Directory `.dit`, Exchange `.edb`, atau file disk virtual `.vhdx`/`.avhdx`/`.bak`) serta arsip biner (`.7z`, `.rar`, `.cab`) yang aktif menulis transaksi operasional normal.
 _Avoid_: Rapid file, fast growing log, exploding file, active database file
 
 **Ghost File**:
-Berkas yang telah dihapus (*unlinked*) dari sistem berkas namun alokasi blok disknya masih tertahan karena file descriptor-nya masih dibuka oleh proses aktif.
+Berkas pada Host Linux yang telah dihapus (*unlinked*) dari sistem berkas namun alokasi blok disknya masih tertahan karena file descriptor-nya masih dibuka oleh proses aktif (pada Windows, penguncian berkas OS umumnya mencegah penghapusan berkas yang sedang dibuka).
 _Avoid_: Orphan file, locked deleted file, unreleased file, unlinked fd
 
 **Reclaimable Storage**:
-Kumpulan data non-kritis (cache paket distro, log rotasi kompresi usang, journal vacuumable, atau container build cache) yang dapat dibersihkan dengan aman tanpa mengganggu kestabilan sistem operasi.
+Kumpulan data non-kritis (cache paket distro, log rotasi kompresi usang, journal vacuumable, container build cache, Windows Update download cache, crash dumps, atau temporary folder) yang dapat dibersihkan dengan aman tanpa mengganggu kestabilan sistem operasi.
 _Avoid_: Junk files, temp trash, safe to delete data, disposable files
 
 **Log Truncation**:
-Prosedur pengosongan isi berkas log aktif ke ukuran 0-byte secara in-place tanpa menghapus inode atau memutus file descriptor proses yang sedang berjalan. Dibatasi secara ketat hanya untuk berkas log/teks non-kritis dan dilarang keras dieksekusi pada berkas biner atau mesin basis data.
+Prosedur pengosongan isi berkas log aktif ke ukuran 0-byte secara in-place tanpa menghapus inode (Linux via `truncate -s 0`) atau memutus file descriptor/lock proses yang sedang berjalan (Windows via PowerShell `Clear-Content`). Dibatasi secara ketat hanya untuk berkas log/teks non-kritis dan dilarang keras dieksekusi pada berkas biner, mesin basis data, maupun direktori sistem/swap/pagefile OS.
 _Avoid_: Log wipe, file delete, log clear, log reset
 
 **Storage Triage Probe**:
@@ -545,4 +545,41 @@ _Avoid_: Rate limiter, scan throttle, disk blocker, triage cooldown
 **Storage Triage Snapshot**:
 Struktur data hasil eksekusi Storage Triage Probe terakhir yang disimpan sementara dalam memori server (TTL in-memory) untuk rendering instan pada Workspace Modal tanpa persistensi permanen ke basis data.
 _Avoid_: Triage cache, disk report, storage dump, storage snapshot
+
+**Host Switcher**:
+Kontrol navigasi cepat antar-Host di dalam Workspace Modal Host Detail yang terdiri atas dropdown daftar host, tombol navigasi Sebelumnya/Berikutnya, serta pintasan keyboard (`[` dan `]`) untuk berpindah konteks host secara instan tanpa perlu menutup modal.
+_Avoid_: Host selector, machine switcher, server dropdown
+
+**1-Click Metrics Shortcut**:
+Tombol pintas telemetri sekali klik (`.btn-host-metrics`) yang disematkan langsung pada kartu Host di dasbor dan baris tabel Host untuk membuka Host Detail Modal langsung pada tab visualisasi grafik *Metrics & Telemetry*.
+_Avoid_: Quick metrics button, telemetry shortcut, fast chart link
+
+**Note Markdown Preview**:
+Mode tampilan pratinjau Markdown terformat yang aktif secara bawaan saat membuka modal Host Note atau Global Note, dilengkapi parser mikro tanpa dependensi eksternal yang aman terhadap XSS, tombol Edit untuk beralih ke editor teks, dan kembali ke mode pratinjau seketika setelah catatan disimpan.
+_Avoid_: Note viewer, formatted memo, note rendered display
+
+**Target OS**:
+Klasifikasi sistem operasi Host target (`linux` atau `windows`) yang terdeteksi secara otomatis saat penambahan host atau pengujian koneksi via probe in-band mandiri, menentukan dialek eksekusi perintah SSH (POSIX shell vs PowerShell Base64) dan ketersediaan fitur platform.
+_Avoid_: Host platform, server system, node OS
+
+**Windows Target Observability**:
+Kapabilitas pemantauan menyeluruh, verifikasi kondisi seharusnya (*Desired State*), dan manajemen operasional untuk Host berbasis Windows Server (2019/2022/2025) maupun Windows 10/11 secara murni *agentless* melalui OpenSSH Server bawaan dan batch PowerShell ber-encode Base64 UTF-16LE tanpa ketergantungan library tambahan atau daemon remote.
+_Avoid_: Windows agent, WMI monitor, PowerShell daemon
+
+**Windows Key Provisioning**:
+Prosedur otomatis injeksi SSH Public Key pada Host Windows yang menempatkan kunci otentikasi pada profil pengguna standar (`%USERPROFILE%\.ssh\authorized_keys`) atau direktori sistem akun Administrator (`%ProgramData%\ssh\administrators_authorized_keys`) dengan pewarisan ACL tertutup dan SID universal (`*S-1-5-18` untuk SYSTEM dan `*S-1-5-32-544` untuk Administrators) via utilitas `icacls`.
+_Avoid_: Windows key injector, authorized keys setup, ssh key copier
+
+**Drive-Aware Path Navigation**:
+Mekanisme normalisasi jalur direktori Windows lintas *drive letter* (`C:/`, `D:/`) dan jalur emulasi Git Bash (`/c/`, `/d/`) pada File Manager dan sesi Terminal, yang memvalidasi batas akar drive dan memblokir upaya *path traversal* atau akses direktori sistem terproteksi.
+_Avoid_: Windows path cleaner, drive router, path parser
+
+**Windows Desired State Evaluator**:
+Evaluator aturan kepatuhan (*Desired State*) yang disesuaikan secara natif untuk Host Windows, memeriksa status layanan sistem (`Get-Service`), ambang kapasitas drive (`Win32_LogicalDisk`), port TCP terbuka (`Get-NetTCPConnection`), proses aktif (`Get-Process`), jadwal tugas (*Scheduled Tasks* via `Get-ScheduledTask`), container Docker (`docker ps`), dan kesegaran file cadangan (*backup freshness* via `Get-Item`).
+_Avoid_: Windows rule checker, powershell state tester, windows compliance runner
+
+**Windows Safe Reclaim Catalog**:
+Katalog kurasi aksi pembersihan ruang penyimpanan aman untuk Host Windows yang meliputi pembersihan cache unduhan Windows Update (`SoftwareDistribution\Download`), direktori Temp sistem dan user (`C:\Windows\Temp`, `%TEMP%`), laporan kesalahan dan dump memori (`WER`, `Minidump`, `MEMORY.DMP`), pengosongan Keranjang Sampah (`Clear-RecycleBin`), pembersihan arsip log IIS usang (>7 hari), serta pembersihan container Docker on Windows.
+_Avoid_: Windows disk cleaner, powershell cleanup catalog, temp purger
+
 

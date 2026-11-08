@@ -12,8 +12,8 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
 
 1. [Arsitektur & Batas Kepercayaan (Trust Boundaries)](#1-arsitektur--batas-kepercayaan-trust-boundaries)
 2. [Fase 1: Onboarding & Manajemen Inventaris Host](#2-fase-1-onboarding--manajemen-inventaris-host)
-   - [Menambahkan Host & Key Provisioning](#menambahkan-host--key-provisioning)
-   - [Pengelompokan Host Group, Tampilan Flat & Manual Host Order](#pengelompokan-host-group-tampilan-flat--manual-host-order)
+   - [Menambahkan Host & Key Provisioning (Linux & Windows)](#menambahkan-host--key-provisioning-linux--windows)
+   - [Pengelompokan Host Group, Tampilan Flat & Host Switcher](#pengelompokan-host-group-tampilan-flat--host-switcher)
 3. [Fase 2: Baseline Desired State & Proteksi Sistem](#3-fase-2-baseline-desired-state--proteksi-sistem)
    - [Membuat 1-Click Desired State Baseline](#membuat-1-click-desired-state-baseline)
    - [Konfigurasi Backup Freshness & Protected Path](#konfigurasi-backup-freshness--protected-path)
@@ -34,6 +34,8 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
 5. [Fase 4: Operasi Berkas & Aliran Data Lintas-Host](#5-fase-4-operasi-berkas--aliran-data-lintas-host)
    - [Cross-Host Transfer (Pipa Memori Tanpa Disk Lokal)](#cross-host-transfer-pipa-memori-tanpa-disk-lokal)
    - [Folder Streaming Download Langsung ke Browser](#folder-streaming-download-langsung-ke-browser)
+   - [Duplikasi Berkas & Folder Aman (Pemeriksaan Ruang Disk)](#duplikasi-berkas--folder-aman-pemeriksaan-ruang-disk)
+   - [Navigasi Berkas Windows Sadar-Drive & Proteksi Path](#navigasi-berkas-windows-sadar-drive--proteksi-path)
    - [Pin Berkas dengan Catatan Operasional & Global Bookmarks](#pin-berkas-dengan-catatan-operasional--global-bookmarks)
 6. [Fase 5: Pengerasan Keamanan, Snapshot & Pemulihan Bencana](#6-fase-5-pengerasan-keamanan-snapshot--pemulihan-bencana)
    - [Two-Factor Authentication (2FA) & 2FA Bypass Flag](#two-factor-authentication-2fa--2fa-bypass-flag)
@@ -48,49 +50,69 @@ Pantau beroperasi **100% agentless** melalui protokol standar SSH (`port 22`). S
 
 ## 1. Arsitektur & Batas Kepercayaan (Trust Boundaries)
 
-Pantau mengeksekusi perintah jarak jauh dan membaca telemetri server melalui koneksi SSH standar.
+Pantau mengeksekusi perintah jarak jauh dan membaca telemetri server melalui koneksi SSH standar secara murni tanpa agen (*agentless*).
 
 - **Control Plane**: Berupa binary tunggal Go yang berjalan di server manajemen atau mesin bastion administrator, didukung basis data tersemat SQLite (`pantau.db`) dengan mode WAL (Write-Ahead Logging).
-- **Remote Host**: Setiap mesin fisik atau virtual (VPS) Linux (Ubuntu, Debian, RHEL, CentOS 6–9) yang dapat dijangkau melalui jaringan SSH.
-- **Batas Kepercayaan**: Pantau membuat pasangan kunci privat/publik RSA 4096-bit saat pertama kali dijalankan. Host target memberikan izin akses dengan menempatkan kunci publik Pantau ke dalam berkas `~/.ssh/authorized_keys` milik pengguna manajemen (`root` atau pengguna khusus dengan privilese `sudo` tanpa kata sandi).
+- **Remote Host**:
+  - **Target Linux**: Setiap mesin fisik atau virtual (VPS) Linux (Ubuntu, Debian, RHEL, CentOS 6–9, Alpine, Arch) yang dapat dijangkau melalui SSH, diinspeksi via perintah non-interaktif POSIX (`/proc`, `ps`, `df`, `ss`).
+  - **Target Windows**: Server Windows (2019/2022/2025) maupun workstation (Windows 10/11) dengan layanan bawaan OpenSSH Server (`sshd`) aktif, diinspeksi via skrip batch PowerShell ber-encode Base64 UTF-16LE.
+- **Batas Kepercayaan & Isolasi Kredensial**:
+  - Pantau membuat pasangan kunci privat/publik RSA 4096-bit saat pertama kali dijalankan.
+  - **Penempatan Kunci Linux**: Kunci publik ditempatkan di `~/.ssh/authorized_keys` milik pengguna manajemen (`root` atau akun sudo tanpa kata sandi).
+  - **Penempatan Kunci Windows**: Kunci publik ditempatkan pada profil pengguna di `%USERPROFILE%\.ssh\authorized_keys` untuk akun standar, atau `%ProgramData%\ssh\administrators_authorized_keys` untuk akun anggota grup Administrators. Izin akses dikunci secara ketat via `icacls` menggunakan Universal SID (`*S-1-5-18` SYSTEM dan `*S-1-5-32-544` Administrators) untuk menjamin kompatibilitas pada Windows multibahasa.
 
 ```
-+-------------------+             SSH Port 22 (Agentless)             +-----------------------+
-|  Pantau Control   | ==============================================> |   Remote Linux Host   |
-|  Plane (Go + DB)  | < - - - - - - - - - - - - - - - - - - - - - - - |  (POSIX df, ps, logs) |
-+-------------------+          Actual State & Telemetri               +-----------------------+
+                                  +-----------------------+
+                                  |     Pantau Control    |
+                                  |    Plane (Go + DB)    |
+                                  +-----------+-----------+
+                                              | SSH Port 22 (Agentless)
+                         +--------------------+--------------------+
+                         v                                         v
+              +-----------------------+                 +-----------------------+
+              |   Remote Linux Host   |                 |  Remote Windows Host  |
+              | (Debian, RHEL, Alpine)|                 | (Server 2019/22, Win) |
+              |  POSIX df, ps, logs   |                 | OpenSSH + PowerShell  |
+              +-----------------------+                 +-----------------------+
 ```
 
 ---
 
 ## 2. Fase 1: Onboarding & Manajemen Inventaris Host
 
-### Menambahkan Host & Key Provisioning
+### Menambahkan Host & Key Provisioning (Linux & Windows)
 
 Untuk menghubungkan **Host** baru ke dalam Pantau:
 
 1. Klik tombol **Add Host** pada dashboard utama untuk memunculkan **Action Dialog**.
 2. Masukkan parameter koneksi:
-   - **Label**: Nama penanda yang unik (contoh: `prod-db-primary`).
+   - **Label**: Nama penanda yang unik (contoh: `prod-db-primary` atau `win-ad-dc01`).
    - **IP / Hostname**: Alamat IP publik/privat atau hostname yang dapat di-resolve.
    - **SSH Port**: Port standar `22` atau port kustom daemon SSH target.
-   - **SSH User**: Akun `root` atau pengguna dengan hak akses sudo.
+   - **SSH User**: Akun `root`, pengguna Linux dengan hak akses sudo, atau akun Windows (`Administrator` atau user lokal/domain).
 3. Pilih metode autentikasi:
-   - **Existing SSH Key**: Gunakan opsi ini jika host sudah memiliki kunci publik Pantau di `~/.ssh/authorized_keys`.
-   - **Key Provisioning (One-Time Password)**: Jika menghubungkan server yang benar-benar baru, masukkan kata sandi target sekali saja. Pantau akan membuat koneksi awal, menyisipkan kunci publik RSA 4096-bit secara idempoten ke `~/.ssh/authorized_keys`, lalu langsung menghapus kata sandi dari memori RAM.
-4. Klik **Save & Test Connection**. Pantau akan melakukan uji koneksi (*handshake*) untuk memvalidasi akses.
+   - **Existing SSH Key**: Gunakan opsi ini jika host sudah memiliki kunci publik Pantau di lokasi yang sesuai.
+   - **Key Provisioning (One-Time Password)**: Jika menghubungkan server yang benar-benar baru, masukkan kata sandi target sekali saja. Pantau akan membuat koneksi awal, mendeteksi sistem operasi target secara otomatis, menyisipkan kunci publik RSA 4096-bit ke lokasi resmi (`~/.ssh/authorized_keys` di Linux; user profile atau `%ProgramData%\ssh\administrators_authorized_keys` di Windows dengan penguncian ACL `icacls`), lalu langsung menghapus kata sandi dari memori RAM.
+4. Klik **Save & Test Connection**. Pantau akan melakukan uji koneksi (*handshake*) dan probe deteksi OS in-band (`uname -s` dengan fallback `cmd.exe /c ver`), mengklasifikasikan host sebagai `linux` atau `windows`.
 
 > [!NOTE]
 > Untuk server Linux lawas (*legacy*) seperti CentOS 5/6, Debian 7, atau OpenSSH 4.x/5.x, Pantau secara otomatis mengaktifkan fallback cipher dan algoritma host key warisan (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`, `ssh-rsa`) saat negosiasi SSH. Pantau menerapkan verifikasi host key TOFU (Trust-On-First-Use) yang otomatis mencatat fingerprint host pada koneksi awal sekaligus melindungi sesi berikutnya dari manipulasi Machine-in-the-Middle (MITM).
 
-### Pengelompokan Host Group, Tampilan Flat & Manual Host Order
+### Pengelompokan Host Group, Tampilan Flat & Host Switcher
 
 Ketika jumlah server bertambah banyak:
-- **Host Group**: Kelompokkan host berdasarkan fungsi sistem atau lingkungan (contoh: `Database Cluster`, `Edge Proxies`, `Testing Environment`). Grup akan dipisahkan secara visual baik pada **View Mode** Grid maupun List.
-- **Opsi Tampilan Flat ("Tanpa Grouping")**: Pilih opsi "Tanpa Grouping" pada dropdown filter grup untuk melihat seluruh host dalam satu daftar atau grid datar tanpa header grup pemisah.
-- **Tampilan Tabel Host List yang Ringkas**: Tata letak tabel 8 kolom yang efisien dengan penggabungan alamat host dan OS ke dalam satu sel dua-baris, lencana catatan operasional inline yang dapat diedit langsung, serta format teks metrik anti-wrap.
+- **Host Group**: Kelompokkan host berdasarkan fungsi sistem atau lingkungan (contoh: `Database Cluster`, `Armada Windows`, `Edge Proxies`). Grup akan dipisahkan secara visual baik pada **View Mode** Grid maupun List.
+- **Opsi Tampilan Flat (\"Tanpa Grouping\")**: Pilih opsi \"Tanpa Grouping\" pada dropdown filter grup untuk melihat seluruh host dalam satu daftar atau grid datar tanpa header grup pemisah.
+- **Tampilan Tabel Host List yang Ringkas**: Tata letak tabel 8 kolom yang efisien dengan penggabungan alamat host dan OS ke dalam satu sel dua-baris, tombol pintas telemetri sekali klik (`.btn-host-metrics`), lencana catatan operasional inline yang dapat diedit langsung, serta format teks metrik anti-wrap.
+- **Host Switcher**: Saat membuka **Workspace Modal** (Host Details), beralihlah ke host lain di armada server Anda secara instan tanpa perlu menutup modal:
+  - Gunakan dropdown **Host Switcher** di bilah atas modal atau tombol panah navigasi **Sebelumnya / Berikutnya**.
+  - Gunakan pintasan keyboard `[` (host sebelumnya) dan `]` (host berikutnya) untuk navigasi kilat berbasis keyboard.
+- **Tombol Pintas Telemetri 1-Klik**: Lompat langsung ke grafik metrik historis dengan mengklik tombol ikon grafik pada kartu Host maupun baris tabel Host.
 - **Manual Host Order**: Atur urutan prioritas server utama agar selalu tampil di posisi teratas dashboard melalui pengurutan manual.
-- **Host Note & Global Note**: Gunakan **Host Note** untuk mencatat catatan operasional spesifik per server (misal: `"Master PostgreSQL; node replikasi ada di db-02"`). Gunakan **Global Note** untuk pengumuman sistem bersama atau catatan serah-terima giliran tugas antar-administrator.
+- **Host Note & Global Note dengan Pratinjau Markdown**:
+  - Gunakan **Host Note** untuk catatan operasional dan runbook spesifik per server (misal: `"Master PostgreSQL; node replikasi ada di db-02"`).
+  - Gunakan **Global Note** untuk pengumuman sistem bersama atau catatan serah-terima giliran tugas.
+  - Catatan dibuka dalam tampilan **Pratinjau Markdown** terformat secara bawaan, dengan tombol alih **Edit** dan parser mikro tanpa dependensi eksternal yang aman terhadap XSS.
 
 ---
 
@@ -109,22 +131,22 @@ Pantau tidak hanya menampilkan metrik pasif; sistem ini secara aktif memverifika
 
 ### Tabel Referensi Aturan Desired State
 
-Pantau mendukung 7 jenis aturan Desired State yang dievaluasi secara otomatis pada setiap siklus inspeksi:
+Pantau mendukung 7 jenis aturan Desired State yang dievaluasi secara otomatis pada platform Linux maupun Windows di setiap siklus inspeksi:
 
-| Jenis (`Kind`) | Target Identifier | Kondisi Diharapkan (`Expected`) | Contoh Target & Expected | Kriteria Drift & Root Cause Excerpt |
-| :--- | :--- | :--- | :--- | :--- |
-| **`container`** | Nama kontainer Docker | `running` | `nginx` &rarr; `running` | Kontainer `exited`, `dead`, crash. Menyajikan exit code, OOMKilled, dan 50 baris log kontainer. |
-| **`service`** | Nama daemon Linux | `active` | `mariadb` &rarr; `active` | Service `inactive` atau `failed`. Menyajikan 50 baris log dari `journalctl` atau syslog. |
-| **`port`** | Port TCP atau `ip:port` | `listening` (atau `closed`) | `80` &rarr; `listening` | Port tidak terbuka / proses mati. Memeriksa `ss`/`netstat`. |
-| **`disk`** | Mount point partisi | `<N%` (ambang batas) | `/` &rarr; `<85%` | Utilisasi partisi >= ambang batas atau storage IO timeout 5s (hung NFS). |
-| **`cron`** | Kata kunci / perintah cron | `configured` | `backup.sh` &rarr; `configured` | Baris perintah tidak ditemukan dalam `crontab -l` user SSH. |
-| **`backup`** | Path absolut berkas backup | `fresh_<N>h` (default: 24h) | `/backup/db.sql.gz` &rarr; `fresh_24h` | Berkas tidak ditemukan, berukuran 0 byte, atau usia berkas melampaui N jam. |
-| **`process`** | Pola atau nama proses | `running` (atau `stopped`) | `celery` &rarr; `running` | Proses tidak aktif pada sistem (memeriksa `pgrep`/`ps`). |
+| Jenis (`Kind`) | Target Identifier | Kondisi Diharapkan (`Expected`) | Eksekusi & Contoh Linux | Eksekusi & Contoh Windows | Kriteria Drift & Root Cause Excerpt |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`container`** | Nama kontainer Docker | `running` | `docker inspect` &rarr; `nginx` | `docker ps` &rarr; `mssql-server` | Kontainer `exited`, `dead`, crash. Menyajikan exit code, OOMKilled, dan 50 baris log kontainer. |
+| **`service`** | Nama daemon atau service | `active` (atau `stopped`) | `systemctl is-active mariadb` | `Get-Service -Name W3SVC` (dinormalisasi ke `active`/`stopped`) | Service `inactive`, `failed`, atau terhenti. Menyajikan log diagnostik via `journalctl` atau event log Windows. |
+| **`port`** | Port TCP atau `ip:port` | `listening` (atau `closed`) | `ss -tlpn` &rarr; `80` | `Get-NetTCPConnection -LocalPort 443` | Port tidak terbuka atau proses listening mati. |
+| **`disk`** | Mount point atau Drive | `<N%` (ambang batas) | `df -lPk /` &rarr; `/` &rarr; `<85%` | `Win32_LogicalDisk` &rarr; `C:` &rarr; `<85%` (target `/` otomatis ke `C:`) | Utilisasi partisi >= ambang batas atau storage I/O timeout 5s (hung NFS / storage lock). |
+| **`cron`** / **`task`** | Kata kunci cron / Nama Task | `configured` / `Ready` | `crontab -l` &rarr; `backup.sh` | `Get-ScheduledTask` &rarr; `WeeklyBackup` | Baris perintah tidak ada di crontab atau scheduled task tidak aktif / tidak ditemukan. |
+| **`backup`** | Path absolut berkas backup | `fresh_<N>h` (default: 24h) | `find /backup/db.sql.gz -mtime` | `Get-Item C:\backups\db.bak` (evaluasi UTC) | Berkas tidak ditemukan, berukuran 0 byte, atau usia berkas melampaui N jam. |
+| **`process`** | Pola atau nama proses | `running` (atau `stopped`) | `pgrep -x celery` / `ps` | `Get-Process -Name sqlservr` | Proses target tidak aktif pada tabel proses sistem operasi. |
 
 ### Konfigurasi Backup Freshness & Protected Path
 
-- **Backup Freshness**: Daftarkan lokasi file backup target (contoh: `/backup/postgres/daily.sql.gz`) beserta batas kedaluwarsa waktu (misal: harus diperbarui dalam 24 jam terakhir dan ukuran berkas `> 0 byte`). Pantau akan menandai **Drift** jika berkas backup hilang, kosong, atau usang.
-- **Protected Path**: Daftarkan path direktori sistem inti (seperti `/etc/`, `/boot/`, `/var/lib/docker/`) ke dalam daftar terproteksi agar terhindar dari ketidaksengajaan operasi ubah, timpa, atau hapus berkas melalui modul SFTP file manager.
+- **Backup Freshness**: Daftarkan lokasi file backup target (contoh: `/backup/postgres/daily.sql.gz` di Linux, `C:\backups\mssql\daily.bak` di Windows) beserta batas kedaluwarsa waktu (misal: harus diperbarui dalam 24 jam terakhir dan ukuran berkas `> 0 byte`). Pantau akan menandai **Drift** jika berkas backup hilang, kosong, atau usang.
+- **Protected Path**: Daftarkan path direktori sistem inti (seperti `/etc/`, `/boot/`, `/var/lib/docker/` di Linux; `C:\Windows\System32`, `C:\Program Files` di Windows) ke dalam daftar terproteksi agar terhindar dari ketidaksengajaan operasi ubah, timpa, atau hapus berkas melalui modul SFTP file manager.
 
 ---
 
@@ -186,6 +208,8 @@ Selain tangkapan instan (*instantaneous snapshot*), Pantau menyediakan perekaman
     - **PHP-FPM Status**: Mendeteksi JSON endpoint status HTTP atau fallback ke penghitungan proses native `ps` untuk `active_processes`, `idle_processes`, dan `total_processes`.
     - **Redis Info**: Mengekstrak `redis_connected_clients`, `redis_used_memory_bytes`, `redis_ops_per_sec`, `redis_rejected_connections`, `redis_expired_keys`, dan `redis_uptime` via `redis-cli`, mendukung auto-detect password dan UNIX socket.
     - **PostgreSQL Stats**: Mengambil jumlah koneksi aktif, idle, dan total dari `pg_stat_activity` dengan fallback autentikasi peer (`sudo -u postgres` / `su - postgres`).
+    - **IIS Web Service (Windows)**: Mengambil `iis_current_connections`, `iis_total_requests`, `iis_get_requests`, `iis_post_requests`, dan `iis_bytes_total_sec` via instance CIM `Win32_PerfFormattedData_W3SVC_WebService`.
+    - **Microsoft SQL Server (Windows)**: Mengambil `mssql_user_connections`, `mssql_active_temp_tables`, `mssql_logical_connections`, dan `mssql_processes_blocked` via instance CIM `Win32_PerfFormattedData_MSSQLSERVER_SQLServerGeneralStatistics`.
   - **Manajemen Probe Kustom**: Buat, sunting, uji (*test probe*), dan ubah status keaktifan probe melalui modal dialog **Manage Probes** pada tab Metrics.
 
 ### Inventarisasi Paket & Audit Higienitas Software
@@ -246,6 +270,20 @@ Ketika utilisasi kapasitas partisi disk melonjak mendekati kejenuhan (>85% atau 
 - **Graceful Service Reload untuk Ghost Files**:
   - Memungkinkan administrator memicu `systemctl reload <service>` langsung dari panel ghost files, melepas file descriptor yang tertahan dan membebaskan kapasitas disk tanpa mematikan layanan (*zero downtime*).
   - Menyediakan tombol pintas untuk membuka Terminal Dock langsung ke direktori proses penahan.
+- **Triage Penyimpanan Windows Agentless (Eksekusi PowerShell Bawaan)**:
+  Pantau memperluas kapabilitas Storage Triage secara penuh untuk Host target Windows Server (2019/2022/2025) dan Windows 10/11 melalui OpenSSH bawaan menggunakan skrip batch PowerShell berkode Base64 UTF-16LE tanpa remote agent:
+  - **Metrik Partisi & Drive**: Membaca kapasitas total, ruang bebas, dan persentase penggunaan System Drive (`C:`) via CIM `Win32_LogicalDisk`.
+  - **Space Hogs Berkecepatan Tinggi**: Menghitung ukuran folder tingkat pertama menggunakan `robocopy /L` (*list-only mode*) tanpa operasi I/O salin data, dengan fallback rekursif aman ke `Get-ChildItem` untuk direktori non-sistem dinamis.
+  - **Pendeteksian Runaway File Satu Putaran**: Memindai direktori kerja umum dalam satu putaran (*single-pass*) untuk mendeteksi berkas log dan temporary aktif (>15MB) yang termodifikasi dalam 60 menit terakhir. Dilengkapi **eksklusi mutlak berkas DBMS dan arsip**, mengecualikan SQL Server (`.mdf`, `.ldf`, `.ndf`), Active Directory (`.dit`), Exchange (`.edb`), SQLite, disk virtual Hyper-V (`.vhdx`, `.avhdx`), cadangan (`.bak`), arsip terkompresi (`.7z`, `.rar`, `.xz`, `.bz2`, `.cab`), dan kode sumber.
+  - **Katalog Safe Reclaim Windows Terkurasi**: Pembersihan aman satu klik dengan transparansi perintah:
+    - **Windows Update Download Cache**: Membersihkan berkas instalasi pembaruan yang selesai diunduh di `C:\Windows\SoftwareDistribution\Download`.
+    - **System & User Temp**: Menghapus berkas sementara di `C:\Windows\Temp`, `%TEMP%`, dan `C:\Temp`.
+    - **Laporan Kesalahan & Crash Dumps**: Membersihkan Windows Error Reporting (`WER`), kernel dumps (`MEMORY.DMP`), minidump, dan crash dump aplikasi.
+    - **Keranjang Sampah (Recycle Bin)**: Mengosongkan keranjang sampah seluruh drive secara aman via `Clear-RecycleBin -Force`.
+    - **Log IIS Usang**: Menghapus arsip log akses HTTP di `C:\inetpub\logs\LogFiles\` yang berusia lebih dari 7 hari.
+    - **Docker on Windows**: Memicu pembersihan `docker system prune -af` jika daemon Docker Engine terdeteksi aktif.
+  - **Log Truncation Windows Aman Secara In-Place**: Mengosongkan berkas log aktif ke 0-byte secara in-place via `Clear-Content -LiteralPath '...' -Force` (dengan fallback .NET FileStream), mempertahankan penguncian file handle dan proses aplikasi. Dilindungi batas keamanan ketat yang menolak direktori sistem Windows (`System32`, `SysWOW64`, `WinSxS`, `Boot`, `Recovery`), swapfile virtual (`pagefile.sys`, `swapfile.sys`, `hiberfil.sys`, `dumpstack.log`), folder, dan database.
+  - **Graceful Windows Service Reload**: Mendukung perbaikan layanan 1-klik via `Restart-Service -Name '...' -Force` dengan validasi pencegahan injeksi shell alfanumerik.
 - **Tautan Cepat Deep-Links & Peringatan Dashboard**:
   - **Pintasan Alert Banner**: Saat kapasitas partisi melampaui batas waspada (>85%), bilah alert global menampilkan tombol deep-link instan `[🔍 Buka Storage Triage]`.
   - **Aksi Cepat Kartu Host**: Kartu host pada tampilan Grid dan List menyematkan tombol triage kontekstual di sebelah indikator penggunaan penyimpanan.
@@ -361,7 +399,7 @@ Saat kantor cabang atau klien remote mengeluhkan aplikasi web lambat atau down, 
 
 Pantau menghitung nilai kelayakan sistem secara transparan melalui **Lifecycle Score** (0–100) berdasarkan 6 faktor evaluasi:
 
-1. **OS End-of-Life (EOL)**: Evaluasi masa dukungan resmi rilis distribusi Linux dan versi kernel target.
+1. **OS End-of-Life (EOL)**: Evaluasi masa dukungan resmi rilis distribusi Linux (CentOS, Debian, Ubuntu, Alpine, RHEL), Windows 10 (EOL Oktober 2025), dan Windows Server 2016 (mainstream berakhir Januari 2022).
 2. **Productive Lifespan**: Mengukur usia operasional perangkat keras terhadap batas wajar industri (3–5 tahun) melalui tanggal rilis BIOS bare-metal atau waktu deploy OS pada VM cloud.
 3. **Saturasi RAM**: Frekuensi kehabisan memori fisik dan aktivitas swap berlebih (*swap thrashing*).
 4. **Saturasi Beban CPU**: Rata-rata beban sistem (load average) dinormalisasi terhadap jumlah inti prosesor.
@@ -424,6 +462,14 @@ Pantau menyediakan fitur penggandaan (*cloning*) lokal untuk berkas atau folder 
 3. **Disk Space Safety Check**: Pantau secara otomatis memeriksa ketersediaan ruang penyimpanan riil pada partisi target via `df -PB1`. Jika sisa ruang disk kurang dari ukuran item ditambah batas aman (*safety buffer*) 100 MB, proses duplikasi dicegah dengan pesan peringatan merah untuk melindungi server dari risiko kepenuhan disk (*disk exhaustion*).
 4. **Pencegahan Tabrakan Nama (Collision Prevention)**: Jika berkas atau folder dengan nama target sudah ada, sistem menolak eksekusi secara ketat untuk mencegah penimpaan data secara tidak sengaja.
 5. **Eksekusi Native Remote**: Duplikasi dijalankan langsung di host remote via `cp -a`, menjaga hak izin (*permissions*), kepemilikan, dan timestamp asli. Item berukuran $\ge$ 500 MB menampilkan lencana peringatan bahwa proses mungkin membutuhkan waktu beberapa detik.
+
+### Navigasi Berkas Windows Sadar-Drive & Proteksi Path
+
+Saat mengelola Host target Windows melalui SFTP File Manager dan Web Terminal terpadu:
+- **Navigasi Sadar-Drive**: Berpindah lintas *drive letter* (`C:/`, `D:/`) dan path emulasi Git Bash (`/c/`, `/d/`) secara mulus melalui helper `CleanWindowsRemotePath`.
+- **Proteksi Akar Drive**: Tombol navigasi ke direktori induk (`..` atau tombol Up) secara ketat berpangkal pada akar drive aktif (misal `C:\`), mencegah navigasi liar di luar drive.
+- **Pratinjau Berkas Aman Memori**: Pembacaan berkas jarak jauh via SFTP dibatasi maksimum 2MB menggunakan `io.ReadAll` dengan `LimitReader` untuk melindungi memori server dari dump biner atau log raksasa.
+- **Proteksi Jalur Direktori Sistem**: Pantau memblokir operasi ubah nama, hapus, maupun penimpaan pada folder krusial sistem operasi Windows (`C:\Windows\System32`, `SysWOW64`, `WinSxS`, `Boot`, `Recovery`) dan berkas memori virtual (`pagefile.sys`, `swapfile.sys`, `hiberfil.sys`, `dumpstack.log`).
 
 ### Navigasi Breadcrumb Interaktif & Estetika Antarmuka
 

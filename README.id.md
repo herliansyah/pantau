@@ -69,10 +69,10 @@ Sebagian besar perangkat monitoring infrastruktur mengharuskan instalasi, konfig
                  +--------------------+--------------------+
                  v                                         v
 +---------------------------------+       +---------------------------------+
-|       Remote Linux Host A       |       |       Remote Linux Host B       |
-| (Debian, Ubuntu, RHEL, Alpine)  |       | (Debian, Ubuntu, RHEL, Alpine)  |
-| - Standar perintah POSIX        |       | - Standar perintah POSIX        |
-| - Docker Engine / systemd       |       | - Docker Engine / systemd       |
+|       Remote Linux Host         |       |      Remote Windows Host        |
+| (Debian, Ubuntu, RHEL, Alpine)  |       | (Server 2019/22/25, Win 10/11)  |
+| - Standar perintah POSIX        |       | - Native OpenSSH & PowerShell   |
+| - Docker Engine / systemd       |       | - Services, Tasks, Disks, Ports |
 | - Tanpa instalasi agen / daemon |       | - Tanpa instalasi agen / daemon |
 +---------------------------------+       +---------------------------------+
 ```
@@ -82,38 +82,39 @@ Sebagian besar perangkat monitoring infrastruktur mengharuskan instalasi, konfig
 ## Kapabilitas Utama
 
 ### 1. Pemantauan Fleet & Metrik Real-time
-Pantau menginspeksi host remote melalui koneksi SSH standar menggunakan perintah non-interaktif POSIX (`/proc`, `ps`, `df`, `ss`).
-- **Saturasi sumber daya**: Memantau CPU load, penggunaan RAM, alokasi swap, partisi disk, dan throughput I/O via `/proc/diskstats` tanpa dependensi `iostat`.
+Pantau menginspeksi host remote Linux dan Windows melalui koneksi SSH standar menggunakan perintah non-interaktif POSIX (`/proc`, `ps`, `df`, `ss`) dan batch script PowerShell berkode Base64 UTF-16LE tanpa agen.
+- **Saturasi sumber daya**: Memantau CPU load, penggunaan RAM, alokasi swap, partisi disk (termasuk drive `C:` Windows), dan throughput I/O via `/proc/diskstats` tanpa dependensi `iostat`.
 - **Telemetri proses dan jaringan**: Mengidentifikasi proses dengan konsumsi CPU/RAM tertinggi, port mendengarkan (*listening ports*), koneksi soket aktif, dan deteksi percobaan login SSH yang gagal (*failed logins*).
-- **Inventaris paket dan siklus hidup**: Memindai paket terinstal di berbagai distro Linux (`dpkg`, `rpm`, `apk`, `pacman`), mendeteksi paket/layanan tidak aktif (*dormant*), dan menghitung estimasi masa pakai serta tanggal End-of-Life (EOL) sistem operasi.
-- **Metrik time-series & probing aplikasi**: Penyimpanan riwayat sampel metrik berbasis SQLite lokal dengan kebijakan retensi terkonfigurasi (default 7 hari) dan pembersihan otomatis (*auto-prune*) setiap jam. Visualisasi tren multi-grafik interaktif menggunakan uPlot bawaan (rentang 1h/6h/24h/7d dengan downsampling SQL dinamis), mini-sparkline pada kartu host, serta preset probe bawaan untuk Nginx, MySQL, PHP-FPM, Redis, dan PostgreSQL.
+- **Inventaris paket dan siklus hidup**: Memindai paket terinstal di berbagai distro Linux (`dpkg`, `rpm`, `apk`, `pacman`), mendeteksi paket/layanan tidak aktif (*dormant*), dan menghitung estimasi masa pakai serta tanggal End-of-Life (EOL) untuk distribusi Linux, Windows 10, dan Windows Server.
+- **Metrik time-series & probing aplikasi**: Penyimpanan riwayat sampel metrik berbasis SQLite lokal dengan kebijakan retensi terkonfigurasi (default 7 hari) dan pembersihan otomatis (*auto-prune*) setiap jam. Visualisasi tren multi-grafik interaktif menggunakan uPlot bawaan (rentang 1h/6h/24h/7d/30d dengan downsampling SQL dinamis), mini-sparkline pada kartu host, serta preset probe bawaan untuk Linux (Nginx, MySQL, PHP-FPM, Redis, PostgreSQL) dan Windows (IIS Web Service, MSSQL Server via CIM).
+- **Navigasi fleet & catatan**: Pintasan cepat Host Switcher (`[` dan `]` atau menu dropdown) di dalam modal Host Details, tombol pintas telemetri sekali klik pada kartu dan tabel host, serta mode pratinjau Markdown terformat bawaan untuk catatan host dan global.
 - Baca selengkapnya pada [Panduan Inspeksi & Observabilitas](docs/user-guide.id.md#4-fase-3-observabilitas-analisis-drift--respons-insiden).
 
 ### 2. Triage Penyimpanan & Deteksi File Runaway Tanpa Agen
-Diagnosis kejenuhan ruang disk seketika tanpa agen, tanpa polling periodik, dan tanpa scanner latar belakang yang membebani server.
+Diagnosis kejenuhan ruang disk seketika pada host Linux dan Windows tanpa agen, tanpa polling periodik, dan tanpa scanner latar belakang yang membebani server.
 - **Probe triage on-demand**: Inspeksi forensik satu klik dibatasi aman 20–40 detik, dilindungi *concurrency guard* dan *load-aware throttling*.
-- **Peta konsumsi disk bertingkat**: Rincian utilisasi mount point, direktori penyerap ruang utama (*space hogs* level-1 `du`), file berukuran besar (>15MB), dan file runaway yang membesar cepat dalam 60 menit terakhir (mengecualikan mesin DBMS aktif).
-- **Deteksi ghost file**: Mengidentifikasi file terhapus yang masih ditahan oleh proses aktif via inspeksi `lsof` dan `/proc/*/fd` (`stat -L`), lengkap dengan aksi *graceful reload* layanan terkait dalam satu klik.
-- **Pembersihan aman & pemangkasan log**: Katalog kurasi pembersihan untuk journal systemd, cache paket (`apt`, `dnf`, `pacman`, `apk`), file rotasi log, coredump, dan Docker prune (`docker system prune -af`), serta pemangkasan log in-place nol-byte (`truncate -s 0`) yang diproteksi dari directory traversal dan direktori sistem penting.
+- **Peta konsumsi disk bertingkat**: Rincian utilisasi mount point dan drive, direktori penyerap ruang utama (*space hogs* level-1 `du` di Linux; zero-copy berkecepatan tinggi `robocopy /L` di Windows), file berukuran besar (>15MB), dan file runaway yang membesar cepat dalam 60 menit terakhir (mengecualikan mesin DBMS dan arsip biner).
+- **Deteksi ghost file**: Mengidentifikasi file terhapus yang masih ditahan oleh proses aktif via inspeksi `lsof` dan `/proc/*/fd` (`stat -L`) pada Linux, lengkap dengan aksi *graceful reload* layanan terkait dalam satu klik.
+- **Pembersihan aman & pemangkasan log**: Katalog kurasi pembersihan untuk Linux (journal systemd, cache paket, file rotasi log, coredump, Docker prune) dan Windows (cache unduhan Windows Update, temporary files, crash dumps/WER, Recycle Bin, log IIS usang, Docker), serta pemangkasan log in-place nol-byte (`truncate -s 0` di Linux, `Clear-Content` di Windows) yang diproteksi dari directory traversal dan direktori sistem penting.
 - Baca selengkapnya pada [Panduan Triage Penyimpanan](docs/user-guide.id.md#triage-penyimpanan-tanpa-agen-deteksi-file-runaway--pembersihan-aman).
 
 ### 3. Desired State Baseline & Diagnostik Insiden
-Definisikan baseline kondisi operasional yang diharapkan untuk kontainer, layanan sistem, batas toleransi disk, dan jadwal backup.
-- **Deteksi drift otomatis**: Memberikan peringatan ketika kontainer berhenti mendadak, layanan systemd gagal berjalan, cron job hilang, atau penggunaan partisi disk melampaui ambang batas aman.
-- **Tangkapan akar penyebab (Root Cause Excerpt)**: Saat layanan atau kontainer mengalami kegagalan (*crash*), Pantau otomatis mencatat *exit code*, status bendera `OOMKilled`, dan potongan log terakhir dari `journalctl` atau `docker logs`.
+Definisikan baseline kondisi operasional yang diharapkan untuk kontainer, layanan sistem, batas toleransi disk, tugas terjadwal, dan jadwal backup.
+- **Deteksi drift otomatis**: Memberikan peringatan ketika kontainer berhenti mendadak, layanan systemd atau Windows gagal berjalan, tugas terjadwal (scheduled tasks) atau cron job hilang, atau penggunaan partisi disk melampaui ambang batas aman.
+- **Tangkapan akar penyebab (Root Cause Excerpt)**: Saat layanan atau kontainer mengalami kegagalan (*crash*), Pantau otomatis mencatat *exit code*, status bendera `OOMKilled`, dan potongan log terakhir dari `journalctl`, `docker logs`, atau event log Windows.
 - Baca selengkapnya pada [Panduan Desired State & Proteksi](docs/user-guide.id.md#3-fase-2-baseline-desired-state--proteksi-sistem).
 
 ### 4. Web Terminal Terpadu & Operasional Remote
 Kelola server target langsung dari browser tanpa perlu berganti-ganti aplikasi terminal eksternal.
-- **Web terminal multi-tab**: Sesi interaktif PTY berbasis `xterm.js` dan WebSocket, mendukung tampilan terpisah (*split-pane* `Alt+\`), penyesuaian ukuran otomatis, dan *preset* perintah berulang.
-- **SFTP file editor & bookmark**: Navigasi struktur direktori remote, sematkan (*pin*) file konfigurasi atau log penting, dan sunting skrip secara langsung dengan *syntax highlighting*.
+- **Web terminal multi-tab**: Sesi interaktif PTY berbasis `xterm.js` dan WebSocket, mendukung tampilan terpisah (*split-pane* `Alt+\`), penyesuaian ukuran otomatis, *preset* perintah berulang, serta navigasi jalur sadar-drive (`C:/`, `D:/`) untuk target Windows.
+- **SFTP file editor & bookmark**: Navigasi struktur direktori remote, sematkan (*pin*) file konfigurasi atau log penting, dan sunting skrip secara langsung dengan *syntax highlighting* dan normalisasi path Windows.
 - **Tunneling port web remote**: Reverse proxy HTTP/WebSocket tanpa agen di atas kanal SSH `direct-tcpip`, memungkinkan akses aman ke aplikasi web lokal di server target (`localhost:port`) tanpa membuka port firewall publik.
-- **Bridge terminal desktop lokal**: Buka aplikasi terminal desktop lokal Anda (Windows Terminal, GNOME Terminal, iTerm2, Alacritty) langsung ke server remote dengan 1-klik menggunakan kunci SSH efemeral sementara di RAM.
+- **Bridge terminal desktop lokal**: Buka aplikasi terminal desktop lokal Anda (Windows Terminal, GNOME Terminal, iTerm2, Alacritty) langsung ke server remote dengan 1-klik menggunakan kunci SSH efemeral sementara di RAM dan navigasi drive otomatis.
 - Baca selengkapnya pada [Panduan Terminal & Operasional Remote](docs/user-guide.id.md#investigasi-interaktif-via-terminal-dock--terminal-preset).
 
 ### 5. Zero-Disk Streaming & Backup Terenkripsi
 Transfer data antar-server secara aman dan lindungi seluruh konfigurasi kluster Anda.
-- **Transfer streaming lintas host**: Salin file dan folder antar dua server remote melalui *memory pipe* (`tar` streaming), tanpa pernah menyimpan (*spooling*) data ke disk lokal Pantau, dilengkapi verifikasi integritas opsional SHA-256.
+- **Transfer streaming lintas host**: Salin file dan folder antar server remote melalui *memory pipe* (`tar` streaming), tanpa pernah menyimpan (*spooling*) data ke disk lokal Pantau, dilengkapi verifikasi integritas opsional SHA-256.
 - **Snapshot sistem terenkripsi**: Ekspor konfigurasi host, baseline, dan kredensial SSH ke dalam arsip snapshot portabel yang diamankan dengan algoritma Argon2id dan AES-256-GCM.
 - **Sinkronisasi pemulihan bencana**: Jadwalkan sinkronisasi otomatis snapshot terenkripsi ke repositori privat GitHub untuk pemulihan cepat saat terjadi bencana (*disaster recovery*).
 - Baca selengkapnya pada [Panduan Transfer Streaming Lintas-Host](docs/user-guide.id.md#cross-host-transfer-pipa-memori-tanpa-disk-lokal).
@@ -124,6 +125,13 @@ Dirancang dari awal untuk kebutuhan kepatuhan keamanan tinggi, VPC tertutup, dan
 - **Aset web mandiri (Zero-CDN)**: Seluruh pustaka antarmuka, font, ikon, dan skrip klien (`xterm.js`, `CodeMirror`) disematkan langsung melalui `go:embed` tanpa permintaan jaringan ke CDN eksternal.
 - **Keamanan lokal teruji**: Autentikasi dua faktor berbasis RFC 6238 TOTP dengan pembuatan QR code murni di sisi browser dan kode pemulihan darurat offline.
 - **Pembaruan semi-otomatis**: Pemeriksaan rilis langsung dari antarmuka dengan verifikasi hash SHA-256, uji kelayakan eksekusi (*pre-flight check*), dan penggantian binary secara atomik.
+
+### 7. Observabilitas Target Windows Tanpa Agen
+Pemantauan dan manajemen menyeluruh untuk Windows Server (2019/2022/2025) dan Windows 10/11 melalui OpenSSH Server bawaan.
+- **Arsitektur bebas agen**: Menghilangkan kebutuhan instalasi daemon pihak ketiga dan konfigurasi firewall WinRM/WMI yang kompleks dengan memanfaatkan OpenSSH (`sshd`) bawaan dan eksekusi batch PowerShell ber-encode Base64 UTF-16LE.
+- **Injeksi kunci SSH otomatis**: Peletakan otomatis SSH Public Key ke profil pengguna (`%USERPROFILE%\.ssh\authorized_keys`) atau direktori Administrator (`%ProgramData%\ssh\administrators_authorized_keys`) dengan SID universal (`*S-1-5-18`, `*S-1-5-32-544`) dan pewarisan ACL tertutup via `icacls`.
+- **Telemetri asli & desired state**: Memantau metrik inti (CPU, RAM, partisi disk, I/O jaringan, port listening) dan mengevaluasi aturan layanan (`Get-Service`), tugas terjadwal (`Get-ScheduledTask`), proses aktif, serta probe telemetri aplikasi IIS dan MSSQL Server.
+- Pelajari selengkapnya di [Catatan Keputusan Arsitektur Target Windows](docs/adr/0040-agentless-windows-target-observability.md).
 
 ---
 

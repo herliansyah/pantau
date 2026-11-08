@@ -20,6 +20,7 @@ Menghadirkan kapabilitas investigasi on-demand berbasis SSH tanpa agen untuk men
 - [02 — API Endpoints and Reclaim Executor](issues/02-api-endpoints-and-reclaim-executor.md) — Rute `GET /api/hosts/{id}/storage-triage` dan `POST /api/hosts/{id}/storage-reclaim` dengan validasi perintah ketat dan penolakan injeksi shell.
 - [03 — Frontend UI Tab and Visual Panels](issues/03-frontend-ui-tab-and-visual-panels.md) — Tab `🧹 Storage Triage` di Host Detail Workspace Modal, ringkasan kartu disk, panel aksi safe reclaim transparan, bar chart space hogs, runaway/ghost alerts, dan deep-link dari Alert Banner.
 - [04 — Load Throttling, Cooldown, and Security Hardening](issues/04-load-throttling-cooldown-and-security-hardening.md) — Pembatasan eksekusi berbasis I/O load (2m/5m/blocked), emergency force scan (`?force=true`), auto-reset cooldown pasca-reclaim, `stat -L` ghost file inspect, dan proteksi path traversal `TruncateLog`.
+- [05 — Agentless Windows Storage Triage and Safe Reclaim](issues/05-agentless-windows-storage-triage.md) — Ekstensi triage untuk target Windows Server via UTF-16LE Base64 PowerShell: CIM disk metrics, zero-copy `robocopy /L` space hogs, single-pass runaway sensing (eksklusi DBMS/arsip), katalog safe reclaim Windows, dan `Clear-Content` log truncation.
 
 ## Out of scope
 

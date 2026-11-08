@@ -24,6 +24,6 @@ Server Linux kerap mengalami insiden kehabisan ruang disk (*disk saturation* 90â
 
 ## Architecture & Constraints
 
-- Mengikuti ADR [0039-agentless-storage-triage-runaway-detection-and-safe-reclaim.md](file:///home/ian/orca/workspaces/pantau/cetacean/docs/adr/0039-agentless-storage-triage-runaway-detection-and-safe-reclaim.md).
+- Mengikuti ADR [0039-agentless-storage-triage-runaway-detection-and-safe-reclaim.md](../../docs/adr/0039-agentless-storage-triage-runaway-detection-and-safe-reclaim.md).
 - Single-binary, 0 external runtime dependencies, Go standard library.
 - Eksklusi mutlak direktori `/tmp` dari penghapusan otomatis.

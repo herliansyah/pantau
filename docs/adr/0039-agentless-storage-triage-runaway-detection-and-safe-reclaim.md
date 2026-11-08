@@ -20,7 +20,7 @@ Saturasi ruang disk (*disk exhaustion* 90–100%) merupakan salah satu penyebab 
 ## Keputusan Arsitektur
 
 1. **Model Eksekusi On-Demand Berbatas Waktu, Concurrency Guard & Load Throttling**:
-   - Diagnostik penyimpanan diisolasi sebagai modul on-demand (**`Storage Triage`**) yang hanya dieksekusi atas inisiatif pengguna atau klik investigasi dari [Alert Banner](file:///home/ian/orca/workspaces/pantau/cetacean/CONTEXT.md#L272), bukan bagian dari background inspection berkala.
+   - Diagnostik penyimpanan diisolasi sebagai modul on-demand (**`Storage Triage`**) yang hanya dieksekusi atas inisiatif pengguna atau klik investigasi dari [Alert Banner](../../CONTEXT.md#L272), bukan bagian dari background inspection berkala.
    - Dibatasi secara deterministik dengan batas waktu aman 40 detik menggunakan wrapper POSIX `timeout -k 2s 40s` (context timeout 45 detik).
    - Menerapkan **`Triage Concurrency Guard`** per Host di backend Pantau untuk mencegah penumpukan pemindaian paralel jika pengguna memicu triage berulang kali.
    - **Load-Aware Throttling & Cooldown Guard**:
@@ -48,17 +48,17 @@ Saturasi ruang disk (*disk exhaustion* 90–100%) merupakan salah satu penyebab 
 4. **Remediasi Preskriptif dan Log Truncation Aman**:
    - Untuk berkas log aktif yang membengkak, Pantau menerapkan prosedur **`Log Truncation`** (`truncate -s 0 <path>` atau `: > <path>`), BUKAN perintah `rm`. Hal ini mengosongkan ukuran berkas seketika tanpa mengubah inode atau memutus *file descriptor* proses aplikasi yang sedang berjalan.
    - **Proteksi Path Traversal & Sistem**: Path log disanitasi dengan `path.Clean`, menolak traversal relatif (`..`), dan memblokir direktori krusial sistem (`/`, `/etc`, `/usr`, `/boot`, `/lib`, `/dev`, `/proc`, `/sys`).
-   - Untuk *Ghost Files*, Pantau menyajikan rincian proses penahan dan menyediakan opsi *Graceful Service Reload* (`systemctl reload <service>`) atau tombol pintas navigasi ke sesi terminal interaktif ([Terminal From Path](file:///home/ian/orca/workspaces/pantau/cetacean/CONTEXT.md#L300)).
-   - Setiap aksi pembersihan menyajikan [Confirmation Dialog](file:///home/ian/orca/workspaces/pantau/cetacean/CONTEXT.md#L168) transparan yang menampilkan perintah shell riil yang akan dikirim melalui SSH sebelum dieksekusi.
+   - Untuk *Ghost Files*, Pantau menyajikan rincian proses penahan dan menyediakan opsi *Graceful Service Reload* (`systemctl reload <service>`) atau tombol pintas navigasi ke sesi terminal interaktif ([Terminal From Path](../../CONTEXT.md#L300)).
+   - Setiap aksi pembersihan menyajikan [Confirmation Dialog](../../CONTEXT.md#L168) transparan yang menampilkan perintah shell riil yang akan dikirim melalui SSH sebelum dieksekusi.
 
 5. **Penanganan Hak Akses Adaptif (`sudo -n`)**:
    - Pemeriksaan otomatis `id -u`. Jika koneksi SSH menggunakan user non-root, perintah diagnostik dan pembersihan dijalankan dengan prefiks `sudo -n` (non-interaktif).
    - Jika hak sudo terbatas atau membutuhkan password, Pantau tidak memutus koneksi atau mengalami kegagalan fatal, melainkan menyajikan data yang berhasil diakses disertai anotasi izin terbatas.
 
 6. **Integrasi Antarmuka Pengguna Terpadu & Snapshot View**:
-   - Tab baru **Storage Triage** ditambahkan pada [Workspace Modal](file:///home/ian/orca/workspaces/pantau/cetacean/CONTEXT.md#L112) Host Detail.
+   - Tab baru **Storage Triage** ditambahkan pada [Workspace Modal](../../CONTEXT.md#L112) Host Detail.
    - Menyajikan tampilan snapshot instan dari hasil pemindaian terakhir (`/api/hosts/{id}/storage-triage-latest`) yang disimpan dalam cache in-memory tanpa membebani database atau melakukan auto-scan tak terduga.
-   - Tombol pintas diagnostik (*deep-link*) disematkan langsung pada bilah [Alert Banner](file:///home/ian/orca/workspaces/pantau/cetacean/CONTEXT.md#L272) saat terjadi alert saturasi disk dan pada widget indikator disk kartu Host dashboard jika kapasitas melebihi ambang batas aman (> 85%).
+   - Tombol pintas diagnostik (*deep-link*) disematkan langsung pada bilah [Alert Banner](../../CONTEXT.md#L272) saat terjadi alert saturasi disk dan pada widget indikator disk kartu Host dashboard jika kapasitas melebihi ambang batas aman (> 85%).
 
 7. **Ekstensi Dukungan Server Target Windows (Native PowerShell Agentless)**:
    - Menyediakan kapabilitas Storage Triage penuh untuk Host berbasis Windows Server tanpa instalasi remote agent, memanfaatkan eksekusi PowerShell berkode Base64 UTF-16LE via SSH:
