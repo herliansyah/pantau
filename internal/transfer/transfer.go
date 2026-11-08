@@ -2,6 +2,7 @@ package transfer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -87,6 +88,10 @@ func (m *Manager) StartTransfer(srcHostID int64, srcPath string, dstHostID int64
 	dstHost, err := m.db.GetHost(dstHostID)
 	if err != nil || dstHost == nil {
 		return nil, fmt.Errorf("destination host %d not found", dstHostID)
+	}
+
+	if srcHost.OSType == "windows" || dstHost.OSType == "windows" {
+		return nil, errors.New("cross-host transfer is currently only supported between Linux hosts")
 	}
 
 	if mode != "verified" {

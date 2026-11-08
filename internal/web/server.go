@@ -856,6 +856,65 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// testRemoteConnection probes a remote host's OS identity safely without relying on compound
+// shell chaining (like '||') that throws syntax errors on Windows PowerShell 5.1 targets.
+func testRemoteConnection(runner sshrunner.Runner, osType string) (string, error) {
+	osType = strings.ToLower(strings.TrimSpace(osType))
+	if osType == "windows" {
+		stdout, stderr, exitCode, err := runner.ExecTimeout(`cmd.exe /c "ver"`, 5*time.Second)
+		if err != nil || exitCode != 0 {
+			return "", fmt.Errorf("exit %d: %s %s", exitCode, stdout, stderr)
+		}
+		out := strings.TrimSpace(stdout)
+		if out == "" {
+			out = "Connected (Windows)"
+		}
+		return out, nil
+	}
+	if osType == "linux" {
+		stdout, stderr, exitCode, err := runner.ExecTimeout("uname -srm; uptime", 5*time.Second)
+		if err != nil || exitCode != 0 {
+			return "", fmt.Errorf("exit %d: %s %s", exitCode, stdout, stderr)
+		}
+		out := strings.TrimSpace(stdout)
+		if out == "" {
+			out = "Connected (Linux)"
+		}
+		return out, nil
+	}
+
+	// Auto / unknown probe: Try uname first; if it fails, probe with cmd.exe ver for Windows.
+	stdout, stderr, exitCode, err := runner.ExecTimeout("uname -srm; uptime", 4*time.Second)
+	if err == nil && exitCode == 0 {
+		out := strings.TrimSpace(stdout)
+		if strings.Contains(strings.ToLower(out), "_nt-") {
+			// Windows target with Git Bash or MSYS2 in PATH (e.g. MINGW64_NT-10.0...)
+			winOut, _, winCode, winErr := runner.ExecTimeout(`cmd.exe /c "ver"`, 4*time.Second)
+			if winErr == nil && winCode == 0 && strings.TrimSpace(winOut) != "" {
+				return strings.TrimSpace(winOut), nil
+			}
+			return out, nil
+		}
+		if out == "" {
+			out = "Connected (Linux)"
+		}
+		return out, nil
+	}
+
+	winOut, _, winCode, winErr := runner.ExecTimeout(`cmd.exe /c "ver"`, 4*time.Second)
+	if winErr == nil && winCode == 0 {
+		out := strings.TrimSpace(winOut)
+		if out == "" {
+			out = "Connected (Windows)"
+		}
+		return out, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("%v (win fallback: %v)", err, winErr)
+	}
+	return "", fmt.Errorf("exit %d: %s %s", exitCode, stdout, stderr)
+}
+
 func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 	subpath := strings.TrimPrefix(r.URL.Path, "/api/hosts/")
 	parts := strings.Split(subpath, "/")
@@ -875,6 +934,7 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			User      string `json:"user"`
 			Password  string `json:"password"`
 			CustomKey string `json:"custom_key"`
+			OSType    string `json:"os_type"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
@@ -927,18 +987,18 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		}
 		defer runner.Close()
 
-		stdout, stderr, exitCode, err := runner.ExecTimeout("uname -srm; uptime", 5*time.Second)
-		if err != nil || exitCode != 0 {
+		stdout, err := testRemoteConnection(runner, req.OSType)
+		if err != nil {
 			writeJSON(w, http.StatusOK, map[string]interface{}{
 				"ok":          false,
-				"error":       fmt.Sprintf("exit %d: %s %s", exitCode, stdout, stderr),
+				"error":       err.Error(),
 				"auth_method": authMethod,
 			})
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"ok":          true,
-			"output":      strings.TrimSpace(stdout),
+			"output":      stdout,
 			"auth_method": authMethod,
 		})
 		return
@@ -1128,6 +1188,9 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			if h.Name == "" {
 				h.Name = existing.Name
 			}
+			if strings.TrimSpace(h.OSType) == "" {
+				h.OSType = existing.OSType
+			}
 			if err := s.validateCommissionDate(h.CommissionDate, existing); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -1298,8 +1361,8 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 
-	case "test":
-		// POST /api/hosts/{id}/test
+	case "test", "test-connection":
+		// POST /api/hosts/{id}/test or /api/hosts/{id}/test-connection
 		host, err := s.db.GetHost(hostID)
 		if err != nil || host == nil {
 			http.Error(w, "host not found", http.StatusNotFound)
@@ -1312,12 +1375,12 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		}
 		defer runner.Close()
 
-		stdout, stderr, exitCode, err := runner.Exec("uname -srm; uptime")
-		if err != nil || exitCode != 0 {
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "error": fmt.Sprintf("exit %d: %s %s", exitCode, stdout, stderr)})
+		stdout, err := testRemoteConnection(runner, host.OSType)
+		if err != nil {
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "error": err.Error()})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "output": strings.TrimSpace(stdout)})
+		writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "output": stdout})
 
 	case "inject-key":
 		// POST /api/hosts/{id}/inject-key
@@ -1359,7 +1422,7 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		}
 		defer runner.Close()
 
-		stdout, _, _, err := runner.Exec("uname -srm")
+		stdout, err := testRemoteConnection(runner, host.OSType)
 		if err != nil {
 			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": false, "error": fmt.Sprintf("verify failed: %v", err)})
 			return
@@ -1367,7 +1430,7 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"ok":      true,
-			"message": fmt.Sprintf("Public key berhasil di-inject ke %s! Verifikasi SSH sukses: %s", host.Host, strings.TrimSpace(stdout)),
+			"message": fmt.Sprintf("Public key berhasil di-inject ke %s! Verifikasi SSH sukses: %s", host.Host, stdout),
 		})
 		return
 
@@ -1801,16 +1864,60 @@ var protectedSystemPrefixes = []string{
 	"/bin", "/boot", "/dev", "/etc", "/lib", "/lib64", "/lib32", "/proc", "/root", "/sbin", "/sys", "/usr", "/run",
 }
 
-func isProtectedPathString(p string) bool {
-	clean := path.Clean(p)
-	if !path.IsAbs(clean) {
-		clean = path.Clean("/" + clean)
-	}
-	if clean == "/" || clean == "." {
+var protectedWindowsPrefixes = []string{
+	"/windows",
+	"/program files",
+	"/program files (x86)",
+	"/programdata",
+}
+
+func isRemoteAbs(p string) bool {
+	if path.IsAbs(p) {
 		return true
+	}
+	if len(p) >= 2 && (('a' <= p[0] && p[0] <= 'z') || ('A' <= p[0] && p[0] <= 'Z')) && p[1] == ':' {
+		return true
+	}
+	return false
+}
+
+func isProtectedPathString(p string) bool {
+	clean := strings.ReplaceAll(path.Clean(p), "\\", "/")
+	clean = sshrunner.CleanWindowsRemotePath(clean)
+	cleanLower := strings.ToLower(clean)
+	if cleanLower == "/" || cleanLower == "." {
+		return true
+	}
+
+	// Protect any Windows drive root e.g. "c:", "/c:", "c:/", "/c:/", "d:", "/d:"
+	trimmed := strings.TrimPrefix(cleanLower, "/")
+	trimmed = strings.TrimSuffix(trimmed, "/")
+	if len(trimmed) == 2 && (('a' <= trimmed[0] && trimmed[0] <= 'z')) && trimmed[1] == ':' {
+		return true
+	}
+
+	if !path.IsAbs(clean) && !isRemoteAbs(clean) {
+		clean = path.Clean("/" + clean)
+		cleanLower = strings.ToLower(clean)
 	}
 	for _, prefix := range protectedSystemPrefixes {
 		if clean == prefix || strings.HasPrefix(clean, prefix+"/") {
+			return true
+		}
+	}
+
+	// Windows protected system prefixes (drive-agnostic e.g. C:/Windows, D:/Program Files, /Windows)
+	noDrive := cleanLower
+	if len(noDrive) >= 2 && (('a' <= noDrive[0] && noDrive[0] <= 'z')) && noDrive[1] == ':' {
+		noDrive = noDrive[2:]
+	} else if len(noDrive) >= 3 && noDrive[0] == '/' && (('a' <= noDrive[1] && noDrive[1] <= 'z')) && noDrive[2] == ':' {
+		noDrive = noDrive[3:]
+	}
+	if !strings.HasPrefix(noDrive, "/") {
+		noDrive = "/" + noDrive
+	}
+	for _, prefix := range protectedWindowsPrefixes {
+		if noDrive == prefix || strings.HasPrefix(noDrive, prefix+"/") {
 			return true
 		}
 	}
@@ -1825,7 +1932,7 @@ func isProtectedPath(p string, sftpClient *sftp.Client) bool {
 		return false
 	}
 	clean := path.Clean(p)
-	if !path.IsAbs(clean) {
+	if !path.IsAbs(clean) && !isRemoteAbs(clean) {
 		clean = path.Clean("/" + clean)
 	}
 
@@ -1847,25 +1954,67 @@ func isProtectedPath(p string, sftpClient *sftp.Client) bool {
 }
 
 // resolveRemotePath resolves ~, ~/... and relative paths against the remote user's home directory.
-func resolveRemotePath(sftpClient *sftp.Client, user, targetPath string) string {
+func resolveRemotePath(sftpClient *sftp.Client, user, targetPath string, hostOSType ...string) string {
 	targetPath = strings.TrimSpace(targetPath)
 	if targetPath == "" {
 		targetPath = "."
 	}
+	isWindows := false
+	if len(hostOSType) > 0 && strings.EqualFold(hostOSType[0], "windows") {
+		isWindows = true
+	}
+
+	normPath := strings.ReplaceAll(targetPath, "\\", "/")
+	if isWindows {
+		normPath = sshrunner.CleanWindowsRemotePath(normPath)
+	}
 
 	// If it is already an absolute path not starting with ~, clean and return.
-	if path.IsAbs(targetPath) && !strings.HasPrefix(targetPath, "~") {
-		return path.Clean(targetPath)
+	if isRemoteAbs(normPath) && !strings.HasPrefix(normPath, "~") {
+		if isWindows && (normPath == "/" || normPath == "") {
+			// On Windows, '/' or '' is not a valid absolute directory; fall through to homeDir / C:/
+		} else {
+			if isWindows && len(normPath) >= 2 && normPath[1] == ':' && ((normPath[0] >= 'a' && normPath[0] <= 'z') || (normPath[0] >= 'A' && normPath[0] <= 'Z')) {
+				drive := normPath[:2]
+				sub := normPath[2:]
+				if !strings.HasPrefix(sub, "/") {
+					sub = "/" + sub
+				}
+				cleaned := drive + path.Clean(sub)
+				if len(cleaned) == 2 && cleaned[1] == ':' {
+					cleaned += "/"
+				}
+				return sshrunner.CleanWindowsRemotePath(cleaned)
+			}
+			cleaned := path.Clean(normPath)
+			if isWindows {
+				cleaned = sshrunner.CleanWindowsRemotePath(cleaned)
+				if len(cleaned) == 2 && cleaned[1] == ':' {
+					cleaned += "/"
+				}
+				return cleaned
+			}
+			return cleaned
+		}
 	}
 
 	var homeDir string
 	if sftpClient != nil {
 		if real, err := sftpClient.RealPath("."); err == nil && real != "" && real != "." {
-			homeDir = real
+			homeDir = strings.ReplaceAll(real, "\\", "/")
+			if isWindows {
+				homeDir = sshrunner.CleanWindowsRemotePath(homeDir)
+			}
 		}
 	}
 	if homeDir == "" {
-		if user == "root" {
+		if isWindows {
+			if user != "" {
+				homeDir = "C:/Users/" + user
+			} else {
+				homeDir = "C:/"
+			}
+		} else if user == "root" {
 			homeDir = "/root"
 		} else if user != "" {
 			homeDir = "/home/" + user
@@ -1874,16 +2023,40 @@ func resolveRemotePath(sftpClient *sftp.Client, user, targetPath string) string 
 		}
 	}
 
-	if targetPath == "~" || targetPath == "~/" || targetPath == "." {
+	if isWindows {
+		if normPath == "~" || normPath == "~/" || normPath == "." || normPath == "/" || normPath == "" {
+			return sshrunner.CleanWindowsRemotePath(homeDir)
+		}
+		sub := normPath
+		if strings.HasPrefix(sub, "~/") {
+			sub = strings.TrimPrefix(sub, "~/")
+		}
+		drive := "C:"
+		homeRest := homeDir
+		if len(homeDir) >= 2 && homeDir[1] == ':' && ((homeDir[0] >= 'a' && homeDir[0] <= 'z') || (homeDir[0] >= 'A' && homeDir[0] <= 'Z')) {
+			drive = homeDir[:2]
+			homeRest = homeDir[2:]
+		}
+		if !strings.HasPrefix(homeRest, "/") {
+			homeRest = "/" + homeRest
+		}
+		combined := drive + path.Clean(path.Join(homeRest, sub))
+		if len(combined) == 2 && combined[1] == ':' {
+			combined += "/"
+		}
+		return sshrunner.CleanWindowsRemotePath(combined)
+	}
+
+	if normPath == "~" || normPath == "~/" || normPath == "." {
 		return path.Clean(homeDir)
 	}
-	if strings.HasPrefix(targetPath, "~/") {
-		return path.Clean(path.Join(homeDir, strings.TrimPrefix(targetPath, "~/")))
+	if strings.HasPrefix(normPath, "~/") {
+		return path.Clean(path.Join(homeDir, strings.TrimPrefix(normPath, "~/")))
 	}
-	if strings.HasPrefix(targetPath, "~") {
-		return path.Clean(path.Join("/home", strings.TrimPrefix(targetPath, "~")))
+	if strings.HasPrefix(normPath, "~") {
+		return path.Clean(path.Join("/home", strings.TrimPrefix(normPath, "~")))
 	}
-	return path.Clean(path.Join(homeDir, targetPath))
+	return path.Clean(path.Join(homeDir, normPath))
 }
 
 func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.ResponseWriter, r *http.Request) {
@@ -1967,7 +2140,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 	switch action {
 	case "list":
 		dirPath := r.URL.Query().Get("path")
-		dirPath = resolveRemotePath(sftpClient, host.User, dirPath)
+		dirPath = resolveRemotePath(sftpClient, host.User, dirPath, host.OSType)
 		entries, err := sftpClient.ReadDir(dirPath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -1986,6 +2159,9 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		var list []FileEntry
 		for _, e := range entries {
 			entryPath := path.Join(dirPath, e.Name())
+			if host.OSType == "windows" {
+				entryPath = sshrunner.CleanWindowsRemotePath(entryPath)
+			}
 			itemProtected := dirProtected
 			if !itemProtected {
 				if isProtectedPathString(entryPath) {
@@ -2014,7 +2190,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "path required", http.StatusBadRequest)
 			return
 		}
-		pathParam = resolveRemotePath(sftpClient, host.User, pathParam)
+		pathParam = resolveRemotePath(sftpClient, host.User, pathParam, host.OSType)
 		f, err := sftpClient.Open(pathParam)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -2023,11 +2199,10 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		defer f.Close()
 
 		// Read up to 2MB for text editor
-		buf := make([]byte, 2*1024*1024)
-		n, _ := f.Read(buf)
+		buf, _ := io.ReadAll(io.LimitReader(f, 2*1024*1024))
 		writeJSON(w, http.StatusOK, map[string]string{
 			"path":    pathParam,
-			"content": string(buf[:n]),
+			"content": string(buf),
 		})
 
 	case "write":
@@ -2043,7 +2218,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		req.Path = resolveRemotePath(sftpClient, host.User, req.Path)
+		req.Path = resolveRemotePath(sftpClient, host.User, req.Path, host.OSType)
 		if isProtectedPath(req.Path, sftpClient) {
 			http.Error(w, "protected path: cannot modify system location", http.StatusForbidden)
 			return
@@ -2068,7 +2243,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			return
 		}
 		targetDir := r.URL.Query().Get("dir")
-		targetDir = resolveRemotePath(sftpClient, host.User, targetDir)
+		targetDir = resolveRemotePath(sftpClient, host.User, targetDir, host.OSType)
 		overwrite := r.URL.Query().Get("overwrite") == "true"
 		file, header, err := r.FormFile("file")
 		if err != nil {
@@ -2078,6 +2253,9 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		defer file.Close()
 
 		destPath := path.Join(targetDir, header.Filename)
+		if host.OSType == "windows" {
+			destPath = sshrunner.CleanWindowsRemotePath(destPath)
+		}
 		if isProtectedPath(destPath, sftpClient) {
 			http.Error(w, "protected path: cannot upload to system location", http.StatusForbidden)
 			return
@@ -2110,11 +2288,29 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "path required", http.StatusBadRequest)
 			return
 		}
-		targetPath = resolveRemotePath(sftpClient, host.User, targetPath)
-		out, _, _, _ := runner.Exec(fmt.Sprintf(`du -sb %s 2>/dev/null | cut -f1`, shellQuote(targetPath)))
-		size, _ := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
-		outDf, _, _, _ := runner.Exec(fmt.Sprintf(`df -PB1 %s 2>/dev/null | tail -n 1 | awk '{print $4}'`, shellQuote(path.Dir(targetPath))))
-		avail, _ := strconv.ParseInt(strings.TrimSpace(outDf), 10, 64)
+		targetPath = resolveRemotePath(sftpClient, host.User, targetPath, host.OSType)
+		var size, avail int64
+		if host.OSType == "windows" {
+			cleanTarget := sshrunner.CleanWindowsRemotePath(targetPath)
+			drive := "C:"
+			if len(cleanTarget) >= 2 && cleanTarget[1] == ':' {
+				drive = strings.ToUpper(cleanTarget[:2])
+			}
+			ps := fmt.Sprintf(`$f = Get-Item -LiteralPath '%[1]s' -ErrorAction SilentlyContinue; if ($f) { if ($f.PSIsContainer) { $s = (Get-ChildItem -LiteralPath '%[1]s' -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; if ($s) { [int64]$s } else { 0 } } else { $f.Length } } else { 0 }; "---"; $d = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='%[2]s'" -ErrorAction SilentlyContinue; if ($d) { [int64]$d.FreeSpace } else { 0 }`, strings.ReplaceAll(cleanTarget, "'", "''"), drive)
+			out, _, _, _ := runner.Exec(sshrunner.PowershellEncodedCmd(ps))
+			parts := strings.Split(out, "---")
+			if len(parts) >= 1 {
+				size, _ = strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+			}
+			if len(parts) >= 2 {
+				avail, _ = strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+			}
+		} else {
+			out, _, _, _ := runner.Exec(fmt.Sprintf(`du -sb %s 2>/dev/null | cut -f1`, shellQuote(targetPath)))
+			size, _ = strconv.ParseInt(strings.TrimSpace(out), 10, 64)
+			outDf, _, _, _ := runner.Exec(fmt.Sprintf(`df -PB1 %s 2>/dev/null | tail -n 1 | awk '{print $4}'`, shellQuote(path.Dir(targetPath))))
+			avail, _ = strconv.ParseInt(strings.TrimSpace(outDf), 10, 64)
+		}
 		writeJSON(w, http.StatusOK, map[string]int64{
 			"size":      size,
 			"available": avail,
@@ -2134,7 +2330,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			return
 		}
 		req.Path = strings.TrimSpace(req.Path)
-		req.Path = resolveRemotePath(sftpClient, host.User, req.Path)
+		req.Path = resolveRemotePath(sftpClient, host.User, req.Path, host.OSType)
 		req.NewName = strings.TrimSpace(req.NewName)
 		if req.Path == "" || req.NewName == "" {
 			http.Error(w, "path and new_name required", http.StatusBadRequest)
@@ -2146,6 +2342,9 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		}
 		parentDir := path.Dir(req.Path)
 		destPath := path.Join(parentDir, req.NewName)
+		if host.OSType == "windows" {
+			destPath = sshrunner.CleanWindowsRemotePath(destPath)
+		}
 
 		if isProtectedPath(req.Path, sftpClient) || isProtectedPath(destPath, sftpClient) {
 			http.Error(w, "protected path: cannot duplicate in system location", http.StatusForbidden)
@@ -2160,10 +2359,28 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 
 		// Disk Space Safety Check:
 		// Measure source size and available space on target partition (+ 100MB safety buffer)
-		outSize, _, _, _ := runner.Exec(fmt.Sprintf(`du -sb %s 2>/dev/null | cut -f1`, shellQuote(req.Path)))
-		sourceSize, _ := strconv.ParseInt(strings.TrimSpace(outSize), 10, 64)
-		outDf, _, _, _ := runner.Exec(fmt.Sprintf(`df -PB1 %s 2>/dev/null | tail -n 1 | awk '{print $4}'`, shellQuote(parentDir)))
-		availBytes, _ := strconv.ParseInt(strings.TrimSpace(outDf), 10, 64)
+		var sourceSize, availBytes int64
+		if host.OSType == "windows" {
+			cleanSrc := sshrunner.CleanWindowsRemotePath(req.Path)
+			drive := "C:"
+			if len(cleanSrc) >= 2 && cleanSrc[1] == ':' {
+				drive = strings.ToUpper(cleanSrc[:2])
+			}
+			ps := fmt.Sprintf(`$f = Get-Item -LiteralPath '%[1]s' -ErrorAction SilentlyContinue; if ($f) { if ($f.PSIsContainer) { $s = (Get-ChildItem -LiteralPath '%[1]s' -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum; if ($s) { [int64]$s } else { 0 } } else { $f.Length } } else { 0 }; "---"; $d = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='%[2]s'" -ErrorAction SilentlyContinue; if ($d) { [int64]$d.FreeSpace } else { 0 }`, strings.ReplaceAll(cleanSrc, "'", "''"), drive)
+			out, _, _, _ := runner.Exec(sshrunner.PowershellEncodedCmd(ps))
+			parts := strings.Split(out, "---")
+			if len(parts) >= 1 {
+				sourceSize, _ = strconv.ParseInt(strings.TrimSpace(parts[0]), 10, 64)
+			}
+			if len(parts) >= 2 {
+				availBytes, _ = strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+			}
+		} else {
+			outSize, _, _, _ := runner.Exec(fmt.Sprintf(`du -sb %s 2>/dev/null | cut -f1`, shellQuote(req.Path)))
+			sourceSize, _ = strconv.ParseInt(strings.TrimSpace(outSize), 10, 64)
+			outDf, _, _, _ := runner.Exec(fmt.Sprintf(`df -PB1 %s 2>/dev/null | tail -n 1 | awk '{print $4}'`, shellQuote(parentDir)))
+			availBytes, _ = strconv.ParseInt(strings.TrimSpace(outDf), 10, 64)
+		}
 
 		const safetyBuffer = 100 * 1024 * 1024 // 100 MB buffer
 		if availBytes > 0 && sourceSize > 0 && availBytes < (sourceSize+safetyBuffer) {
@@ -2171,8 +2388,15 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			return
 		}
 
-		// ponytail: Use native remote cp -a to perform instant atomic copy with preserved permissions
-		cmd := fmt.Sprintf("cp -a -- %s %s", shellQuote(req.Path), shellQuote(destPath))
+		// ponytail: Use native remote cp -a on Linux or Copy-Item on Windows for instant copy with preserved permissions
+		var cmd string
+		if host.OSType == "windows" {
+			cleanSrc := sshrunner.CleanWindowsRemotePath(req.Path)
+			cleanDest := sshrunner.CleanWindowsRemotePath(destPath)
+			cmd = sshrunner.PowershellEncodedCmd(fmt.Sprintf(`Copy-Item -LiteralPath '%s' -Destination '%s' -Recurse -Force`, strings.ReplaceAll(cleanSrc, "'", "''"), strings.ReplaceAll(cleanDest, "'", "''")))
+		} else {
+			cmd = fmt.Sprintf("cp -a -- %s %s", shellQuote(req.Path), shellQuote(destPath))
+		}
 		_, stderr, exitCode, err := runner.Exec(cmd)
 		if err != nil || exitCode != 0 {
 			http.Error(w, fmt.Sprintf("duplication failed: %s", strings.TrimSpace(stderr)), http.StatusInternalServerError)
@@ -2189,7 +2413,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "path required", http.StatusBadRequest)
 			return
 		}
-		targetPath = resolveRemotePath(sftpClient, host.User, targetPath)
+		targetPath = resolveRemotePath(sftpClient, host.User, targetPath, host.OSType)
 		st, err := sftpClient.Stat(targetPath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -2199,9 +2423,6 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		if st.IsDir() {
 			base := path.Base(targetPath)
 			parent := path.Dir(targetPath)
-
-			hasZipOut, _, _, _ := runner.Exec("which zip 2>/dev/null")
-			hasZip := strings.TrimSpace(hasZipOut) != ""
 
 			// Ensure remote zip/tar is immediately aborted if client cancels download request
 			doneChan := make(chan struct{})
@@ -2213,6 +2434,22 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 				case <-doneChan:
 				}
 			}()
+
+			if host.OSType == "windows" {
+				cleanParent := sshrunner.CleanWindowsRemotePath(parent)
+				if strings.HasSuffix(cleanParent, ":") {
+					cleanParent += "/"
+				}
+				cleanBase := sshrunner.CleanWindowsRemotePath(base)
+				w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", base+".tar.gz"))
+				w.Header().Set("Content-Type", "application/gzip")
+				cmd := fmt.Sprintf(`tar.exe -czf - -C "%s" "%s"`, strings.ReplaceAll(cleanParent, `"`, `""`), strings.ReplaceAll(cleanBase, `"`, `""`))
+				_ = runner.PipeCommand(cmd, nil, w)
+				return
+			}
+
+			hasZipOut, _, _, _ := runner.Exec("which zip 2>/dev/null")
+			hasZip := strings.TrimSpace(hasZipOut) != ""
 
 			if hasZip {
 				w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", base+".zip"))
@@ -2251,12 +2488,25 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		req.Path = resolveRemotePath(sftpClient, host.User, req.Path)
+		req.Path = resolveRemotePath(sftpClient, host.User, req.Path, host.OSType)
 		if isProtectedPath(req.Path, sftpClient) {
 			http.Error(w, "protected path: cannot delete system location", http.StatusForbidden)
 			return
 		}
-		_ = sftpClient.Remove(req.Path)
+		st, statErr := sftpClient.Stat(req.Path)
+		if statErr == nil && st.IsDir() {
+			if host.OSType == "windows" {
+				cleanP := sshrunner.CleanWindowsRemotePath(req.Path)
+				_, _, _, _ = runner.Exec(sshrunner.PowershellEncodedCmd(fmt.Sprintf(`Remove-Item -LiteralPath '%s' -Recurse -Force`, strings.ReplaceAll(cleanP, "'", "''"))))
+			} else {
+				_, _, _, _ = runner.Exec(fmt.Sprintf(`rm -rf -- %s`, shellQuote(req.Path)))
+			}
+		} else {
+			if err := sftpClient.Remove(req.Path); err != nil && host.OSType == "windows" {
+				cleanP := sshrunner.CleanWindowsRemotePath(req.Path)
+				_, _, _, _ = runner.Exec(sshrunner.PowershellEncodedCmd(fmt.Sprintf(`Remove-Item -LiteralPath '%s' -Force`, strings.ReplaceAll(cleanP, "'", "''"))))
+			}
+		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 
 	case "chmod":
@@ -2272,7 +2522,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		req.Path = resolveRemotePath(sftpClient, host.User, req.Path)
+		req.Path = resolveRemotePath(sftpClient, host.User, req.Path, host.OSType)
 		if isProtectedPath(req.Path, sftpClient) {
 			http.Error(w, "protected path: cannot modify system location", http.StatusForbidden)
 			return
@@ -2572,8 +2822,10 @@ func (s *Server) handleWSTerminal(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// ponytail: Auto-provision /tmp/pantau-browser bridge script and export environment variables silently
-	s.ensureBrowserBridge(runner, host.ID)
+	// ponytail: Auto-provision /tmp/pantau-browser bridge script and export environment variables silently on Linux hosts
+	if host.OSType != "windows" {
+		s.ensureBrowserBridge(runner, host.ID)
+	}
 
 	// Handle initial working directory (Terminal From Path) and preset command execution
 	if strings.TrimSpace(dirParam) != "" || strings.TrimSpace(initialCmd) != "" {
@@ -2581,18 +2833,43 @@ func (s *Server) handleWSTerminal(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(350 * time.Millisecond)
 			if strings.TrimSpace(dirParam) != "" {
 				cleanDir := strings.TrimSpace(dirParam)
-				escapedDir := strings.ReplaceAll(cleanDir, `'`, `'\''`)
-				// ponytail: If target is a file, navigate to its parent directory; if directory (even with dots in name), cd directly.
-				cdCmd := fmt.Sprintf("cd '%[1]s' 2>/dev/null || ( [ -f '%[1]s' ] && cd \"$(dirname '%[1]s')\" ) 2>/dev/null || true\n", escapedDir)
-				_, _ = inWriter.Write([]byte(cdCmd))
+				if host.OSType == "windows" {
+					cleanPath := sshrunner.CleanWindowsRemotePath(cleanDir)
+					drive := ""
+					if len(cleanPath) >= 2 && cleanPath[1] == ':' {
+						drive = strings.ToUpper(cleanPath[:2])
+					}
+					var cdCmd string
+					if drive != "" {
+						cdCmd = fmt.Sprintf("%s\r\ncd \"%s\"\r\n", drive, cleanPath)
+					} else {
+						cdCmd = fmt.Sprintf("cd \"%s\"\r\n", cleanPath)
+					}
+					_, _ = inWriter.Write([]byte(cdCmd))
+				} else {
+					escapedDir := strings.ReplaceAll(cleanDir, `'`, `'\''`)
+					// ponytail: If target is a file, navigate to its parent directory; if directory (even with dots in name), cd directly.
+					cdCmd := fmt.Sprintf("cd '%[1]s' 2>/dev/null || ( [ -f '%[1]s' ] && cd \"$(dirname '%[1]s')\" ) 2>/dev/null || true\n", escapedDir)
+					_, _ = inWriter.Write([]byte(cdCmd))
+				}
 				if strings.TrimSpace(initialCmd) != "" {
 					time.Sleep(100 * time.Millisecond)
-					execPayload := formatPresetExecution(initialCmd, useTmux)
-					_, _ = inWriter.Write([]byte(execPayload + "\n"))
+					var execPayload string
+					if host.OSType == "windows" {
+						execPayload = strings.TrimSpace(initialCmd) + "\r\n"
+					} else {
+						execPayload = formatPresetExecution(initialCmd, useTmux) + "\n"
+					}
+					_, _ = inWriter.Write([]byte(execPayload))
 				}
 			} else {
-				execPayload := formatPresetExecution(initialCmd, useTmux)
-				_, _ = inWriter.Write([]byte(execPayload + "\n"))
+				var execPayload string
+				if host.OSType == "windows" {
+					execPayload = strings.TrimSpace(initialCmd) + "\r\n"
+				} else {
+					execPayload = formatPresetExecution(initialCmd, useTmux) + "\n"
+				}
+				_, _ = inWriter.Write([]byte(execPayload))
 			}
 		}()
 	}
@@ -2833,6 +3110,18 @@ var defaultMetricProbePresets = []map[string]string{
 		"command":     `q="SELECT 'pg_active_connections: ' || count(CASE WHEN state = 'active' THEN 1 END) || E'\npg_idle_connections: ' || count(CASE WHEN state LIKE 'idle%' THEN 1 END) || E'\npg_total_connections: ' || count(*) FROM pg_stat_activity WHERE pid <> pg_backend_pid();"; (echo "$q" | sudo -u postgres psql -t -A 2>/dev/null || echo "$q" | su - postgres -c "psql -t -A" 2>/dev/null || echo "$q" | psql -U postgres -t -A 2>/dev/null || true)`,
 		"description": "Ekstrak active, idle, dan total connections dari pg_stat_activity (support peer auth & sudo/su)",
 	},
+	{
+		"name":        "IIS Web Service (Windows)",
+		"category":    "Web Server",
+		"command":     "Get-CimInstance Win32_PerfFormattedData_W3SVC_WebService -Filter \"Name='_Total'\" -ErrorAction SilentlyContinue | ForEach-Object { \"iis_current_connections: $($_.CurrentConnections)\"; \"iis_requests_per_sec: $($_.TotalMethodRequestsPerSec)\" }",
+		"description": "Ekstrak active connections dan requests/sec dari IIS Web Service (_Total) via CIM",
+	},
+	{
+		"name":        "MS SQL Server (Windows)",
+		"category":    "Database",
+		"command":     "Get-CimInstance Win32_PerfFormattedData_MSSQLSERVER_SQLServerGeneralStatistics -ErrorAction SilentlyContinue | ForEach-Object { \"mssql_user_connections: $($_.UserConnections)\" }",
+		"description": "Ekstrak user connections dari Microsoft SQL Server General Statistics via CIM",
+	},
 }
 
 func (s *Server) handleMetricProbePresets(w http.ResponseWriter, r *http.Request) {
@@ -2903,7 +3192,13 @@ func (s *Server) handleWSDockerLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	cmd := fmt.Sprintf("docker logs -f --tail 100 %s", shellQuote(container))
+	var cmd string
+	if host.OSType == "windows" {
+		cleanContainer := strings.ReplaceAll(container, "'", "''")
+		cmd = sshrunner.PowershellEncodedCmd(fmt.Sprintf("docker logs -f --tail 100 '%s'", cleanContainer))
+	} else {
+		cmd = fmt.Sprintf("docker logs -f --tail 100 %s", shellQuote(container))
+	}
 	_ = runner.Stream(cmd, outWriter)
 }
 

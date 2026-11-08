@@ -615,6 +615,9 @@ func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*
 	if strings.EqualFold(h.Status, "down") {
 		return nil, fmt.Errorf("host '%s' is offline", h.Name)
 	}
+	if h.OSType == "windows" {
+		return nil, errors.New("storage triage is not supported on Windows hosts")
+	}
 
 	probeCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -1068,6 +1071,9 @@ func (s *Service) ExecuteReclaim(ctx context.Context, hostID int64, req ReclaimR
 	}
 	if strings.EqualFold(h.Status, "down") {
 		return nil, fmt.Errorf("host '%s' is offline", h.Name)
+	}
+	if h.OSType == "windows" {
+		return nil, errors.New("storage triage is not supported on Windows hosts")
 	}
 
 	if s.inspector == nil {

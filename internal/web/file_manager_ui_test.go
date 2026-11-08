@@ -224,7 +224,10 @@ func TestFileManagerPinsAndGlobalBookmarksUI(t *testing.T) {
 
 func TestFileManagerUpButtonPosition(t *testing.T) {
 	html := string(embeddedHTML)
-	upIdx := strings.Index(html, `onclick="loadFiles('${parent}')"`)
+	upIdx := strings.Index(html, `onclick="loadFiles('${escapeHtml(parent)}')"` )
+	if upIdx == -1 {
+		upIdx = strings.Index(html, `onclick="loadFiles('${parent}')"`)
+	}
 	breadIdx := strings.Index(html, `class="file-breadcrumb-bar"`)
 	if upIdx == -1 || breadIdx == -1 {
 		t.Fatalf("up button or breadcrumb bar not found in index.html")

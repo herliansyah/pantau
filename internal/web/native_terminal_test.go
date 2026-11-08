@@ -744,3 +744,99 @@ func TestNativeTerminalActivePath(t *testing.T) {
 		t.Errorf("expected Global Bookmarks modal to have openNativeTerminalFromGlobalPin button")
 	}
 }
+
+func TestWindowsNativeTerminalKeyInjectionAndCdClause(t *testing.T) {
+	// 1. Test buildRemoteCdClause with Windows OS
+	cdEmpty := buildRemoteCdClause("", "windows")
+	if cdEmpty != "" {
+		t.Errorf("expected empty cdClause for empty dir, got %q", cdEmpty)
+	}
+
+	cdTilde := buildRemoteCdClause("~", "windows")
+	if cdTilde != "" {
+		t.Errorf("expected empty cdClause for tilde on Windows, got %q", cdTilde)
+	}
+
+	cdWin := buildRemoteCdClause(`C:\inetpub\wwwroot`, "windows")
+	if !strings.Contains(cdWin, "Set-Location -LiteralPath 'C:/inetpub/wwwroot'") {
+		t.Errorf("expected Set-Location for Windows path, got %q", cdWin)
+	}
+
+	cdTildeSub := buildRemoteCdClause(`~/Documents`, "windows")
+	if !strings.Contains(cdTildeSub, "Set-Location -LiteralPath (Join-Path $HOME 'Documents')") {
+		t.Errorf("expected Set-Location with Join-Path for tilde subpath on Windows, got %q", cdTildeSub)
+	}
+
+	cdSlashWin := buildRemoteCdClause(`/C:/inetpub`, "windows")
+	if !strings.Contains(cdSlashWin, "Set-Location -LiteralPath 'C:/inetpub'") {
+		t.Errorf("expected stripped leading slash for Windows path, got %q", cdSlashWin)
+	}
+
+	cdGitBash := buildRemoteCdClause(`/c/inetpub`, "windows")
+	if !strings.Contains(cdGitBash, "Set-Location -LiteralPath 'c:/inetpub'") {
+		t.Errorf("expected normalized Git Bash path for Windows, got %q", cdGitBash)
+	}
+
+	cdDriveOnly := buildRemoteCdClause(`C:`, "windows")
+	if !strings.Contains(cdDriveOnly, "Set-Location -LiteralPath 'C:/'") {
+		t.Errorf("expected drive root 'C:/' for drive-only Windows path, got %q", cdDriveOnly)
+	}
+
+	cdGitBashDrive := buildRemoteCdClause(`/c`, "windows")
+	if !strings.Contains(cdGitBashDrive, "Set-Location -LiteralPath 'c:/'") {
+		t.Errorf("expected drive root 'c:/' for /c Git Bash path, got %q", cdGitBashDrive)
+	}
+
+	cdRoot := buildRemoteCdClause(`/`, "windows")
+	if !strings.Contains(cdRoot, "Set-Location -LiteralPath 'C:/'") {
+		t.Errorf("expected root 'C:/' for / path on Windows, got %q", cdRoot)
+	}
+
+	// Test auto/untyped host with Windows drive path
+	cdAutoWin := buildRemoteCdClause(`C:\inetpub\wwwroot`, "auto")
+	if !strings.Contains(cdAutoWin, "Set-Location -LiteralPath 'C:/inetpub/wwwroot'") {
+		t.Errorf("expected Set-Location for auto host with Windows path, got %q", cdAutoWin)
+	}
+
+	cdEmptyOSWin := buildRemoteCdClause(`D:/data`)
+	if !strings.Contains(cdEmptyOSWin, "Set-Location -LiteralPath 'D:/data'") {
+		t.Errorf("expected Set-Location for empty OS host with Windows drive path, got %q", cdEmptyOSWin)
+	}
+
+	// 2. Test Ephemeral key injection & cleanup on Windows host
+	mockRunner := &mockTestSSHRunner{}
+	s, _, host := setupTestServerWithDB(t, mockRunner)
+	host.OSType = "windows"
+	_ = s.db.UpdateHostOSType(host.ID, "windows")
+
+	key, err := GenerateEphemeralKey(host.ID, 5*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = s.injectEphemeralKey(context.Background(), host, key)
+	if err != nil {
+		t.Fatalf("unexpected inject error: %v", err)
+	}
+
+	mockRunner.mu.Lock()
+	logs := append([]string{}, mockRunner.execLogs...)
+	mockRunner.mu.Unlock()
+
+	foundPs := false
+	for _, l := range logs {
+		if strings.Contains(l, "powershell.exe") && strings.Contains(l, "-EncodedCommand") {
+			foundPs = true
+			break
+		}
+	}
+	if !foundPs {
+		t.Errorf("expected powershell.exe -EncodedCommand during Windows key injection, logs: %v", logs)
+	}
+
+	// Test cleanup
+	err = s.cleanupEphemeralKeyByID(context.Background(), host, key.ID)
+	if err != nil {
+		t.Fatalf("unexpected cleanup error: %v", err)
+	}
+}

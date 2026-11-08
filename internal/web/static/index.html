@@ -1934,6 +1934,14 @@ body.has-workspace-shelf .container {
             <input type="date" id="hostCommissionDate" />
           </div>
           <div class="form-group">
+            <label data-i18n="host_os_type_label">🖥️ OS Type</label>
+            <select id="hostOSType">
+              <option value="auto">Auto-detect (Recommended)</option>
+              <option value="linux">Linux</option>
+              <option value="windows">Windows</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label data-i18n="host_metrics_label">📊 Metrics & Telemetry</label>
             <select id="hostMetricsEnabled">
               <option value="-1">Inherit Global (Default)</option>
@@ -3630,6 +3638,7 @@ const I18N = {
     "no_runs_desc": "No inspection runs recorded yet for this host.",
     "view_diagnostics": "View Diagnostic Details",
     "tab_metrics": "Metrics & Telemetry",
+    "host_os_type_label": "Operating System",
     "host_metrics_label": "Metrics & Telemetry Observability",
     "custom_range": "Custom",
     "custom_range_label": "Custom Range:",
@@ -3913,6 +3922,13 @@ const I18N = {
     "confirm_cancel_transfer": "Cancel this transfer?",
     "cancel_transfer_failed": "Failed to cancel transfer",
     "start_transfer_failed": "Failed to start transfer: ",
+    "transfer_windows_unsupported": "Cross-host transfer is not supported for Windows hosts.",
+    "storage_windows_unsupported_title": "Storage Triage Not Applicable",
+    "storage_windows_unsupported_desc": "Storage Triage (space hogs, runaway logs, ghost file descriptors) is specialized for POSIX/Linux filesystems. Windows System Drive (C:) metrics, capacity, and active I/O are monitored under Overview and Metrics.",
+    "netdiag_windows_unsupported_title": "Network Diagnostics Not Applicable",
+    "netdiag_windows_unsupported_desc": "Network Diagnostics and Triage Matrix probe execution from Windows source hosts is not supported. Use Linux hosts as diagnostic probes.",
+    "pkg_windows_unsupported_title": "Package Inventory Not Applicable",
+    "pkg_windows_unsupported_desc": "Package Inventory (apt/rpm/apk/pacman) is exclusive to Linux targets. On Windows targets, system services, ports, and processes are monitored agentlessly via native Windows management.",
     "no_other_dest_host": "No other target host available. Add at least one more host first.",
     "fill_all_fields": "Please fill in all fields",
     "global_note_title": "Global Operational Notes",
@@ -4447,6 +4463,7 @@ const I18N = {
     "no_runs_desc": "Belum ada riwayat inspeksi yang tercatat untuk host ini.",
     "view_diagnostics": "Lihat Rincian Diagnostik",
     "tab_metrics": "Metrik & Telemetri",
+    "host_os_type_label": "Sistem Operasi",
     "host_metrics_label": "Observabilitas Metrik & Telemetri",
     "custom_range": "Kustom",
     "custom_range_label": "Rentang Periode:",
@@ -4730,6 +4747,13 @@ const I18N = {
     "confirm_cancel_transfer": "Batalkan transfer ini?",
     "cancel_transfer_failed": "Gagal membatalkan transfer",
     "start_transfer_failed": "Gagal memulai transfer: ",
+    "transfer_windows_unsupported": "Transfer antar-host tidak didukung untuk target Windows.",
+    "storage_windows_unsupported_title": "Storage Triage Tidak Berlaku",
+    "storage_windows_unsupported_desc": "Storage Triage (space hogs, runaway logs, ghost file descriptor) dikhususkan untuk filesystem POSIX/Linux. Metrik drive sistem Windows (C:), kapasitas, dan I/O aktif dipantau di tab Ringkasan dan Metrik.",
+    "netdiag_windows_unsupported_title": "Diagnostik Jaringan Tidak Berlaku",
+    "netdiag_windows_unsupported_desc": "Eksekusi probe Diagnostik Jaringan dan Matriks Triage dari host sumber Windows tidak didukung. Gunakan host Linux sebagai probe diagnostik.",
+    "pkg_windows_unsupported_title": "Inventaris Paket Tidak Berlaku",
+    "pkg_windows_unsupported_desc": "Inventaris Paket (apt/rpm/apk/pacman) khusus untuk target Linux. Pada target Windows, service sistem, port, dan proses dipantau secara agentless melalui manajemen bawaan Windows.",
     "no_other_dest_host": "Tidak ada host tujuan lain yang tersedia. Tambahkan minimal satu host lagi terlebih dahulu.",
     "fill_all_fields": "Harap isi semua kolom",
     "global_note_title": "Catatan Operasional Global",
@@ -6058,6 +6082,7 @@ function renderGridView(grid, isManualSort) {
       const diskUsedStr = formatBytes(h.disk_used_bytes || 0);
       const diskTotStr = formatBytes(h.disk_total_bytes || 0);
 
+      const isWindows = h.os_type === 'windows';
       let load1m = 0;
       if (h.cpu_load) {
         const parts = h.cpu_load.split(',');
@@ -6067,12 +6092,25 @@ function renderGridView(grid, isManualSort) {
       }
       const cores = h.cpu_cores > 0 ? h.cpu_cores : 1;
       let cpuColor = 'var(--text, #e2e8f0)';
-      if (load1m > cores * 1.5) {
-        cpuColor = 'var(--danger, #f87171)';
-      } else if (load1m > cores) {
-        cpuColor = '#fbbf24';
-      } else if (h.cpu_load) {
-        cpuColor = 'var(--success, #34d399)';
+      let cpuLoadStr = '';
+      if (isWindows) {
+        cpuLoadStr = `(Load: ${Math.round(load1m)}%)`;
+        if (load1m > 85) {
+          cpuColor = 'var(--danger, #f87171)';
+        } else if (load1m > 60) {
+          cpuColor = '#fbbf24';
+        } else if (h.cpu_load) {
+          cpuColor = 'var(--success, #34d399)';
+        }
+      } else {
+        cpuLoadStr = `(Load: ${load1m.toFixed(2)})`;
+        if (load1m > cores * 1.5) {
+          cpuColor = 'var(--danger, #f87171)';
+        } else if (load1m > cores) {
+          cpuColor = '#fbbf24';
+        } else if (h.cpu_load) {
+          cpuColor = 'var(--success, #34d399)';
+        }
       }
 
       let scoreColor = '#34d399';
@@ -6116,7 +6154,7 @@ function renderGridView(grid, isManualSort) {
         </div>
       ` : `
         <div class="stat-row"><span>${t('address')}</span> <span>${h.host}:${h.port} (${h.user})</span></div>
-        <div class="stat-row"><span>${t('os')}</span> <span>${escapeHtml(h.os_info || 'Unknown')}</span></div>
+        <div class="stat-row"><span>${t('os')}</span> <span>${isWindows ? '🪟 ' : ''}${escapeHtml(h.os_info || (isWindows ? 'Microsoft Windows' : 'Unknown'))}</span></div>
         <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(h.uptime || '-')}</span></div>
         <div class="stat-row" style="align-items: center;">
           <span>${t('last_inspected', 'Last Inspected:')}</span>
@@ -6126,7 +6164,7 @@ function renderGridView(grid, isManualSort) {
         </div>
         <div class="stat-row" style="align-items: center;">
           <span>${t('cpu_label', 'CPU:')}</span>
-          <span>${cores} ${cores > 1 ? t('cores', 'Cores') : t('core', 'Core')} <span style="color: ${cpuColor}; font-weight: 600;">(Load: ${load1m.toFixed(2)})</span></span>
+          <span>${cores} ${cores > 1 ? t('cores', 'Cores') : t('core', 'Core')} <span style="color: ${cpuColor}; font-weight: 600;">${cpuLoadStr}</span></span>
         </div>
         <div>
           <div class="stat-row">
@@ -6140,13 +6178,13 @@ function renderGridView(grid, isManualSort) {
             <span>${t('swap_usage', 'Swap')}</span>
             ${swapTot > 0 
               ? `<span>${swapUsedStr} / ${swapTotStr} (${swapPct}%)</span>` 
-              : `<span style="color: var(--text-muted);">${t('swap_disabled', 'Disabled')}</span>`}
+              : `<span style="color: var(--text-muted);">${isWindows ? t('swap_disabled', 'Disabled') + ' (N/A)' : t('swap_disabled', 'Disabled')}</span>`}
           </div>
           <div class="progress" style="${swapTot === 0 ? 'opacity: 0.35;' : ''}"><div class="progress-fill ${swapPct > 80 ? 'danger' : (swapPct > 30 ? 'warn' : '')}" style="width: ${swapPct}%"></div></div>
         </div>
         <div>
           <div class="stat-row">
-            <span>${t('disk_usage', 'Disk')}</span>
+            <span>${isWindows ? 'System Drive (C:)' : t('disk_usage', 'Disk')}</span>
             <span>${diskUsedStr} / ${diskTotStr} (${diskPct}%)</span>
           </div>
           <div class="progress"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
@@ -6343,7 +6381,7 @@ function renderListView(listContainer, isManualSort) {
             ${(!showDividers && h.group_name) ? `<span class="badge" style="font-size: 0.65rem; background: rgba(56, 189, 248, 0.12); color: #38bdf8;">📁 ${escapeHtml(h.group_name)}</span>` : ''}
           </div>
           <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 3px; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-            <span>${escapeHtml(h.host)}:${h.port} <span style="opacity: 0.75;">(${escapeHtml(h.user)})</span></span>
+            <span>${h.os_type === 'windows' ? '<span title="Windows">🪟</span> ' : ''}${escapeHtml(h.host)}:${h.port} <span style="opacity: 0.75;">(${escapeHtml(h.user)})</span></span>
             ${h.os_info ? `<span style="opacity: 0.4;">•</span><span style="overflow: hidden; text-overflow: ellipsis;">${escapeHtml(h.os_info)}</span>` : ''}
           </div>
         </td>
@@ -6657,6 +6695,7 @@ function openAddHostModal() {
   document.getElementById('hostCommissionDate').value = '';
   document.getElementById('hostNote').value = '';
   document.getElementById('hostGroup').value = '';
+  if (document.getElementById('hostOSType')) document.getElementById('hostOSType').value = 'auto';
   if (document.getElementById('hostMetricsEnabled')) document.getElementById('hostMetricsEnabled').value = '-1';
   resetHostModalTestResult();
   updateGroupSuggestions();
@@ -6674,6 +6713,7 @@ function openEditHostModal(hostId) {
   document.getElementById('hostPort').value = h.port || 22;
   document.getElementById('hostUser').value = h.user || 'root';
   document.getElementById('hostGroup').value = h.group_name || '';
+  if (document.getElementById('hostOSType')) document.getElementById('hostOSType').value = h.os_type || 'auto';
   document.getElementById('hostPassword').value = '';
   document.getElementById('hostCustomKey').value = h.custom_key || '';
   document.getElementById('hostCommissionDate').value = h.commission_date || '';
@@ -6723,10 +6763,12 @@ async function testConnectionInModal() {
   }
 
   try {
+    const osSelect = document.getElementById('hostOSType');
+    const os_type = osSelect?.value || 'auto';
     const res = await fetch('/api/hosts/test-connection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host, port, user, password, custom_key, host_id })
+      body: JSON.stringify({ host, port, user, password, custom_key, host_id, os_type })
     });
     const data = await res.json();
     if (data.ok) {
@@ -6743,6 +6785,14 @@ async function testConnectionInModal() {
           <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 4px;">✅ ${escapeHtml(t('ssh_test_success', 'SSH Connection Success:'))}${methodNote}</div>
           <div style="color:var(--text, #e2e8f0); font-family:monospace; font-size:0.75rem; white-space:pre-wrap; line-height:1.3;">${escapeHtml(data.output || 'Authenticated')}</div>
         `;
+      }
+      if (osSelect && osSelect.value === 'auto' && data.output) {
+        const outLower = data.output.toLowerCase();
+        if (outLower.includes('windows') || outLower.includes('microsoft') || outLower.includes('_nt-')) {
+          osSelect.value = 'windows';
+        } else if (outLower.includes('linux') || outLower.includes('darwin') || outLower.includes('bsd')) {
+          osSelect.value = 'linux';
+        }
       }
     } else {
       if (resBox) {
@@ -6812,6 +6862,7 @@ async function saveHost() {
     commission_date: (document.getElementById('hostCommissionDate')?.value || '').trim(),
     notes: document.getElementById('hostNote').value,
     group_name: (document.getElementById('hostGroup')?.value || '').trim(),
+    os_type: document.getElementById('hostOSType')?.value || 'auto',
     metrics_enabled: isNaN(parseInt(document.getElementById('hostMetricsEnabled')?.value, 10)) ? -1 : parseInt(document.getElementById('hostMetricsEnabled')?.value, 10),
   };
   const method = id ? 'PUT' : 'POST';
@@ -7233,7 +7284,8 @@ function getHostFilesPath(hostId) {
     const saved = sessionStorage.getItem('pantau_host_files_path_' + hostId);
     if (saved) return saved;
   } catch(e) {}
-  return '/';
+  const hostObj = (allRawHosts || []).find(h => h.id === hostId);
+  return (hostObj && hostObj.os_type === 'windows') ? 'C:/' : '/';
 }
 
 function setHostFilesPath(hostId, path) {
@@ -7246,11 +7298,18 @@ function setHostFilesPath(hostId, path) {
 
 function openTerminalForPath(targetPath, isDir) {
   if (!currentHost) return;
-  let dir = targetPath || '/';
+  const isWin = currentHost.os_type === 'windows';
+  let dir = (targetPath || (isWin ? 'C:/' : '/')).replace(/\\/g, '/');
   if (isDir === false) {
     if (dir.includes('/')) {
       const lastSlash = dir.lastIndexOf('/');
-      dir = lastSlash === 0 ? '/' : dir.substring(0, lastSlash);
+      if (lastSlash > 2) {
+        dir = dir.substring(0, lastSlash);
+      } else if (lastSlash === 2 && dir[1] === ':') {
+        dir = dir.substring(0, 3);
+      } else {
+        dir = lastSlash === 0 ? '/' : dir.substring(0, lastSlash);
+      }
     }
   } else if (isDir === undefined) {
     // Naive heuristic: if base has extension, treat as file
@@ -7258,12 +7317,18 @@ function openTerminalForPath(targetPath, isDir) {
     if (lastSlash >= 0) {
       const base = dir.substring(lastSlash + 1);
       if (base.includes('.')) {
-        dir = lastSlash === 0 ? '/' : dir.substring(0, lastSlash);
+        if (lastSlash > 2) {
+          dir = dir.substring(0, lastSlash);
+        } else if (lastSlash === 2 && dir[1] === ':') {
+          dir = dir.substring(0, 3);
+        } else {
+          dir = lastSlash === 0 ? '/' : dir.substring(0, lastSlash);
+        }
       }
     }
   }
   const hostName = currentHost.name || ('Host ' + currentHost.id);
-  const folderName = (dir === '/' || !dir) ? '/' : dir.split('/').filter(Boolean).pop() || dir;
+  const folderName = (dir === '/' || dir === 'C:/' || !dir) ? '/' : dir.split('/').filter(Boolean).pop() || dir;
   const customTitle = `${hostName}: ${folderName}`;
   openTerminalForHost(currentHost.id, null, true, customTitle, dir);
 }
@@ -7467,7 +7532,7 @@ async function openHostTerminal(hostID, presetID) {
 function formatProcessCmd(cmd) {
   if (!cmd || typeof cmd !== 'string') return '-';
   const parts = cmd.trim().split(/\s+/);
-  const exe = parts[0].split('/').pop();
+  const exe = parts[0].split(/[/\\]/).pop();
   return exe || cmd;
 }
 
@@ -7551,13 +7616,13 @@ function switchTab(tab, presetID) {
         <div class="card sysinfo-card">
           <h4>${t('sys_info')}</h4>
           <div class="stat-row"><span>${t('hardware_vendor', 'Hardware / Platform:')}</span> <span>${escapeHtml(d.host.hardware_model || 'Unknown / Standard')}</span></div>
-          <div class="stat-row"><span>${t('os')}</span> <span>${escapeHtml(d.host.os_info)}</span></div>
-          <div class="stat-row"><span>${t('kernel')}</span> <span style="font-family: monospace; font-size: 0.82rem;">${escapeHtml(d.host.kernel)}</span></div>
-          <div class="stat-row"><span>${t('cpu_label', 'CPU:')}</span> <span>${d.host.cpu_cores || 1} ${(d.host.cpu_cores || 1) > 1 ? t('cores', 'Cores') : t('core', 'Core')} <span style="color: var(--text-muted); font-size: 0.82rem;">(Load: ${escapeHtml(d.host.cpu_load || '-')})</span></span></div>
+          <div class="stat-row"><span>${t('os')}</span> <span>${d.host.os_type === 'windows' ? '🪟 ' : ''}${escapeHtml(d.host.os_info || (d.host.os_type === 'windows' ? 'Microsoft Windows' : 'Linux'))}</span></div>
+          <div class="stat-row"><span>${d.host.os_type === 'windows' ? 'OS Build / Kernel:' : t('kernel')}</span> <span style="font-family: monospace; font-size: 0.82rem;">${escapeHtml(d.host.kernel || '-')}</span></div>
+          <div class="stat-row"><span>${t('cpu_label', 'CPU:')}</span> <span>${d.host.cpu_cores || 1} ${(d.host.cpu_cores || 1) > 1 ? t('cores', 'Cores') : t('core', 'Core')} <span style="color: var(--text-muted); font-size: 0.82rem;">(Load: ${escapeHtml(d.host.cpu_load ? (d.host.os_type === 'windows' ? d.host.cpu_load.split(',')[0].trim() + '%' : d.host.cpu_load) : '-')})</span></span></div>
           <div class="stat-row"><span>${t('phys_mem', 'RAM:')}</span> <span>${formatBytes(d.host.ram_used_bytes || 0)} / ${formatBytes(d.host.ram_total_bytes || 0)} (${d.host.ram_total_bytes > 0 ? Math.round(((d.host.ram_used_bytes || 0) / d.host.ram_total_bytes) * 100) : 0}%)</span></div>
-          <div class="stat-row"><span>${t('virtual_mem', 'Swap:')}</span> <span>${d.host.swap_total_bytes > 0 ? formatBytes(d.host.swap_used_bytes || 0) + ' / ' + formatBytes(d.host.swap_total_bytes) + ' (' + Math.round(((d.host.swap_used_bytes || 0) / d.host.swap_total_bytes) * 100) + '%)' : '<span style="color: var(--text-muted);">' + t('swap_disabled', 'Disabled') + '</span>'}</span></div>
-          <div class="stat-row"><span>${t('root_storage', 'Root Storage (/):')}</span> <span style="display: inline-flex; align-items: center; gap: 6px;">${formatBytes(d.host.disk_used_bytes || 0)} / ${formatBytes(d.host.disk_total_bytes || 0)} (${d.host.disk_total_bytes > 0 ? Math.round(((d.host.disk_used_bytes || 0) / d.host.disk_total_bytes) * 100) : 0}%) <button class="btn btn-sm" style="padding: 1px 6px; font-size: 0.7rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);" onclick="switchTab('storage')">🔍 Triage</button></span></div>
-          <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(d.host.uptime)}</span></div>
+          <div class="stat-row"><span>${t('virtual_mem', 'Swap:')}</span> <span>${d.host.swap_total_bytes > 0 ? formatBytes(d.host.swap_used_bytes || 0) + ' / ' + formatBytes(d.host.swap_total_bytes) + ' (' + Math.round(((d.host.swap_used_bytes || 0) / d.host.swap_total_bytes) * 100) + '%)' : '<span style="color: var(--text-muted);">' + (d.host.os_type === 'windows' ? t('swap_disabled', 'Disabled') + ' (N/A)' : t('swap_disabled', 'Disabled')) + '</span>'}</span></div>
+          <div class="stat-row"><span>${d.host.os_type === 'windows' ? 'System Drive (C:):' : t('root_storage', 'Root Storage (/):')}</span> <span style="display: inline-flex; align-items: center; gap: 6px;">${formatBytes(d.host.disk_used_bytes || 0)} / ${formatBytes(d.host.disk_total_bytes || 0)} (${d.host.disk_total_bytes > 0 ? Math.round(((d.host.disk_used_bytes || 0) / d.host.disk_total_bytes) * 100) : 0}%) ${d.host.os_type !== 'windows' ? `<button class="btn btn-sm" style="padding: 1px 6px; font-size: 0.7rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);" onclick="switchTab('storage')">🔍 Triage</button>` : ''}</span></div>
+          <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(d.host.uptime || '-')}</span></div>
           <div class="stat-row">
             <span>${t('last_inspected_label', 'Last Inspected:')}</span>
             <span style="${detailRecency.isStale ? 'color: #fbbf24; font-weight: 600;' : ''}" title="${detailRecency.title}">
@@ -7658,11 +7723,11 @@ function switchTab(tab, presetID) {
             <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--card-border); border-radius: 6px; padding: 10px;">
               <div style="font-weight: 600; font-size: 0.82rem; color: #f59e0b; margin-bottom: 6px; display: flex; justify-content: space-between;">
                 <span>💾 Top Swap</span>
-                <span style="font-size: 0.75rem; color: var(--text-muted);">${d.host.swap_total_bytes > 0 ? formatBytes(d.host.swap_used_bytes || 0) : 'Disabled'}</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">${d.host.swap_total_bytes > 0 ? formatBytes(d.host.swap_used_bytes || 0) : (d.host.os_type === 'windows' ? 'N/A' : 'Disabled')}</span>
               </div>
               ${topSwap.length === 0 ? `
                 <div style="color: var(--text-muted); font-size: 0.78rem; text-align: center; padding: 12px;">
-                  ${d.host.swap_total_bytes === 0 ? 'Swap is disabled' : (d.host.swap_used_bytes === 0 ? 'No swap usage (Clean)' : 'No swap processes active')}
+                  ${d.host.os_type === 'windows' ? 'Swap is not applicable on Windows (Pagefile managed by OS)' : (d.host.swap_total_bytes === 0 ? 'Swap is disabled' : (d.host.swap_used_bytes === 0 ? 'No swap usage (Clean)' : 'No swap processes active'))}
                 </div>
               ` : `
                 <table style="width: 100%; font-size: 0.78rem; margin: 0;">
@@ -7878,7 +7943,7 @@ function switchTab(tab, presetID) {
           <div class="empty-state">
             <div class="empty-state-icon">🐳</div>
             <div class="empty-state-title">${t('no_containers_title')}</div>
-            <div class="empty-state-desc">${t('no_containers_desc')}</div>
+            <div class="empty-state-desc">${d.host.os_type === 'windows' ? 'No active Docker containers reported on this Windows host.' : t('no_containers_desc')}</div>
           </div>
         `
       ) : `
@@ -7940,7 +8005,8 @@ function switchTab(tab, presetID) {
   } else if (tab === 'netdiag') {
     renderNetDiagTab(d.host);
   } else if (tab === 'files') {
-    const startPath = (currentHost && (currentHost._lastPath || (currentHost.id ? getHostFilesPath(currentHost.id) : null))) || '/';
+    const isWin = currentHost && currentHost.os_type === 'windows';
+    const startPath = (currentHost && (currentHost._lastPath || (currentHost.id ? getHostFilesPath(currentHost.id) : null))) || (isWin ? 'C:/' : '/');
     loadFiles(startPath);
   } else if (tab === 'storage') {
     renderStorageTriageTab(d.host);
@@ -9942,6 +10008,17 @@ async function renderPackagesTab() {
   const d = window.detailData;
   if (!d || !d.host) return;
 
+  if (d.host.os_type === 'windows') {
+    content.innerHTML = `
+      <div class="empty-state" style="padding: 40px 20px;">
+        <div class="empty-state-icon">🪟</div>
+        <div class="empty-state-title">${t('pkg_windows_unsupported_title', 'Package Inventory Not Applicable')}</div>
+        <div class="empty-state-desc" style="max-width: 520px; margin: 8px auto; line-height: 1.5; color: var(--text-muted);">${t('pkg_windows_unsupported_desc', 'Package Inventory (apt/rpm/apk/pacman) is exclusive to Linux targets. On Windows targets, system services, ports, and processes are monitored agentlessly via native Windows management.')}</div>
+      </div>
+    `;
+    return;
+  }
+
   activePackagesFilter = 'manual';
   packagesSearchQuery = '';
 
@@ -10401,6 +10478,17 @@ async function renderStorageTriageTab(host) {
   const d = window.detailData;
   const hostObj = host || (d ? d.host : null);
   if (!hostObj) return;
+
+  if (hostObj.os_type === 'windows') {
+    content.innerHTML = `
+      <div class="empty-state" style="padding: 40px 20px;">
+        <div class="empty-state-icon">🪟</div>
+        <div class="empty-state-title">${t('storage_windows_unsupported_title', 'Storage Triage Not Applicable')}</div>
+        <div class="empty-state-desc" style="max-width: 520px; margin: 8px auto; line-height: 1.5; color: var(--text-muted);">${t('storage_windows_unsupported_desc', 'Storage Triage (space hogs, runaway logs, ghost file descriptors) is specialized for POSIX/Linux filesystems. Windows System Drive (C:) metrics, capacity, and active I/O are monitored under Overview and Metrics.')}</div>
+      </div>
+    `;
+    return;
+  }
 
   const isScanning = isStorageTriageScanning && currentTriageScanningHostId === hostObj.id;
   const cachedData = storageTriageCache[hostObj.id] || (currentStorageTriageData && currentStorageTriageData.host_id === hostObj.id ? currentStorageTriageData : null);
@@ -11150,10 +11238,12 @@ function openStorageTriageFromAlert(hostID) {
 }
 
 function openFileManagerAtPath(targetPath, isDir = false) {
-  let p = targetPath || '/';
+  const isWin = currentHost && currentHost.os_type === 'windows';
+  let p = targetPath || (isWin ? 'C:/' : '/');
   if (!isDir && p.includes('/') && !p.endsWith('/')) {
     const lastSlash = p.lastIndexOf('/');
     p = lastSlash === 0 ? '/' : p.substring(0, lastSlash);
+    if (isWin && p.endsWith(':')) p += '/';
   }
   if (currentHost) {
     currentHost._lastPath = p;
@@ -11181,9 +11271,21 @@ const ruleKindHints = {
   process: { targetPh: 'e.g. celery, supervisord', expected: 'running', expectedPh: 'e.g. running' }
 };
 
+const ruleKindHintsWindows = {
+  container: { targetPh: 'e.g. sql-server, iis-app', expected: 'running', expectedPh: 'e.g. running' },
+  service: { targetPh: 'e.g. W3SVC, MSSQLSERVER, sshd', expected: 'active', expectedPh: 'e.g. active, Running' },
+  port: { targetPh: 'e.g. 80, 443, 1433, 3389', expected: 'listening', expectedPh: 'e.g. listening' },
+  disk: { targetPh: 'e.g. C:, D:', expected: '<85%', expectedPh: 'e.g. <80%, <90%' },
+  cron: { targetPh: 'e.g. DailyBackup, TaskName', expected: 'configured', expectedPh: 'e.g. configured' },
+  backup: { targetPh: 'e.g. C:\\Backups\\daily.zip', expected: 'fresh_24h', expectedPh: 'e.g. fresh_24h, fresh_12h' },
+  process: { targetPh: 'e.g. explorer, w3wp, sqlservr', expected: 'running', expectedPh: 'e.g. running' }
+};
+
 function onRuleKindChange() {
+  const isWin = currentHost && currentHost.os_type === 'windows';
+  const hints = isWin ? ruleKindHintsWindows : ruleKindHints;
   const kind = document.getElementById('ruleKind')?.value || 'container';
-  const hint = ruleKindHints[kind] || ruleKindHints.container;
+  const hint = hints[kind] || hints.container;
   const targetEl = document.getElementById('ruleTarget');
   const expectedEl = document.getElementById('ruleExpected');
   if (targetEl) targetEl.placeholder = hint.targetPh;
@@ -11348,14 +11450,29 @@ function renderQuickAccessBar() {
 }
 
 function renderBreadcrumbs(currentPath) {
-  if (!currentPath || currentPath === '/') {
-    return `<span class="file-breadcrumb-item active">📁 /</span>`;
+  const isWindows = currentHost && currentHost.os_type === 'windows';
+  if (!currentPath || currentPath === '/' || (isWindows && /^[a-zA-Z]:\/?$/.test(currentPath))) {
+    const drive = isWindows ? currentPath.slice(0, 2).toUpperCase() : '';
+    const rootLabel = isWindows ? `📁 ${drive}` : '📁 /';
+    const rootPath = isWindows ? `${drive}/` : '/';
+    return `<span class="file-breadcrumb-item active" onclick="loadFiles('${rootPath}')">${rootLabel}</span>`;
   }
   const parts = currentPath.split('/').filter(Boolean);
-  let html = `<span class="file-breadcrumb-item" onclick="loadFiles('/')" title="Root">📁 /</span>`;
+  let html = '';
   let accum = '';
-  for (let i = 0; i < parts.length; i++) {
-    accum += '/' + parts[i];
+  let startIndex = 0;
+
+  if (isWindows && parts.length > 0 && parts[0].includes(':')) {
+    const drive = parts[0].toUpperCase();
+    html += `<span class="file-breadcrumb-item" onclick="loadFiles('${drive}/')" title="Root Drive">📁 ${escapeHtml(drive)}</span>`;
+    accum = drive.endsWith('/') ? drive : drive + '/';
+    startIndex = 1;
+  } else {
+    html += `<span class="file-breadcrumb-item" onclick="loadFiles('/')" title="Root">📁 /</span>`;
+  }
+
+  for (let i = startIndex; i < parts.length; i++) {
+    accum += (accum.endsWith('/') ? '' : '/') + parts[i];
     const isLast = (i === parts.length - 1);
     html += `<span class="file-breadcrumb-separator">/</span>`;
     if (isLast) {
@@ -11371,9 +11488,9 @@ function renderBreadcrumbs(currentPath) {
 function getFileIcon(fileName) {
   const ext = fileName.split('.').pop().toLowerCase();
   switch (ext) {
-    case 'sh': case 'bash': case 'zsh':
+    case 'sh': case 'bash': case 'zsh': case 'ps1': case 'psm1': case 'bat': case 'cmd':
       return '🐚';
-    case 'json': case 'yml': case 'yaml': case 'conf': case 'ini': case 'env': case 'toml': case 'cfg':
+    case 'json': case 'yml': case 'yaml': case 'conf': case 'ini': case 'env': case 'toml': case 'cfg': case 'config':
       return '⚙️';
     case 'log': case 'txt': case 'md': case 'rtf':
       return '📝';
@@ -11381,8 +11498,10 @@ function getFileIcon(fileName) {
       return '🗜️';
     case 'jpg': case 'jpeg': case 'png': case 'gif': case 'svg': case 'ico': case 'webp':
       return '🖼️';
-    case 'js': case 'ts': case 'jsx': case 'tsx': case 'php': case 'py': case 'go': case 'rs': case 'c': case 'cpp': case 'h': case 'html': case 'css':
+    case 'js': case 'ts': case 'jsx': case 'tsx': case 'php': case 'py': case 'go': case 'rs': case 'c': case 'cpp': case 'h': case 'html': case 'css': case 'cs':
       return '💻';
+    case 'exe': case 'dll': case 'msi':
+      return '📦';
     default:
       return '📄';
   }
@@ -11393,12 +11512,28 @@ function renderFilesView() {
   if (!content || !currentFilesData) return;
   const data = currentFilesData;
   const isProtectedDir = !!data.is_protected;
-  const parent = data.path === '/' ? '/' : data.path.substring(0, data.path.lastIndexOf('/')) || '/';
+  const isWindows = currentHost && currentHost.os_type === 'windows';
+  let parent = '/';
+  let isAtRoot = false;
+  if (isWindows) {
+    const normP = data.path.replace(/\\/g, '/').replace(/\/+$/, '');
+    const lastSlash = normP.lastIndexOf('/');
+    if (lastSlash > 0) {
+      parent = normP.substring(0, lastSlash);
+      if (parent.endsWith(':')) parent += '/';
+    } else {
+      parent = normP.includes(':') ? (normP.endsWith(':') ? normP + '/' : normP) : 'C:/';
+      isAtRoot = true;
+    }
+  } else {
+    parent = data.path === '/' ? '/' : data.path.substring(0, data.path.lastIndexOf('/')) || '/';
+    isAtRoot = data.path === '/';
+  }
 
   content.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; flex-wrap: wrap;">
       <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 260px;">
-        <button class="btn btn-sm" onclick="loadFiles('${parent}')" style="flex-shrink: 0;">${t('up_dir')}</button>
+        <button class="btn btn-sm" onclick="loadFiles('${escapeHtml(parent)}')" ${isAtRoot ? 'disabled' : ''} style="flex-shrink: 0;">${t('up_dir')}</button>
         <div class="file-breadcrumb-bar" style="flex: 1;">
           ${renderBreadcrumbs(data.path)}
         </div>
@@ -11412,7 +11547,7 @@ function renderFilesView() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m6 10 3 2-3 2"/><path d="M12 14h4"/></svg> <span>${t('open_native_terminal', 'Native Terminal')}</span>
         </button>
         <button class="btn btn-sm" onclick="loadFiles('${escapeHtml(data.path)}')" title="${t('refresh')}">🔄</button>
-        <input type="file" id="fileUploadInput" style="display: none;" onchange="uploadFile('${data.path}')" />
+        <input type="file" id="fileUploadInput" style="display: none;" onchange="uploadFile('${escapeHtml(data.path)}')" />
         <button class="btn btn-primary btn-sm" ${isProtectedDir ? 'disabled title="' + t('cannot_upload_protected') + '"' : ''} onclick="document.getElementById('fileUploadInput').click()">${t('upload_file')}</button>
       </div>
     </div>
@@ -11527,7 +11662,9 @@ function renderFilesTableBody() {
   }
 
   tbody.innerHTML = filtered.map(f => {
-    const fullPath = currentFilesData.path === '/' ? '/' + f.name : currentFilesData.path + '/' + f.name;
+    const fullPath = currentFilesData.path === '/' 
+      ? '/' + f.name 
+      : (currentFilesData.path.endsWith('/') ? currentFilesData.path + f.name : currentFilesData.path + '/' + f.name);
     const isItemProtected = !!(f.is_protected || isProtectedDir);
     const targetTermPath = f.is_dir ? fullPath : currentFilesData.path;
     const icon = f.is_dir ? '📁' : getFileIcon(f.name);
@@ -11538,7 +11675,7 @@ function renderFilesTableBody() {
         <td style="word-break: break-all;">
           <button type="button" class="btn-file-pin ${isPinned ? 'pinned' : ''}" onclick="openPinModal('${escapeHtml(fullPath)}', ${f.is_dir})" title="${isPinned ? escapeHtml(pin.note || t('pinned')) : t('pin_this_item')}">${isPinned ? '📌' : '📍'}</button>
           ${f.is_dir 
-            ? '<a class="folder-link" href="javascript:void(0)" onclick="loadFiles(\'' + fullPath + '\')"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>' + escapeHtml(f.name) + '</b></a>' 
+            ? `<a class="folder-link" href="javascript:void(0)" onclick="loadFiles('${escapeHtml(fullPath)}')"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>${escapeHtml(f.name)}</b></a>` 
             : '<span style="font-size: 1.05em; margin-right: 4px;">' + icon + '</span> ' + escapeHtml(f.name)}
           ${isPinned && pin.note ? `<span class="file-pin-badge" title="${escapeHtml(pin.note)}">📝 ${escapeHtml(pin.note)}</span>` : ''}
           ${isItemProtected ? '<span title="' + t('protected_path') + '" style="margin-left: 6px; font-size: 0.85em;">🔒</span>' : ''}
@@ -11556,7 +11693,7 @@ function renderFilesTableBody() {
             ${f.is_dir 
               ? `<button class="btn btn-sm action-btn-download" title="${t('download_folder', 'Download Folder Archive')}" onclick="downloadFolder('${escapeHtml(fullPath)}')">⬇️</button>` 
               : `<a class="btn btn-sm action-btn-download" title="${t('download_file', 'Download File')}" href="/api/hosts/${currentHost.id}/files/download?path=${encodeURIComponent(fullPath)}" download>⬇️</a>`}
-            <button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(fullPath)}', ${f.is_dir})">${t('copy_to_host')}</button>
+            ${currentHost && currentHost.os_type === 'windows' ? '' : `<button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(fullPath)}', ${f.is_dir})">${t('copy_to_host')}</button>`}
             <button class="btn btn-danger btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_delete_protected') + '"' : ''} onclick="deleteRemoteFile('${escapeHtml(fullPath)}', '${escapeHtml(currentFilesData.path)}')">🗑️</button>
           </div>
         </td>
@@ -12106,7 +12243,8 @@ async function jumpToHostFile(hostId, targetPath, isDir) {
   if (isDir) {
     loadFiles(targetPath);
   } else {
-    const parentDir = targetPath.substring(0, targetPath.lastIndexOf('/')) || '/';
+    let parentDir = targetPath.substring(0, targetPath.lastIndexOf('/')) || '/';
+    if (parentDir.endsWith(':')) parentDir += '/';
     await loadFiles(parentDir);
     setTimeout(() => {
       openEditor(targetPath);
@@ -12151,12 +12289,13 @@ function getEditorModeForPath(filePath) {
   const map = {
     'js': 'javascript', 'ts': 'javascript', 'json': 'javascript',
     'sh': 'shell', 'bash': 'shell', 'zsh': 'shell', 'env': 'shell',
+    'ps1': 'shell', 'psm1': 'shell', 'psd1': 'shell', 'bat': 'shell', 'cmd': 'shell',
     'php': 'php',
     'yml': 'yaml', 'yaml': 'yaml',
     'css': 'css', 'scss': 'css',
     'html': 'htmlmixed', 'htm': 'htmlmixed',
-    'xml': 'xml', 'svg': 'xml',
-    'c': 'clike', 'cpp': 'clike', 'h': 'clike', 'java': 'clike'
+    'xml': 'xml', 'svg': 'xml', 'config': 'xml',
+    'c': 'clike', 'cpp': 'clike', 'h': 'clike', 'java': 'clike', 'cs': 'clike'
   };
   return map[ext] || 'shell';
 }
@@ -12939,6 +13078,11 @@ function extractPathFromTerminalTitle(title) {
   let str = title.trim().replace(/[\x00\x07]/g, '').trim();
   // Strip trailing shell or window manager indicators (e.g. " - bash", " (tmux)")
   str = str.replace(/\s*-\s*[A-Za-z0-9_.-]+$/, '').replace(/\s*\([^)]*\)$/, '').trim();
+  // Check for Windows drive path pattern e.g. C:\Users\Admin or C:/Users/Admin
+  const winMatch = str.match(/(?:^|[:\s])([a-zA-Z]:[\\/][^\s]*)/);
+  if (winMatch) {
+    return winMatch[1].replace(/\\/g, '/');
+  }
   const colonIdx = str.lastIndexOf(':');
   if (colonIdx !== -1) {
     str = str.substring(colonIdx + 1).trim();
@@ -12970,6 +13114,9 @@ function extractPathFromTerminalBuffer(term) {
     // 3. user:~/dir$
     const m3 = text.match(/[:]([~/][^\s\$#%>]*)\s*[\$#%>]/);
     if (m3 && m3[1]) return m3[1].trim();
+    // 4. Windows prompts: PS C:\Users\Admin> or C:\Users\Admin> or PS C:/Users/Admin>
+    const mWin = text.match(/(?:PS\s+)?([a-zA-Z]:[\\/][^>]*?)>\s*$/);
+    if (mWin && mWin[1]) return mWin[1].trim().replace(/\\/g, '/');
   }
   return null;
 }
@@ -13004,7 +13151,9 @@ function getTerminalActivePath(tabId) {
   if (currentPath && currentPath !== '/') {
     return currentPath;
   }
-  return tab.initialDir || getHostFilesPath(targetHostId) || '/';
+  const hostObj = (allRawHosts || []).find(h => h.id === targetHostId);
+  const defaultRoot = (hostObj && hostObj.os_type === 'windows') ? 'C:/' : '/';
+  return tab.initialDir || getHostFilesPath(targetHostId) || defaultRoot;
 }
 
 function setupTerminalPathTracking(tab, pane, term) {
@@ -13019,8 +13168,11 @@ function setupTerminalPathTracking(tab, pane, term) {
           const match = p.match(/^file:\/\/[^\/]*(\/.*)$/);
           if (match) p = decodeURIComponent(match[1]);
         }
-        if (p && (p.startsWith('/') || p.startsWith('~'))) {
-          setTabActivePath(tab, pane, p);
+        if (p && (p.startsWith('/') || p.startsWith('~') || /^[a-zA-Z]:/.test(p))) {
+          if (p.startsWith('/') && p.length >= 3 && p[2] === ':') {
+            p = p.slice(1);
+          }
+          setTabActivePath(tab, pane, p.replace(/\\/g, '/'));
         }
       } catch (e) {}
       return true;
@@ -13045,24 +13197,47 @@ function setupTerminalPathTracking(tab, pane, term) {
       if (ch === '\r' || ch === '\n') {
         const cmd = inputBuffer.trim();
         inputBuffer = '';
-        const cdMatch = cmd.match(/^cd(?:\s+(.*))?$/);
+        const driveMatch = cmd.match(/^([a-zA-Z]):$/);
+        if (driveMatch) {
+          setTabActivePath(tab, pane, driveMatch[1].toUpperCase() + ':/');
+        }
+        const cdMatch = cmd.match(/^(?:cd|Set-Location|sl)(?:\s+(.*))?$/i);
         if (cdMatch) {
           let target = (cdMatch[1] || '').trim();
           target = target.replace(/^['"]|['"]$/g, '').trim();
-          if (!target || target === '~') {
+          if (!target || target === '~' || target === '~/') {
             setTabActivePath(tab, pane, '~');
+          } else if (target === '/' || target === '\\') {
+            const cur = (pane === 'right' ? tab.currentDirRight : tab.currentDirLeft) || '';
+            if (cur && cur.length >= 2 && cur[1] === ':') {
+              setTabActivePath(tab, pane, cur.substring(0, 2).toUpperCase() + '/');
+            } else {
+              const hostObj = (allRawHosts || []).find(h => h.id === (tab ? (pane === 'right' && tab.isSplit ? (tab.hostIDRight || tab.hostID) : tab.hostID) : null));
+              setTabActivePath(tab, pane, (hostObj && hostObj.os_type === 'windows') ? 'C:/' : '/');
+            }
           } else if (target.startsWith('/') || target.startsWith('~')) {
             setTabActivePath(tab, pane, target);
+          } else if (/^[a-zA-Z]:[\\/]/.test(target) || /^[a-zA-Z]:$/.test(target)) {
+            let winP = target.replace(/\\/g, '/');
+            if (winP.length === 2 && winP[1] === ':') winP += '/';
+            setTabActivePath(tab, pane, winP);
           } else if (target === '..') {
             const cur = (pane === 'right' ? tab.currentDirRight : tab.currentDirLeft) || '';
             if (cur && cur !== '/' && cur !== '~') {
-              const parent = cur.substring(0, cur.lastIndexOf('/')) || '/';
-              setTabActivePath(tab, pane, parent);
+              const lastSlash = cur.lastIndexOf('/');
+              if (lastSlash > 2) {
+                setTabActivePath(tab, pane, cur.substring(0, lastSlash));
+              } else if (lastSlash === 2 && cur[1] === ':') {
+                setTabActivePath(tab, pane, cur.substring(0, 3));
+              } else {
+                const parent = cur.substring(0, lastSlash) || '/';
+                setTabActivePath(tab, pane, parent);
+              }
             }
           } else if (target !== '.' && !target.includes(' ')) {
             const cur = (pane === 'right' ? tab.currentDirRight : tab.currentDirLeft);
             if (cur && cur !== '/' && cur !== '~') {
-              setTabActivePath(tab, pane, cur.replace(/\/$/, '') + '/' + target);
+              setTabActivePath(tab, pane, cur.replace(/\/$/, '') + '/' + target.replace(/\\/g, '/'));
             }
           }
         }
@@ -13371,9 +13546,9 @@ function sendTabCommand(tabId, cmd) {
   if (!tab) return;
   if (cmd && typeof cmd === 'string') {
     const trimmed = cmd.trim();
-    const cdMatch = trimmed.match(/^cd\s+['"]?([^'";\s]+)['"]?/);
-    if (cdMatch && cdMatch[1] && (cdMatch[1].startsWith('/') || cdMatch[1].startsWith('~'))) {
-      setTabActivePath(tab, tab.focusedPane, cdMatch[1]);
+    const cdMatch = trimmed.match(/^cd\s+['"]?([^'";\s]+)['"]?/i);
+    if (cdMatch && cdMatch[1] && (cdMatch[1].startsWith('/') || cdMatch[1].startsWith('~') || /^[a-zA-Z]:/.test(cdMatch[1]))) {
+      setTabActivePath(tab, tab.focusedPane, cdMatch[1].replace(/\\/g, '/'));
     }
   }
   const ws = (tab.focusedPane === 'right' && tab.isSplit) ? tab.socketRight : tab.socketLeft;
@@ -13596,16 +13771,29 @@ function renderTerminalPinsList(tabId, hostId, pins) {
 function triggerPinAction(tabId, path, isDir) {
   const menu = document.getElementById('pinsDropdownMenu_' + tabId);
   if (menu) menu.style.display = 'none';
+  const tab = terminalTabs.find(t => t.id === tabId);
+  const targetHostId = (tab && tab.isSplit && tab.focusedPane === 'right') ? (tab.hostIDRight || tab.hostID) : (tab ? tab.hostID : null);
+  const hostObj = (allRawHosts || []).find(h => h.id === targetHostId);
+  const isWindows = hostObj && hostObj.os_type === 'windows';
+
   if (isDir) {
-    const tab = terminalTabs.find(t => t.id === tabId);
     if (tab) {
       setTabActivePath(tab, tab.focusedPane, path);
     }
-    sendTabCommand(tabId, "cd '" + path.replace(/'/g, "'\\''") + "'");
+    if (isWindows) {
+      const cleanP = path.replace(/\\/g, '/');
+      const drive = (cleanP.length >= 2 && cleanP[1] === ':') ? cleanP.slice(0, 2).toUpperCase() : '';
+      if (drive) {
+        sendTabCommand(tabId, `${drive}\r\ncd "${cleanP}"`);
+      } else {
+        sendTabCommand(tabId, `cd "${cleanP}"`);
+      }
+    } else {
+      sendTabCommand(tabId, "cd '" + path.replace(/'/g, "'\\''") + "'");
+    }
   } else {
     // Inject path into active terminal session with quotes and trailing space without newline
-    const escaped = "'" + path.replace(/'/g, "'\\''") + "' ";
-    const tab = terminalTabs.find(t => t.id === tabId);
+    const escaped = isWindows ? ('"' + path.replace(/\\/g, '/').replace(/"/g, '""') + '" ') : ("'" + path.replace(/'/g, "'\\''") + "' ");
     if (!tab) return;
     const ws = (tab.focusedPane === 'right' && tab.isSplit) ? tab.socketRight : tab.socketLeft;
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -15703,6 +15891,10 @@ function formatBytes(bytes) {
 
 async function openTransferDialog(srcPath, isDir) {
   if (!currentHost) return;
+  if (currentHost.os_type === 'windows') {
+    showToast(t('transfer_windows_unsupported', 'Cross-host transfer is not supported for Windows hosts.'), 'error');
+    return;
+  }
   document.getElementById('transferSourceHost').innerText = 'From: ' + currentHost.name + ' (' + currentHost.host + ')';
   document.getElementById('transferSourcePath').value = srcPath;
   
@@ -15711,7 +15903,7 @@ async function openTransferDialog(srcPath, isDir) {
   const hosts = await res.json();
   const select = document.getElementById('transferDestHost');
   select.innerHTML = '';
-  const availableHosts = hosts.filter(h => h.id !== currentHost.id);
+  const availableHosts = hosts.filter(h => h.id !== currentHost.id && h.os_type !== 'windows');
   if (availableHosts.length === 0) {
     showToast(t('no_other_dest_host'), 'error');
     return;
@@ -16796,6 +16988,16 @@ function openNetDiagModal(initialSourceHostId) {
 
 function renderNetDiagTab(host) {
   const container = document.getElementById('tabContent');
+  if (host && host.os_type === 'windows') {
+    container.innerHTML = `
+      <div class="empty-state" style="padding: 40px 20px;">
+        <div class="empty-state-icon">🪟</div>
+        <div class="empty-state-title">${t('netdiag_windows_unsupported_title', 'Network Diagnostics Not Applicable')}</div>
+        <div class="empty-state-desc" style="max-width: 520px; margin: 8px auto; line-height: 1.5; color: var(--text-muted);">${t('netdiag_windows_unsupported_desc', 'Network Diagnostics and Triage Matrix probe execution from Windows source hosts is not supported. Use Linux hosts as diagnostic probes.')}</div>
+      </div>
+    `;
+    return;
+  }
   renderNetDiagUI(container, 'tab', host ? host.id : null, true);
   loadProbeTargetPresets().then(() => {
     populateNetDiagPresetDropdown('netdiag_tab');
@@ -16817,7 +17019,7 @@ function renderNetDiagUI(container, contextPrefix, defaultSourceId, isSourceLock
   currentNetDiagHops = [];
   currentNetDiagRawLines = [];
 
-  const onlineHosts = (allRawHosts || []).filter(h => h.status !== 'down');
+  const onlineHosts = (allRawHosts || []).filter(h => h.status !== 'down' && h.os_type !== 'windows');
   const availableSourceHosts = isSourceLocked ? (allRawHosts || []).filter(h => h.id === defaultSourceId) : onlineHosts;
 
   let activeSourceId = defaultSourceId;
@@ -18876,7 +19078,7 @@ function calculateHostComparison(hosts) {
         },
         {
           id: 'cpu_load_norm',
-          label: t('cpu_load_per_core', 'CPU Load (1m) / Core'),
+          label: t('cpu_load_per_core', 'CPU Load / Core'),
           polarity: -1,
           extract: h => {
             let load1m = 0;
@@ -18884,9 +19086,12 @@ function calculateHostComparison(hosts) {
               const parts = h.cpu_load.replace(',', ' ').trim().split(/\s+/);
               if (parts.length > 0) load1m = parseFloat(parts[0]) || 0;
             }
+            if (h.os_type === 'windows') {
+              return load1m;
+            }
             return load1m / Math.max(1, h.cpu_cores || 1);
           },
-          format: (v, h) => `${v.toFixed(2)} / core`
+          format: (v, h) => h.os_type === 'windows' ? `${Math.round(v)}% util` : `${v.toFixed(2)} / core`
         },
         {
           id: 'ram_total',
@@ -18913,10 +19118,10 @@ function calculateHostComparison(hosts) {
       metrics: [
         {
           id: 'disk_total',
-          label: t('total_disk', 'Total Root Storage'),
+          label: t('total_disk', 'Total Storage'),
           polarity: 1,
           extract: h => h.disk_total_bytes || 0,
-          format: (v, h) => formatBytes(v)
+          format: (v, h) => `${formatBytes(v)} (${h.os_type === 'windows' ? 'C:' : '/'})`
         },
         {
           id: 'disk_free_pct',

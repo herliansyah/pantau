@@ -5,8 +5,8 @@ Sistem pemantauan dan manajemen infrastruktur server berbasis agentless SSH deng
 ## Language
 
 **Host**:
-Mesin server fisik atau virtual (VPS) Linux yang dikelola dan dipantau melalui koneksi SSH.
-_Avoid_: Node, instance, machine, windows target
+Mesin server fisik, virtual (VPS), atau workstation berbasis Linux atau Windows yang dikelola dan dipantau secara agentless melalui koneksi SSH.
+_Avoid_: Node, instance, machine, client daemon
 
 **Desired State**:
 Kumpulan aturan dan ekspektasi yang didefinisikan untuk sebuah Host (misal: service harus aktif, disk di bawah ambang batas, container tertentu harus running).

@@ -1,12 +1,15 @@
 package inspector
 
 import (
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 
 	"pantau/internal/sshrunner"
 	"pantau/internal/store"
@@ -907,4 +910,560 @@ invalid line here
 		}
 	}
 }
+
+func TestPowershellEncodedCmd(t *testing.T) {
+	script := "Write-Output 'Hello Windows'"
+	cmd := powershellEncodedCmd(script)
+	if !strings.HasPrefix(cmd, "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ") {
+		t.Fatalf("unexpected encoded cmd prefix: %s", cmd)
+	}
+}
+
+func TestDetectHostOS(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-win-detect-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name: "WinServer",
+		Host: "192.168.1.50",
+		Port: 22,
+		User: "Administrator",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h, _ := db.GetHost(hostID)
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		if strings.Contains(cmd, "uname -s") || strings.Contains(cmd, "ver") {
+			return "Microsoft Windows [Version 10.0.19045.2965]\r\n", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	ins := New(db, func(h string, p int, u, k string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	ins.detectHostOS(h, mockRunner)
+	if h.OSType != "windows" {
+		t.Fatalf("expected OSType 'windows', got %q", h.OSType)
+	}
+
+	saved, _ := db.GetHost(hostID)
+	if saved.OSType != "windows" {
+		t.Fatalf("expected saved OSType in DB 'windows', got %q", saved.OSType)
+	}
+}
+
+func TestDetectHostOS_GitBash(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-win-detect-gitbash-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name: "WinServerGitBash",
+		Host: "192.168.1.51",
+		Port: 22,
+		User: "Administrator",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	h, _ := db.GetHost(hostID)
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		if strings.Contains(cmd, "uname -s") {
+			return "MINGW64_NT-10.0-19045\n", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	ins := New(db, func(h string, p int, u, k string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	ins.detectHostOS(h, mockRunner)
+	if h.OSType != "windows" {
+		t.Fatalf("expected OSType 'windows', got %q", h.OSType)
+	}
+
+	saved, _ := db.GetHost(hostID)
+	if saved.OSType != "windows" {
+		t.Fatalf("expected saved OSType in DB 'windows', got %q", saved.OSType)
+	}
+}
+
+func TestWindowsRuleEvaluation(t *testing.T) {
+	ins := &Inspector{}
+	host := &store.Host{ID: 10, Host: "10.0.0.5", OSType: "windows"}
+	mockRunner := sshrunner.NewMockRunner()
+
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		// Mock responses based on encoded commands
+		// Note: powershellEncodedCmd base64 encoded strings
+		return "", "", 0, nil
+	}
+
+	// 1. Service rule with 'Running' normalized to 'active'
+	svcMock := sshrunner.NewMockRunner()
+	svcMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "Running\r\n", "", 0, nil
+	}
+	current, status, _, _ := ins.evaluateRule(host, svcMock, &store.DesiredRule{
+		Kind:     "service",
+		Target:   "w32time",
+		Expected: "active",
+	})
+	if status != "ok" || current != "Running" {
+		t.Fatalf("expected service ok with current Running, got status=%s current=%s", status, current)
+	}
+
+	// 1b. Service rule with 'Stopped' normalized to 'inactive'
+	svcStoppedMock := sshrunner.NewMockRunner()
+	svcStoppedMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "Stopped\r\n", "", 0, nil
+	}
+	current, status, _, _ = ins.evaluateRule(host, svcStoppedMock, &store.DesiredRule{
+		Kind:     "service",
+		Target:   "w32time",
+		Expected: "inactive",
+	})
+	if status != "ok" || current != "Stopped" {
+		t.Fatalf("expected stopped service ok with expected inactive, got status=%s current=%s", status, current)
+	}
+
+	// 1c. Service rule with 'Stopped' matching expected 'stopped'
+	current, status, _, _ = ins.evaluateRule(host, svcStoppedMock, &store.DesiredRule{
+		Kind:     "service",
+		Target:   "w32time",
+		Expected: "stopped",
+	})
+	if status != "ok" || current != "Stopped" {
+		t.Fatalf("expected stopped service ok with expected stopped, got status=%s current=%s", status, current)
+	}
+
+	// 2. Disk rule normalized to C:
+	diskMock := sshrunner.NewMockRunner()
+	diskMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		// Size: 100GB (107374182400), Free: 60GB (64424509440) -> 40% used
+		return "107374182400|64424509440", "", 0, nil
+	}
+	current, status, _, _ = ins.evaluateRule(host, diskMock, &store.DesiredRule{
+		Kind:     "disk",
+		Target:   "/",
+		Expected: "<85%",
+	})
+	if status != "ok" || current != "40%" {
+		t.Fatalf("expected disk ok with current 40%%, got status=%s current=%s", status, current)
+	}
+
+	// 3. Port rule
+	portMock := sshrunner.NewMockRunner()
+	portMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "listening", "", 0, nil
+	}
+	current, status, _, _ = ins.evaluateRule(host, portMock, &store.DesiredRule{
+		Kind:     "port",
+		Target:   "3389",
+		Expected: "listening",
+	})
+	if status != "ok" || current != "listening" {
+		t.Fatalf("expected port listening ok, got status=%s current=%s", status, current)
+	}
+
+	// 4. Process rule (with path and .exe suffix)
+	procMock := sshrunner.NewMockRunner()
+	procMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "running", "", 0, nil
+	}
+	current, status, _, _ = ins.evaluateRule(host, procMock, &store.DesiredRule{
+		Kind:     "process",
+		Target:   `C:\Program Files\App\explorer.exe`,
+		Expected: "running",
+	})
+	if status != "ok" || current != "running" {
+		t.Fatalf("expected process running ok, got status=%s current=%s", status, current)
+	}
+
+	// 5. Container rule
+	containerMock := sshrunner.NewMockRunner()
+	containerMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "running|0|false|\n", "", 0, nil
+	}
+	current, status, _, _ = ins.evaluateRule(host, containerMock, &store.DesiredRule{
+		Kind:     "container",
+		Target:   "web-server",
+		Expected: "running",
+	})
+	if status != "ok" || current != "running" {
+		t.Fatalf("expected container running ok, got status=%s current=%s", status, current)
+	}
+
+	// 5b. Container drift with excerpt extraction
+	containerDriftMock := sshrunner.NewMockRunner()
+	containerDriftMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		if strings.Contains(cmd, "docker inspect") || strings.Contains(cmd, "-EncodedCommand") {
+			return "exited|137|true|OOMKilled\n", "", 0, nil
+		}
+		return "panic: out of memory\n", "", 0, nil
+	}
+	current, status, _, rootCause := ins.evaluateRule(host, containerDriftMock, &store.DesiredRule{
+		Kind:     "container",
+		Target:   "crash-app",
+		Expected: "running",
+	})
+	if status != "drift" || current != "exited" {
+		t.Fatalf("expected container drift, got status=%s current=%s", status, current)
+	}
+	if !strings.Contains(rootCause, "OOMKilled") || !strings.Contains(rootCause, "ExitCode: 137") {
+		t.Fatalf("expected OOMKilled diagnostics in rootCause, got: %s", rootCause)
+	}
+
+	// 5c. Container expected exited
+	containerExitedMock := sshrunner.NewMockRunner()
+	containerExitedMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "exited|0|false|\n", "", 0, nil
+	}
+	current, status, _, _ = ins.evaluateRule(host, containerExitedMock, &store.DesiredRule{
+		Kind:     "container",
+		Target:   "batch-job",
+		Expected: "exited",
+	})
+	if status != "ok" || current != "exited" {
+		t.Fatalf("expected container exited ok, got status=%s current=%s", status, current)
+	}
+
+	// 6. Backup rule
+	backupMock := sshrunner.NewMockRunner()
+	nowUnix := time.Now().Unix() - 3600 // 1 hour ago
+	backupMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		return fmt.Sprintf("1048576 %d\n", nowUnix), "", 0, nil
+	}
+	current, status, _, _ = ins.evaluateRule(host, backupMock, &store.DesiredRule{
+		Kind:     "backup",
+		Target:   `C:\backups\db.bak`,
+		Expected: "fresh_24h",
+	})
+	if status != "ok" || !strings.Contains(current, "fresh") {
+		t.Fatalf("expected backup fresh ok, got status=%s current=%s", status, current)
+	}
+
+	// 7. Cron / Scheduled task rule on Windows
+	cronMock := sshrunner.NewMockRunner()
+	cronMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "configured\r\n", "", 0, nil
+	}
+	current, status, _, _ = ins.evaluateRule(host, cronMock, &store.DesiredRule{
+		Kind:     "cron",
+		Target:   "DailyBackup",
+		Expected: "configured",
+	})
+	if status != "ok" || current != "configured" {
+		t.Fatalf("expected windows cron rule ok, got status=%s current=%s", status, current)
+	}
+
+	// 7b. Scheduled task rule disabled drift
+	taskDisabledMock := sshrunner.NewMockRunner()
+	taskDisabledMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		return "disabled\r\n", "", 0, nil
+	}
+	current, status, _, rootCause = ins.evaluateRule(host, taskDisabledMock, &store.DesiredRule{
+		Kind:     "task",
+		Target:   "NightlySync",
+		Expected: "configured",
+	})
+	if status != "drift" || current != "disabled" || !strings.Contains(rootCause, "Disabled") {
+		t.Fatalf("expected disabled scheduled task drift, got status=%s current=%s rootCause=%s", status, current, rootCause)
+	}
+
+	// 8. Disk normalization with various formats (C:/, c:, \, D:, D:\data)
+	var capturedDiskCmd string
+	diskNormMock := sshrunner.NewMockRunner()
+	diskNormMock.DefaultExec = func(cmd string) (string, string, int, error) {
+		capturedDiskCmd = cmd
+		return "1000|500", "", 0, nil
+	}
+	current, status, _, _ = ins.evaluateRule(host, diskNormMock, &store.DesiredRule{
+		Kind:     "disk",
+		Target:   "C:/",
+		Expected: "<85%",
+	})
+	if status != "ok" || current != "50%" {
+		t.Fatalf("expected C:/ disk ok, got status=%s current=%s", status, current)
+	}
+
+	// 8b. Disk normalization for path D:\data
+	current, status, _, _ = ins.evaluateRule(host, diskNormMock, &store.DesiredRule{
+		Kind:     "disk",
+		Target:   `D:\data\app`,
+		Expected: "<85%",
+	})
+	if status != "ok" || current != "50%" {
+		t.Fatalf("expected D:\\data\\app disk ok, got status=%s current=%s", status, current)
+	}
+	// Verify captured command encodes D: and not D:\data or D:/DATA:
+	// Decoding the base64 UTF-16LE in capturedDiskCmd:
+	b64Part := strings.TrimPrefix(capturedDiskCmd, "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ")
+	decodedBytes, err := base64.StdEncoding.DecodeString(b64Part)
+	if err == nil {
+		u16 := make([]uint16, len(decodedBytes)/2)
+		for i := 0; i < len(u16); i++ {
+			u16[i] = uint16(decodedBytes[i*2]) | (uint16(decodedBytes[i*2+1]) << 8)
+		}
+		decodedStr := string(utf16.Decode(u16))
+		if !strings.Contains(decodedStr, "DeviceID='D:'") {
+			t.Fatalf("expected powershell command to query DeviceID='D:', got: %s", decodedStr)
+		}
+	}
+
+	// 8c. Disk normalization for Git Bash path /d/data
+	current, status, _, _ = ins.evaluateRule(host, diskNormMock, &store.DesiredRule{
+		Kind:     "disk",
+		Target:   "/d/data",
+		Expected: "<85%",
+	})
+	if status != "ok" || current != "50%" {
+		t.Fatalf("expected /d/data disk ok, got status=%s current=%s", status, current)
+	}
+	b64Part = strings.TrimPrefix(capturedDiskCmd, "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ")
+	decodedBytes, err = base64.StdEncoding.DecodeString(b64Part)
+	if err == nil {
+		u16 := make([]uint16, len(decodedBytes)/2)
+		for i := 0; i < len(u16); i++ {
+			u16[i] = uint16(decodedBytes[i*2]) | (uint16(decodedBytes[i*2+1]) << 8)
+		}
+		decodedStr := string(utf16.Decode(u16))
+		if !strings.Contains(decodedStr, "DeviceID='D:'") {
+			t.Fatalf("expected powershell command for /d/data to query DeviceID='D:', got: %s", decodedStr)
+		}
+	}
+}
+
+func TestWindowsParseBIOSDate(t *testing.T) {
+	// Standard ISO format
+	t1, ok1 := ParseBIOSDate("2022-05-18")
+	if !ok1 || t1.Year() != 2022 || t1.Month() != time.May || t1.Day() != 18 {
+		t.Fatalf("failed to parse ISO BIOS date 2022-05-18: %v", t1)
+	}
+
+	// Compact format from Win32_BIOS ReleaseDate
+	t2, ok2 := ParseBIOSDate("20210825")
+	if !ok2 || t2.Year() != 2021 || t2.Month() != time.August || t2.Day() != 25 {
+		t.Fatalf("failed to parse compact BIOS date 20210825: %v", t2)
+	}
+}
+
+func TestWindowsDockerActionAndBaseline(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-win-docker-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name:   "Win Docker Host",
+		Host:   "10.0.0.120",
+		Port:   22,
+		User:   "Administrator",
+		OSType: "windows",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var executedCmds []string
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		executedCmds = append(executedCmds, cmd)
+		decoded := cmd
+		if strings.Contains(cmd, "-EncodedCommand ") {
+			parts := strings.Split(cmd, "-EncodedCommand ")
+			if len(parts) == 2 {
+				b, _ := base64.StdEncoding.DecodeString(strings.TrimSpace(parts[1]))
+				u16 := make([]uint16, len(b)/2)
+				for i := range u16 {
+					u16[i] = uint16(b[i*2]) | (uint16(b[i*2+1]) << 8)
+				}
+				decoded = string(utf16.Decode(u16))
+			}
+		}
+		if strings.Contains(decoded, "docker ps") {
+			return "sql-server\niis-app\n", "", 0, nil
+		}
+		if strings.Contains(decoded, "Get-ScheduledTask") {
+			return "AppSyncTask\n", "", 0, nil
+		}
+		if strings.Contains(decoded, "Get-Service") {
+			return "W3SVC\n", "", 0, nil
+		}
+		if strings.Contains(decoded, "docker restart") {
+			return "sql-server\n", "", 0, nil
+		}
+		return "", "", 0, nil
+	}
+
+	ins := New(db, func(h string, p int, u, k string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	// 1. Generate Baseline should discover containers and scheduled tasks on Windows
+	rules, err := ins.GenerateBaseline(hostID)
+	if err != nil {
+		t.Fatalf("GenerateBaseline error: %v", err)
+	}
+	var hasContainer, hasTask, hasService bool
+	for _, r := range rules {
+		if r.Kind == "container" && r.Target == "sql-server" {
+			hasContainer = true
+		}
+		if r.Kind == "cron" && r.Target == "AppSyncTask" {
+			hasTask = true
+		}
+		if r.Kind == "service" && r.Target == "W3SVC" {
+			hasService = true
+		}
+	}
+	if !hasContainer {
+		t.Fatalf("expected sql-server container in generated baseline, got rules: %+v", rules)
+	}
+	if !hasTask {
+		t.Fatalf("expected AppSyncTask scheduled task in generated baseline, got rules: %+v", rules)
+	}
+	if !hasService {
+		t.Fatalf("expected W3SVC service in generated baseline, got rules: %+v", rules)
+	}
+
+	// 2. DockerAction on Windows should execute via powershellEncodedCmd
+	out, err := ins.DockerAction(hostID, "sql-server", "restart")
+	if err != nil {
+		t.Fatalf("DockerAction error: %v", err)
+	}
+	if !strings.Contains(out, "sql-server") {
+		t.Fatalf("unexpected DockerAction output: %s", out)
+	}
+	lastCmd := executedCmds[len(executedCmds)-1]
+	if !strings.Contains(lastCmd, "powershell.exe") {
+		t.Fatalf("expected PowerShell execution for Windows docker action, got: %s", lastCmd)
+	}
+}
+
+func TestWindowsApplicationMetricProbes(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-win-probes-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name:           "Win App Host",
+		Host:           "10.0.0.99",
+		Port:           22,
+		User:           "Administrator",
+		OSType:         "windows",
+		MetricsEnabled: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = db.CreateHostMetricProbe(&store.HostMetricProbe{
+		HostID:  hostID,
+		Name:    "IIS Connections",
+		Command: `(Get-Counter '\Web Service(_Total)\Current Connections').CounterSamples.CookedValue`,
+		Enabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mockRunner := sshrunner.NewMockRunner()
+	var executedCmd string
+	mockRunner.DefaultExec = func(cmd string) (string, string, int, error) {
+		executedCmd = cmd
+		return "---PROBE:1---\niis_active: 42\n", "", 0, nil
+	}
+
+	ins := New(db, func(h string, p int, u, k string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	h, _ := db.GetHost(hostID)
+	ins.collectMetricSamples(h, mockRunner)
+
+	if !strings.Contains(executedCmd, "powershell.exe") {
+		t.Fatalf("expected powershell encoded execution on Windows, got: %s", executedCmd)
+	}
+
+	res, err := db.GetMetricSamples(hostID, nil, 0, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := res.Series["iis_active"]; !ok || len(v) == 0 || v[0] != 42.0 {
+		t.Fatalf("expected probe metric iis_active=42, got %v", res.Series)
+	}
+}
+
+func TestWindowsLocaleDecimalAndTopProcesses(t *testing.T) {
+	// Test parseTopProcesses with non-English locale comma decimals (e.g. 15,2% CPU, 4,8% MEM)
+	outComma := "101 SYSTEM 15,2 4,8 102400 svchost\n102 SYSTEM 8,5 2,1 51200 w3wp\n"
+	procs := parseTopProcesses(outComma)
+	if len(procs) != 2 {
+		t.Fatalf("expected 2 processes, got %d", len(procs))
+	}
+	if procs[0].CPU != 15.2 {
+		t.Errorf("expected CPU 15.2, got %v", procs[0].CPU)
+	}
+	if procs[0].MEM != 4.8 {
+		t.Errorf("expected MEM 4.8, got %v", procs[0].MEM)
+	}
+	if procs[1].CPU != 8.5 {
+		t.Errorf("expected CPU 8.5, got %v", procs[1].CPU)
+	}
+
+	// Test calculateLifecycleScore with Windows and comma CPU load
+	score, _, _ := calculateLifecycleScore("Microsoft Windows Server 2022", "12,5, 12,5, 12,5", 4, 1000, 2000, 1000, 2000, 0, "", "", 0, "")
+	if score <= 0 {
+		t.Errorf("expected positive score, got %d", score)
+	}
+
+	// Test parseProbeOutput with comma decimals
+	samples := make(map[string]float64)
+	parseProbeOutput("custom_metric: 89,75\n", samples)
+	if val, ok := samples["custom_metric"]; !ok || val != 89.75 {
+		t.Errorf("expected 89.75, got %v (found: %v)", val, ok)
+	}
+}
+
 

@@ -643,3 +643,67 @@ func TestBranchTriageMatrixAPIAndHistory(t *testing.T) {
 		t.Fatalf("expected 0 remaining incident logs, got %d", len(remaining))
 	}
 }
+
+func TestNetDiagWindowsHostRejection(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-netdiag-win-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name:   "Win Probe Host",
+		Host:   "10.0.0.88",
+		Port:   22,
+		User:   "Administrator",
+		Status: "healthy",
+		OSType: "windows",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ins := inspector.New(db, func(h string, p int, u, k string) (sshrunner.Runner, error) {
+		return sshrunner.NewMockRunner(), nil
+	}, nil)
+
+	srv := NewServer(db, ins, nil)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/netdiag/stream", srv.authMiddleware(srv.handleNetDiagStream))
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	sessionToken := "test_netdiag_win_token"
+	srv.sessions.Store(sessionToken, time.Now().Add(1*time.Hour))
+
+	req, _ := http.NewRequest("GET", fmt.Sprintf("%s/api/netdiag/stream?source_host_id=%d&type=ping&target=1.1.1.1", ts.URL, hostID), nil)
+	req.AddCookie(&http.Cookie{Name: "pantau_session", Value: sessionToken})
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	scanner := bufio.NewScanner(resp.Body)
+	var outputLines []string
+	for scanner.Scan() {
+		line := scanner.Text()
+		outputLines = append(outputLines, line)
+		if strings.Contains(line, "event: error") || strings.Contains(line, "not supported") {
+			break
+		}
+	}
+
+	combined := strings.Join(outputLines, "\n")
+	if !strings.Contains(combined, "not supported") {
+		t.Fatalf("expected error indicating Windows source hosts are not supported, got: %s", combined)
+	}
+}

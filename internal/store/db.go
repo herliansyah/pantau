@@ -33,6 +33,7 @@ type Host struct {
 	User           string    `json:"user"`
 	CustomKey      string    `json:"custom_key,omitempty"`
 	Status         string    `json:"status"` // healthy, degraded, down, unknown
+	OSType         string    `json:"os_type,omitempty"` // linux, windows
 	OSInfo         string    `json:"os_info"`
 	Kernel         string    `json:"kernel"`
 	Uptime         string    `json:"uptime"`
@@ -294,7 +295,8 @@ func (d *DB) migrate() error {
 		top_cpu_processes TEXT DEFAULT '',
 		top_ram_processes TEXT DEFAULT '',
 		top_swap_processes TEXT DEFAULT '',
-		metrics_enabled INTEGER DEFAULT -1
+		metrics_enabled INTEGER DEFAULT -1,
+		os_type TEXT DEFAULT 'linux'
 	);
 
 	CREATE TABLE IF NOT EXISTS host_packages (
@@ -529,6 +531,7 @@ func (d *DB) migrate() error {
 	_ = d.alterAddColumn("hosts", "top_ram_processes", "TEXT DEFAULT ''")
 	_ = d.alterAddColumn("hosts", "top_swap_processes", "TEXT DEFAULT ''")
 	_ = d.alterAddColumn("hosts", "metrics_enabled", "INTEGER DEFAULT -1")
+	_ = d.alterAddColumn("hosts", "os_type", "TEXT DEFAULT 'linux'")
 
 	_ = d.alterAddColumn("probe_target_presets", "app_endpoint", "TEXT DEFAULT '/'")
 	_ = d.alterAddColumn("probe_target_presets", "baseline_mtu", "INTEGER DEFAULT 1500")
@@ -725,7 +728,8 @@ const hostSelectCols = `SELECT id, name, host, port, user, COALESCE(custom_key,'
 	COALESCE(cpu_cores, 1), COALESCE(hardware_model, ''), COALESCE(swap_used_bytes, 0), COALESCE(swap_total_bytes, 0),
 	COALESCE(last_duration_ms, 0), COALESCE(commission_date, ''), COALESCE(bios_date, ''), COALESCE(os_install_epoch, 0),
 	COALESCE(top_cpu_processes, ''), COALESCE(top_ram_processes, ''), COALESCE(top_swap_processes, ''),
-	COALESCE(metrics_enabled, -1)
+	COALESCE(metrics_enabled, -1),
+	COALESCE(os_type, 'linux')
 	FROM hosts `
 
 func scanHost(s rowScanner) (*Host, error) {
@@ -741,7 +745,8 @@ func scanHost(s rowScanner) (*Host, error) {
 		&h.CPUCores, &h.HardwareModel, &h.SwapUsedBytes, &h.SwapTotalBytes,
 		&h.LastDurationMs, &h.CommissionDate, &h.BIOSDate, &h.OSInstallEpoch,
 		&h.TopCPUProcesses, &h.TopRAMProcesses, &h.TopSwapProcesses,
-		&h.MetricsEnabled)
+		&h.MetricsEnabled,
+		&h.OSType)
 	if err != nil {
 		return nil, err
 	}
@@ -807,7 +812,11 @@ func (d *DB) CreateHost(h *Host) (int64, error) {
 	if metricsEnabled != 0 && metricsEnabled != 1 && metricsEnabled != -1 {
 		metricsEnabled = -1
 	}
-	res, err := d.Exec(`INSERT INTO hosts (name, host, port, user, custom_key, status, notes, sort_order, group_name, commission_date, bios_date, metrics_enabled) VALUES (?, ?, ?, ?, ?, 'unknown', ?, ?, ?, ?, ?, ?)`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, maxOrder+1, h.GroupName, h.CommissionDate, h.BIOSDate, metricsEnabled)
+	osType := strings.ToLower(strings.TrimSpace(h.OSType))
+	if osType == "" {
+		osType = "auto"
+	}
+	res, err := d.Exec(`INSERT INTO hosts (name, host, port, user, custom_key, status, notes, sort_order, group_name, commission_date, bios_date, metrics_enabled, os_type) VALUES (?, ?, ?, ?, ?, 'unknown', ?, ?, ?, ?, ?, ?, ?)`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, maxOrder+1, h.GroupName, h.CommissionDate, h.BIOSDate, metricsEnabled, osType)
 	if err != nil {
 		return 0, err
 	}
@@ -815,7 +824,20 @@ func (d *DB) CreateHost(h *Host) (int64, error) {
 }
 
 func (d *DB) UpdateHost(h *Host) error {
-	_, err := d.Exec(`UPDATE hosts SET name=?, host=?, port=?, user=?, custom_key=?, notes=?, group_name=?, commission_date=?, metrics_enabled=? WHERE id=?`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, h.GroupName, h.CommissionDate, h.MetricsEnabled, h.ID)
+	osType := strings.ToLower(strings.TrimSpace(h.OSType))
+	if osType == "" {
+		osType = "auto"
+	}
+	_, err := d.Exec(`UPDATE hosts SET name=?, host=?, port=?, user=?, custom_key=?, notes=?, group_name=?, commission_date=?, metrics_enabled=?, os_type=? WHERE id=?`, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Notes, h.GroupName, h.CommissionDate, h.MetricsEnabled, osType, h.ID)
+	return err
+}
+
+func (d *DB) UpdateHostOSType(id int64, osType string) error {
+	osType = strings.ToLower(strings.TrimSpace(osType))
+	if osType == "" {
+		osType = "linux"
+	}
+	_, err := d.Exec(`UPDATE hosts SET os_type=? WHERE id=?`, osType, id)
 	return err
 }
 func (d *DB) UpdateHostNotes(id int64, notes string) error {
@@ -868,13 +890,17 @@ func (d *DB) UpdateHostInspection(h *Host) error {
 	if h.InternetOnline {
 		onlineInt = 1
 	}
-	_, err := d.Exec(`UPDATE hosts SET status=?, os_info=?, kernel=?, uptime=?, cpu_load=?, ram_used_bytes=?, ram_total_bytes=?, disk_used_bytes=?, disk_total_bytes=?, lifecycle_score=?, lifecycle_notes=?, lifecycle_breakdown=?, last_inspected=?, net_rx_bytes=?, net_tx_bytes=?, net_rx_speed_bps=?, net_tx_speed_bps=?, disk_read_bytes=?, disk_write_bytes=?, disk_read_speed_bps=?, disk_write_speed_bps=?, internet_online=?, internet_latency_ms=?, public_ip=?, active_conn_count=?, failed_logins_count=?, top_connections=?, listening_ports=?, cpu_cores=?, hardware_model=?, swap_used_bytes=?, swap_total_bytes=?, last_duration_ms=?, bios_date=?, os_install_epoch=?, top_cpu_processes=?, top_ram_processes=?, top_swap_processes=? WHERE id=?`,
+	osType := strings.ToLower(strings.TrimSpace(h.OSType))
+	if osType == "" {
+		osType = "auto"
+	}
+	_, err := d.Exec(`UPDATE hosts SET status=?, os_info=?, kernel=?, uptime=?, cpu_load=?, ram_used_bytes=?, ram_total_bytes=?, disk_used_bytes=?, disk_total_bytes=?, lifecycle_score=?, lifecycle_notes=?, lifecycle_breakdown=?, last_inspected=?, net_rx_bytes=?, net_tx_bytes=?, net_rx_speed_bps=?, net_tx_speed_bps=?, disk_read_bytes=?, disk_write_bytes=?, disk_read_speed_bps=?, disk_write_speed_bps=?, internet_online=?, internet_latency_ms=?, public_ip=?, active_conn_count=?, failed_logins_count=?, top_connections=?, listening_ports=?, cpu_cores=?, hardware_model=?, swap_used_bytes=?, swap_total_bytes=?, last_duration_ms=?, bios_date=?, os_install_epoch=?, top_cpu_processes=?, top_ram_processes=?, top_swap_processes=?, os_type=? WHERE id=?`,
 		h.Status, h.OSInfo, h.Kernel, h.Uptime, h.CPULoad, h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, h.LifecycleScore, h.LifecycleNotes, h.LifecycleBreakdown, now,
 		h.NetRxBytes, h.NetTxBytes, h.NetRxSpeedBps, h.NetTxSpeedBps,
 		h.DiskReadBytes, h.DiskWriteBytes, h.DiskReadSpeedBps, h.DiskWriteSpeedBps,
 		onlineInt, h.InternetLatencyMs, h.PublicIP, h.ActiveConnCount, h.FailedLoginsCount, h.TopConnections, h.ListeningPorts,
 		h.CPUCores, h.HardwareModel, h.SwapUsedBytes, h.SwapTotalBytes, h.LastDurationMs, h.BIOSDate, h.OSInstallEpoch,
-		h.TopCPUProcesses, h.TopRAMProcesses, h.TopSwapProcesses,
+		h.TopCPUProcesses, h.TopRAMProcesses, h.TopSwapProcesses, osType,
 		h.ID)
 	return err
 }
@@ -1616,15 +1642,20 @@ func (d *DB) ImportSnapshot(payload *SnapshotPayload) error {
 			disk_read_bytes, disk_write_bytes, disk_read_speed_bps, disk_write_speed_bps,
 			internet_online, internet_latency_ms, public_ip, active_conn_count, failed_logins_count,
 			top_connections, listening_ports, notes, sort_order, group_name,
-			commission_date, bios_date, os_install_epoch
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			commission_date, bios_date, os_install_epoch, os_type
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			h.ID, h.Name, h.Host, h.Port, h.User, h.CustomKey, h.Status, h.OSInfo, h.Kernel, h.Uptime, h.CPULoad,
 			h.RAMUsedBytes, h.RAMTotalBytes, h.DiskUsedBytes, h.DiskTotalBytes, h.LifecycleScore, h.LifecycleNotes, h.LifecycleBreakdown,
 			h.CreatedAt, h.NetRxBytes, h.NetTxBytes, h.NetRxSpeedBps, h.NetTxSpeedBps,
 			h.DiskReadBytes, h.DiskWriteBytes, h.DiskReadSpeedBps, h.DiskWriteSpeedBps,
 			onlineInt, h.InternetLatencyMs, h.PublicIP, h.ActiveConnCount, h.FailedLoginsCount,
 			h.TopConnections, h.ListeningPorts, h.Notes, h.SortOrder, h.GroupName,
-			h.CommissionDate, h.BIOSDate, h.OSInstallEpoch,
+			h.CommissionDate, h.BIOSDate, h.OSInstallEpoch, func() string {
+				if h.OSType != "" {
+					return h.OSType
+				}
+				return "linux"
+			}(),
 		)
 		if err != nil {
 			return fmt.Errorf("insert host %d: %w", h.ID, err)

@@ -3,6 +3,7 @@ package sshrunner
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf16"
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -188,6 +190,39 @@ func configureLegacyCompatibleSSH(config *ssh.ClientConfig) {
 
 type KeyProvisioner func(host string, port int, user, password, pubKey string) error
 
+// PowershellEncodedCmd converts a PowerShell script into a UTF-16LE Base64 encoded command string.
+// ponytail: Base64 encoding avoids quote and shell escaping discrepancies across Windows OpenSSH configurations.
+func PowershellEncodedCmd(psScript string) string {
+	runes := []rune(psScript)
+	u16 := utf16.Encode(runes)
+	b := make([]byte, len(u16)*2)
+	for i, v := range u16 {
+		b[i*2] = byte(v)
+		b[i*2+1] = byte(v >> 8)
+	}
+	return "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand " + base64.StdEncoding.EncodeToString(b)
+}
+
+// CleanWindowsRemotePath normalizes Windows file paths received from SFTP or user inputs,
+// stripping bogus leading slashes (e.g. "/C:/foo" -> "C:/foo", "/c/foo" -> "c:/foo") and unifying forward/backward slashes.
+func CleanWindowsRemotePath(p string) string {
+	p = strings.TrimSpace(p)
+	p = strings.ReplaceAll(p, "\\", "/")
+	for len(p) >= 3 && p[0] == '/' && p[1] == '/' {
+		p = p[1:]
+	}
+	if len(p) >= 3 && p[0] == '/' && (('a' <= p[1] && p[1] <= 'z') || ('A' <= p[1] && p[1] <= 'Z')) && p[2] == ':' {
+		p = p[1:]
+	} else if len(p) >= 2 && p[0] == '/' && (('a' <= p[1] && p[1] <= 'z') || ('A' <= p[1] && p[1] <= 'Z')) && (len(p) == 2 || p[2] == '/') {
+		p = string(p[1]) + ":" + p[2:]
+	}
+	return p
+}
+
+func powershellEncodedCmd(psScript string) string {
+	return PowershellEncodedCmd(psScript)
+}
+
 func DefaultKeyProvisioner(host string, port int, user, password, pubKey string) error {
 	config := &ssh.ClientConfig{
 		User: user,
@@ -217,6 +252,46 @@ func DefaultKeyProvisioner(host string, port int, user, password, pubKey string)
 
 	out, err := session.CombinedOutput(injectCmd)
 	if err != nil {
+		// ponytail: Fallback to PowerShell key injection for Windows OpenSSH targets.
+		winSession, wErr := client.NewSession()
+		if wErr == nil {
+			defer winSession.Close()
+			b64Key := base64.StdEncoding.EncodeToString([]byte(cleanKey))
+			psScript := fmt.Sprintf(`
+$key = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String(%q)).Trim()
+$userSsh = "$env:USERPROFILE\.ssh"
+if (!(Test-Path $userSsh)) { New-Item -ItemType Directory -Path $userSsh -Force | Out-Null }
+$userAuth = "$userSsh\authorized_keys"
+if (Test-Path $userAuth) {
+    $rawUser = Get-Content $userAuth -Raw -ErrorAction SilentlyContinue
+    if ($rawUser -and !$rawUser.EndsWith([char]10)) { [IO.File]::AppendAllText($userAuth, [Environment]::NewLine) }
+}
+if (!(Test-Path $userAuth) -or !(Get-Content $userAuth -Raw -ErrorAction SilentlyContinue | Select-String -SimpleMatch $key -Quiet)) {
+    Add-Content -Path $userAuth -Value $key -Force
+}
+& icacls $userAuth /inheritance:r /grant:r "$($env:USERNAME):(F)" /grant:r "*S-1-5-18:(F)" /grant:r "*S-1-5-32-544:(F)" | Out-Null
+$isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if ($isAdmin) {
+    $progData = "$env:ProgramData\ssh"
+    if (Test-Path $progData) {
+        $adminAuth = "$progData\administrators_authorized_keys"
+        if (Test-Path $adminAuth) {
+            $rawAdmin = Get-Content $adminAuth -Raw -ErrorAction SilentlyContinue
+            if ($rawAdmin -and !$rawAdmin.EndsWith([char]10)) { [IO.File]::AppendAllText($adminAuth, [Environment]::NewLine) }
+        }
+        if (!(Test-Path $adminAuth) -or !(Get-Content $adminAuth -Raw -ErrorAction SilentlyContinue | Select-String -SimpleMatch $key -Quiet)) {
+            Add-Content -Path $adminAuth -Value $key -Force
+        }
+        & icacls $adminAuth /inheritance:r /grant:r "*S-1-5-32-544:(F)" /grant:r "*S-1-5-18:(F)" | Out-Null
+    }
+}
+`, b64Key)
+			winOut, winErr := winSession.CombinedOutput(powershellEncodedCmd(psScript))
+			if winErr == nil {
+				return nil
+			}
+			return fmt.Errorf("injected command failed on Windows: %s (%w)", string(winOut), winErr)
+		}
 		return fmt.Errorf("injected command failed: %s (%w)", string(out), err)
 	}
 
