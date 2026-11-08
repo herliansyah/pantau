@@ -1101,7 +1101,9 @@ func calculateLifecycleScore(osInfo, loadStr string, cpuCores int, ramUsed, ramT
 		"CentOS Linux 8", "CentOS release 8",
 		"Red Hat Enterprise Linux Server release 6",
 		"Red Hat Enterprise Linux Server release 7",
-		"Windows Server 2008", "Windows Server 2012", "Windows 7", "Windows 8",
+		// Windows EOL: 2008/2012/7/8 fully EOL; 10 EOL Oct 2025; Server 2016 mainstream ended Jan 2022
+		"Windows Server 2008", "Windows Server 2012", "Windows Server 2016",
+		"Windows 7", "Windows 8", "Windows 10",
 	}
 	osEOL := false
 	matchedEOL := ""
