@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.31.1] - 2026-11-04
 ### Added
 - Host Switcher & Telemetry Shortcut: quick metrics shortcut button on host cards and table rows, host switcher dropdown and prev/next controls in host details modal, and keyboard navigation shortcuts (`[` and `]`) for switching hosts. (#81)
+- Agentless Windows Storage Triage (PowerShell-Native): extended Storage Triage capabilities to Windows target hosts via agentless SSH and UTF-16LE Base64 PowerShell execution without requiring remote agents.
+  - Windows Drive & Space Breakdown: native CIM `Win32_LogicalDisk` capacity metrics for System Drive (`C:`), top level-1 directory hogs discovery via zero-copy `robocopy /L` with recursive PowerShell fallback and dynamic non-system directory discovery, and top 15 largest files (>15MB).
+  - Single-Pass Runaway File Sensing: unified traversal sensing active log and text files (`.log`, `.txt`, `.err`, `.out`, `.dump`, `.etl`, and rotated `.log.*`) modified within the last 60 minutes and exceeding 15MB, with strict exclusion of database files (`.mdf`, `.ldf`, `.ndf`, `.edb`, `.dit`, `.sqlite*`, `.vhdx`, `.avhd`, `.avhdx`, `.bak`), archives (`.7z`, `.rar`, `.xz`, `.bz2`, `.cab`), and configuration/code assets.
+  - Curated Windows Safe Reclaim Catalog: one-click safe cleanup actions for Windows Update Download Cache (`SoftwareDistribution\Download`), System & User Temp (`C:\Windows\Temp`, `%TEMP%`, `C:\Temp`), Error Reporting & Memory Dumps (`WER`, `Minidump`, `CrashDumps`, `MEMORY.DMP`), Recycle Bin (`Clear-RecycleBin`), old IIS access logs (>7 days in `inetpub\logs`), and Docker on Windows.
+  - Safe In-Place Windows Log Truncation: zero-byte log emptying via `Clear-Content -LiteralPath '...' -Force` with strict security boundaries protecting Windows system directories (`System32`, `SysWOW64`, `WinSxS`, `Boot`, `Recovery`), swap/pagefiles (`pagefile.sys`, `swapfile.sys`, `hiberfil.sys`, `dumpstack.log`), directories, and database files.
+  - Graceful Windows Service Reload: remediation hook using `Restart-Service -Name '...' -Force` with strict alphanumeric command injection validation.
 
 ### Fixed
 - Host List Action Button CSS & Alignment: synchronized compact button height (24px) for `.btn-host-metrics` alongside `.btn-host-view` and `.btn-host-terminal`.

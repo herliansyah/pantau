@@ -3690,6 +3690,7 @@ const I18N = {
     "triage_snapshot_disclaimer": "⚠️ <strong>Disclaimer:</strong> This is a static point-in-time snapshot from the last storage audit, not live telemetry. Files and disk usage may have changed since this scan.",
     "triage_btn_rescan": "Rescan Storage Now",
     "triage_badge_root": "Root",
+    "triage_badge_admin": "Administrator",
     "triage_badge_nopasswd": "Sudo NOPASSWD",
     "triage_badge_restricted": "Restricted Access",
     "triage_primary_partition": "PRIMARY PARTITION",
@@ -3697,10 +3698,13 @@ const I18N = {
     "triage_io_write": "I/O Write",
     "triage_reclaimable_title": "⚡ RECLAIMABLE STORAGE",
     "triage_reclaimable_desc": "Estimated total disk space that can be safely freed from package caches, rotated logs, coredumps, or systemd journal.",
+    "triage_reclaimable_desc_win": "Estimated total disk space that can be safely freed from Windows Update cache, temp files, crash dumps, Recycle Bin, IIS logs, or Docker.",
     "triage_scan_duration": "Scan duration:",
     "triage_safe_catalog": "Safe Reclaim Catalog (Safe to Clean)",
     "triage_items_detected": "{count} items detected",
     "triage_no_reclaim": "No significant package cache or rotated log accumulation (>10MB) detected. System is clean.",
+    "triage_no_reclaim_win": "No significant temporary files, Windows Update cache, crash dumps, or old IIS logs (>5MB) detected. System is clean.",
+    "triage_analyzing_sub_win": "Scanning for Space Hogs, Runaway Logs, and Reclaimable Storage...",
     "triage_clean_btn": "🧹 Clean",
     "triage_runaway_detected": "Runaway Files Detected ({count})",
     "triage_runaway_desc": "Large files modified within the last 60 minutes (potential runaway log or infinite loop).",
@@ -3712,7 +3716,9 @@ const I18N = {
     "triage_ghost_holding": "Process: <strong>{cmd}</strong> (PID: {pid}) • Holding: <strong>{size}</strong>",
     "triage_reload_service": "🔄 Reload Service",
     "triage_top_hogs": "Top Level-1 Directories (/...)",
+    "triage_top_hogs_win": "Top Directories (C:\\...)",
     "triage_no_hogs": "No level-1 directories detected or scan timed out.",
+    "triage_no_hogs_win": "No main directories detected or scan timed out.",
     "triage_top_files": "Top 15 Largest Files (>15MB)",
     "triage_no_top_files": "No individual files over 15MB found.",
     "triage_db_file_badge": "🛡️ Database File (Protected)",
@@ -4515,6 +4521,7 @@ const I18N = {
     "triage_snapshot_disclaimer": "⚠️ <strong>Disclaimer:</strong> Data ini adalah snapshot statis hasil audit penyimpanan terakhir dan <em>bukan</em> telemetri realtime. Berkas atau penggunaan disk mungkin telah berubah sejak pemindaian ini.",
     "triage_btn_rescan": "Pindai Ulang Sekarang",
     "triage_badge_root": "Root",
+    "triage_badge_admin": "Administrator",
     "triage_badge_nopasswd": "Sudo NOPASSWD",
     "triage_badge_restricted": "Akses Terbatas",
     "triage_primary_partition": "PARTISI UTAMA",
@@ -4522,10 +4529,13 @@ const I18N = {
     "triage_io_write": "I/O Write",
     "triage_reclaimable_title": "⚡ RECLAIMABLE STORAGE",
     "triage_reclaimable_desc": "Estimasi total ruang yang dapat dibebaskan dengan aman dari cache paket, log rotasi, coredump, atau journal.",
+    "triage_reclaimable_desc_win": "Estimasi total ruang disk yang dapat dibebaskan dengan aman dari cache Windows Update, berkas temp, crash dump, Recycle Bin, log IIS, atau Docker.",
     "triage_scan_duration": "Waktu scan:",
     "triage_safe_catalog": "Katalog Safe Reclaim (Aman Dibersihkan)",
     "triage_items_detected": "{count} item terdeteksi",
     "triage_no_reclaim": "Tidak ada akumulasi data cache atau log rotasi yang signifikan (>10MB). Sistem dalam kondisi bersih.",
+    "triage_no_reclaim_win": "Tidak ada akumulasi berkas temporary, cache Windows Update, crash dump, atau log IIS lama yang signifikan (>5MB). Sistem dalam kondisi bersih.",
+    "triage_analyzing_sub_win": "Memindai Direktori Utama, Runaway Logs, dan Ruang Bebas Reclaimable...",
     "triage_clean_btn": "🧹 Bersihkan",
     "triage_runaway_detected": "Runaway Files Terdeteksi ({count})",
     "triage_runaway_desc": "Berkas berukuran besar yang termodifikasi dalam 60 menit terakhir (potensi infinite log loop).",
@@ -4537,7 +4547,9 @@ const I18N = {
     "triage_ghost_holding": "Proses: <strong>{cmd}</strong> (PID: {pid}) • Menahan: <strong>{size}</strong>",
     "triage_reload_service": "🔄 Reload Service",
     "triage_top_hogs": "Top Direktori Level-1 (/...)",
+    "triage_top_hogs_win": "Top Direktori Utama (C:\\...)",
     "triage_no_hogs": "Tidak ada direktori level-1 yang terdeteksi atau pemindaian terpotong.",
+    "triage_no_hogs_win": "Tidak ada direktori utama yang terdeteksi atau pemindaian terpotong.",
     "triage_top_files": "Top 15 Berkas Terbesar (>15MB)",
     "triage_no_top_files": "Tidak ada file tunggal di atas 15MB yang ditemukan.",
     "triage_db_file_badge": "🛡️ File Database (Terlindungi)",
@@ -6185,7 +6197,7 @@ function renderGridView(grid, isManualSort) {
         <div>
           <div class="stat-row">
             <span>${isWindows ? 'System Drive (C:)' : t('disk_usage', 'Disk')}</span>
-            <span>${diskUsedStr} / ${diskTotStr} (${diskPct}%)</span>
+            <span>${diskUsedStr} / ${diskTotStr} (${diskPct}%) ${diskPct > 85 ? `<button class="btn btn-sm" style="padding: 1px 6px; font-size: 0.68rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); margin-left: 4px;" onclick="event.stopPropagation(); openStorageTriageFromAlert(${h.id});">🧹 Triage</button>` : ''}</span>
           </div>
           <div class="progress"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
         </div>
@@ -6394,7 +6406,7 @@ function renderListView(listContainer, isManualSort) {
         </td>
         <td style="white-space: nowrap;" title="${formatBytes(h.disk_used_bytes || 0)} / ${formatBytes(h.disk_total_bytes || 0)}">
           ${isInitial ? '<div style="font-size: 0.78rem; color: var(--text-muted);">⏳ Syncing...</div>' : `
-            <div style="font-size: 0.8rem; margin-bottom: 2px;">${diskPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.disk_total_bytes || 0)})</span></div>
+            <div style="font-size: 0.8rem; margin-bottom: 2px;">${diskPct}% <span style="font-size: 0.72rem; color: var(--text-muted);">(${formatBytes(h.disk_total_bytes || 0)})</span> ${diskPct > 85 ? `<button class="btn btn-sm" style="padding: 0 4px; font-size: 0.65rem; background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); margin-left: 2px;" onclick="event.stopPropagation(); openStorageTriageFromAlert(${h.id});">🧹 Triage</button>` : ''}</div>
             <div class="progress" style="height: 4px;"><div class="progress-fill ${diskPct > 85 ? 'danger' : ''}" style="width: ${diskPct}%"></div></div>
           `}
         </td>
@@ -7621,7 +7633,7 @@ function switchTab(tab, presetID) {
           <div class="stat-row"><span>${t('cpu_label', 'CPU:')}</span> <span>${d.host.cpu_cores || 1} ${(d.host.cpu_cores || 1) > 1 ? t('cores', 'Cores') : t('core', 'Core')} <span style="color: var(--text-muted); font-size: 0.82rem;">(Load: ${escapeHtml(d.host.cpu_load ? (d.host.os_type === 'windows' ? d.host.cpu_load.split(',')[0].trim() + '%' : d.host.cpu_load) : '-')})</span></span></div>
           <div class="stat-row"><span>${t('phys_mem', 'RAM:')}</span> <span>${formatBytes(d.host.ram_used_bytes || 0)} / ${formatBytes(d.host.ram_total_bytes || 0)} (${d.host.ram_total_bytes > 0 ? Math.round(((d.host.ram_used_bytes || 0) / d.host.ram_total_bytes) * 100) : 0}%)</span></div>
           <div class="stat-row"><span>${t('virtual_mem', 'Swap:')}</span> <span>${d.host.swap_total_bytes > 0 ? formatBytes(d.host.swap_used_bytes || 0) + ' / ' + formatBytes(d.host.swap_total_bytes) + ' (' + Math.round(((d.host.swap_used_bytes || 0) / d.host.swap_total_bytes) * 100) + '%)' : '<span style="color: var(--text-muted);">' + (d.host.os_type === 'windows' ? t('swap_disabled', 'Disabled') + ' (N/A)' : t('swap_disabled', 'Disabled')) + '</span>'}</span></div>
-          <div class="stat-row"><span>${d.host.os_type === 'windows' ? 'System Drive (C:):' : t('root_storage', 'Root Storage (/):')}</span> <span style="display: inline-flex; align-items: center; gap: 6px;">${formatBytes(d.host.disk_used_bytes || 0)} / ${formatBytes(d.host.disk_total_bytes || 0)} (${d.host.disk_total_bytes > 0 ? Math.round(((d.host.disk_used_bytes || 0) / d.host.disk_total_bytes) * 100) : 0}%) ${d.host.os_type !== 'windows' ? `<button class="btn btn-sm" style="padding: 1px 6px; font-size: 0.7rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);" onclick="switchTab('storage')">🔍 Triage</button>` : ''}</span></div>
+          <div class="stat-row"><span>${d.host.os_type === 'windows' ? 'System Drive (C:):' : t('root_storage', 'Root Storage (/):')}</span> <span style="display: inline-flex; align-items: center; gap: 6px;">${formatBytes(d.host.disk_used_bytes || 0)} / ${formatBytes(d.host.disk_total_bytes || 0)} (${d.host.disk_total_bytes > 0 ? Math.round(((d.host.disk_used_bytes || 0) / d.host.disk_total_bytes) * 100) : 0}%) <button class="btn btn-sm" style="padding: 1px 6px; font-size: 0.7rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);" onclick="switchTab('storage')">🔍 Triage</button></span></div>
           <div class="stat-row"><span>${t('uptime')}</span> <span>${escapeHtml(d.host.uptime || '-')}</span></div>
           <div class="stat-row">
             <span>${t('last_inspected_label', 'Last Inspected:')}</span>
@@ -10231,11 +10243,12 @@ let currentTriageScanningHostId = null;
 const storageTriageCache = {};
 
 function getStorageTriageScanningHTML(hostID) {
+  const isWin = currentHost && currentHost.os_type === 'windows';
   return `
     <div style="text-align: center; padding: 36px 20px; color: var(--text-muted);">
       <div class="spinner" style="margin: 0 auto 14px auto; width: 34px; height: 34px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
       <div style="font-size: 1rem; font-weight: 600; color: #f1f5f9; margin-bottom: 6px;">${t('triage_analyzing_title', 'Analyzing Partitions & Storage Space...')}</div>
-      <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 18px;">${t('triage_analyzing_sub', 'Scanning for Space Hogs, Runaway Logs, Ghost FDs, and Reclaimable Storage...')}</div>
+      <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 18px;">${isWin ? t('triage_analyzing_sub_win', 'Scanning for Space Hogs, Runaway Logs, and Reclaimable Storage...') : t('triage_analyzing_sub', 'Scanning for Space Hogs, Runaway Logs, Ghost FDs, and Reclaimable Storage...')}</div>
 
       <!-- Real-time Command & Manual Kill Instruction Card -->
       <div style="display: inline-flex; flex-direction: column; gap: 8px; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px 18px; max-width: 580px; width: 100%; margin-bottom: 20px; text-align: left; box-sizing: border-box;">
@@ -10243,11 +10256,11 @@ function getStorageTriageScanningHTML(hostID) {
           <span>🖥️</span> <span>${t('triage_active_ssh_cmd', 'SSH command currently running on remote host:')}</span>
         </div>
         <div style="font-family: monospace; font-size: 0.74rem; color: #94a3b8; background: rgba(0,0,0,0.5); padding: 8px 10px; border-radius: 4px; overflow-x: auto; white-space: nowrap;">
-          timeout 10s du -skx /var /tmp ... | timeout 10s find ... -printf
+          ${isWin ? 'powershell.exe -NoProfile -EncodedCommand ... (Win32_LogicalDisk & robocopy /L)' : 'timeout 10s du -skx /var /tmp ... | timeout 10s find ... -printf'}
         </div>
         <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; margin-top: 4px;">
           ${t('triage_manual_kill_hint', '💡 <em>If you want to stop it manually via server terminal:</em>')}<br>
-          <code style="color: #f87171; background: rgba(239, 68, 68, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.74rem;">sudo pkill -9 -f "du -skx" ; sudo pkill -9 -f "find /"</code>
+          <code style="color: #f87171; background: rgba(239, 68, 68, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.74rem;">${isWin ? 'Stop-Process -Name robocopy -Force' : 'sudo pkill -9 -f "du -skx" ; sudo pkill -9 -f "find /"'}</code>
         </div>
       </div>
 
@@ -10479,17 +10492,6 @@ async function renderStorageTriageTab(host) {
   const hostObj = host || (d ? d.host : null);
   if (!hostObj) return;
 
-  if (hostObj.os_type === 'windows') {
-    content.innerHTML = `
-      <div class="empty-state" style="padding: 40px 20px;">
-        <div class="empty-state-icon">🪟</div>
-        <div class="empty-state-title">${t('storage_windows_unsupported_title', 'Storage Triage Not Applicable')}</div>
-        <div class="empty-state-desc" style="max-width: 520px; margin: 8px auto; line-height: 1.5; color: var(--text-muted);">${t('storage_windows_unsupported_desc', 'Storage Triage (space hogs, runaway logs, ghost file descriptors) is specialized for POSIX/Linux filesystems. Windows System Drive (C:) metrics, capacity, and active I/O are monitored under Overview and Metrics.')}</div>
-      </div>
-    `;
-    return;
-  }
-
   const isScanning = isStorageTriageScanning && currentTriageScanningHostId === hostObj.id;
   const cachedData = storageTriageCache[hostObj.id] || (currentStorageTriageData && currentStorageTriageData.host_id === hostObj.id ? currentStorageTriageData : null);
 
@@ -10674,31 +10676,47 @@ function handleStorageTriageThrottled(hostID, data) {
 
 function isDatabasePath(path) {
   if (!path) return false;
-  const p = path.toLowerCase();
-  if (p.includes('galera.cache') || p.includes('grastate.dat') || p.includes('gvwstate.dat')) {
+  const p = path.toLowerCase().replace(/\\/g, '/');
+  if (p.includes('galera.cache') || p.includes('grastate.dat') || p.includes('gvwstate.dat') || p.includes('edb.log') || p.includes('edbtmp.log') || p.includes('edb.chk')) {
     return true;
   }
-  if (p.includes('/mysql/') || p.includes('/mariadb/') || p.includes('/postgresql/') || p.includes('/postgres/') || p.includes('/redis/') || p.includes('/mongodb/') || p.includes('/docker/volumes/') || p.includes('/containerd/') || p.includes('ibdata')) {
+  if (p.includes('/mysql/') || p.includes('/mariadb/') || p.includes('/postgresql/') || p.includes('/postgres/') || p.includes('/redis/') || p.includes('/mongodb/') || p.includes('/mssql/') || p.includes('sql server') || p.includes('/docker/volumes/') || p.includes('/containerd/') || p.includes('ibdata')) {
     return true;
   }
-  const dbExts = ['.ibd', '.frm', '.myd', '.myi', '.db', '.sqlite', '.sqlite3', '.rdb', '.aof', '.wal', '.mdf', '.ldf', '.qcow2', '.vmdk', '.img', '.raw', '.dbf', '.wt', '.bson'];
+  const dbExts = ['.ibd', '.frm', '.myd', '.myi', '.db', '.sqlite', '.sqlite3', '.rdb', '.aof', '.wal', '.mdf', '.ldf', '.ndf', '.edb', '.dit', '.qcow2', '.vmdk', '.img', '.raw', '.vhd', '.vhdx', '.avhd', '.avhdx', '.dbf', '.wt', '.bson', '.bak'];
   return dbExts.some(ext => p.endsWith(ext));
 }
 
 function isTruncatableLog(path) {
   if (!path || isDatabasePath(path)) return false;
-  const p = path.toLowerCase();
-  // Prevent suggesting truncation on protected system territories
+  const p = path.toLowerCase().replace(/\\/g, '/');
+
+  // Never classify binaries, executables, scripts, or system libraries as disposable logs
+  const binaryExts = ['.exe', '.dll', '.sys', '.bin', '.com', '.bat', '.cmd', '.ps1', '.vbs', '.sh', '.so', '.dylib', '.jar', '.msi', '.iso', '.img', '.zip', '.tar', '.gz', '.7z', '.rar', '.xz', '.bz2', '.cab', '.json', '.xml', '.yml', '.yaml', '.ini', '.conf', '.config', '.cfg', '.cnf', '.py', '.js', '.ts', '.php', '.cs', '.go', '.java', '.c', '.cpp', '.h'];
+  if (binaryExts.some(ext => p.endsWith(ext))) {
+    return false;
+  }
+
+  // Prevent suggesting truncation on protected system territories (Linux & Windows)
+  const winRoot = (p.length >= 2 && p[1] === ':') ? p.substring(2) : '';
   if (p === '/' || p.startsWith('/etc/') || p === '/etc' || p.startsWith('/bin/') || p === '/bin' ||
       p.startsWith('/sbin/') || p === '/sbin' || p.startsWith('/usr/') || p === '/usr' ||
       p.startsWith('/boot/') || p === '/boot' || p.startsWith('/dev/') || p === '/dev' ||
-      p.startsWith('/proc/') || p === '/proc' || p.startsWith('/sys/') || p === '/sys') {
+      p.startsWith('/proc/') || p === '/proc' || p.startsWith('/sys/') || p === '/sys' ||
+      (winRoot && (p.length <= 3 ||
+      winRoot.startsWith('/windows/system32') || winRoot.startsWith('/windows/syswow64') ||
+      winRoot.startsWith('/windows/winsxs') || winRoot.startsWith('/boot') ||
+      winRoot.startsWith('/recovery') || winRoot.startsWith('/system volume information') ||
+      winRoot.startsWith('/program files') || winRoot.startsWith('/program files (x86)'))) ||
+      p.endsWith('pagefile.sys') || p.endsWith('swapfile.sys') || p.endsWith('hiberfil.sys') ||
+      p.includes('dumpstack.log') || p.endsWith('memory.dmp')) {
     return false;
   }
-  if (p.endsWith('.log') || p.endsWith('.txt') || p.endsWith('.out') || p.endsWith('.err') || p.endsWith('.dump')) {
+  if (p.endsWith('.log') || p.endsWith('.txt') || p.endsWith('.out') || p.endsWith('.err') || p.endsWith('.dump') || p.endsWith('.etl') || p.includes('.log.')) {
     return true;
   }
-  if (p.startsWith('/var/log/') || p.startsWith('/tmp/') || p.startsWith('/var/tmp/')) {
+  if (p.startsWith('/var/log/') || p.startsWith('/tmp/') || p.startsWith('/var/tmp/') ||
+      p.includes('/temp/') || p.includes('/logs/')) {
     return true;
   }
   return false;
@@ -10709,6 +10727,7 @@ function renderStorageTriageView(data) {
   if (!container) return;
 
   const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  const isWin = currentHost && currentHost.os_type === 'windows';
 
   const badge = document.getElementById('triageLastScannedBadge');
   if (badge) {
@@ -10734,7 +10753,7 @@ function renderStorageTriageView(data) {
   const barColor = usedPct >= 90 ? '#ef4444' : (usedPct >= 75 ? '#f59e0b' : '#34d399');
 
   const privBadge = data.is_root
-    ? `<span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3);">${t('triage_badge_root', 'Root')}</span>`
+    ? `<span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3);">${isWin ? t('triage_badge_admin', 'Administrator') : t('triage_badge_root', 'Root')}</span>`
     : (data.has_sudo
       ? `<span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">${t('triage_badge_nopasswd', 'Sudo NOPASSWD')}</span>`
       : `<span style="font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3);">${t('triage_badge_restricted', 'Restricted Access')}</span>`);
@@ -10747,7 +10766,7 @@ function renderStorageTriageView(data) {
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">
         <div class="card" style="padding: 14px; background: rgba(15, 23, 42, 0.4); border: 1px solid var(--card-border); border-radius: 8px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">${t('triage_primary_partition', 'PRIMARY PARTITION')} (${escapeHtml(part.mount_point || '/')})</span>
+            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">${t('triage_primary_partition', 'PRIMARY PARTITION')} (${escapeHtml(part.mount_point || (isWin ? 'C:' : '/'))})</span>
             <span style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(part.filesystem || '')}</span>
           </div>
           <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
@@ -10770,7 +10789,7 @@ function renderStorageTriageView(data) {
           </div>
           <div>
             <div style="font-size: 1.3rem; font-weight: 700; color: #34d399; margin-bottom: 4px;">~${escapeHtml(data.total_reclaim_human || '0 B')}</div>
-            <div style="font-size: 0.78rem; color: var(--text-muted);">${t('triage_reclaimable_desc', 'Estimated total disk space that can be safely freed from package caches, rotated logs, coredumps, or systemd journal.')}</div>
+            <div style="font-size: 0.78rem; color: var(--text-muted);">${isWin ? t('triage_reclaimable_desc_win', 'Estimated total disk space that can be safely freed from Windows Update cache, temp files, crash dumps, Recycle Bin, IIS logs, or Docker.') : t('triage_reclaimable_desc', 'Estimated total disk space that can be safely freed from package caches, rotated logs, coredumps, or systemd journal.')}</div>
           </div>
           <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; font-size: 0.72rem; color: var(--text-muted); margin-top: 8px;">
             <span>🕒 ${t('triage_scanned_label', 'Scanned:')} <strong>${escapeHtml(data.scanned_at || '-')}</strong></span>
@@ -10797,7 +10816,7 @@ function renderStorageTriageView(data) {
 
         ${(!data.reclaimables || data.reclaimables.length === 0) ? `
           <div style="padding: 14px; text-align: center; color: var(--text-muted); font-size: 0.82rem; background: rgba(0,0,0,0.2); border-radius: 6px;">
-            ${t('triage_no_reclaim', 'No significant package cache or rotated log accumulation (>10MB) detected. System is clean.')}
+            ${isWin ? t('triage_no_reclaim_win', 'No significant temporary files, Windows Update cache, crash dumps, or old IIS logs (>5MB) detected. System is clean.') : t('triage_no_reclaim', 'No significant package cache or rotated log accumulation (>10MB) detected. System is clean.')}
           </div>
         ` : `
           <div class="triage-grid">
@@ -10902,7 +10921,7 @@ function renderStorageTriageView(data) {
                       <button class="btn btn-sm" style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24; font-size: 0.75rem; padding: 3px 8px;" onclick="executeReloadService(${data.host_id}, decodeURIComponent('${encodeURIComponent(g.command)}'))">
                         ${t('triage_reload_service', '🔄 Reload Service')}
                       </button>
-                      <button class="btn btn-sm" onclick="openTerminalForHost(${data.host_id}, null, true, 'PID ${g.pid}', '/')" style="font-size: 0.75rem; padding: 3px 8px;" title="Open Terminal">
+                      <button class="btn btn-sm" onclick="openTerminalForHost(${data.host_id}, null, true, 'PID ${g.pid}', isWin ? 'C:/' : '/')" style="font-size: 0.75rem; padding: 3px 8px;" title="Open Terminal">
                         💻 Terminal
                       </button>
                     </div>
@@ -10920,10 +10939,10 @@ function renderStorageTriageView(data) {
         <!-- Left: Level-1 Directory Hogs -->
         <div class="card" style="padding: 16px; background: rgba(15, 23, 42, 0.3); border: 1px solid var(--card-border); border-radius: 8px;">
           <h5 style="margin: 0 0 12px 0; font-size: 0.88rem; display: flex; align-items: center; gap: 6px;">
-            <span>📁</span> <span>${t('triage_top_hogs', 'Top Level-1 Directories (/...)')}</span>
+            <span>📁</span> <span>${(currentHost && currentHost.os_type === 'windows') ? t('triage_top_hogs_win', 'Top Directories (C:\\...)') : t('triage_top_hogs', 'Top Level-1 Directories (/...)')}</span>
           </h5>
           ${(!data.space_hogs || data.space_hogs.length === 0) ? `
-            <div style="padding: 14px; text-align: center; color: var(--text-muted); font-size: 0.82rem;">${t('triage_no_hogs', 'No level-1 directories detected or scan timed out.')}</div>
+            <div style="padding: 14px; text-align: center; color: var(--text-muted); font-size: 0.82rem;">${isWin ? t('triage_no_hogs_win', 'No main directories detected or scan timed out.') : t('triage_no_hogs', 'No level-1 directories detected or scan timed out.')}</div>
           ` : `
           <div style="display: flex; flex-direction: column; gap: 8px;">
             ${data.space_hogs.map(h => {
@@ -11000,14 +11019,23 @@ async function executeSafeReclaim(hostID, actionKey, actionName, command) {
   const triage = currentStorageTriageData;
   const needsElevation = triage && !triage.is_root && !triage.has_sudo;
   const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  const isWin = currentHost && currentHost.os_type === 'windows';
 
+  const adminLabel = isWin ? 'Administrator' : 'Sudo / Root';
   let sudoPassword = '';
   if (needsElevation) {
+    if (isWin) {
+      showToast(isID
+        ? 'Akses Ditolak: User SSH bukan Administrator pada host Windows ini. Pastikan akun SSH terdaftar dalam grup Administrators pada server Windows target.'
+        : 'Access Denied: The SSH user is not an Administrator on this Windows host. Ensure the SSH account belongs to the Administrators group on the target Windows server.',
+        'error');
+      return;
+    }
     sudoPassword = await showPasswordPrompt({
-      title: isID ? `Autentikasi Sudo / Root: ${actionName}` : `Sudo / Root Authentication: ${actionName}`,
+      title: isID ? `Autentikasi ${adminLabel}: ${actionName}` : `${adminLabel} Authentication: ${actionName}`,
       message: isID
-        ? `User SSH bukan root dan tidak memiliki hak passwordless sudo.\n\nPerintah:\n${command}\n\nMasukkan password sudo atau root server untuk melanjutkan:`
-        : `SSH user is not root and lacks passwordless sudo privileges.\n\nCommand:\n${command}\n\nEnter server sudo or root password to continue:`,
+        ? `User SSH bukan root dan tidak memiliki hak eksekusi langsung.\n\nPerintah:\n${command}\n\nMasukkan password sudo / root server untuk melanjutkan:`
+        : `SSH user is not root and lacks direct execution privileges.\n\nCommand:\n${command}\n\nEnter server sudo or root password to continue:`,
       confirmText: t('triage_clean_now', 'Clean Now')
     });
     if (sudoPassword === null) return;
@@ -11033,12 +11061,12 @@ async function executeSafeReclaim(hostID, actionKey, actionName, command) {
     const result = await res.json();
     if (!res.ok || !result.success) {
       const errStr = (result.error || result.output || '').toLowerCase();
-      if (!sudoPassword && (errStr.includes('permission denied') || errStr.includes('hak root/sudo') || errStr.includes('privilege'))) {
+      if (!sudoPassword && !isWin && (errStr.includes('permission denied') || errStr.includes('hak root/sudo') || errStr.includes('privilege'))) {
         const retryPass = await showPasswordPrompt({
-          title: isID ? 'Hak Akses Ditolak (Permission Denied)' : 'Access Denied (Permission Denied)',
+          title: isID ? 'Hak Akses Ditolak (Sudo)' : 'Access Denied (Sudo)',
           message: isID
-            ? `Eksekusi ditolak server karena user SSH tidak memiliki hak root/sudo.\n\nMasukkan password sudo atau root server untuk mencoba lagi:`
-            : `Execution was denied because SSH user lacks root/sudo privileges.\n\nEnter server sudo or root password to retry:`,
+            ? 'Eksekusi ditolak server karena user SSH tidak memiliki hak sudo/root.\n\nMasukkan password sudo atau root server untuk mencoba lagi:'
+            : 'Execution was denied because SSH user lacks root/sudo privileges.\n\nEnter server sudo or root password to retry:',
           confirmText: isID ? 'Coba Lagi dengan Sudo' : 'Retry with Sudo'
         });
         if (retryPass !== null && retryPass.trim() !== '') {
@@ -11056,8 +11084,10 @@ async function executeSafeReclaim(hostID, actionKey, actionName, command) {
 
 async function executeSafeReclaimWithPassword(hostID, actionKey, actionName, sudoPassword) {
   const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  const isWin = currentHost && currentHost.os_type === 'windows';
+  const adminLabel = isWin ? 'Administrator' : 'sudo/root';
   try {
-    showToast(isID ? `Menjalankan ${actionName} dengan hak akses sudo/root...` : `Running ${actionName} with sudo/root privileges...`, 'info');
+    showToast(isID ? `Menjalankan ${actionName} dengan hak akses ${adminLabel}...` : `Running ${actionName} with ${adminLabel} privileges...`, 'info');
     const res = await fetch(`/api/hosts/${hostID}/storage-reclaim`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -11078,14 +11108,24 @@ async function executeTruncateFile(hostID, filePath) {
   const triage = currentStorageTriageData;
   const needsElevation = triage && !triage.is_root && !triage.has_sudo;
   const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  const isWin = currentHost && currentHost.os_type === 'windows';
+  const truncCmd = isWin ? `Clear-Content -LiteralPath '${filePath}' -Force` : `truncate -s 0 '${filePath}'`;
+  const adminLabel = isWin ? 'Administrator' : 'Sudo / Root';
 
   let sudoPassword = '';
   if (needsElevation) {
+    if (isWin) {
+      showToast(isID
+        ? 'Akses Ditolak: User SSH bukan Administrator pada host Windows ini. Pastikan akun SSH terdaftar dalam grup Administrators pada server Windows target.'
+        : 'Access Denied: The SSH user is not an Administrator on this Windows host. Ensure the SSH account belongs to the Administrators group on the target Windows server.',
+        'error');
+      return;
+    }
     sudoPassword = await showPasswordPrompt({
-      title: isID ? 'Autentikasi Sudo / Root (Truncate Log)' : 'Sudo / Root Authentication (Truncate Log)',
+      title: isID ? `Autentikasi ${adminLabel} (Truncate Log)` : `${adminLabel} Authentication (Truncate Log)`,
       message: isID
-        ? `User SSH bukan root. Masukkan password sudo / root server untuk mengosongkan berkas log menjadi 0-byte:\n\nPath: ${filePath}\nPerintah: truncate -s 0 '${filePath}'`
-        : `SSH user is not root. Enter server sudo / root password to truncate log file to 0-byte:\n\nPath: ${filePath}\nCommand: truncate -s 0 '${filePath}'`,
+        ? `Masukkan password sudo / root server untuk mengosongkan berkas log menjadi 0-byte:\n\nPath: ${filePath}\nPerintah: ${truncCmd}`
+        : `Enter server sudo or root password to truncate log file to 0-byte:\n\nPath: ${filePath}\nCommand: ${truncCmd}`,
       confirmText: 'Truncate (0-byte)'
     });
     if (sudoPassword === null) return;
@@ -11093,8 +11133,8 @@ async function executeTruncateFile(hostID, filePath) {
     const confirmed = await showConfirm({
       title: isID ? 'Konfirmasi Log Truncation' : 'Confirm Log Truncation',
       message: isID
-        ? `Aksi ini akan mengosongkan berkas log menjadi 0-byte secara in-place:\n\nPath: ${filePath}\nPerintah: truncate -s 0 '${filePath}'\n\nIsi riwayat teks log akan dihapus secara permanen, namun file descriptor proses tetap aman. Lanjutkan?`
-        : `This action will safely empty the log file to 0-byte in-place:\n\nPath: ${filePath}\nCommand: truncate -s 0 '${filePath}'\n\nLog text history will be permanently cleared, but process file descriptors remain intact. Proceed?`,
+        ? `Aksi ini akan mengosongkan berkas log menjadi 0-byte secara in-place:\n\nPath: ${filePath}\nPerintah: ${truncCmd}\n\nIsi riwayat teks log akan dihapus secara permanen, namun file descriptor proses tetap aman. Lanjutkan?`
+        : `This action will safely empty the log file to 0-byte in-place:\n\nPath: ${filePath}\nCommand: ${truncCmd}\n\nLog text history will be permanently cleared, but process file descriptors remain intact. Proceed?`,
       confirmText: 'Truncate (0-byte)',
       danger: true
     });
@@ -11111,12 +11151,12 @@ async function executeTruncateFile(hostID, filePath) {
     const result = await res.json();
     if (!res.ok || !result.success) {
       const errStr = (result.error || result.output || '').toLowerCase();
-      if (!sudoPassword && (errStr.includes('permission denied') || errStr.includes('hak root/sudo') || errStr.includes('privilege'))) {
+      if (!sudoPassword && !isWin && (errStr.includes('permission denied') || errStr.includes('hak root/sudo') || errStr.includes('privilege'))) {
         const retryPass = await showPasswordPrompt({
-          title: isID ? 'Hak Akses Ditolak (Permission Denied)' : 'Access Denied (Permission Denied)',
+          title: isID ? 'Hak Akses Ditolak (Sudo)' : 'Access Denied (Sudo)',
           message: isID
-            ? `Eksekusi ditolak server karena user SSH tidak memiliki hak menulis ke berkas ini.\n\nMasukkan password sudo atau root server untuk mencoba lagi:`
-            : `Execution was denied because SSH user lacks write permissions for this file.\n\nEnter server sudo or root password to retry:`,
+            ? 'Eksekusi ditolak server karena user SSH tidak memiliki hak menulis ke berkas ini.\n\nMasukkan password sudo atau root server untuk mencoba lagi:'
+            : 'Execution was denied because SSH user lacks write permissions for this file.\n\nEnter server sudo or root password to retry:',
           confirmText: isID ? 'Coba Lagi dengan Sudo' : 'Retry with Sudo'
         });
         if (retryPass !== null && retryPass.trim() !== '') {
@@ -11134,8 +11174,10 @@ async function executeTruncateFile(hostID, filePath) {
 
 async function executeTruncateFileWithPassword(hostID, filePath, sudoPassword) {
   const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  const isWin = currentHost && currentHost.os_type === 'windows';
+  const adminLabel = isWin ? 'Administrator' : 'sudo/root';
   try {
-    showToast(isID ? 'Mengosongkan berkas dengan hak akses sudo/root...' : 'Truncating file with sudo/root privileges...', 'info');
+    showToast(isID ? `Mengosongkan berkas dengan hak akses ${adminLabel}...` : `Truncating file with ${adminLabel} privileges...`, 'info');
     const res = await fetch(`/api/hosts/${hostID}/storage-reclaim`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -11156,14 +11198,24 @@ async function executeReloadService(hostID, unitName) {
   const triage = currentStorageTriageData;
   const needsElevation = triage && !triage.is_root && !triage.has_sudo;
   const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  const isWin = currentHost && currentHost.os_type === 'windows';
+  const reloadCmd = isWin ? `Restart-Service -Name '${unitName}' -Force` : `systemctl reload '${unitName}'`;
+  const adminLabel = isWin ? 'Administrator' : 'Sudo / Root';
 
   let sudoPassword = '';
   if (needsElevation) {
+    if (isWin) {
+      showToast(isID
+        ? 'Akses Ditolak: User SSH bukan Administrator pada host Windows ini. Pastikan akun SSH terdaftar dalam grup Administrators pada server Windows target.'
+        : 'Access Denied: The SSH user is not an Administrator on this Windows host. Ensure the SSH account belongs to the Administrators group on the target Windows server.',
+        'error');
+      return;
+    }
     sudoPassword = await showPasswordPrompt({
-      title: isID ? 'Autentikasi Sudo / Root (Reload Service)' : 'Sudo / Root Authentication (Reload Service)',
+      title: isID ? `Autentikasi ${adminLabel} (Reload Service)` : `${adminLabel} Authentication (Reload Service)`,
       message: isID
-        ? `User SSH bukan root. Masukkan password sudo / root server untuk me-reload service '${unitName}':\n\nPerintah: systemctl reload '${unitName}'`
-        : `SSH user is not root. Enter server sudo / root password to reload service '${unitName}':\n\nCommand: systemctl reload '${unitName}'`,
+        ? `User SSH bukan root. Masukkan password sudo / root server untuk me-reload service '${unitName}':\n\nPerintah: ${reloadCmd}`
+        : `SSH user is not root. Enter server sudo / root password to reload service '${unitName}':\n\nCommand: ${reloadCmd}`,
       confirmText: isID ? 'Reload Service' : 'Reload Service'
     });
     if (sudoPassword === null) return;
@@ -11171,8 +11223,8 @@ async function executeReloadService(hostID, unitName) {
     const confirmed = await showConfirm({
       title: isID ? 'Konfirmasi Graceful Reload Service' : 'Confirm Graceful Service Reload',
       message: isID
-        ? `Aksi ini akan memerintahkan systemd untuk me-reload service '${unitName}' agar melepas file descriptor terhapus (Ghost File):\n\nPerintah: systemctl reload '${unitName}'\n\nLanjutkan?`
-        : `This action will instruct systemd to reload service '${unitName}' to release deleted file descriptors (Ghost Files):\n\nCommand: systemctl reload '${unitName}'\n\nProceed?`,
+        ? `Aksi ini akan me-reload service '${unitName}' agar melepas file descriptor terhapus (Ghost File):\n\nPerintah: ${reloadCmd}\n\nLanjutkan?`
+        : `This action will reload service '${unitName}' to release deleted file descriptors (Ghost Files):\n\nCommand: ${reloadCmd}\n\nProceed?`,
       confirmText: isID ? 'Reload Service' : 'Reload Service',
       danger: false
     });
@@ -11189,9 +11241,9 @@ async function executeReloadService(hostID, unitName) {
     const result = await res.json();
     if (!res.ok || !result.success) {
       const errStr = (result.error || result.output || '').toLowerCase();
-      if (!sudoPassword && (errStr.includes('permission denied') || errStr.includes('hak root/sudo') || errStr.includes('privilege'))) {
+      if (!sudoPassword && !isWin && (errStr.includes('permission denied') || errStr.includes('hak root/sudo') || errStr.includes('privilege'))) {
         const retryPass = await showPasswordPrompt({
-          title: isID ? 'Hak Akses Ditolak (Permission Denied)' : 'Access Denied (Permission Denied)',
+          title: isID ? 'Hak Akses Ditolak (Sudo)' : 'Access Denied (Sudo)',
           message: isID
             ? `Eksekusi ditolak server karena user SSH tidak memiliki hak me-reload service '${unitName}'.\n\nMasukkan password sudo atau root server untuk mencoba lagi:`
             : `Execution was denied because SSH user lacks root/sudo privileges to reload service '${unitName}'.\n\nEnter server sudo or root password to retry:`,
@@ -11212,8 +11264,10 @@ async function executeReloadService(hostID, unitName) {
 
 async function executeReloadServiceWithPassword(hostID, unitName, sudoPassword) {
   const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
+  const isWin = currentHost && currentHost.os_type === 'windows';
+  const adminLabel = isWin ? 'Administrator' : 'sudo/root';
   try {
-    showToast(isID ? `Me-reload service ${unitName} dengan hak akses sudo/root...` : `Reloading service ${unitName} with sudo/root privileges...`, 'info');
+    showToast(isID ? `Me-reload service ${unitName} dengan hak akses ${adminLabel}...` : `Reloading service ${unitName} with ${adminLabel} privileges...`, 'info');
     const res = await fetch(`/api/hosts/${hostID}/storage-reclaim`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -11239,7 +11293,7 @@ function openStorageTriageFromAlert(hostID) {
 
 function openFileManagerAtPath(targetPath, isDir = false) {
   const isWin = currentHost && currentHost.os_type === 'windows';
-  let p = targetPath || (isWin ? 'C:/' : '/');
+  let p = (targetPath || (isWin ? 'C:/' : '/')).replace(/\\/g, '/');
   if (!isDir && p.includes('/') && !p.endsWith('/')) {
     const lastSlash = p.lastIndexOf('/');
     p = lastSlash === 0 ? '/' : p.substring(0, lastSlash);

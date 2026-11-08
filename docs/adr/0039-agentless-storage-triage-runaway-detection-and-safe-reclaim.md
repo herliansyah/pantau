@@ -60,6 +60,14 @@ Saturasi ruang disk (*disk exhaustion* 90–100%) merupakan salah satu penyebab 
    - Menyajikan tampilan snapshot instan dari hasil pemindaian terakhir (`/api/hosts/{id}/storage-triage-latest`) yang disimpan dalam cache in-memory tanpa membebani database atau melakukan auto-scan tak terduga.
    - Tombol pintas diagnostik (*deep-link*) disematkan langsung pada bilah [Alert Banner](file:///home/ian/orca/workspaces/pantau/cetacean/CONTEXT.md#L272) saat terjadi alert saturasi disk dan pada widget indikator disk kartu Host dashboard jika kapasitas melebihi ambang batas aman (> 85%).
 
+7. **Ekstensi Dukungan Server Target Windows (Native PowerShell Agentless)**:
+   - Menyediakan kapabilitas Storage Triage penuh untuk Host berbasis Windows Server tanpa instalasi remote agent, memanfaatkan eksekusi PowerShell berkode Base64 UTF-16LE via SSH:
+     - **Partisi Drive Sistem**: Pembacaan kapasitas, ruang bebas, dan % keterisian drive `C:` menggunakan CIM query `Win32_LogicalDisk`.
+     - **Space Hogs Berkecepatan Tinggi**: Menghitung ukuran folder tingkat atas di `C:\` (folder utama serta penemuan dinamis direktori non-sistem) menggunakan `robocopy /L` *list-only mode* tanpa I/O copy, dengan fallback aman ke `Get-ChildItem`.
+     - **Top Large Files & Runaway Logs**: Pemindaian satu putaran (*single-pass*) pada direktori kerja umum untuk mendeteksi berkas besar (>15MB) dan runaway logs termodifikasi dalam 60 menit terakhir, dengan eksklusi mutlak pada berkas DBMS (`.mdf`, `.ldf`, `.ndf`, `.edb`, `.dit`, `.sqlite*`, `.vhdx`, `.avhdx`, `.bak`), arsip (`.7z`, `.rar`, `.xz`, `.bz2`, `.cab`), serta berkas konfigurasi/source code.
+     - **Katalog Safe Reclaim Windows**: Pembersihan terkurasi untuk Windows Update Cache (`SoftwareDistribution\Download`), System & User Temp (`C:\Windows\Temp`, `%TEMP%`, `C:\Temp`), Error Reports & Crash Dumps (`WER`, `Minidump`, `CrashDumps`, `MEMORY.DMP`), Keranjang Sampah (`Clear-RecycleBin`), arsip log IIS lama (>7 hari), serta Docker on Windows.
+     - **Log Truncation Windows Aman**: Pengosongan 0-byte in-place via `Clear-Content -LiteralPath '...' -Force` dengan batasan keamanan ketat yang menolak direktori sistem (`System32`, `SysWOW64`, `WinSxS`, `Boot`, `Recovery`), swapfiles (`pagefile.sys`, `swapfile.sys`, `hiberfil.sys`, `dumpstack.log`), target direktori, dan berkas database.
+
 ## Konsekuensi
 
 - **Resolusi Masalah Disk Cepat & Terarah**: Administrator dapat mengidentifikasi penyebab saturasi ruang penyimpanan dan berkas liar dalam satu klik tanpa perlu mengingat atau mengetik perintah shell kompleks secara manual.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 
 	"pantau/internal/inspector"
 	"pantau/internal/logger"
+	"pantau/internal/sshrunner"
 	"pantau/internal/store"
 )
 
@@ -208,23 +210,28 @@ func ShellQuote(s string) string {
 
 // IsDatabaseOrProtectedFile checks if a path belongs to a database storage engine or persistent state.
 func IsDatabaseOrProtectedFile(filePath string) bool {
-	cleaned := path.Clean(strings.TrimSpace(filePath))
+	raw := strings.TrimSpace(filePath)
+	normalized := strings.ReplaceAll(raw, "\\", "/")
+	cleaned := path.Clean(normalized)
 	lower := strings.ToLower(cleaned)
-	if strings.Contains(lower, "galera.cache") || strings.Contains(lower, "grastate.dat") || strings.Contains(lower, "gvwstate.dat") {
+	if strings.Contains(lower, "galera.cache") || strings.Contains(lower, "grastate.dat") || strings.Contains(lower, "gvwstate.dat") ||
+		strings.Contains(lower, "edb.log") || strings.Contains(lower, "edbtmp.log") || strings.Contains(lower, "edb.chk") {
 		return true
 	}
-	// Database engine directories
+	// Database engine directories (POSIX and Windows)
 	if strings.Contains(lower, "/mysql/") || strings.Contains(lower, "/mariadb/") ||
 		strings.Contains(lower, "/postgresql/") || strings.Contains(lower, "/postgres/") ||
 		strings.Contains(lower, "/redis/") || strings.Contains(lower, "/mongodb/") ||
+		strings.Contains(lower, "/mssql/") || strings.Contains(lower, "sql server") ||
 		strings.Contains(lower, "/docker/volumes/") || strings.Contains(lower, "/containerd/") {
 		return true
 	}
 	// Database engine file extensions and disk images
 	exts := []string{
 		".ibd", ".frm", ".myd", ".myi", ".db", ".sqlite", ".sqlite3",
-		".rdb", ".aof", ".wal", ".mdf", ".ldf", ".qcow2", ".vmdk", ".img", ".raw",
-		".dbf", ".wt", ".bson",
+		".rdb", ".aof", ".wal", ".mdf", ".ldf", ".ndf", ".edb", ".dit",
+		".qcow2", ".vmdk", ".img", ".raw", ".vhd", ".vhdx", ".avhd", ".avhdx",
+		".dbf", ".wt", ".bson", ".bak",
 	}
 	if strings.Contains(lower, "ibdata") {
 		return true
@@ -239,21 +246,73 @@ func IsDatabaseOrProtectedFile(filePath string) bool {
 
 // IsLogOrDisposableFile checks if a path is a recognizable log or disposable text file.
 func IsLogOrDisposableFile(filePath string) bool {
-	cleaned := path.Clean(strings.TrimSpace(filePath))
+	raw := strings.TrimSpace(filePath)
+	normalized := strings.ReplaceAll(raw, "\\", "/")
+	cleaned := path.Clean(normalized)
 	if IsDatabaseOrProtectedFile(cleaned) {
 		return false
 	}
 	lower := strings.ToLower(cleaned)
+
+	// Never classify binaries, executables, scripts, or system libraries as disposable logs
+	binaryExts := []string{
+		".exe", ".dll", ".sys", ".bin", ".com", ".bat", ".cmd", ".ps1", ".vbs", ".sh",
+		".so", ".dylib", ".jar", ".msi", ".iso", ".img", ".zip", ".tar", ".gz",
+		".7z", ".rar", ".xz", ".bz2", ".cab",
+		// Configuration and source code files are critical and never disposable
+		".json", ".xml", ".yml", ".yaml", ".ini", ".conf", ".config", ".cfg", ".cnf",
+		".py", ".js", ".ts", ".php", ".cs", ".go", ".java", ".c", ".cpp", ".h",
+	}
+	for _, bext := range binaryExts {
+		if strings.HasSuffix(lower, bext) {
+			return false
+		}
+	}
+
 	if strings.HasSuffix(lower, ".log") || strings.HasSuffix(lower, ".txt") ||
 		strings.HasSuffix(lower, ".out") || strings.HasSuffix(lower, ".err") ||
-		strings.HasSuffix(lower, ".dump") {
+		strings.HasSuffix(lower, ".dump") || strings.HasSuffix(lower, ".etl") ||
+		strings.Contains(lower, ".log.") {
 		return true
 	}
-	if strings.HasPrefix(lower, "/var/log/") || strings.HasPrefix(lower, "/tmp/") || strings.HasPrefix(lower, "/var/tmp/") {
+	if strings.HasPrefix(lower, "/var/log/") || strings.HasPrefix(lower, "/tmp/") || strings.HasPrefix(lower, "/var/tmp/") ||
+		strings.Contains(lower, "/temp/") || strings.Contains(lower, "/logs/") {
 		return true
 	}
 	return false
 }
+
+// WindowsTriageProbeScript is the PowerShell probe script to collect partition metrics, space hogs, large files, runaway logs, and reclaimable caches on Windows.
+// ponytail: Compact single-shot script kept under 3000 chars raw (well below Windows cmd.exe 8191 limit when Base64 encoded).
+const WindowsTriageProbeScript = `$ProgressPreference=0;
+"===SUDO_STATUS===";if(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(544)){"admin` + "`" + `n0"}else{"user` + "`" + `n1000"};
+"===PARTITION===";$d=gcim Win32_LogicalDisk -f "DriveType=3" -ea 0|sort -d {$_.DeviceID -eq "C:"}|select -f 1;
+if(!$d){$i=[IO.DriveInfo]::GetDrives()|?{$_.DriveType -eq 3}|sort -d {$_.Name -like "C:*"}|select -f 1;if($i){$d=@{DeviceID=$i.Name.TrimEnd("\");Size=$i.TotalSize;FreeSpace=$i.TotalFreeSpace;FileSystem=$i.DriveFormat}}};
+if($d){$t=[int64]($d.Size/1KB);$f=[int64]($d.FreeSpace/1KB);$u=$t-$f;$p=if($t){[int]($u/$t*100)}else{0};$fs=if($d.FileSystem){$d.FileSystem}else{"NTFS"};"$fs $t $u $f ${p}% $($d.DeviceID)"};
+"===SPACE_HOGS===";$sd=if($d.DeviceID){$d.DeviceID}else{"C:"};$w=if($env:SystemRoot){$env:SystemRoot}else{"$sd\Windows"};
+filter _sz{try{[int64](gci -Lit $_ -Rec -File -Force -ea 0|measure -s Length).Sum}catch{0}}
+@("Windows","Program Files","Program Files (x86)","Users","ProgramData","inetpub")+@(gci -Lit "$sd\" -Dir -ea 0|?{$_.Name -notmatch "^(\$|Sys|Rec|Perf)"}|select -Exp Name)|select -u|%{
+$p=Join-Path "$sd\" $_;if(Test-Path -Lit $p){$m=$false;
+try{$rc=robocopy $p "NULL" /L /E /BYTES /NFL /NDL /NJH /NP /XJ /R:0 /W:0 2>$null;
+if(($rc-join"` + "`" + `n")-match"Bytes\s*:\s*(\d+)"){"$([int64]($matches[1]/1KB))` + "`" + `t$p";$m=$true}}catch{};
+if(!$m){$s=$p|_sz;if($s){"$([int64]($s/1KB))` + "`" + `t$p"}}
+}};
+"===TOP_FILES===";$sc=(Get-Date).AddMinutes(-60);$tf=@();$rf=@();
+@("$sd\Users","$sd\ProgramData","$sd\inetpub","$w\Temp","$w\Logs","$sd\logs","$sd\temp","$sd\app","$sd\data",$env:TEMP)|select -u|?{$_ -and (Test-Path -Lit $_)}|%{
+$r=$_;try{gci -Lit $r -Rec -File -ea 0|?{$_.Length -ge 15MB}|%{
+$tf+=$_;if($_.LastWriteTime -ge $sc -and ($_.Extension -match "^\.(log|txt|out|err|dump|etl)$" -or $_.FullName -match "[\\/](logs?|temp)[\\/]") -and $_.Extension -notmatch "^\.(mdf|ldf|ndf|edb|dit|db|sqlite|rdb|wal|vhd|vhdx|avhd|avhdx|vmdk|bak)"){$rf+=$_}
+}}catch{}
+};
+$tf|sort FullName -u|sort Length -desc|select -f 15|%{"$($_.Length) $($_.FullName)"};
+"===RUNAWAY_FILES===";$rf|sort FullName -u|sort Length -desc|select -f 10|%{"$($_.Length) $($_.FullName)"};
+"===GHOST_FILES===";
+"===RECLAIM_WIN_UPDATE===";"$w\SoftwareDistribution\Download"|_sz;
+"===RECLAIM_TEMP===";$ts=0;@("$w\Temp",$env:TEMP,"$sd\Temp")|select -u|?{$_ -and (Test-Path -Lit $_)}|%{$ts+=($_|_sz)};"$ts";
+"===RECLAIM_DUMPS===";$ds=0;@("$env:ProgramData\Microsoft\Windows\WER","$w\Minidump","$env:LOCALAPPDATA\CrashDumps")|?{$_ -and (Test-Path -Lit $_)}|%{$ds+=($_|_sz)};
+try{$ds+=(gi -Lit "$w\MEMORY.DMP" -ea 0).Length}catch{};"$ds";
+"===RECLAIM_RECYCLEBIN===";($sd + "\$Recycle.Bin")|_sz;
+"===RECLAIM_IIS===";$ip="$sd\inetpub\logs\LogFiles";if(Test-Path -Lit $ip){[int64](gci -Lit $ip -Rec -File -ea 0|?{$_.LastWriteTime -lt (Get-Date).AddDays(-7)}|measure -s Length).Sum}else{0};
+"===RECLAIM_DOCKER===";if(gcm docker -ea 0){docker info 2>$null;if(!$LASTEXITCODE){"active";docker system df --format "{{.Reclaimable}}" 2>$null}else{"none"}}else{"none"}`
 
 const TriageProbeScript = `TARGET_SHELL="sh"
 if command -v bash >/dev/null 2>&1; then
@@ -438,7 +497,11 @@ func (s *Service) CancelTriage(hostID int64) bool {
 			return
 		}
 		defer runner.Close()
-		killScript := `TARGET_SHELL="sh"
+		if strings.EqualFold(h.OSType, "windows") {
+			killScript := `Stop-Process -Name robocopy -Force -ErrorAction SilentlyContinue`
+			_, _, _, _ = runner.ExecTimeout(sshrunner.PowershellEncodedCmd(killScript), 5*time.Second)
+		} else {
+			killScript := `TARGET_SHELL="sh"
 if command -v bash >/dev/null 2>&1; then
     TARGET_SHELL="bash"
 fi
@@ -453,7 +516,8 @@ $SUDO pkill -9 -f "du -skx" 2>/dev/null || true
 $SUDO pkill -9 -f "find /" 2>/dev/null || true
 PANTAU_KILL_EOF
 `
-		_, _, _, _ = runner.ExecTimeout(killScript, 5*time.Second)
+			_, _, _, _ = runner.ExecTimeout(killScript, 5*time.Second)
+		}
 	}()
 
 	return true
@@ -493,7 +557,14 @@ func (s *Service) CheckThrottle(hostID int64, force ...bool) (*ThrottleStatus, e
 	state := LoadStateNormal
 	cooldownDuration := time.Duration(CooldownNormalSeconds) * time.Second
 
-	isCPUOverloaded := cpuCores > 0 && load1m > (2.0*float64(cpuCores))
+	isWindows := strings.EqualFold(h.OSType, "windows")
+	var isCPUOverloaded bool
+	if isWindows {
+		// ponytail: On Windows, CPULoad is % CPU saturation (0-100%). Overload threshold is >= 90%.
+		isCPUOverloaded = load1m >= 90.0
+	} else {
+		isCPUOverloaded = cpuCores > 0 && load1m > (2.0*float64(cpuCores))
+	}
 	isWriteVeryBusy := writeSpeed >= WriteSpeedVeryBusyThresholdBps
 
 	if isWriteVeryBusy || isCPUOverloaded {
@@ -538,9 +609,13 @@ func (s *Service) CheckThrottle(hostID int64, force ...bool) (*ThrottleStatus, e
 			}
 			status.Allowed = false
 			status.RemainingSeconds = remaining
+			loadDisplay := fmt.Sprintf("%.2f", load1m)
+			if isWindows {
+				loadDisplay = fmt.Sprintf("%.0f%%", load1m)
+			}
 			if state == LoadStateVeryBusy {
-				status.Reason = fmt.Sprintf("Remote server is very busy (Disk Write: %s/s, Load: %.2f). Scan throttled to protect server health.", FormatBytes(writeSpeed), load1m)
-				status.ReasonID = fmt.Sprintf("Server remote sedang sangat sibuk (Disk Write: %s/s, Load: %.2f). Pemindaian dibatasi demi keselamatan server.", FormatBytes(writeSpeed), load1m)
+				status.Reason = fmt.Sprintf("Remote server is very busy (Disk Write: %s/s, Load: %s). Scan throttled to protect server health.", FormatBytes(writeSpeed), loadDisplay)
+				status.ReasonID = fmt.Sprintf("Server remote sedang sangat sibuk (Disk Write: %s/s, Load: %s). Pemindaian dibatasi demi keselamatan server.", FormatBytes(writeSpeed), loadDisplay)
 			} else if state == LoadStateBusy {
 				status.Reason = fmt.Sprintf("Remote server is busy (Disk Write: %s/s). Cooldown active for %d seconds.", FormatBytes(writeSpeed), remaining)
 				status.ReasonID = fmt.Sprintf("Server remote sedang sibuk (Disk Write: %s/s). Waktu jeda (cooldown) aktif %d detik.", FormatBytes(writeSpeed), remaining)
@@ -556,8 +631,12 @@ func (s *Service) CheckThrottle(hostID int64, force ...bool) (*ThrottleStatus, e
 	if state == LoadStateVeryBusy {
 		status.Allowed = false
 		status.RemainingSeconds = 0
-		status.Reason = fmt.Sprintf("Remote server is very busy (Disk Write: %s/s, Load: %.2f). Scanning disabled to protect server stability.", FormatBytes(writeSpeed), load1m)
-		status.ReasonID = fmt.Sprintf("Server remote sedang sangat sibuk (Disk Write: %s/s, Load: %.2f). Pemindaian dinonaktifkan demi stabilitas server.", FormatBytes(writeSpeed), load1m)
+		loadDisplay := fmt.Sprintf("%.2f", load1m)
+		if isWindows {
+			loadDisplay = fmt.Sprintf("%.0f%%", load1m)
+		}
+		status.Reason = fmt.Sprintf("Remote server is very busy (Disk Write: %s/s, Load: %s). Scanning disabled to protect server stability.", FormatBytes(writeSpeed), loadDisplay)
+		status.ReasonID = fmt.Sprintf("Server remote sedang sangat sibuk (Disk Write: %s/s, Load: %s). Pemindaian dinonaktifkan demi stabilitas server.", FormatBytes(writeSpeed), loadDisplay)
 		return status, nil
 	}
 
@@ -615,10 +694,8 @@ func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*
 	if strings.EqualFold(h.Status, "down") {
 		return nil, fmt.Errorf("host '%s' is offline", h.Name)
 	}
-	if h.OSType == "windows" {
-		return nil, errors.New("storage triage is not supported on Windows hosts")
-	}
 
+	isWindows := strings.EqualFold(h.OSType, "windows")
 	probeCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -639,6 +716,11 @@ func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*
 	}
 	defer runner.Close()
 
+	if s.inspector != nil && (h.OSType == "" || strings.EqualFold(h.OSType, "auto")) {
+		s.inspector.DetectHostOS(h, runner)
+		isWindows = strings.EqualFold(h.OSType, "windows")
+	}
+
 	// Terminate remote runner immediately if probeCtx is cancelled
 	doneChan := make(chan struct{})
 	defer close(doneChan)
@@ -650,9 +732,16 @@ func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*
 		}
 	}()
 
+	var probeCmd string
+	if isWindows {
+		probeCmd = sshrunner.PowershellEncodedCmd(WindowsTriageProbeScript)
+	} else {
+		probeCmd = TriageProbeScript
+	}
+
 	start := time.Now()
 	// ponytail: 50s timeout provides generous headroom for high-load disks while preventing indefinite stalls.
-	stdout, _, _, err := runner.ExecTimeout(TriageProbeScript, 50*time.Second)
+	stdout, _, _, err := runner.ExecTimeout(probeCmd, 50*time.Second)
 	scanDuration := time.Since(start).Milliseconds()
 	if err != nil {
 		if probeCtx.Err() == context.Canceled {
@@ -668,6 +757,11 @@ func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*
 	res.ScanDurationMs = scanDuration
 	res.ScannedAt = time.Now().Format("2006-01-02 15:04:05")
 	res.WriteRateBps = h.DiskWriteSpeedBps
+
+	if isWindows && !res.IsRoot && !res.HasSudo {
+		res.Warning = "Limited privileges: SSH user is not running as Administrator. Protected system directories may not be fully scanned."
+		res.WarningID = "Privilese terbatas: SSH user tidak berjalan sebagai Administrator. Direktori sistem terlindung mungkin tidak terbaca seluruhnya."
+	}
 
 	// Record successful scan time for in-memory cooldown tracking and snapshot caching
 	s.lastScanTimes.Store(hostID, time.Now())
@@ -759,6 +853,36 @@ func ParseTriageOutput(raw string) *TriageResult {
 			}
 			currentSec = "RECLAIM_DOCKER"
 			currentLines = nil
+		} else if strings.HasPrefix(trimmed, "===RECLAIM_WIN_UPDATE===") {
+			if currentSec != "" {
+				sections[currentSec] = strings.Join(currentLines, "\n")
+			}
+			currentSec = "RECLAIM_WIN_UPDATE"
+			currentLines = nil
+		} else if strings.HasPrefix(trimmed, "===RECLAIM_TEMP===") {
+			if currentSec != "" {
+				sections[currentSec] = strings.Join(currentLines, "\n")
+			}
+			currentSec = "RECLAIM_TEMP"
+			currentLines = nil
+		} else if strings.HasPrefix(trimmed, "===RECLAIM_DUMPS===") {
+			if currentSec != "" {
+				sections[currentSec] = strings.Join(currentLines, "\n")
+			}
+			currentSec = "RECLAIM_DUMPS"
+			currentLines = nil
+		} else if strings.HasPrefix(trimmed, "===RECLAIM_RECYCLEBIN===") {
+			if currentSec != "" {
+				sections[currentSec] = strings.Join(currentLines, "\n")
+			}
+			currentSec = "RECLAIM_RECYCLEBIN"
+			currentLines = nil
+		} else if strings.HasPrefix(trimmed, "===RECLAIM_IIS===") {
+			if currentSec != "" {
+				sections[currentSec] = strings.Join(currentLines, "\n")
+			}
+			currentSec = "RECLAIM_IIS"
+			currentLines = nil
 		} else {
 			currentLines = append(currentLines, line)
 		}
@@ -769,20 +893,31 @@ func ParseTriageOutput(raw string) *TriageResult {
 
 	// 1. Sudo status & UID
 	sudoSec := sections["SUDO_STATUS"]
-	if strings.Contains(sudoSec, "sudo -n") {
+	if strings.Contains(sudoSec, "sudo -n") || strings.Contains(sudoSec, "admin") {
 		res.HasSudo = true
 	}
 	for _, l := range strings.Split(sudoSec, "\n") {
 		l = strings.TrimSpace(l)
-		if l == "0" {
+		if l == "0" || l == "admin" {
 			res.IsRoot = true
 			res.HasSudo = true
 			break
 		}
 	}
+	isWinOutput := sections["RECLAIM_WIN_UPDATE"] != "" ||
+		sections["RECLAIM_IIS"] != "" ||
+		sections["RECLAIM_DUMPS"] != "" ||
+		sections["RECLAIM_RECYCLEBIN"] != "" ||
+		strings.Contains(sections["PARTITION"], ":")
+
 	if !res.IsRoot && !res.HasSudo {
-		res.Warning = "Limited privileges: SSH user is not root and lacks sudo -n access. Protected system directories may not be fully scanned."
-		res.WarningID = "Privilese terbatas: SSH user bukan root dan tidak memiliki akses sudo -n. Direktori sistem terlindung mungkin tidak terbaca seluruhnya."
+		if isWinOutput {
+			res.Warning = "Limited privileges: SSH user is not running as Administrator. Protected system directories may not be fully scanned."
+			res.WarningID = "Privilese terbatas: SSH user tidak berjalan sebagai Administrator. Direktori sistem terlindung mungkin tidak terbaca seluruhnya."
+		} else {
+			res.Warning = "Limited privileges: SSH user is not root and lacks sudo -n access. Protected system directories may not be fully scanned."
+			res.WarningID = "Privilese terbatas: SSH user bukan root dan tidak memiliki akses sudo -n. Direktori sistem terlindung mungkin tidak terbaca seluruhnya."
+		}
 	}
 
 	// 2. Partition info
@@ -805,6 +940,7 @@ func ParseTriageOutput(raw string) *TriageResult {
 	}
 
 	// 3. Space Hogs (du level 1)
+	seenHogs := make(map[string]bool)
 	hogLines := strings.Split(sections["SPACE_HOGS"], "\n")
 	for _, l := range hogLines {
 		fields := strings.Fields(l)
@@ -812,10 +948,19 @@ func ParseTriageOutput(raw string) *TriageResult {
 			sizeK, err := strconv.ParseInt(fields[0], 10, 64)
 			if err == nil {
 				path := strings.TrimSpace(l[len(fields[0]):])
-				if path == "/" {
+				if path == "/" || strings.EqualFold(path, "C:\\") || strings.EqualFold(path, "C:") ||
+					(res.Partition.MountPoint != "" && (strings.EqualFold(path, res.Partition.MountPoint) || strings.EqualFold(path, res.Partition.MountPoint+"\\"))) {
 					continue // skip root summary line
 				}
+				normKey := strings.ToLower(strings.ReplaceAll(path, "\\", "/"))
+				if seenHogs[normKey] {
+					continue
+				}
+				seenHogs[normKey] = true
 				sizeBytes := sizeK * 1024
+				if sizeBytes <= 0 {
+					continue
+				}
 				res.SpaceHogs = append(res.SpaceHogs, DirectoryHog{
 					Path:      path,
 					SizeBytes: sizeBytes,
@@ -824,8 +969,12 @@ func ParseTriageOutput(raw string) *TriageResult {
 			}
 		}
 	}
+	sort.Slice(res.SpaceHogs, func(i, j int) bool {
+		return res.SpaceHogs[i].SizeBytes > res.SpaceHogs[j].SizeBytes
+	})
 
 	// 4. Top Files
+	seenTop := make(map[string]bool)
 	topFileLines := strings.Split(sections["TOP_FILES"], "\n")
 	for _, l := range topFileLines {
 		fields := strings.Fields(l)
@@ -833,6 +982,11 @@ func ParseTriageOutput(raw string) *TriageResult {
 			sizeBytes, err := strconv.ParseInt(fields[0], 10, 64)
 			if err == nil {
 				path := strings.TrimSpace(l[len(fields[0]):])
+				normKey := strings.ToLower(strings.ReplaceAll(path, "\\", "/"))
+				if seenTop[normKey] {
+					continue
+				}
+				seenTop[normKey] = true
 				res.TopFiles = append(res.TopFiles, FileHog{
 					Path:      path,
 					SizeBytes: sizeBytes,
@@ -843,6 +997,7 @@ func ParseTriageOutput(raw string) *TriageResult {
 	}
 
 	// 5. Runaway Files
+	seenRunaway := make(map[string]bool)
 	runawayLines := strings.Split(sections["RUNAWAY_FILES"], "\n")
 	for _, l := range runawayLines {
 		fields := strings.Fields(l)
@@ -850,10 +1005,15 @@ func ParseTriageOutput(raw string) *TriageResult {
 			sizeBytes, err := strconv.ParseInt(fields[0], 10, 64)
 			if err == nil {
 				path := strings.TrimSpace(l[len(fields[0]):])
+				normKey := strings.ToLower(strings.ReplaceAll(path, "\\", "/"))
+				if seenRunaway[normKey] {
+					continue
+				}
 				// ponytail: Never classify persistent database files or binaries as runaway files.
 				if IsDatabaseOrProtectedFile(path) || !IsLogOrDisposableFile(path) {
 					continue
 				}
+				seenRunaway[normKey] = true
 				res.RunawayFiles = append(res.RunawayFiles, RunawayFile{
 					Path:      path,
 					SizeBytes: sizeBytes,
@@ -982,6 +1142,7 @@ func ParseTriageOutput(raw string) *TriageResult {
 			res.Reclaimables = append(res.Reclaimables, ReclaimItem{
 				Key:            "docker",
 				Name:           "Docker System Prune",
+				NameID:         "Pembersihan Sistem Docker (Prune)",
 				Description:    "Clean up inactive containers, dangling networks, and unused images",
 				DescriptionID:  "Pembersihan kontainer nonaktif, jaringan dangling, dan image tak terpakai",
 				EstimatedBytes: dockerBytes,
@@ -993,6 +1154,106 @@ func ParseTriageOutput(raw string) *TriageResult {
 		}
 	}
 
+	// 7f. Windows Update Cache
+	winUpdateSec := strings.TrimSpace(sections["RECLAIM_WIN_UPDATE"])
+	if winUpdateSec != "" {
+		wuBytes, _ := strconv.ParseInt(winUpdateSec, 10, 64)
+		if wuBytes > 5*1024*1024 {
+			res.Reclaimables = append(res.Reclaimables, ReclaimItem{
+				Key:            "win_update_cache",
+				Name:           "Windows Update Cache",
+				NameID:         "Cache Unduhan Windows Update",
+				Description:    `Clean up downloaded Windows Update installation files in SoftwareDistribution\Download`,
+				DescriptionID:  `Pembersihan berkas instalasi unduhan Windows Update di SoftwareDistribution\Download`,
+				EstimatedBytes: wuBytes,
+				HumanSize:      FormatBytes(wuBytes),
+				Command:        `Remove-Item -Path "$env:SystemRoot\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue`,
+				Available:      true,
+			})
+			totalReclaim += wuBytes
+		}
+	}
+
+	// 7g. Windows Temp Files
+	tempSec := strings.TrimSpace(sections["RECLAIM_TEMP"])
+	if tempSec != "" {
+		tempBytes, _ := strconv.ParseInt(tempSec, 10, 64)
+		if tempBytes > 5*1024*1024 {
+			res.Reclaimables = append(res.Reclaimables, ReclaimItem{
+				Key:            "win_temp",
+				Name:           "System & User Temp Files",
+				NameID:         "Berkas Sementara Sistem & Pengguna (Temp)",
+				Description:    "Remove temporary files in Windows Temp and user Temp directories",
+				DescriptionID:  "Pembersihan berkas sementara di direktori Windows Temp dan Temp pengguna",
+				EstimatedBytes: tempBytes,
+				HumanSize:      FormatBytes(tempBytes),
+				Command:        `Get-ChildItem -Path "$env:SystemRoot\Temp", "$env:TEMP", "$env:SystemDrive\Temp" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue`,
+				Available:      true,
+			})
+			totalReclaim += tempBytes
+		}
+	}
+
+	// 7h. Windows Error Reports & Dumps
+	dumpSec := strings.TrimSpace(sections["RECLAIM_DUMPS"])
+	if dumpSec != "" {
+		dumpBytes, _ := strconv.ParseInt(dumpSec, 10, 64)
+		if dumpBytes > 5*1024*1024 {
+			res.Reclaimables = append(res.Reclaimables, ReclaimItem{
+				Key:            "win_wer_dumps",
+				Name:           "Windows Error Reports & Dumps",
+				NameID:         "Laporan Error & Memory Dump Windows",
+				Description:    "Remove Windows Error Reporting crash records and minidump files",
+				DescriptionID:  "Pembersihan rekaman crash Windows Error Reporting dan berkas minidump",
+				EstimatedBytes: dumpBytes,
+				HumanSize:      FormatBytes(dumpBytes),
+				Command:        `Remove-Item -Path "$env:ProgramData\Microsoft\Windows\WER\*", "$env:SystemRoot\Minidump\*", "$env:LOCALAPPDATA\CrashDumps\*", "$env:SystemRoot\MEMORY.DMP" -Recurse -Force -ErrorAction SilentlyContinue`,
+				Available:      true,
+			})
+			totalReclaim += dumpBytes
+		}
+	}
+
+	// 7i. Windows Recycle Bin
+	rbSec := strings.TrimSpace(sections["RECLAIM_RECYCLEBIN"])
+	if rbSec != "" {
+		rbBytes, _ := strconv.ParseInt(rbSec, 10, 64)
+		if rbBytes > 5*1024*1024 {
+			res.Reclaimables = append(res.Reclaimables, ReclaimItem{
+				Key:            "win_recycle_bin",
+				Name:           "Recycle Bin",
+				NameID:         "Keranjang Sampah (Recycle Bin)",
+				Description:    "Empty deleted files in Recycle Bin across local drives",
+				DescriptionID:  "Kosongkan berkas terhapus di Keranjang Sampah seluruh drive lokal",
+				EstimatedBytes: rbBytes,
+				HumanSize:      FormatBytes(rbBytes),
+				Command:        "Clear-RecycleBin -Force -ErrorAction SilentlyContinue",
+				Available:      true,
+			})
+			totalReclaim += rbBytes
+		}
+	}
+
+	// 7j. Old IIS Logs
+	iisSec := strings.TrimSpace(sections["RECLAIM_IIS"])
+	if iisSec != "" {
+		iisBytes, _ := strconv.ParseInt(iisSec, 10, 64)
+		if iisBytes > 5*1024*1024 {
+			res.Reclaimables = append(res.Reclaimables, ReclaimItem{
+				Key:            "win_iis_logs",
+				Name:           "Old IIS Web Server Logs",
+				NameID:         "Log Web Server IIS Lama",
+				Description:    `Remove archived IIS access logs older than 7 days in inetpub\logs`,
+				DescriptionID:  `Pembersihan arsip log akses IIS yang lebih lama dari 7 hari di inetpub\logs`,
+				EstimatedBytes: iisBytes,
+				HumanSize:      FormatBytes(iisBytes),
+				Command:        `Get-ChildItem -Path "$env:SystemDrive\inetpub\logs\LogFiles" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } | Remove-Item -Force -ErrorAction SilentlyContinue`,
+				Available:      true,
+			})
+			totalReclaim += iisBytes
+		}
+	}
+
 	res.TotalReclaimBytes = totalReclaim
 	res.TotalReclaimHuman = FormatBytes(totalReclaim)
 
@@ -1000,7 +1261,9 @@ func ParseTriageOutput(raw string) *TriageResult {
 }
 
 // ValidateReclaimRequest verifies and returns the safe shell command for the given action.
-func ValidateReclaimRequest(req ReclaimRequest) (string, error) {
+func ValidateReclaimRequest(req ReclaimRequest, osType ...string) (string, error) {
+	isWinTarget := len(osType) > 0 && strings.EqualFold(osType[0], "windows")
+
 	switch req.ActionKey {
 	case "journal":
 		return "journalctl --vacuum-time=2d --vacuum-size=50M", nil
@@ -1012,13 +1275,76 @@ func ValidateReclaimRequest(req ReclaimRequest) (string, error) {
 		return "rm -f /var/lib/systemd/coredump/*", nil
 	case "docker":
 		return "docker system prune -af", nil
+	case "win_update_cache":
+		return `Remove-Item -Path "$env:SystemRoot\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue`, nil
+	case "win_temp":
+		return `Get-ChildItem -Path "$env:SystemRoot\Temp", "$env:TEMP", "$env:SystemDrive\Temp" -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue`, nil
+	case "win_wer_dumps":
+		return `Remove-Item -Path "$env:ProgramData\Microsoft\Windows\WER\*", "$env:SystemRoot\Minidump\*", "$env:LOCALAPPDATA\CrashDumps\*", "$env:SystemRoot\MEMORY.DMP" -Recurse -Force -ErrorAction SilentlyContinue`, nil
+	case "win_recycle_bin":
+		return `Clear-RecycleBin -Force -ErrorAction SilentlyContinue`, nil
+	case "win_iis_logs":
+		return `Get-ChildItem -Path "$env:SystemDrive\inetpub\logs\LogFiles" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-7) } | Remove-Item -Force -ErrorAction SilentlyContinue`, nil
 	case "truncate":
-		target := path.Clean(strings.TrimSpace(req.TargetPath))
-		if target == "" || target == "." {
+		targetRaw := strings.TrimSpace(req.TargetPath)
+		if targetRaw == "" || targetRaw == "." {
 			return "", errors.New("target path required for log truncation")
 		}
+
+		isWindowsPath := isWinTarget ||
+			(len(targetRaw) >= 2 && targetRaw[1] == ':') ||
+			strings.Contains(targetRaw, "\\")
+
+		if isWindowsPath {
+			cleanWin := strings.ReplaceAll(targetRaw, "/", "\\")
+			lower := strings.ToLower(cleanWin)
+
+			if strings.HasSuffix(cleanWin, "\\") {
+				return "", errors.New("target path cannot be a directory")
+			}
+			if len(cleanWin) < 3 || cleanWin[1] != ':' || cleanWin[2] != '\\' {
+				return "", errors.New("target path must be an absolute Windows path (e.g. C:\\path\\file.log)")
+			}
+			if strings.Contains(cleanWin, "..") {
+				return "", errors.New("path traversal characters are forbidden in target path")
+			}
+			rootPath := lower[2:]
+			if len(cleanWin) <= 3 ||
+				strings.HasPrefix(rootPath, "\\windows\\system32") ||
+				strings.HasPrefix(rootPath, "\\windows\\syswow64") ||
+				strings.HasPrefix(rootPath, "\\windows\\winsxs") ||
+				strings.HasPrefix(rootPath, "\\boot") ||
+				strings.HasPrefix(rootPath, "\\recovery") ||
+				strings.HasPrefix(rootPath, "\\system volume information") ||
+				strings.HasPrefix(rootPath, "\\program files") ||
+				strings.HasPrefix(rootPath, "\\program files (x86)") ||
+				strings.HasSuffix(lower, "pagefile.sys") ||
+				strings.HasSuffix(lower, "swapfile.sys") ||
+				strings.HasSuffix(lower, "hiberfil.sys") ||
+				strings.Contains(lower, "dumpstack.log") ||
+				strings.HasSuffix(lower, "memory.dmp") {
+				return "", fmt.Errorf("path '%s' is in protected Windows territory and cannot be truncated", cleanWin)
+			}
+			if IsDatabaseOrProtectedFile(cleanWin) {
+				return "", fmt.Errorf("path '%s' is a critical database or persistent storage file and CANNOT be truncated", cleanWin)
+			}
+			if !IsLogOrDisposableFile(cleanWin) {
+				return "", fmt.Errorf("path '%s' is not a disposable log file; truncation is strictly restricted to logs and temporary text files", cleanWin)
+			}
+			psEscaped := strings.ReplaceAll(cleanWin, "'", "''")
+			return fmt.Sprintf("Clear-Content -LiteralPath '%s' -Force", psEscaped), nil
+		}
+
+		// Linux target path validation
+		if strings.HasSuffix(targetRaw, "/") {
+			return "", errors.New("target path cannot be a directory")
+		}
+		target := path.Clean(targetRaw)
 		if !strings.HasPrefix(target, "/") {
 			return "", errors.New("target path must be an absolute path")
+		}
+		if strings.Contains(targetRaw, "..") {
+			return "", errors.New("path traversal characters are forbidden in target path")
 		}
 		// Security boundary: prevent truncating critical system directories or files
 		lower := strings.ToLower(target)
@@ -1044,10 +1370,13 @@ func ValidateReclaimRequest(req ReclaimRequest) (string, error) {
 	case "reload_service":
 		unit := strings.TrimSpace(req.TargetPath)
 		if unit == "" {
-			return "", errors.New("systemd unit name required for service reload")
+			return "", errors.New("systemd unit or Windows service name required for service reload")
 		}
 		if !safeUnitRegex.MatchString(unit) {
-			return "", fmt.Errorf("invalid unit name '%s'", unit)
+			return "", fmt.Errorf("invalid unit or service name '%s'", unit)
+		}
+		if isWinTarget {
+			return fmt.Sprintf("Restart-Service -Name '%s' -Force", unit), nil
 		}
 		return fmt.Sprintf("systemctl reload %s", ShellQuote(unit)), nil
 	default:
@@ -1057,23 +1386,41 @@ func ValidateReclaimRequest(req ReclaimRequest) (string, error) {
 
 // ExecuteReclaim runs an approved cleanup or remediation action.
 func (s *Service) ExecuteReclaim(ctx context.Context, hostID int64, req ReclaimRequest) (*ReclaimResult, error) {
-	cmd, err := ValidateReclaimRequest(req)
+	var isWindows bool
+	var ost string
+	var h *store.Host
+	if s.db != nil {
+		var err error
+		h, err = s.db.GetHost(hostID)
+		if err != nil {
+			return nil, fmt.Errorf("get host: %w", err)
+		}
+		if h == nil {
+			return nil, errors.New("host not found")
+		}
+		if strings.EqualFold(h.Status, "down") {
+			return nil, fmt.Errorf("host '%s' is offline", h.Name)
+		}
+		isWindows = strings.EqualFold(h.OSType, "windows") ||
+			((h.OSType == "" || strings.EqualFold(h.OSType, "auto")) &&
+				((len(req.TargetPath) >= 2 && req.TargetPath[1] == ':') ||
+					strings.Contains(req.TargetPath, "\\") ||
+					strings.HasPrefix(req.ActionKey, "win_")))
+		if isWindows {
+			ost = "windows"
+		}
+	} else if (len(req.TargetPath) >= 2 && (req.TargetPath[1] == ':' || strings.Contains(req.TargetPath, "\\"))) || strings.HasPrefix(req.ActionKey, "win_") {
+		isWindows = true
+		ost = "windows"
+	}
+
+	cmd, err := ValidateReclaimRequest(req, ost)
 	if err != nil {
 		return nil, err
 	}
 
-	h, err := s.db.GetHost(hostID)
-	if err != nil {
-		return nil, fmt.Errorf("get host: %w", err)
-	}
-	if h == nil {
-		return nil, errors.New("host not found")
-	}
-	if strings.EqualFold(h.Status, "down") {
-		return nil, fmt.Errorf("host '%s' is offline", h.Name)
-	}
-	if h.OSType == "windows" {
-		return nil, errors.New("storage triage is not supported on Windows hosts")
+	if s.db == nil {
+		return nil, errors.New("database not available")
 	}
 
 	if s.inspector == nil {
@@ -1085,6 +1432,55 @@ func (s *Service) ExecuteReclaim(ctx context.Context, hostID int64, req ReclaimR
 		return nil, fmt.Errorf("ssh connection failed: %w", err)
 	}
 	defer runner.Close()
+
+	if isWindows {
+		var psWrap string
+		if req.ActionKey == "truncate" {
+			cleanWin := strings.ReplaceAll(strings.TrimSpace(req.TargetPath), "/", "\\")
+			psEscaped := strings.ReplaceAll(cleanWin, "'", "''")
+			// ponytail: Try Clear-Content first; if file is actively opened with FileShare.ReadWrite, fallback to .NET stream SetLength(0).
+			psWrap = fmt.Sprintf(`$ErrorActionPreference = "Stop"; try { Clear-Content -LiteralPath '%[1]s' -Force } catch { try { $s = [System.IO.File]::Open('%[1]s', [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite); $s.SetLength(0); $s.Close() } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 } }`, psEscaped)
+		} else {
+			psWrap = fmt.Sprintf(`$ErrorActionPreference = "Stop"; try { %s } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }`, cmd)
+		}
+		fullCmd := sshrunner.PowershellEncodedCmd(psWrap)
+		stdout, stderr, exitCode, err := runner.ExecTimeout(fullCmd, 30*time.Second)
+		combined := strings.TrimSpace(stdout + "\n" + stderr)
+		if strings.TrimSpace(req.SudoPassword) != "" {
+			combined = strings.ReplaceAll(combined, req.SudoPassword, "******")
+		}
+		lower := strings.ToLower(combined)
+		hasErr := err != nil || exitCode != 0 ||
+			strings.Contains(lower, "cannot access the file") ||
+			strings.Contains(lower, "access is denied") ||
+			strings.Contains(lower, "unauthorizedaccessexception") ||
+			strings.Contains(lower, "permissiondenied")
+		if hasErr {
+			errMsg := ""
+			if strings.Contains(lower, "access is denied") || strings.Contains(lower, "unauthorizedaccessexception") {
+				errMsg = "Access Denied: Akun SSH tidak memiliki hak administrator yang cukup untuk melakukan aksi pembersihan ini."
+			} else if strings.Contains(lower, "cannot access the file") || strings.Contains(lower, "being used by another process") {
+				errMsg = "File Lock: Berkas sedang dikunci atau digunakan secara eksklusif oleh proses lain."
+			} else if err != nil {
+				errMsg = err.Error()
+			} else {
+				errMsg = fmt.Sprintf("exit code %d: %s", exitCode, combined)
+			}
+			return &ReclaimResult{
+				ActionKey: req.ActionKey,
+				Command:   cmd,
+				Success:   false,
+				Output:    combined,
+				Error:     errMsg,
+			}, nil
+		}
+		return &ReclaimResult{
+			ActionKey: req.ActionKey,
+			Command:   cmd,
+			Success:   true,
+			Output:    combined,
+		}, nil
+	}
 
 	// ponytail: wrap compound command via sh -c. If sudo_password is provided, pipe securely via sudo -S.
 	var fullCmd string
