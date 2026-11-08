@@ -69,10 +69,10 @@ Most infrastructure monitoring tools require installing, configuring, and mainta
                  +--------------------+--------------------+
                  v                                         v
 +---------------------------------+       +---------------------------------+
-|       Remote Linux Host A       |       |       Remote Linux Host B       |
-| (Debian, Ubuntu, RHEL, Alpine)  |       | (Debian, Ubuntu, RHEL, Alpine)  |
-| - Standard POSIX tools (ps, df) |       | - Standard POSIX tools (ps, df) |
-| - Docker Engine / systemd       |       | - Docker Engine / systemd       |
+|       Remote Linux Host         |       |      Remote Windows Host        |
+| (Debian, Ubuntu, RHEL, Alpine)  |       | (Server 2019/22/25, Win 10/11)  |
+| - Standard POSIX tools (ps, df) |       | - Native OpenSSH & PowerShell   |
+| - Docker Engine / systemd       |       | - Services, Tasks, Disks, Ports |
 | - No agents / daemons installed |       | - No agents / daemons installed |
 +---------------------------------+       +---------------------------------+
 ```
@@ -82,38 +82,39 @@ Most infrastructure monitoring tools require installing, configuring, and mainta
 ## Core Capabilities
 
 ### 1. Fleet Health & Real-time Metrics
-Pantau inspects remote hosts via standard SSH connections using non-interactive POSIX commands (`/proc`, `ps`, `df`, `ss`).
-- **Resource saturation**: Tracks CPU load, memory utilization, swap usage, disk partitions, and `/proc/diskstats` I/O rates without requiring `iostat`.
+Pantau inspects remote Linux and Windows hosts via standard SSH connections using agentless non-interactive POSIX commands (`/proc`, `ps`, `df`, `ss`) and Base64-encoded UTF-16LE PowerShell scripts.
+- **Resource saturation**: Tracks CPU load, memory utilization, swap usage, disk partitions (including Windows `C:` drive), and `/proc/diskstats` I/O rates without requiring `iostat`.
 - **Process and network telemetry**: Identifies top CPU and memory-consuming processes, open listening ports, inbound active sockets, and failed SSH authentication attempts.
-- **Package and lifecycle audit**: Catalogs installed software across Debian (`dpkg`), RHEL (`rpm`), Alpine (`apk`), and Arch (`pacman`), highlighting dormant services and calculating OS End-of-Life (EOL) timelines.
-- **Time-series metrics & application probing**: Embedded SQLite storage for historical metrics with configurable retention (default 7 days) and hourly auto-pruning. Interactive multi-chart visualization powered by lightweight vendored uPlot (1h/6h/24h/7d ranges with automatic SQL downsampling), mini-sparklines on host cards, and built-in probe presets for Nginx, MySQL, PHP-FPM, Redis, and PostgreSQL.
+- **Package and lifecycle audit**: Catalogs installed software across Debian (`dpkg`), RHEL (`rpm`), Alpine (`apk`), and Arch (`pacman`), highlighting dormant services and calculating OS End-of-Life (EOL) timelines for Linux distributions, Windows 10, and Windows Server.
+- **Time-series metrics & application probing**: Embedded SQLite storage for historical metrics with configurable retention (default 7 days) and hourly auto-pruning. Interactive multi-chart visualization powered by lightweight vendored uPlot (1h/6h/24h/7d/30d ranges with automatic SQL downsampling), mini-sparklines on host cards, and built-in probe presets for Linux (Nginx, MySQL, PHP-FPM, Redis, PostgreSQL) and Windows (IIS Web Service, MSSQL Server via CIM).
+- **Fleet navigation & notes**: Rapid Host Switcher (`[` and `]` keyboard shortcuts or dropdown) inside the Host Details modal, 1-click metrics shortcut button on host cards and table rows, and default rendered Markdown preview for host and global notes.
 - Learn more in the [Inspection and Metrics Guide](docs/user-guide.md#4-phase-3-observability-drift-triage--incident-response).
 
 ### 2. Agentless Storage Triage & Runaway Detection
-Diagnose impending disk saturation without agents, periodic polling, or heavy background scanners.
+Diagnose impending disk saturation across Linux and Windows targets without agents, periodic polling, or heavy background scanners.
 - **On-demand triage probes**: Single-click forensic inspection bounded to 20–40 seconds, protected by a concurrency guard and load-aware throttling.
-- **Tiered space hog discovery**: Breakdowns of mount point consumption, top directory space hogs (level-1 `du`), top large files (>15MB), and runaway files modified within the last hour (excluding active DBMS engines).
-- **Ghost file detection**: Identifies deleted files held open by processes consuming unlinked disk space via `lsof` and `/proc/*/fd` inspection (`stat -L`), offering one-click graceful service reloads.
-- **Safe reclaim & log truncation**: Curated reclaim catalog for systemd journal, package caches (`apt`, `dnf`, `pacman`, `apk`), rotated logs, coredumps, and Docker prune (`docker system prune -af`), alongside in-place zero-byte log truncation (`truncate -s 0`) guarded against path traversal and system directories.
+- **Tiered space hog discovery**: Breakdowns of mount point and drive consumption, top directory space hogs (level-1 `du` on Linux; high-speed zero-copy `robocopy /L` on Windows), top large files (>15MB), and runaway files modified within the last hour (excluding active DBMS engines and binary archives).
+- **Ghost file detection**: Identifies deleted files held open by processes consuming unlinked disk space via `lsof` and `/proc/*/fd` inspection (`stat -L`) on Linux, offering one-click graceful service reloads.
+- **Safe reclaim & log truncation**: Curated reclaim catalogs for Linux (systemd journal, package caches, rotated logs, coredumps, Docker prune) and Windows (Windows Update download cache, temp files, WER/crash dumps, Recycle Bin, old IIS logs, Docker), alongside in-place zero-byte log truncation (`truncate -s 0` on Linux, `Clear-Content` on Windows) guarded against path traversal and system directories.
 - Learn more in the [Storage Triage Guide](docs/user-guide.md#agentless-storage-triage-runaway-detection--safe-reclaim).
 
 ### 3. Desired State Baselines & Incident Diagnostics
-Establish expected operational baselines for containers, core services, disk thresholds, and backup timestamps.
-- **Automated drift detection**: Detects when containers stop, systemd services fail, cron jobs vanish, or disk usage exceeds configured warning levels.
-- **Root cause crash capture**: When a tracked service or container fails, Pantau automatically extracts the exit code, OOM-killed status flags, and the trailing lines from `journalctl` or `docker logs`.
+Establish expected operational baselines for containers, core services, disk thresholds, scheduled tasks, and backup timestamps.
+- **Automated drift detection**: Detects when containers stop, systemd or Windows services fail, scheduled tasks or cron jobs vanish, or disk usage exceeds configured warning levels.
+- **Root cause crash capture**: When a tracked service or container fails, Pantau automatically extracts the exit code, OOM-killed status flags, and the trailing lines from `journalctl`, `docker logs`, or Windows Event logs.
 - Learn more in the [Desired State & Drift Guide](docs/user-guide.md#3-phase-2-desired-state-baselines--system-guardrails).
 
 ### 4. Integrated Web Terminal & Remote Operations
 Manage target servers directly from the browser without context-switching to external terminal applications.
-- **Multi-tab PTY terminal**: Browser-based interactive shell powered by `xterm.js` and WebSockets, supporting split-pane view (`Alt+\`), dynamic resizing, and custom presets.
-- **SFTP file editor & bookmarks**: Browse remote file trees, pin critical log or configuration paths, and edit scripts with syntax highlighting.
+- **Multi-tab PTY terminal**: Browser-based interactive shell powered by `xterm.js` and WebSockets, supporting split-pane view (`Alt+\`), dynamic resizing, custom presets, and drive-aware path navigation (`C:/`, `D:/`) on Windows targets.
+- **SFTP file editor & bookmarks**: Browse remote file trees, pin critical log or configuration paths, and edit scripts with syntax highlighting and Windows path normalization.
 - **Remote web port tunneling**: Agentless HTTP/WebSocket reverse proxy over SSH `direct-tcpip` channels, allowing you to access private services (`localhost:port`) on remote servers without opening firewall ports.
-- **Native OS terminal bridge**: Launch your local desktop terminal (Windows Terminal, GNOME Terminal, iTerm2, Alacritty) into any remote host with one click via ephemeral in-memory SSH keys.
+- **Native OS terminal bridge**: Launch your local desktop terminal (Windows Terminal, GNOME Terminal, iTerm2, Alacritty) into any remote host with one click via ephemeral in-memory SSH keys and drive navigation.
 - Learn more in the [Terminal and Remote Operations Guide](docs/user-guide.md#interactive-diagnostics-via-terminal-dock--terminal-presets).
 
 ### 5. Zero-Disk Streaming & Encrypted Backup
 Safely transfer data between servers and safeguard your configuration cluster.
-- **Piped cross-host transfer**: Stream files and directories directly between two remote Linux servers through memory pipes (`tar` stream), bypassing Pantau's local storage entirely, with optional end-to-end SHA-256 verification.
+- **Piped cross-host transfer**: Stream files and directories directly between remote Linux servers through memory pipes (`tar` stream), bypassing Pantau's local storage entirely, with optional end-to-end SHA-256 verification.
 - **Encrypted cluster snapshots**: Export host configurations, baselines, and SSH keys into portable encrypted snapshot archives secured with Argon2id and AES-256-GCM.
 - **Automated disaster recovery**: Schedule periodic encrypted snapshot backups to private GitHub repositories for automated offsite recovery.
 - Learn more in the [Cross-Host Transfer Guide](docs/user-guide.md#cross-host-transfer-zero-disk-memory-pipes).
@@ -124,6 +125,13 @@ Engineered from the ground up for strict security postures, private VPCs, and di
 - **Self-contained frontend**: All web assets, fonts, icons, and client scripts (`xterm.js`, `CodeMirror`) are embedded directly via `go:embed` with zero CDN calls.
 - **Local security**: Multi-factor authentication via standard RFC 6238 TOTP with entirely client-side QR generation and emergency offline recovery codes.
 - **Semi-automatic updates**: In-app release checking with SHA-256 integrity checks, pre-flight binary verification, and atomic in-place binary swapping.
+
+### 7. Zero-Agent Windows Target Observability
+Comprehensive management and observability for Windows Server (2019/2022/2025) and Windows 10/11 via native OpenSSH Server.
+- **Zero-agent architecture**: Eliminates heavy remote daemons and complex WinRM/WMI firewall configurations by utilizing native OpenSSH (`sshd`) and UTF-16LE Base64-encoded PowerShell scripts.
+- **Automated key provisioning**: Automatic placement of SSH public keys into user profiles (`%USERPROFILE%\.ssh\authorized_keys`) or Administrator paths (`%ProgramData%\ssh\administrators_authorized_keys`) with universal SIDs (`*S-1-5-18`, `*S-1-5-32-544`) and strict ACL inheritance via `icacls`.
+- **Native telemetry & desired state**: Monitors CPU, RAM, disk partitions, network I/O, open ports, and evaluates services (`Get-Service`), scheduled tasks (`Get-ScheduledTask`), processes, and IIS/MSSQL application metrics.
+- Learn more in the [Windows Target Architecture Record](docs/adr/0040-agentless-windows-target-observability.md).
 
 ---
 

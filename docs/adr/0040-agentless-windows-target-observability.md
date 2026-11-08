@@ -32,12 +32,32 @@ Tantangan teknis utama dalam mendukung target Windows tanpa merusak arsitektur P
    - Script batch mengekstrak metrik inti: OS & Build (`Win32_OperatingSystem`), Uptime & CPU Load % (`Win32_Processor`), RAM fisik terpakai/total, kapasitas drive disk, adapter network RX/TX, koneksi TCP listening, serta top proses memori dan CPU.
 
 4. **Normalisasi Evaluator Aturan Kondisi Seharusnya (Desired State Rules)**:
-   - Aturan `service`: Menggunakan `Get-Service`. Status `Running` dinormalisasi otomatis menjadi `active` agar aturan seragam dengan Linux.
-   - Aturan `disk`: Target `/` atau kosong pada Windows dinormalisasi otomatis menjadi drive sistem `C:`.
+   - Aturan `service`: Menggunakan `Get-Service`. Status `Running` dinormalisasi otomatis menjadi `active` (dan `Stopped` menjadi `stopped`/`inactive`) agar evaluasi aturan seragam dengan Linux.
+   - Aturan `disk`: Target `/` atau kosong pada Windows dinormalisasi otomatis menjadi drive sistem `C:`, atau target drive letter spesifik (`D:`, `E:`).
    - Aturan `port`: Mengecek status port listening via `Get-NetTCPConnection` / `netstat`.
    - Aturan `process`: Memeriksa keberadaan proses aktif via `Get-Process`.
    - Aturan `backup`: Memeriksa keberadaan dan batas usia (*freshness*) file via `Get-Item`.
+   - Aturan `scheduled_task`: Memeriksa status keberadaan dan kesiapan tugas terjadwal Windows via `Get-ScheduledTask`.
+   - Aturan `container`: Memeriksa container Docker aktif pada Windows via `docker ps`.
 
-5. **Revisi Dokumen Terkait**:
-   - Definisi **Host** pada `CONTEXT.md` diperbarui untuk mencakup target Linux maupun Windows secara resmi.
+5. **Injeksi Kunci SSH Otomatis (Windows OpenSSH Key Provisioning)**:
+   - Pantau mengotomatisasi peletakan SSH Public Key pada Host Windows melalui `ProvisionWindowsSSHKey`.
+   - Untuk akun standar non-administrator: kunci ditempatkan pada profil pengguna di `%USERPROFILE%\.ssh\authorized_keys`.
+   - Untuk akun anggota grup Administrators: OpenSSH pada Windows mewajibkan penempatan kunci di `%ProgramData%\ssh\administrators_authorized_keys`.
+   - Menerapkan penguncian ACL ketat via utilitas bawaan `icacls` menggunakan Universal Well-Known SIDs (`*S-1-5-18` untuk `NT AUTHORITY\SYSTEM` dan `*S-1-5-32-544` untuk `BUILTIN\Administrators`) guna menghindari kegagalan lokalisasi nama grup pada instalasi Windows multibahasa non-Inggris.
+
+6. **Navigasi Jalur Sadar-Drive (Drive-Aware Remote Navigation)**:
+   - Remote File Manager dan Terminal mendukung format drive letter Windows (`C:/`, `D:/`) dan emulasi path Git Bash (`/c/`, `/d/`) melalui helper `CleanWindowsRemotePath`.
+   - Penanganan navigasi folder induk (`..`) tidak boleh melompati akar drive (`C:\`), serta pembacaan SFTP dibatasi maksimum 2MB menggunakan `io.ReadAll` dengan `LimitReader` guna mencegah pemotongan *stream*.
+   - Terminal interaktif (Web Terminal dan Native Terminal Bridge) mengenali pola prompt `PS C:\...>` dan `C:\...>` untuk sinkronisasi folder aktif, serta menggunakan sintaks pergantian drive tanpa operator majemuk yang tidak kompatibel.
+
+7. **Preset Telemetri Aplikasi & Lifecycle EOL**:
+   - Menambahkan preset probe telemetri aplikasi berbasis CIM untuk target Windows: IIS Web Service (`Win32_PerfFormattedData_W3SVC_WebService`) dan Microsoft SQL Server (`Win32_PerfFormattedData_MSSQLSERVER_SQLServerGeneralStatistics`).
+   - Memasukkan Windows 10 (EOL Oktober 2025) dan Windows Server 2016 (mainstream ended Januari 2022) ke dalam kalkulator *Lifecycle Longevity Assessment*.
+
+8. **Investigasi Ruang Penyimpanan (Windows Storage Triage)**:
+   - Ekstensi kapabilitas investigasi disk on-demand untuk target Windows didokumentasikan secara terperinci pada [ADR-0039 Bagian 7](0039-agentless-storage-triage-runaway-detection-and-safe-reclaim.md).
+
+9. **Revisi Dokumen Terkait**:
+   - Definisi **Host** dan istilah domain baru pada `CONTEXT.md` diperbarui untuk mencakup target Linux maupun Windows secara resmi.
    - Batasan eksklusif Linux pada ADR-0014 digantikan oleh keputusan arsitektur ini.

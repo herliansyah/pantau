@@ -12,8 +12,8 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
 
 1. [Architecture & Trust Boundaries](#1-architecture--trust-boundaries)
 2. [Phase 1: Onboarding & Inventory Management](#2-phase-1-onboarding--inventory-management)
-   - [Adding a Host & Key Provisioning](#adding-a-host--key-provisioning)
-   - [Organizing with Host Groups, Flat View & Manual Host Order](#organizing-with-host-groups-flat-view--manual-host-order)
+   - [Adding a Host & Key Provisioning (Linux & Windows)](#adding-a-host--key-provisioning-linux--windows)
+   - [Organizing with Host Groups, Flat View & Host Switcher](#organizing-with-host-groups-flat-view--host-switcher)
 3. [Phase 2: Desired State Baselines & System Guardrails](#3-phase-2-desired-state-baselines--system-guardrails)
    - [Capturing a 1-Click Desired State Baseline](#capturing-a-1-click-desired-state-baseline)
    - [Configuring Backup Freshness & Protected Paths](#configuring-backup-freshness--protected-paths)
@@ -34,6 +34,8 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
 5. [Phase 4: File Operations & Cross-Host Data Transfer](#5-phase-4-file-operations--cross-host-data-transfer)
    - [Cross-Host Transfer (Zero-Disk Memory Pipes)](#cross-host-transfer-zero-disk-memory-pipes)
    - [On-The-Fly Folder Streaming Download](#on-the-fly-folder-streaming-download)
+   - [Safe File & Folder Duplication (Disk Space Safety Check)](#safe-file--folder-duplication-disk-space-safety-check)
+   - [Drive-Aware Windows File Navigation & Path Protection](#drive-aware-windows-file-navigation--path-protection)
    - [File Pinning with Notes & Global Bookmarks](#file-pinning-with-notes--global-bookmarks)
 6. [Phase 5: Hardening, Snapshots & Disaster Recovery](#6-phase-5-hardening-snapshots--disaster-recovery)
    - [Two-Factor Authentication (2FA) & Emergency Bypass](#two-factor-authentication-2fa--emergency-bypass)
@@ -48,49 +50,69 @@ Pantau operates **100% agentless** over standard SSH (`port 22`). It requires ze
 
 ## 1. Architecture & Trust Boundaries
 
-Pantau executes remote commands and inspects telemetry via standard SSH connections.
+Pantau executes remote commands and inspects telemetry via standard SSH connections without remote agents.
 
 - **Control Plane**: A single Go binary running on your management machine or bastion host, backed by an embedded SQLite database (`pantau.db`) in WAL mode.
-- **Remote Host**: Any physical or virtual Linux machine (Ubuntu, Debian, RHEL, CentOS 6–9) accessible via SSH.
-- **Trust Boundary**: Pantau uses an RSA 4096-bit keypair generated on first startup. Target hosts must grant access to this public key inside `~/.ssh/authorized_keys` for the designated management user (`root` or a dedicated user with passwordless `sudo`).
+- **Remote Hosts**:
+  - **Linux Targets**: Any physical or virtual Linux machine (Ubuntu, Debian, RHEL, CentOS 6–9, Alpine, Arch) accessible via SSH, inspected via non-interactive POSIX commands (`/proc`, `ps`, `df`, `ss`).
+  - **Windows Targets**: Any physical or virtual Windows Server (2019/2022/2025) or workstation (Windows 10/11) running native OpenSSH Server (`sshd`), inspected via Base64-encoded UTF-16LE PowerShell scripts.
+- **Trust Boundary & Credential Isolation**:
+  - Pantau generates an RSA 4096-bit keypair on first startup.
+  - **Linux Key Placement**: Public key resides in `~/.ssh/authorized_keys` for `root` or a dedicated user with sudo privileges.
+  - **Windows Key Placement**: Public key is placed in `%USERPROFILE%\.ssh\authorized_keys` for standard users, or `%ProgramData%\ssh\administrators_authorized_keys` for members of the local Administrators group. Pantau enforces strict file permissions via `icacls` using universal SIDs (`*S-1-5-18` SYSTEM, `*S-1-5-32-544` Administrators) to prevent localization issues on multi-language Windows installations.
 
 ```
-+-------------------+             SSH Port 22 (Agentless)             +-----------------------+
-|  Pantau Control   | ==============================================> |   Remote Linux Host   |
-|  Plane (Go + DB)  | < - - - - - - - - - - - - - - - - - - - - - - - |  (POSIX df, ps, logs) |
-+-------------------+          Actual State & Telemetry               +-----------------------+
+                                  +-----------------------+
+                                  |     Pantau Control    |
+                                  |    Plane (Go + DB)    |
+                                  +-----------+-----------+
+                                              | SSH Port 22 (Agentless)
+                         +--------------------+--------------------+
+                         v                                         v
+              +-----------------------+                 +-----------------------+
+              |   Remote Linux Host   |                 |  Remote Windows Host  |
+              | (Debian, RHEL, Alpine)|                 | (Server 2019/22, Win) |
+              |  POSIX df, ps, logs   |                 | OpenSSH + PowerShell  |
+              +-----------------------+                 +-----------------------+
 ```
 
 ---
 
 ## 2. Phase 1: Onboarding & Inventory Management
 
-### Adding a Host & Key Provisioning
+### Adding a Host & Key Provisioning (Linux & Windows)
 
 When connecting a new **Host** to Pantau:
 
 1. Click **Add Host** on the main dashboard to open the **Action Dialog**.
 2. Enter the connection parameters:
-   - **Label**: A distinct identifier (e.g., `prod-db-primary`).
+   - **Label**: A distinct identifier (e.g., `prod-db-primary` or `win-ad-dc01`).
    - **IP / Hostname**: Resolvable hostname or IPv4/IPv6 address.
    - **SSH Port**: Standard port `22` or custom SSH daemon port.
-   - **SSH User**: `root` or a sudo-privileged user.
+   - **SSH User**: `root`, a sudo-privileged Linux user, or a Windows user (`Administrator` or local/domain user).
 3. Choose the authentication method:
    - **Existing SSH Key**: Use if the host already accepts Pantau's universal public key.
-   - **Key Provisioning (One-Time Password)**: If configuring a brand-new host, provide the target server password once. Pantau will connect via SSH, append its RSA 4096-bit public key to `~/.ssh/authorized_keys` idempotently, and immediately discard the password from memory.
-4. Click **Save & Test Connection**. Pantau performs an initial handshake to verify connectivity.
+   - **Key Provisioning (One-Time Password)**: If configuring a brand-new host, provide the target server password once. Pantau will connect via SSH, automatically detect the target OS, install its RSA 4096-bit public key into the correct location (`~/.ssh/authorized_keys` on Linux; user profile `%USERPROFILE%\.ssh\authorized_keys` or system `%ProgramData%\ssh\administrators_authorized_keys` on Windows with `icacls` ACL lockdown), and immediately discard the password from memory.
+4. Click **Save & Test Connection**. Pantau performs an initial handshake and in-band OS detection probe (`uname -s` and fallback `cmd.exe /c ver`), classifying the target as `linux` or `windows`.
 
 > [!NOTE]
 > For legacy Linux systems (CentOS 5/6, Debian 7, or systems running OpenSSH 4.x/5.x), Pantau automatically enables legacy cipher and host key fallbacks (`aes128-cbc`, `3des-cbc`, `diffie-hellman-group1-sha1`, `ssh-dss`, `ssh-rsa`) during the SSH handshake. Pantau applies TOFU (Trust-On-First-Use) host key verification, seamlessly recording the target host's fingerprint on initial connection while actively protecting subsequent sessions against Machine-in-the-Middle (MITM) tampering.
 
-### Organizing with Host Groups, Flat View & Manual Host Order
+### Organizing with Host Groups, Flat View & Host Switcher
 
 As your fleet grows:
-- **Host Group**: Categorize hosts by functional tiers or environments (e.g., `Database Cluster`, `Edge Proxies`, `Staging`). Groups render as distinct visual partitions in both Grid and List **View Mode**.
+- **Host Group**: Categorize hosts by functional tiers or environments (e.g., `Database Cluster`, `Windows Fleet`, `Edge Proxies`). Groups render as distinct visual partitions in both Grid and List **View Mode**.
 - **Flat View Option ("No Grouping")**: Select "No Grouping" in the group filter dropdown to display all hosts in a continuous flat list or card grid without group headers, ideal for smaller fleets or cross-cluster filtering.
-- **Streamlined Host List View**: A compact 8-column layout with merged host address/OS information, inline operational note badges with direct editing, and strict no-wrap metric formatting.
+- **Streamlined Host List View**: A compact 8-column layout with merged host address/OS information, 1-click metrics shortcut button (`.btn-host-metrics`), inline operational note badges with direct editing, and strict no-wrap metric formatting.
+- **Host Switcher**: When viewing any host inside the **Workspace Modal** (Host Details), switch smoothly to any other host in your fleet without closing the modal:
+  - Use the **Host Switcher dropdown** at the top of the modal or the **Previous / Next** navigation arrows.
+  - Press keyboard shortcuts `[` (previous host) and `]` (next host) for instant keyboard-driven triage.
+- **1-Click Metrics Shortcut**: Jump directly to historical charts by clicking the **Metrics** shortcut button on any Host Card or Host List table row.
 - **Manual Host Order**: Click and drag or prioritize mission-critical hosts to the top of the dashboard.
-- **Host Note & Global Note**: Use **Host Note** for server-specific maintenance checklists (e.g., `"Primary PostgreSQL; failover standby is db-02"`). Use **Global Note** for cluster-wide operational announcements and shift handovers.
+- **Host Note & Global Note with Markdown Preview**:
+  - Use **Host Note** for server-specific runbooks and maintenance checklists (e.g., `"Primary PostgreSQL; failover standby is db-02"`).
+  - Use **Global Note** for cluster-wide operational announcements and shift handovers.
+  - Notes open in a rendered **Markdown Preview** by default, with an in-place **Edit** toggle and a zero-dependency XSS-safe parser supporting code blocks, lists, links, and bold/italic styles.
 
 ---
 
@@ -109,22 +131,22 @@ Pantau does not merely display metrics; it enforces continuous adherence to your
 
 ### Desired State Rules Reference Table
 
-Pantau supports 7 Desired State rule types evaluated on every inspection cycle:
+Pantau supports 7 Desired State rule types evaluated across both Linux and Windows target platforms on every inspection cycle:
 
-| Kind | Target Identifier | Expected State | Examples | Drift Criteria & Root Cause Excerpt |
-| :--- | :--- | :--- | :--- | :--- |
-| **`container`** | Docker container name | `running` | `nginx` &rarr; `running` | Container exited, dead, or crash loop. Captures exit code, OOMKilled flag, and last 50 container log lines. |
-| **`service`** | Linux daemon name | `active` | `mariadb` &rarr; `active` | Service inactive or failed. Captures last 50 log lines via `journalctl` or syslog. |
-| **`port`** | TCP port or `ip:port` | `listening` (or `closed`) | `80` &rarr; `listening` | Port closed or listening daemon halted. Verified via `ss`/`netstat`. |
-| **`disk`** | Partition mount point | `<N%` (usage ceiling) | `/` &rarr; `<85%` | Partition usage >= threshold or storage IO timed out after 5s (hung NFS protection). |
-| **`cron`** | Keyword or command substring | `configured` | `backup.sh` &rarr; `configured` | Specified cron command not found in user's `crontab -l`. |
-| **`backup`** | Absolute backup file path | `fresh_<N>h` (default: 24h) | `/backup/db.sql.gz` &rarr; `fresh_24h` | File is missing, 0 bytes empty, or modification time older than N hours. |
-| **`process`** | Process name or pattern | `running` (or `stopped`) | `celery` &rarr; `running` | Process not currently active on system (verified via `pgrep`/`ps`). |
+| Kind | Target Identifier | Expected State | Linux Execution & Examples | Windows Execution & Examples | Drift Criteria & Root Cause Excerpt |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`container`** | Docker container name | `running` | `docker inspect` &rarr; `nginx` | `docker ps` &rarr; `mssql-server` | Container exited, dead, or crash loop. Captures exit code, OOMKilled flag, and last 50 container log lines. |
+| **`service`** | Service or daemon name | `active` (or `stopped`) | `systemctl is-active mariadb` | `Get-Service -Name W3SVC` (normalized to `active`/`stopped`) | Service inactive, failed, or stopped. Captures trailing diagnostic logs via `journalctl` or Windows event logs. |
+| **`port`** | TCP port or `ip:port` | `listening` (or `closed`) | `ss -tlpn` &rarr; `80` | `Get-NetTCPConnection -LocalPort 443` | Port closed or listening daemon halted. |
+| **`disk`** | Mount point or Drive | `<N%` (usage ceiling) | `df -lPk /` &rarr; `/` &rarr; `<85%` | `Win32_LogicalDisk` &rarr; `C:` &rarr; `<85%` (target `/` defaults to `C:`) | Partition usage >= threshold or storage I/O timed out after 5s (hung NFS/storage protection). |
+| **`cron`** / **`task`** | Cron keyword or Scheduled Task name | `configured` / `Ready` | `crontab -l` &rarr; `backup.sh` | `Get-ScheduledTask` &rarr; `WeeklyBackup` | Specified cron command not found in crontab or scheduled task missing/disabled. |
+| **`backup`** | Absolute backup file path | `fresh_<N>h` (default: 24h) | `find /backup/db.sql.gz -mtime` | `Get-Item C:\backups\db.bak` (UTC age check) | Backup file is missing, 0 bytes empty, or modification time older than N hours. |
+| **`process`** | Process name or pattern | `running` (or `stopped`) | `pgrep -x celery` / `ps` | `Get-Process -Name sqlservr` | Target process not currently active in operating system process table. |
 
 ### Configuring Backup Freshness & Protected Paths
 
-- **Backup Freshness**: Define expected backup target paths (e.g., `/backup/postgres/daily.sql.gz`) and max age thresholds (e.g., must be updated within 24 hours and non-zero in byte size). Pantau marks a **Drift** if the backup file is missing, empty, or outdated.
-- **Protected Path**: Protect critical operational directories (e.g., `/etc/`, `/boot/`, `/var/lib/docker/`) from inadvertent modification, deletion, or unauthorized file uploads via the integrated SFTP file manager.
+- **Backup Freshness**: Define expected backup target paths (e.g., `/backup/postgres/daily.sql.gz` on Linux, `C:\backups\mssql\daily.bak` on Windows) and max age thresholds (e.g., must be updated within 24 hours and non-zero in byte size). Pantau marks a **Drift** if the backup file is missing, empty, or outdated.
+- **Protected Path**: Protect critical operational directories (e.g., `/etc/`, `/boot/`, `/var/lib/docker/` on Linux; `C:\Windows\System32`, `C:\Program Files` on Windows) from inadvertent modification, deletion, or unauthorized file uploads via the integrated SFTP file manager.
 
 ---
 
@@ -186,6 +208,8 @@ Beyond instantaneous snapshots, Pantau provides agentless, historical time-serie
     - **PHP-FPM Status**: Auto-detects status endpoint JSON or falls back to native `ps` process counting for `active_processes`, `idle_processes`, and `total_processes`.
     - **Redis Info**: Gathers `redis_connected_clients`, `redis_used_memory_bytes`, `redis_ops_per_sec`, `redis_rejected_connections`, `redis_expired_keys`, and `redis_uptime` via `redis-cli`, supporting auto-detected passwords and UNIX sockets.
     - **PostgreSQL Stats**: Extracts active, idle, and total connection counts from `pg_stat_activity` with peer authentication fallback (`sudo -u postgres` / `su - postgres`).
+    - **IIS Web Service (Windows)**: Gathers `iis_current_connections`, `iis_total_requests`, `iis_get_requests`, `iis_post_requests`, and `iis_bytes_total_sec` via CIM instance `Win32_PerfFormattedData_W3SVC_WebService`.
+    - **Microsoft SQL Server (Windows)**: Gathers `mssql_user_connections`, `mssql_active_temp_tables`, `mssql_logical_connections`, and `mssql_processes_blocked` via CIM instance `Win32_PerfFormattedData_MSSQLSERVER_SQLServerGeneralStatistics`.
   - **Custom Probe Management**: Create, edit, test, and toggle custom shell probes via the **Manage Probes** dialog in the Metrics tab.
 
 ### Package Inventory & Software Hygiene Audit
@@ -246,6 +270,20 @@ When disk partition usage escalates toward saturation (>85% or >90%), standard m
 - **Graceful Service Reload for Ghost Files**:
   - Allows operators to trigger `systemctl reload <service>` directly from the ghost files panel, releasing open file descriptors and reclaiming withheld disk space with zero downtime.
   - Includes a quick-launch shortcut to open the active Terminal Dock directly focused on the holding process directory.
+- **Agentless Windows Storage Triage (Native PowerShell Execution)**:
+  Pantau seamlessly extends full Storage Triage capabilities to Windows Server (2019/2022/2025) and Windows 10/11 targets over native OpenSSH using UTF-16LE Base64-encoded PowerShell scripts without remote agents:
+  - **Drive & Partition Metrics**: Reads System Drive (`C:`) total capacity, free space, and usage percentage using CIM query `Win32_LogicalDisk`.
+  - **High-Speed Space Hogs**: Computes top-level directory sizing using `robocopy /L` (*list-only mode*) without performing disk I/O copy operations, falling back recursively to `Get-ChildItem` for dynamic non-system directories.
+  - **Single-Pass Runaway File Sensing**: Traverses common working directories in a single pass to detect active log and temporary files (>15MB) modified within the trailing 60 minutes. To protect stateful services, Pantau enforces **strict Windows DBMS and archive exclusions**, ignoring SQL Server (`.mdf`, `.ldf`, `.ndf`), Active Directory (`.dit`), Exchange (`.edb`), SQLite, Hyper-V virtual disks (`.vhdx`, `.avhdx`), backup archives (`.bak`), compressed archives (`.7z`, `.rar`, `.xz`, `.bz2`, `.cab`), and source code.
+  - **Curated Windows Safe Reclaim Catalog**: One-click safe cleanup actions with transparent command previews:
+    - **Windows Update Download Cache**: Cleans downloaded update installers in `C:\Windows\SoftwareDistribution\Download`.
+    - **System & User Temp**: Purges temporary files in `C:\Windows\Temp`, `%TEMP%`, and `C:\Temp`.
+    - **Error Reports & Crash Dumps**: Clears Windows Error Reporting (`WER`), kernel dumps (`MEMORY.DMP`), minidumps, and application crash dumps.
+    - **Recycle Bin**: Safely purges deleted files across all fixed drives via `Clear-RecycleBin -Force`.
+    - **Old IIS Logs**: Deletes archived HTTP access logs in `C:\inetpub\logs\LogFiles\` older than 7 days.
+    - **Docker on Windows**: Triggers `docker system prune -af` if Docker Engine is installed and active.
+  - **Safe In-Place Windows Log Truncation**: Empties runaway log files to 0-bytes in-place via `Clear-Content -LiteralPath '...' -Force` (with .NET FileStream fallback), preserving file handles and application locks. Protected by strict safety boundaries that reject Windows system directories (`System32`, `SysWOW64`, `WinSxS`, `Boot`, `Recovery`), virtual swap/pagefiles (`pagefile.sys`, `swapfile.sys`, `hiberfil.sys`, `dumpstack.log`), directories, and database files.
+  - **Graceful Windows Service Reload**: Supports one-click service remediation via `Restart-Service -Name '...' -Force` with alphanumeric command injection validation.
 - **Deep-Links & Dashboard Alerts**:
   - **Alert Banner Shortcut**: When partition capacity exceeds warning levels (>85%), the global alert banner surfaces an immediate `[🔍 Run Storage Triage]` deep-link button.
   - **Host Card Quick Launch**: Host cards in Grid and List views feature contextual triage buttons next to storage usage gauges.
@@ -361,7 +399,7 @@ When branch offices or remote clients report web application sluggishness or dow
 
 Pantau continuously calculates an auditable **Lifecycle Score** (0–100) based on six weighted factors:
 
-1. **OS End-of-Life (EOL)**: Checks OS distribution release and kernel version against official vendor support dates.
+1. **OS End-of-Life (EOL)**: Checks OS distribution release and kernel version against official vendor support dates across Linux distributions (CentOS, Debian, Ubuntu, Alpine, RHEL), Windows 10 (EOL October 2025), and Windows Server 2016 (mainstream ended January 2022).
 2. **Productive Lifespan**: Assesses hardware age against standard industry amortization (3–5 years) using bare-metal BIOS release dates or cloud VM deployment timestamps.
 3. **RAM Pressure**: Sustained memory exhaustion and swap thrashing.
 4. **CPU Core-to-Load Saturation**: Load averages normalized against physical/virtual core counts.
@@ -424,6 +462,14 @@ Pantau allows immediate in-place duplication of files or folders on the remote s
 3. **Disk Space Safety Check**: Pantau automatically checks the available free space on the destination partition via `df -PB1`. If available space is less than the item size plus a 100 MB safety buffer, the duplication action is blocked with an error banner to protect the host from disk exhaustion.
 4. **Collision Prevention**: If a file or folder with the target name already exists, Pantau strictly refuses to overwrite it to prevent accidental data loss.
 5. **Native Execution**: Cloning runs on the remote host via `cp -a`, preserving original Unix file modes, permissions, and timestamps. Items $\ge$ 500 MB display a warning badge indicating the background copy may take a few seconds.
+
+### Drive-Aware Windows File Navigation & Path Protection
+
+When managing remote Windows targets via the integrated SFTP File Manager and Web Terminal:
+- **Drive-Aware Navigation**: Seamlessly navigate across drive letters (`C:/`, `D:/`) and Git Bash virtual mounts (`/c/`, `/d/`) via `CleanWindowsRemotePath`.
+- **Root Drive Protection**: Parent folder navigation (`..` or Up button) strictly anchors to the active drive root (e.g. `C:\`), preventing invalid root escape attempts.
+- **Buffer-Safe File Previews**: Remote SFTP file reading employs a strict 2MB limit reader (`io.ReadAll` with `LimitReader`), preventing large log files or binary dumps from exhausting server memory.
+- **System Path Defense**: Pantau strictly prevents renaming, deleting, or overwriting critical Windows operating system directories (`C:\Windows\System32`, `SysWOW64`, `WinSxS`, `Boot`, `Recovery`) and virtual memory files (`pagefile.sys`, `swapfile.sys`, `hiberfil.sys`, `dumpstack.log`).
 
 ### Interactive Breadcrumb Navigation & Polish
 
