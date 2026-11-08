@@ -511,8 +511,14 @@ func buildLaunchCommand(goos, termPath, customTemplate, keyPath, user, host stri
 		return cmd, nil
 
 	case "darwin":
-		// AppleScript execution (escape double quotes inside AppleScript string literal)
 		escapedSSH := strings.ReplaceAll(sshBase, `"`, `\"`)
+		// Use iTerm2 AppleScript when iTerm2 was detected; fall back to Terminal.app.
+		if strings.Contains(termPath, "iTerm") {
+			script := fmt.Sprintf("tell application \"iTerm\" to create window with default profile command \"%s\"", escapedSSH)
+			cmd := exec.Command("osascript", "-e", script)
+			setDetachedProcess(cmd)
+			return cmd, nil
+		}
 		script := fmt.Sprintf("tell application \"Terminal\" to do script \"%s; exec $SHELL\"\ntell application \"Terminal\" to activate", escapedSSH)
 		cmd := exec.Command("osascript", "-e", script)
 		setDetachedProcess(cmd)
@@ -658,7 +664,7 @@ func generateWindowsCmdScript(ticket *NativeTicket) string {
 	sb.WriteString("@echo off\r\n")
 	sb.WriteString("REM Pantau Remote Ephemeral Terminal Launcher\r\n")
 	psCmd := fmt.Sprintf(
-		`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$b='%s'; $key=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b)); $k=[System.IO.Path]::GetTempFileName(); Set-Content -Path $k -Value $key; icacls $k /inheritance:r /grant:r \"$($env:USERNAME):(R)\" | Out-Null; Write-Host '[Pantau] Connecting to %s (%s)...'; ssh -i $k -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s; $code=$LASTEXITCODE; Remove-Item -Force $k -ErrorAction SilentlyContinue; if ($code -ne 0) { Write-Host ''; Write-Host \"[Pantau] Sesi SSH terputus atau gagal (exit code: $code).\"; pause }"`,
+		`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$b='%s'; $key=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b)); $k=[System.IO.Path]::GetTempFileName(); [IO.File]::WriteAllText($k, $key, [Text.Encoding]::ASCII); icacls $k /inheritance:r /grant:r \"$($env:USERNAME):(R)\" | Out-Null; Write-Host '[Pantau] Connecting to %s (%s)...'; ssh -i $k -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s; $code=$LASTEXITCODE; Remove-Item -Force $k -ErrorAction SilentlyContinue; if ($code -ne 0) { Write-Host ''; Write-Host \"[Pantau] Sesi SSH terputus atau gagal (exit code: $code).\"; pause }"`,
 		keyB64, displayName, ticket.HostAddress, port, ticket.HostUser, ticket.HostAddress, remoteCmd,
 	)
 	sb.WriteString(psCmd)
@@ -981,11 +987,13 @@ func (s *Server) handleNativeTerminalRun(w http.ResponseWriter, r *http.Request)
 			remoteCmd = fmt.Sprintf(` -t "%s"`, escapedCD)
 		}
 
-		// Output PowerShell friendly script
+		// Output PowerShell friendly script.
+		// ponytail: [IO.File]::WriteAllText with ASCII encoding preserves Unix \n line endings
+		// required by OpenSSH — Set-Content would silently write CRLF and corrupt the PEM key.
 		content = fmt.Sprintf(`$k = [System.IO.Path]::GetTempFileName()
-Set-Content -Path "$k" -Value @"
+[IO.File]::WriteAllText($k, @"
 %s
-"@
+"@, [Text.Encoding]::ASCII)
 icacls "$k" /inheritance:r /grant:r "$($env:USERNAME):(R)" | Out-Null
 ssh -i "$k" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s
 Remove-Item -Force "$k" -ErrorAction SilentlyContinue
