@@ -533,6 +533,10 @@ pre { background: #090d16; padding: 12px; border-radius: 6px; font-family: monos
 .sortable-th { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 4px; transition: color 0.15s ease; }
 .sortable-th:hover { color: #38bdf8; }
 .sortable-th .sort-arrow { font-size: 0.75rem; color: #38bdf8; margin-left: 2px; }
+.file-bulk-bar { display: none; align-items: center; justify-content: space-between; gap: 12px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; }
+.file-bulk-info { display: flex; align-items: center; gap: 8px; font-size: 0.84rem; color: #fca5a5; font-weight: 500; }
+.file-bulk-actions { display: flex; align-items: center; gap: 8px; }
+.file-checkbox { cursor: pointer; width: 16px; height: 16px; margin: 0; vertical-align: middle; accent-color: #ef4444; border-radius: 3px; }
 .host-list-view { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; overflow-x: auto; min-height: 260px; }
 .host-list-table { width: 100%; border-collapse: collapse; }
 .host-list-table .dropdown-menu { bottom: auto; top: 100%; margin-top: 6px; margin-bottom: 0; }
@@ -3826,6 +3830,12 @@ const I18N = {
     "cannot_modify_protected": "Protected Path: cannot modify system location.",
     "cannot_upload_protected": "Protected Path: cannot upload to system location.",
     "cannot_delete_protected": "Protected Path: cannot delete system location.",
+    "select_all": "Select All",
+    "deselect_all": "Deselect All",
+    "delete_selected": "Delete Selected",
+    "confirm_delete_multiple": "Are you sure you want to permanently delete {count} selected item(s)? This action cannot be undone.",
+    "selected_items_count": "{count} item(s) selected",
+    "batch_delete_success": "{count} item(s) deleted successfully",
     "file_exists_overwrite": "File '{name}' already exists. Overwrite?",
     "filter_placeholder": "Search / filter files (Esc to clear)...",
     "filter_all": "All",
@@ -4657,6 +4667,12 @@ const I18N = {
     "cannot_modify_protected": "Protected Path: tidak dapat memodifikasi lokasi sistem.",
     "cannot_upload_protected": "Protected Path: tidak dapat mengunggah ke lokasi sistem.",
     "cannot_delete_protected": "Protected Path: tidak dapat menghapus lokasi sistem.",
+    "select_all": "Pilih Semua",
+    "deselect_all": "Batal Pilih",
+    "delete_selected": "Hapus Terpilih",
+    "confirm_delete_multiple": "Apakah Anda yakin ingin menghapus permanen {count} item terpilih? Tindakan ini tidak dapat dibatalkan.",
+    "selected_items_count": "{count} item terpilih",
+    "batch_delete_success": "{count} item berhasil dihapus",
     "file_exists_overwrite": "Berkas '{name}' sudah ada. Timpa?",
     "filter_placeholder": "Cari / filter berkas (Esc untuk reset)...",
     "filter_all": "Semua",
@@ -11433,6 +11449,7 @@ let fileFilterQuery = '';
 let fileFilterType = 'all'; // 'all' | 'dir' | 'file'
 let fileSortColumn = 'name'; // 'name' | 'size' | 'mod_time'
 let fileSortOrder = 'asc'; // 'asc' | 'desc'
+let selectedFileItems = new Map(); // path -> { path, isDir, name }
 
 async function loadHostFilePins(hostId) {
   if (!hostId) return;
@@ -11449,6 +11466,7 @@ async function loadHostFilePins(hostId) {
 }
 
 async function loadFiles(path) {
+  selectedFileItems.clear();
   if (currentHost && currentHost.id && path) {
     setHostFilesPath(currentHost.id, path);
   }
@@ -11621,10 +11639,25 @@ function renderFilesView() {
         <span id="fileCountLabel" style="font-size: 0.78rem; color: var(--text-muted); white-space: nowrap;"></span>
       </div>
     </div>
+    <div id="fileBulkActionBar" class="file-bulk-bar">
+      <div class="file-bulk-info">
+        <span style="font-size: 1rem;">☑️</span>
+        <span id="fileBulkCountLabel"></span>
+      </div>
+      <div class="file-bulk-actions">
+        <button type="button" class="btn btn-danger btn-sm" id="btnBulkDeleteFiles" onclick="deleteSelectedFiles()" style="display: inline-flex; align-items: center; gap: 4px;">
+          <span>🗑️</span> <span id="btnBulkDeleteLabel">${t('delete_selected')}</span>
+        </button>
+        <button type="button" class="btn btn-sm" onclick="clearFileSelection()">${t('deselect_all')}</button>
+      </div>
+    </div>
     <div class="files-table-container">
       <table>
         <thead>
           <tr>
+            <th style="width: 38px; text-align: center; padding-left: 10px; padding-right: 6px;">
+              <input type="checkbox" id="selectAllFilesCheckbox" class="file-checkbox" onchange="toggleSelectAllFiles(this.checked)" title="${t('select_all')}" />
+            </th>
             <th style="min-width: 220px;"><span class="sortable-th" onclick="toggleFileSort('name')">${t('file_name')} <span id="sortArrow_name" class="sort-arrow"></span></span></th>
             <th style="width: 110px; text-align: right;"><span class="sortable-th" onclick="toggleFileSort('size')">${t('file_size')} <span id="sortArrow_size" class="sort-arrow"></span></span></th>
             <th style="width: 110px; text-align: center;">${t('file_perms')}</th>
@@ -11701,11 +11734,12 @@ function renderFilesTableBody() {
   if (filtered.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 32px 16px;">
+        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 32px 16px;">
           ${t('no_matching_files')}
         </td>
       </tr>
     `;
+    updateFileSelectionUI();
     return;
   }
 
@@ -11726,6 +11760,12 @@ function renderFilesTableBody() {
     const isPinned = !!pin;
     return `
       <tr>
+        <td style="text-align: center; width: 38px; padding-left: 10px; padding-right: 6px;">
+          ${isItemProtected 
+            ? `<span title="${t('cannot_delete_protected')}" style="opacity: 0.35; cursor: not-allowed; font-size: 0.85rem;" aria-label="${t('protected_path')}">🔒</span>` 
+            : `<input type="checkbox" class="file-checkbox file-select-cb" value="${escapeHtml(fullPath)}" data-is-dir="${f.is_dir}" data-name="${escapeHtml(f.name)}" ${selectedFileItems.has(fullPath) ? 'checked' : ''} onchange="onFileCheckboxChange(this)" title="${t('delete_selected')}" />`
+          }
+        </td>
         <td style="word-break: break-all;">
           <button type="button" class="btn-file-pin ${isPinned ? 'pinned' : ''}" onclick="openPinModal('${escapeHtml(fullPath)}', ${f.is_dir})" title="${isPinned ? escapeHtml(pin.note || t('pinned')) : t('pin_this_item')}">${isPinned ? '📌' : '📍'}</button>
           ${f.is_dir 
@@ -11739,7 +11779,7 @@ function renderFilesTableBody() {
         <td style="text-align: center; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">${f.mod_time}</td>
         <td style="text-align: right; white-space: nowrap; padding-right: 14px;">
           <div class="action-grid" style="margin-left: auto;">
-            <button class="btn btn-sm" title="${t('open_terminal_here', 'Open Terminal Here')}" onclick="openTerminalForPath('${escapeHtml(targetTermPath)}')">💻</button>
+            <button class="btn btn-sm" title="${t('open_terminal_here', 'Open Terminal Here')}\" onclick=\"openTerminalForPath('${escapeHtml(targetTermPath)}')\">💻</button>
             ${!f.is_dir 
               ? `<button class="btn btn-primary btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openEditor('${escapeHtml(fullPath)}')">${t('edit')}</button>` 
               : '<span style="display:inline-block;"></span>'}
@@ -11754,6 +11794,7 @@ function renderFilesTableBody() {
       </tr>
     `;
   }).join('');
+  updateFileSelectionUI();
 }
 
 function onFileFilterInput(val) {
@@ -11851,8 +11892,156 @@ async function deleteRemoteFile(path, parentDir) {
     showToast(t('failed_prefix', 'Failed: ') + 'Failed to delete', 'error');
     return;
   }
+  if (selectedFileItems.has(path)) {
+    selectedFileItems.delete(path);
+    updateFileSelectionUI();
+  }
   showToast(t('file_deleted', 'File deleted successfully'), 'success');
   loadFiles(parentDir);
+}
+
+function onFileCheckboxChange(cb) {
+  const fullPath = cb.value;
+  if (cb.checked) {
+    selectedFileItems.set(fullPath, {
+      path: fullPath,
+      isDir: cb.getAttribute('data-is-dir') === 'true',
+      name: cb.getAttribute('data-name') || ''
+    });
+  } else {
+    selectedFileItems.delete(fullPath);
+  }
+  updateFileSelectionUI();
+}
+
+function toggleSelectAllFiles(checked) {
+  const cbs = document.querySelectorAll('.file-select-cb');
+  cbs.forEach(cb => {
+    cb.checked = checked;
+    const fullPath = cb.value;
+    if (checked) {
+      selectedFileItems.set(fullPath, {
+        path: fullPath,
+        isDir: cb.getAttribute('data-is-dir') === 'true',
+        name: cb.getAttribute('data-name') || ''
+      });
+    } else {
+      selectedFileItems.delete(fullPath);
+    }
+  });
+  updateFileSelectionUI();
+}
+
+function clearFileSelection() {
+  selectedFileItems.clear();
+  document.querySelectorAll('.file-select-cb').forEach(cb => {
+    cb.checked = false;
+  });
+  updateFileSelectionUI();
+}
+
+function updateFileSelectionUI() {
+  const selectAll = document.getElementById('selectAllFilesCheckbox');
+  const bulkBar = document.getElementById('fileBulkActionBar');
+  const bulkLabel = document.getElementById('fileBulkCountLabel');
+  const cbs = Array.from(document.querySelectorAll('.file-select-cb'));
+
+  if (selectAll) {
+    if (cbs.length === 0) {
+      selectAll.checked = false;
+      selectAll.indeterminate = false;
+      selectAll.disabled = true;
+    } else {
+      selectAll.disabled = false;
+      const checkedCount = cbs.filter(cb => cb.checked).length;
+      if (checkedCount === 0) {
+        selectAll.checked = false;
+        selectAll.indeterminate = false;
+      } else if (checkedCount === cbs.length) {
+        selectAll.checked = true;
+        selectAll.indeterminate = false;
+      } else {
+        selectAll.checked = false;
+        selectAll.indeterminate = true;
+      }
+    }
+  }
+
+  if (bulkBar) {
+    const totalSelected = selectedFileItems.size;
+    if (totalSelected > 0) {
+      bulkBar.style.display = 'flex';
+      if (bulkLabel) {
+        let text = t('selected_items_count').replace('{count}', totalSelected);
+        const items = Array.from(selectedFileItems.values());
+        const dirs = items.filter(i => i.isDir).length;
+        const files = totalSelected - dirs;
+        if (dirs > 0 && files > 0) {
+          text += ` (${dirs} folder, ${files} file)`;
+        } else if (dirs > 0) {
+          text += ` (${dirs} folder)`;
+        } else if (files > 0) {
+          text += ` (${files} file)`;
+        }
+        bulkLabel.textContent = text;
+      }
+    } else {
+      bulkBar.style.display = 'none';
+    }
+  }
+}
+
+async function deleteSelectedFiles() {
+  const items = Array.from(selectedFileItems.values());
+  if (items.length === 0) return;
+
+  const count = items.length;
+  let msg = t('confirm_delete_multiple').replace('{count}', count);
+  if (items.length <= 6) {
+    msg += '\n\n' + items.map(i => (i.isDir ? '📁 ' : '📄 ') + i.name).join('\n');
+  } else {
+    msg += '\n\n' + items.slice(0, 5).map(i => (i.isDir ? '📁 ' : '📄 ') + i.name).join('\n') + `\n... (+${items.length - 5})`;
+  }
+
+  if (!await showConfirm({ message: msg, confirmText: t('delete', 'Delete') })) return;
+
+  const btn = document.getElementById('btnBulkDeleteFiles');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> ' + t('deleting', 'Deleting...');
+  }
+
+  try {
+    const paths = items.map(i => i.path);
+    const res = await fetch('/api/hosts/' + currentHost.id + '/files/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paths })
+    });
+    if (res.status === 403) {
+      showToast(t('cannot_delete_protected'), 'error');
+      return;
+    }
+    if (!res.ok) {
+      const errText = await res.text();
+      showToast(t('failed_prefix', 'Failed: ') + (errText || 'Failed to delete'), 'error');
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    const deletedCount = data.deleted_count !== undefined ? data.deleted_count : count;
+    showToast(t('batch_delete_success').replace('{count}', deletedCount), 'success');
+    clearFileSelection();
+    if (currentFilesData && currentFilesData.path) {
+      loadFiles(currentFilesData.path);
+    }
+  } catch(e) {
+    showToast(t('failed_prefix', 'Failed: ') + e.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🗑️</span> <span id="btnBulkDeleteLabel">' + t('delete_selected') + '</span>';
+    }
+  }
 }
 
 let currentDuplicatePath = null;
