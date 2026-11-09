@@ -19,9 +19,13 @@ import (
 )
 
 var (
-	ErrBusy         = errors.New("a storage triage probe is already in progress for this host")
-	safeUnitRegex   = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
-	journalValRegex = regexp.MustCompile(`([0-9.]+)\s*([KMGTkmgt]?[Bb]?)`)
+	ErrBusy                = errors.New("a storage triage probe is already in progress for this host")
+	safeUnitRegex          = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
+	journalValRegex        = regexp.MustCompile(`([0-9.]+)\s*([KMGTkmgt]?[Bb]?)`)
+	clixmlStreamRegex      = regexp.MustCompile(`(?s)<Obj S="(?:progress|information)".*?</Obj>`)
+	clixmlErrorStringRegex = regexp.MustCompile(`(?s)<S S="Error">(.*?)</S>`)
+	clixmlAnyTagRegex      = regexp.MustCompile(`<[^>]+>`)
+	clixmlHexEscapeRegex   = regexp.MustCompile(`_x([0-9a-fA-F]{4})_`)
 )
 
 type DirectoryHog struct {
@@ -284,35 +288,34 @@ func IsLogOrDisposableFile(filePath string) bool {
 
 // WindowsTriageProbeScript is the PowerShell probe script to collect partition metrics, space hogs, large files, runaway logs, and reclaimable caches on Windows.
 // ponytail: Compact single-shot script kept under 3000 chars raw (well below Windows cmd.exe 8191 limit when Base64 encoded).
-const WindowsTriageProbeScript = `$ProgressPreference=0;
+const WindowsTriageProbeScript = `$ProgressPreference=0;$PID>"$env:TEMP\pantau_triage.pid";$td="$env:TEMP\pn";if(!(Test-Path -Lit $td)){md $td -ea 0|Out-Null};
 "===SUDO_STATUS===";if(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(544)){"admin` + "`" + `n0"}else{"user` + "`" + `n1000"};
 "===PARTITION===";$d=gcim Win32_LogicalDisk -f "DriveType=3" -ea 0|sort -d {$_.DeviceID -eq "C:"}|select -f 1;
-if(!$d){$i=[IO.DriveInfo]::GetDrives()|?{$_.DriveType -eq 3}|sort -d {$_.Name -like "C:*"}|select -f 1;if($i){$d=@{DeviceID=$i.Name.TrimEnd("\");Size=$i.TotalSize;FreeSpace=$i.TotalFreeSpace;FileSystem=$i.DriveFormat}}};
+if(!$d){$i=[IO.DriveInfo]::GetDrives()[0];$d=@{DeviceID=$i.Name.TrimEnd("\");Size=$i.TotalSize;FreeSpace=$i.TotalFreeSpace;FileSystem=$i.DriveFormat}};
 if($d){$t=[int64]($d.Size/1KB);$f=[int64]($d.FreeSpace/1KB);$u=$t-$f;$p=if($t){[int]($u/$t*100)}else{0};$fs=if($d.FileSystem){$d.FileSystem}else{"NTFS"};"$fs $t $u $f ${p}% $($d.DeviceID)"};
 "===SPACE_HOGS===";$sd=if($d.DeviceID){$d.DeviceID}else{"C:"};$w=if($env:SystemRoot){$env:SystemRoot}else{"$sd\Windows"};
-filter _sz{try{[int64](gci -Lit $_ -Rec -File -Force -ea 0|measure -s Length).Sum}catch{0}}
-@("Windows","Program Files","Program Files (x86)","Users","ProgramData","inetpub")+@(gci -Lit "$sd\" -Dir -ea 0|?{$_.Name -notmatch "^(\$|Sys|Rec|Perf)"}|select -Exp Name)|select -u|%{
-$p=Join-Path "$sd\" $_;if(Test-Path -Lit $p){$m=$false;
-try{$rc=robocopy $p "NULL" /L /E /BYTES /NFL /NDL /NJH /NP /XJ /R:0 /W:0 2>$null;
-if(($rc-join"` + "`" + `n")-match"Bytes\s*:\s*(\d+)"){"$([int64]($matches[1]/1KB))` + "`" + `t$p";$m=$true}}catch{};
-if(!$m){$s=$p|_sz;if($s){"$([int64]($s/1KB))` + "`" + `t$p"}}
-}};
+filter _sz{try{$r=robocopy $_ $td /L /E /BYTES /NFL /NDL /NJH /NP /XJ /LEV:3 /MT:16 /R:0 /W:0 2>$null;if(($r-join"` + "`" + `n")-match"Bytes\s*:\s*(\d+)"){$matches[1]}else{[int64](gci -Lit $_ -Rec -Depth 2 -File -ea 0|measure -s Length).Sum}}catch{0}}
+@("Windows","Program Files","Program Files (x86)","Users","ProgramData","inetpub")+(gci -Lit "$sd\" -Dir -ea 0|?{$_.Name -notmatch "^(\$|Sys|Rec)"}|select -Exp Name)|select -u|%{
+$p=Join-Path "$sd\" $_;if(Test-Path -Lit $p){$s=$p|_sz;if($s){"$([int64]($s/1KB))` + "`" + `t$p"}}
+};
 "===TOP_FILES===";$sc=(Get-Date).AddMinutes(-60);$tf=@();$rf=@();
-@("$sd\Users","$sd\ProgramData","$sd\inetpub","$w\Temp","$w\Logs","$sd\logs","$sd\temp","$sd\app","$sd\data",$env:TEMP)|select -u|?{$_ -and (Test-Path -Lit $_)}|%{
-$r=$_;try{gci -Lit $r -Rec -File -ea 0|?{$_.Length -ge 15MB}|%{
-$tf+=$_;if($_.LastWriteTime -ge $sc -and ($_.Extension -match "^\.(log|txt|out|err|dump|etl)$" -or $_.FullName -match "[\\/](logs?|temp)[\\/]") -and $_.Extension -notmatch "^\.(mdf|ldf|ndf|edb|dit|db|sqlite|rdb|wal|vhd|vhdx|avhd|avhdx|vmdk|bak)"){$rf+=$_}
+@("$sd\Users","$sd\ProgramData","$sd\inetpub","$w\Temp",$env:TEMP)|?{$_ -and (Test-Path -Lit $_)}|%{
+$r=$_;try{robocopy $r $td /L /E /MIN:15728640 /BYTES /FP /NDL /NJH /NJS /XJ /LEV:4 /MT:16 /R:0 /W:0 2>$null|?{$_ -match "\s+(\d+)\s+([A-Za-z]:\\.+)"}|%{
+$o=@{l=[int64]$matches[1];p=$matches[2].Trim()};$tf+=$o;
+if($o.p -match "\.(log|txt|out|err|dump|etl)$" -and (gi -Lit $o.p -ea 0).LastWriteTime -ge $sc){$rf+=$o}
 }}catch{}
 };
-$tf|sort FullName -u|sort Length -desc|select -f 15|%{"$($_.Length) $($_.FullName)"};
-"===RUNAWAY_FILES===";$rf|sort FullName -u|sort Length -desc|select -f 10|%{"$($_.Length) $($_.FullName)"};
+$tf|sort p -u|sort l -desc|select -f 15|%{"$($_.l) $($_.p)"};
+"===RUNAWAY_FILES===";$rf|sort p -u|sort l -desc|select -f 10|%{"$($_.l) $($_.p)"};
 "===GHOST_FILES===";
 "===RECLAIM_WIN_UPDATE===";"$w\SoftwareDistribution\Download"|_sz;
-"===RECLAIM_TEMP===";$ts=0;@("$w\Temp",$env:TEMP,"$sd\Temp")|select -u|?{$_ -and (Test-Path -Lit $_)}|%{$ts+=($_|_sz)};"$ts";
+"===RECLAIM_TEMP===";$ts=0;@("$w\Temp",$env:TEMP,"$sd\Temp")|?{$_ -and (Test-Path -Lit $_)}|%{$ts+=($_|_sz)};"$ts";
 "===RECLAIM_DUMPS===";$ds=0;@("$env:ProgramData\Microsoft\Windows\WER","$w\Minidump","$env:LOCALAPPDATA\CrashDumps")|?{$_ -and (Test-Path -Lit $_)}|%{$ds+=($_|_sz)};
-try{$ds+=(gi -Lit "$w\MEMORY.DMP" -ea 0).Length}catch{};"$ds";
-"===RECLAIM_RECYCLEBIN===";($sd + "\$Recycle.Bin")|_sz;
-"===RECLAIM_IIS===";$ip="$sd\inetpub\logs\LogFiles";if(Test-Path -Lit $ip){[int64](gci -Lit $ip -Rec -File -ea 0|?{$_.LastWriteTime -lt (Get-Date).AddDays(-7)}|measure -s Length).Sum}else{0};
-"===RECLAIM_DOCKER===";if(gcm docker -ea 0){docker info 2>$null;if(!$LASTEXITCODE){"active";docker system df --format "{{.Reclaimable}}" 2>$null}else{"none"}}else{"none"}`
+$ds+=(gi -Lit "$w\MEMORY.DMP" -ea 0).Length;"$ds";
+"===RECLAIM_RECYCLEBIN===";(Join-Path "$sd\" '$Recycle.Bin')|_sz;
+"===RECLAIM_IIS===";$ip="$sd\inetpub\logs\LogFiles";if(Test-Path -Lit $ip){[int64](gci -Lit $ip -Rec -Depth 3 -File -ea 0|?{$_.LastWriteTime -lt (Get-Date).AddDays(-7)}|measure -s Length).Sum}else{0};
+"===RECLAIM_DOCKER===";if((gcm docker -ea 0) -and (Get-Service *docker* -ea 0|?{$_.Status -eq "Running"})){docker info 2>$null;if(!$LASTEXITCODE){"active";docker system df --format "{{.Reclaimable}}" 2>$null}else{"none"}}else{"none"};
+del "$env:TEMP\pantau_triage.pid",$td -Rec -ea 0`
 
 const TriageProbeScript = `TARGET_SHELL="sh"
 if command -v bash >/dev/null 2>&1; then
@@ -483,7 +486,7 @@ func (s *Service) CancelTriage(hostID int64) bool {
 		cancel()
 	}
 
-	// ponytail: Proactively fire an SSH kill command to terminate any lingering du/find processes on the host.
+	// ponytail: Proactively fire an SSH kill command to terminate any lingering du/find/robocopy processes on the host.
 	go func() {
 		if s.inspector == nil || s.db == nil {
 			return
@@ -492,16 +495,16 @@ func (s *Service) CancelTriage(hostID int64) bool {
 		if err != nil || h == nil {
 			return
 		}
+		if strings.EqualFold(h.OSType, "windows") {
+			s.cleanupRemoteWindowsTriage(h)
+			return
+		}
 		runner, err := s.inspector.GetRunnerForHost(h)
 		if err != nil {
 			return
 		}
 		defer runner.Close()
-		if strings.EqualFold(h.OSType, "windows") {
-			killScript := `Stop-Process -Name robocopy -Force -ErrorAction SilentlyContinue`
-			_, _, _, _ = runner.ExecTimeout(sshrunner.PowershellEncodedCmd(killScript), 5*time.Second)
-		} else {
-			killScript := `TARGET_SHELL="sh"
+		killScript := `TARGET_SHELL="sh"
 if command -v bash >/dev/null 2>&1; then
     TARGET_SHELL="bash"
 fi
@@ -516,11 +519,23 @@ $SUDO pkill -9 -f "du -skx" 2>/dev/null || true
 $SUDO pkill -9 -f "find /" 2>/dev/null || true
 PANTAU_KILL_EOF
 `
-			_, _, _, _ = runner.ExecTimeout(killScript, 5*time.Second)
-		}
+		_, _, _, _ = runner.ExecTimeout(killScript, 5*time.Second)
 	}()
 
 	return true
+}
+
+func (s *Service) cleanupRemoteWindowsTriage(h *store.Host) {
+	if s.inspector == nil || h == nil {
+		return
+	}
+	runner, err := s.inspector.GetRunnerForHost(h)
+	if err != nil {
+		return
+	}
+	defer runner.Close()
+	killScript := `if(Test-Path "$env:TEMP\pantau_triage.pid"){$p=Get-Content "$env:TEMP\pantau_triage.pid" -ea 0;if($p){taskkill /F /T /PID $p 2>$null;Stop-Process -Id $p -Force -ea 0};Remove-Item "$env:TEMP\pantau_triage.pid" -Force -ea 0};Stop-Process -Name robocopy -Force -ea 0`
+	_, _, _, _ = runner.ExecTimeout(sshrunner.PowershellEncodedCmd(killScript), 5*time.Second)
 }
 
 func parseCPULoad1m(raw string) float64 {
@@ -739,11 +754,20 @@ func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*
 		probeCmd = TriageProbeScript
 	}
 
+	probeTimeout := 60 * time.Second
+	if isWindows {
+		// ponytail: Windows multi-directory robocopy needs slightly higher timeout headroom on busy disks.
+		probeTimeout = 90 * time.Second
+	}
+
 	start := time.Now()
-	// ponytail: 50s timeout provides generous headroom for high-load disks while preventing indefinite stalls.
-	stdout, _, _, err := runner.ExecTimeout(probeCmd, 50*time.Second)
+	stdout, _, _, err := runner.ExecTimeout(probeCmd, probeTimeout)
 	scanDuration := time.Since(start).Milliseconds()
 	if err != nil {
+		if isWindows {
+			// Proactively cleanup remote Windows triage processes on error or timeout so no orphans linger
+			go s.cleanupRemoteWindowsTriage(h)
+		}
 		if probeCtx.Err() == context.Canceled {
 			return nil, errors.New("pemindaian dibatalkan oleh pengguna")
 		}
@@ -1438,33 +1462,40 @@ func (s *Service) ExecuteReclaim(ctx context.Context, hostID int64, req ReclaimR
 		if req.ActionKey == "truncate" {
 			cleanWin := strings.ReplaceAll(strings.TrimSpace(req.TargetPath), "/", "\\")
 			psEscaped := strings.ReplaceAll(cleanWin, "'", "''")
-			// ponytail: Try Clear-Content first; if file is actively opened with FileShare.ReadWrite, fallback to .NET stream SetLength(0).
-			psWrap = fmt.Sprintf(`$ErrorActionPreference = "Stop"; try { Clear-Content -LiteralPath '%[1]s' -Force } catch { try { $s = [System.IO.File]::Open('%[1]s', [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite); $s.SetLength(0); $s.Close() } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 } }`, psEscaped)
+			// ponytail: Try Clear-Content; if inherited Deny ACE (e.g. McAfee/vendor dirs), grant explicit Allow to Administrators (*S-1-5-32-544); fallback to .NET stream SetLength(0) if locked.
+			psWrap = fmt.Sprintf(`$ProgressPreference = 0; $ErrorActionPreference = "Stop"; $p = '%[1]s'; try { Clear-Content -LiteralPath $p -Force; exit 0 } catch { if ($_ -match 'Access.*is denied|UnauthorizedAccess') { icacls $p /grant '*S-1-5-32-544:(F)' 2>$null | Out-Null }; try { Clear-Content -LiteralPath $p -Force; exit 0 } catch { try { $s = [System.IO.File]::Open($p, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite); $s.SetLength(0); $s.Close(); exit 0 } catch { [Console]::Error.WriteLine($_.Exception.Message); [Console]::Error.Flush(); exit 1 } } }`, psEscaped)
 		} else {
-			psWrap = fmt.Sprintf(`$ErrorActionPreference = "Stop"; try { %s } catch { [Console]::Error.WriteLine($_.Exception.Message); exit 1 }`, cmd)
+			psWrap = fmt.Sprintf(`$ProgressPreference = 0; $ErrorActionPreference = "Stop"; try { %s; exit 0 } catch { [Console]::Error.WriteLine($_.Exception.Message); [Console]::Error.Flush(); exit 1 }`, cmd)
 		}
 		fullCmd := sshrunner.PowershellEncodedCmd(psWrap)
 		stdout, stderr, exitCode, err := runner.ExecTimeout(fullCmd, 30*time.Second)
+		stdout = cleanWindowsOutput(stdout)
+		stderr = cleanWindowsOutput(stderr)
 		combined := strings.TrimSpace(stdout + "\n" + stderr)
 		if strings.TrimSpace(req.SudoPassword) != "" {
 			combined = strings.ReplaceAll(combined, req.SudoPassword, "******")
 		}
 		lower := strings.ToLower(combined)
-		hasErr := err != nil || exitCode != 0 ||
-			strings.Contains(lower, "cannot access the file") ||
-			strings.Contains(lower, "access is denied") ||
+		isAccessDenied := strings.Contains(lower, "access is denied") ||
+			(strings.Contains(lower, "access") && strings.Contains(lower, "is denied")) ||
 			strings.Contains(lower, "unauthorizedaccessexception") ||
 			strings.Contains(lower, "permissiondenied")
+		isFileLocked := strings.Contains(lower, "cannot access the file") ||
+			strings.Contains(lower, "being used by another process") ||
+			strings.Contains(lower, "sharing violation")
+		hasErr := err != nil || exitCode != 0 || isAccessDenied || isFileLocked
 		if hasErr {
 			errMsg := ""
-			if strings.Contains(lower, "access is denied") || strings.Contains(lower, "unauthorizedaccessexception") {
+			if isAccessDenied {
 				errMsg = "Access Denied: Akun SSH tidak memiliki hak administrator yang cukup untuk melakukan aksi pembersihan ini."
-			} else if strings.Contains(lower, "cannot access the file") || strings.Contains(lower, "being used by another process") {
+			} else if isFileLocked {
 				errMsg = "File Lock: Berkas sedang dikunci atau digunakan secara eksklusif oleh proses lain."
 			} else if err != nil {
 				errMsg = err.Error()
-			} else {
+			} else if combined != "" {
 				errMsg = fmt.Sprintf("exit code %d: %s", exitCode, combined)
+			} else {
+				errMsg = fmt.Sprintf("exit code %d", exitCode)
 			}
 			return &ReclaimResult{
 				ActionKey: req.ActionKey,
@@ -1531,4 +1562,56 @@ fi`, ShellQuote(cmd), ShellQuote(cmd))
 		Success:   true,
 		Output:    combined,
 	}, nil
+}
+
+// cleanWindowsOutput strips CLIXML artifacts from PowerShell output and unescapes any embedded text.
+func cleanWindowsOutput(raw string) string {
+	s := strings.TrimSpace(raw)
+	if !strings.Contains(s, "<Objs") && !strings.Contains(s, "#< CLIXML") {
+		return s
+	}
+
+	// Strip CLIXML header if present
+	if strings.HasPrefix(s, "#< CLIXML") {
+		s = strings.TrimSpace(s[len("#< CLIXML"):])
+	}
+
+	// Remove progress and information stream records
+	s = clixmlStreamRegex.ReplaceAllString(s, "")
+
+	// Extract error strings if present
+	var errParts []string
+	matches := clixmlErrorStringRegex.FindAllStringSubmatch(s, -1)
+	for _, m := range matches {
+		if len(m) > 1 {
+			decoded := decodeClixmlString(m[1])
+			if trimmed := strings.TrimSpace(decoded); trimmed != "" {
+				errParts = append(errParts, trimmed)
+			}
+		}
+	}
+	if len(errParts) > 0 {
+		return strings.Join(errParts, " ")
+	}
+
+	// Remove remaining XML tags and unescape text
+	s = clixmlAnyTagRegex.ReplaceAllString(s, "")
+	s = decodeClixmlString(s)
+	return strings.TrimSpace(s)
+}
+
+func decodeClixmlString(in string) string {
+	out := clixmlHexEscapeRegex.ReplaceAllStringFunc(in, func(m string) string {
+		sub := m[2 : len(m)-1]
+		if r, err := strconv.ParseInt(sub, 16, 32); err == nil {
+			return string(rune(r))
+		}
+		return m
+	})
+	out = strings.ReplaceAll(out, "&lt;", "<")
+	out = strings.ReplaceAll(out, "&gt;", ">")
+	out = strings.ReplaceAll(out, "&amp;", "&")
+	out = strings.ReplaceAll(out, "&quot;", "\"")
+	out = strings.ReplaceAll(out, "&apos;", "'")
+	return out
 }
