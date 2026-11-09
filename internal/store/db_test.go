@@ -372,6 +372,105 @@ func TestFilePinsCRUD(t *testing.T) {
 	}
 }
 
+func TestStorageMonitorsCRUD(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-storage-monitors-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&Host{
+		Name: "Storage Host",
+		Host: "10.0.0.2",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Initial monitors should be empty
+	monitors, err := db.GetStorageMonitors(hostID)
+	if err != nil {
+		t.Fatalf("get storage monitors: %v", err)
+	}
+	if len(monitors) != 0 {
+		t.Fatalf("expected 0 monitors, got %d", len(monitors))
+	}
+
+	// 2. Save monitors with optional maxSizeBytes
+	m1, err := db.SaveStorageMonitor(hostID, "/var/log/app.log", "Main App Log", 10*1024*1024*1024)
+	if err != nil {
+		t.Fatalf("save monitor 1: %v", err)
+	}
+	if m1.Path != "/var/log/app.log" || m1.Label != "Main App Log" || m1.MaxSizeBytes != 10*1024*1024*1024 {
+		t.Errorf("unexpected saved monitor: %+v", m1)
+	}
+
+	_, err = db.SaveStorageMonitor(hostID, "/opt/data", "Data Directory", 50*1024*1024*1024)
+	if err != nil {
+		t.Fatalf("save monitor 2: %v", err)
+	}
+
+	monitors, err = db.GetStorageMonitors(hostID)
+	if err != nil {
+		t.Fatalf("get storage monitors after save: %v", err)
+	}
+	if len(monitors) != 2 {
+		t.Fatalf("expected 2 monitors, got %d", len(monitors))
+	}
+
+	// 3. Upsert label & limit
+	_, err = db.SaveStorageMonitor(hostID, "/var/log/app.log", "Updated App Log", 20*1024*1024*1024)
+	if err != nil {
+		t.Fatalf("upsert monitor: %v", err)
+	}
+	// Test UpdateStorageMonitorLimit explicitly
+	if err := db.UpdateStorageMonitorLimit(hostID, "/opt/data", 100*1024*1024*1024); err != nil {
+		t.Fatalf("update limit: %v", err)
+	}
+	monitors, err = db.GetStorageMonitors(hostID)
+	if err != nil {
+		t.Fatalf("get monitors: %v", err)
+	}
+	if len(monitors) != 2 {
+		t.Fatalf("expected 2 monitors, got %d", len(monitors))
+	}
+	for _, m := range monitors {
+		if m.Path == "/var/log/app.log" {
+			if m.Label != "Updated App Log" || m.MaxSizeBytes != 20*1024*1024*1024 {
+				t.Errorf("expected updated label & limit, got label=%q limit=%d", m.Label, m.MaxSizeBytes)
+			}
+		}
+		if m.Path == "/opt/data" {
+			if m.MaxSizeBytes != 100*1024*1024*1024 {
+				t.Errorf("expected updated limit 100GB, got %d", m.MaxSizeBytes)
+			}
+		}
+	}
+
+	// 4. Delete monitor
+	if err := db.DeleteStorageMonitor(hostID, "/var/log/app.log"); err != nil {
+		t.Fatalf("delete monitor: %v", err)
+	}
+	monitors, err = db.GetStorageMonitors(hostID)
+	if err != nil {
+		t.Fatalf("get monitors after delete: %v", err)
+	}
+	if len(monitors) != 1 {
+		t.Fatalf("expected 1 monitor, got %d", len(monitors))
+	}
+	if monitors[0].Path != "/opt/data" {
+		t.Errorf("expected remaining monitor /opt/data, got %q", monitors[0].Path)
+	}
+}
+
 func TestFindHostByTarget(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "pantau-store-find-test-*")
 	if err != nil {

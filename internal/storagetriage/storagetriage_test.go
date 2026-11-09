@@ -3,6 +3,7 @@ package storagetriage
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1033,8 +1034,133 @@ func TestWindowsTruncateAclElevationLogic(t *testing.T) {
 	}
 }
 
+func TestMonitoredPathsParsingAndProbeScript(t *testing.T) {
+	// 1. Parse MONITORED_PATHS
+	raw := `===PARTITION===
+/dev/sda1 104857600 52428800 52428800 50% /
+
+===MONITORED_PATHS===
+DIR	52428800	/var/log/custom-app
+FILE	10485760	/var/log/app.log
+MISSING	0	/opt/nonexistent.txt
+`
+	res := ParseTriageOutput(raw)
+	if len(res.MonitoredItems) != 3 {
+		t.Fatalf("expected 3 monitored items, got %d", len(res.MonitoredItems))
+	}
+
+	// First item: DIR
+	m0 := res.MonitoredItems[0]
+	if m0.Path != "/var/log/custom-app" || !m0.Exists || !m0.IsDir || m0.SizeBytes != 52428800 || m0.HumanSize != "50.0 MB" {
+		t.Errorf("unexpected m0: %+v", m0)
+	}
+
+	// Second item: FILE
+	m1 := res.MonitoredItems[1]
+	if m1.Path != "/var/log/app.log" || !m1.Exists || m1.IsDir || m1.SizeBytes != 10485760 || m1.HumanSize != "10.0 MB" {
+		t.Errorf("unexpected m1: %+v", m1)
+	}
+
+	// Third item: MISSING
+	m2 := res.MonitoredItems[2]
+	if m2.Path != "/opt/nonexistent.txt" || m2.Exists || m2.HumanSize != "Not Found" {
+		t.Errorf("unexpected m2: %+v", m2)
+	}
+
+	// 2. buildLinuxProbeScript and buildWindowsProbeScript with store.DB
+	tmpDir, err := os.MkdirTemp("", "pantau-mon-script-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name: "Mon Host",
+		Host: "127.0.0.1",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc := NewService(db, nil)
+
+	// When no monitors, scripts should equal original templates
+	linuxScript := svc.buildLinuxProbeScript(hostID)
+	if linuxScript != TriageProbeScript {
+		t.Errorf("expected original TriageProbeScript when no monitors exist")
+	}
+	winScript := svc.buildWindowsProbeScript(hostID)
+	if winScript != WindowsTriageProbeScript {
+		t.Errorf("expected original WindowsTriageProbeScript when no monitors exist")
+	}
+
+	// Save monitors
+	_, err = db.SaveStorageMonitor(hostID, "/var/log/app.log", "App Log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.SaveStorageMonitor(hostID, "C:\\inetpub\\logs", "IIS Logs")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	linuxWithMon := svc.buildLinuxProbeScript(hostID)
+	if !strings.Contains(linuxWithMon, "===MONITORED_PATHS===") {
+		t.Errorf("expected linux probe to contain ===MONITORED_PATHS===")
+	}
+	if !strings.Contains(linuxWithMon, "/var/log/app.log") {
+		t.Errorf("expected linux probe to contain /var/log/app.log")
+	}
+
+	winWithMon := svc.buildWindowsProbeScript(hostID)
+	if !strings.Contains(winWithMon, "===MONITORED_PATHS===") {
+		t.Errorf("expected windows probe to contain ===MONITORED_PATHS===")
+	}
+	if !strings.Contains(winWithMon, "C:\\inetpub\\logs") {
+		t.Errorf("expected windows probe to contain C:\\inetpub\\logs")
+	}
+}
 
 
 
 
 
+
+
+
+func TestMonitoredItemCalculateLimitStats(t *testing.T) {
+	itNormal := MonitoredItem{
+		SizeBytes:    10 * 1024 * 1024 * 1024,
+		MaxSizeBytes: 20 * 1024 * 1024 * 1024,
+	}
+	itNormal.CalculateLimitStats()
+	if itNormal.UsedPercent != 50.0 || itNormal.IsOverLimit || itNormal.IsWarning || itNormal.MaxSizeHuman != "20.0 GB" {
+		t.Errorf("unexpected itNormal stats: %+v", itNormal)
+	}
+
+	itWarning := MonitoredItem{
+		SizeBytes:    16 * 1024 * 1024 * 1024, // 80%
+		MaxSizeBytes: 20 * 1024 * 1024 * 1024,
+	}
+	itWarning.CalculateLimitStats()
+	if itWarning.UsedPercent != 80.0 || itWarning.IsOverLimit || !itWarning.IsWarning {
+		t.Errorf("unexpected itWarning stats: %+v", itWarning)
+	}
+
+	itOver := MonitoredItem{
+		SizeBytes:    25 * 1024 * 1024 * 1024, // 125%
+		MaxSizeBytes: 20 * 1024 * 1024 * 1024,
+	}
+	itOver.CalculateLimitStats()
+	if itOver.UsedPercent != 125.0 || !itOver.IsOverLimit || !itOver.IsWarning {
+		t.Errorf("unexpected itOver stats: %+v", itOver)
+	}
+}
