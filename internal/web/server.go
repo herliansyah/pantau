@@ -21,6 +21,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -95,6 +96,7 @@ type Server struct {
 	docsFS            fs.FS
 	tunnelRunners     sync.Map // hostID -> *tunnelRunnerEntry
 	hostKeyMutexes    sync.Map // hostID -> *sync.Mutex
+	hostDrives        sync.Map // hostID -> cachedHostDrives
 	nativeTickets     sync.Map // token -> *NativeTicket
 	inspectAllMu      sync.Mutex
 	inspectAllActive  bool
@@ -2268,6 +2270,87 @@ func resolveRemotePath(sftpClient *sftp.Client, user, targetPath string, hostOST
 	return path.Clean(path.Join(homeDir, normPath))
 }
 
+type cachedHostDrives struct {
+	drives []string
+	exp    time.Time
+}
+
+// ponytail: Discover accessible Windows drives via SFTP probe + PowerShell fallback; cached 5 min to avoid roundtrip latency.
+func (s *Server) getHostAvailableDrives(host *store.Host, runner sshrunner.Runner, sftpClient *sftp.Client, currentPath string) []string {
+	if host.OSType != "windows" {
+		return []string{"/"}
+	}
+
+	if val, ok := s.hostDrives.Load(host.ID); ok {
+		cd := val.(cachedHostDrives)
+		if time.Now().Before(cd.exp) && len(cd.drives) > 0 {
+			cleanCur := sshrunner.CleanWindowsRemotePath(currentPath)
+			if len(cleanCur) >= 2 && cleanCur[1] == ':' {
+				curD := strings.ToUpper(cleanCur[:2])
+				found := false
+				for _, d := range cd.drives {
+					if d == curD {
+						found = true
+						break
+					}
+				}
+				if !found {
+					newDrives := append(cd.drives, curD)
+					sort.Strings(newDrives)
+					s.hostDrives.Store(host.ID, cachedHostDrives{drives: newDrives, exp: cd.exp})
+					return newDrives
+				}
+			}
+			return cd.drives
+		}
+	}
+
+	driveSet := make(map[string]bool)
+	driveSet["C:"] = true
+
+	cleanCur := sshrunner.CleanWindowsRemotePath(currentPath)
+	if len(cleanCur) >= 2 && cleanCur[1] == ':' {
+		driveSet[strings.ToUpper(cleanCur[:2])] = true
+	}
+
+	// 1. Primary: Fast PowerShell query to get all mounted, ready drives in one shot
+	if runner != nil {
+		psCmd := `[System.IO.DriveInfo]::GetDrives() | Where-Object { $_.IsReady } | ForEach-Object { $_.Name.TrimEnd('\') }`
+		stdout, _, exitCode, err := runner.ExecTimeout(sshrunner.PowershellEncodedCmd(psCmd), 3*time.Second)
+		if err == nil && exitCode == 0 {
+			for _, field := range strings.Fields(stdout) {
+				field = strings.TrimSpace(field)
+				if len(field) >= 2 && field[1] == ':' {
+					driveSet[strings.ToUpper(field[:2])] = true
+				}
+			}
+		}
+	}
+
+	// 2. Fallback: If only C: was found and sftpClient is available, probe common drive letters
+	if len(driveSet) <= 1 && sftpClient != nil {
+		for _, c := range "CDEFGHIJKLMNOPQRSTUVWXYZ" {
+			d := fmt.Sprintf("%c:/", c)
+			if fi, err := sftpClient.Stat(d); err == nil && fi.IsDir() {
+				driveSet[fmt.Sprintf("%c:", c)] = true
+			}
+		}
+	}
+
+	var res []string
+	for d := range driveSet {
+		res = append(res, d)
+	}
+	sort.Strings(res)
+
+	s.hostDrives.Store(host.ID, cachedHostDrives{
+		drives: res,
+		exp:    time.Now().Add(5 * time.Minute),
+	})
+
+	return res
+}
+
 func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.ResponseWriter, r *http.Request) {
 	if len(subparts) == 0 {
 		http.Error(w, "missing file action", http.StatusBadRequest)
@@ -2347,6 +2430,12 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 	defer sftpClient.Close()
 
 	switch action {
+	case "drives":
+		drives := s.getHostAvailableDrives(host, runner, sftpClient, "")
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"drives": drives,
+		})
+		return
 	case "list":
 		dirPath := r.URL.Query().Get("path")
 		dirPath = resolveRemotePath(sftpClient, host.User, dirPath, host.OSType)
@@ -2388,10 +2477,12 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 				IsProtected: itemProtected,
 			})
 		}
+		drives := s.getHostAvailableDrives(host, runner, sftpClient, dirPath)
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"path":         dirPath,
 			"is_protected": dirProtected,
 			"files":        list,
+			"drives":       drives,
 		})
 	case "read":
 		pathParam := r.URL.Query().Get("path")

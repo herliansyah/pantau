@@ -757,6 +757,11 @@ func TestWindowsNativeTerminalKeyInjectionAndCdClause(t *testing.T) {
 		t.Errorf("expected empty cdClause for tilde on Windows, got %q", cdTilde)
 	}
 
+	cdConhost := buildRemoteCdClause(`C:/WINDOWS/system32/conhost.exe`, "windows")
+	if cdConhost != "" {
+		t.Errorf("expected empty cdClause for conhost.exe on Windows, got %q", cdConhost)
+	}
+
 	cdWin := buildRemoteCdClause(`C:\inetpub\wwwroot`, "windows")
 	if !strings.Contains(cdWin, "Set-Location -LiteralPath 'C:/inetpub/wwwroot'") {
 		t.Errorf("expected Set-Location for Windows path, got %q", cdWin)

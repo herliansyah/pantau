@@ -87,6 +87,10 @@ func buildRemoteCdClause(initialDir string, hostOSType ...string) string {
 	}
 	if targetOS == "windows" || (targetOS != "linux" && isWindowsPath) {
 		cleaned = winNorm
+		lowerClean := strings.ToLower(cleaned)
+		if strings.HasSuffix(lowerClean, ".exe") || strings.HasSuffix(lowerClean, ".cmd") || strings.HasSuffix(lowerClean, ".bat") || strings.HasSuffix(lowerClean, ".com") || strings.HasSuffix(lowerClean, ".ps1") {
+			return ""
+		}
 		if cleaned == "~" || cleaned == "~/" {
 			return ""
 		}

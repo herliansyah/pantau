@@ -466,6 +466,7 @@ Pantau menyediakan fitur penggandaan (*cloning*) lokal untuk berkas atau folder 
 ### Navigasi Berkas Windows Sadar-Drive & Proteksi Path
 
 Saat mengelola Host target Windows melalui SFTP File Manager dan Web Terminal terpadu:
+- **Drive Switcher Instan**: Tombol pemilih drive (`[ 💾 C: ]`, `[ 💾 D: ]`, `[ ➕ ]`) tampil otomatis di sebelah tombol navigasi atas pada host Windows, mendeteksi partisi drive yang tersedia dan memudahkan perpindahan antar drive (C:, D:, dll.) dalam satu klik tanpa perlu lewat terminal.
 - **Navigasi Sadar-Drive**: Berpindah lintas *drive letter* (`C:/`, `D:/`) dan path emulasi Git Bash (`/c/`, `/d/`) secara mulus melalui helper `CleanWindowsRemotePath`.
 - **Proteksi Akar Drive**: Tombol navigasi ke direktori induk (`..` atau tombol Up) secara ketat berpangkal pada akar drive aktif (misal `C:\`), mencegah navigasi liar di luar drive.
 - **Pratinjau Berkas Aman Memori**: Pembacaan berkas jarak jauh via SFTP dibatasi maksimum 2MB menggunakan `io.ReadAll` dengan `LimitReader` untuk melindungi memori server dari dump biner atau log raksasa.
