@@ -246,6 +246,53 @@ select, select option { background-color: #1e293b !important; color: #f8fafc !im
 .action-grid .action-btn-download:hover { color: #38bdf8; }
 .action-grid .action-btn-duplicate:hover { color: #a78bfa; }
 
+/* Windows Drive Switcher */
+.file-drive-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #090d16;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  min-height: 36px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+.file-drive-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  font-family: monospace;
+  height: 26px;
+}
+.file-drive-btn:hover {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+.file-drive-btn.active {
+  background: rgba(56, 189, 248, 0.22);
+  color: #38bdf8;
+  border-color: #38bdf8;
+  font-weight: 700;
+}
+.file-drive-custom-btn {
+  padding: 2px 6px;
+  opacity: 0.8;
+}
+.file-drive-custom-btn:hover {
+  opacity: 1;
+}
+
 /* Interactive Breadcrumb */
 .file-breadcrumb-bar {
   display: flex;
@@ -2063,6 +2110,29 @@ body.has-workspace-shelf .container {
   </div>
 </div>
 
+<!-- Custom Drive / Path Modal -->
+<div id="customDriveModal" class="modal">
+  <div class="modal-content modal-dialog" style="max-width: 440px; border: 1px solid var(--card-border); background: #0f172a; border-radius: 8px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);">
+    <div class="modal-header" style="padding: 14px 18px; border-bottom: 1px solid var(--card-border); display: flex; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 1.1rem;">💾</span>
+        <h3 style="margin: 0; font-size: 1rem; font-weight: 600;" data-i18n="custom_drive_title">Open Specific Drive or Path</h3>
+      </div>
+      <button class="btn btn-sm" onclick="closeModal('customDriveModal')">✕</button>
+    </div>
+    <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; padding: 18px;">
+      <div>
+        <label style="display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 6px; color: #f1f5f9;" data-i18n="enter_drive_path_label">Drive letter or folder path:</label>
+        <input type="text" id="customDriveInput" placeholder="e.g. D: or D:/data or E:/" data-i18n-placeholder="enter_drive_path_prompt" onkeyup="if(event.key==='Enter') submitCustomDrive()" style="width: 100%; box-sizing: border-box; font-family: monospace;" />
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px;">
+        <button class="btn" onclick="closeModal('customDriveModal')" data-i18n="cancel">Cancel</button>
+        <button class="btn btn-primary" onclick="submitCustomDrive()" data-i18n="open">Open</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- File Pin & Note Modal -->
 <div id="filePinModal" class="modal">
   <div class="modal-content modal-dialog" style="max-width: 480px; border: 1px solid var(--card-border); background: #0f172a; border-radius: 8px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);">
@@ -3843,6 +3913,12 @@ const I18N = {
     "root_cause_excerpt": "ROOT CAUSE EXCERPT:",
     "path_label": "\ud83d\udcc1 Path:",
     "up_dir": "\u2b06 Up",
+    "drive_switcher": "Drive Switcher",
+    "switch_to_drive": "Switch to drive",
+    "custom_drive_prompt": "Open specific drive or path",
+    "custom_drive_title": "Open Specific Drive or Path",
+    "enter_drive_path_label": "Drive letter or folder path:",
+    "enter_drive_path_prompt": "Enter drive letter or path (e.g. D: or D:/data):",
     "upload_file": "\ud83d\udce4 Upload File",
     "file_name": "Name",
     "file_size": "Size",
@@ -4712,6 +4788,12 @@ const I18N = {
     "root_cause_excerpt": "ROOT CAUSE EXCERPT:",
     "path_label": "\ud83d\udcc1 Path:",
     "up_dir": "\u2b06 Naik",
+    "drive_switcher": "Pilih Drive",
+    "switch_to_drive": "Beralih ke drive",
+    "custom_drive_prompt": "Buka drive atau path tertentu",
+    "custom_drive_title": "Buka Drive atau Path Tertentu",
+    "enter_drive_path_label": "Huruf drive atau path folder:",
+    "enter_drive_path_prompt": "Masukkan huruf drive atau path (contoh: D: atau D:/data):",
     "upload_file": "\ud83d\udce4 Upload File",
     "file_name": "Nama",
     "file_size": "Ukuran",
@@ -12123,6 +12205,9 @@ async function loadFiles(path) {
     currentFilesData = data;
     if (currentHost) {
       currentHost._lastPath = data.path;
+      if (data.drives && data.drives.length > 0) {
+        currentHost._drives = data.drives;
+      }
     }
     fileFilterQuery = '';
     renderFilesView();
@@ -12157,6 +12242,67 @@ function renderQuickAccessBar() {
       </div>
     </div>
   `;
+}
+
+function renderDriveSwitcher(currentPath, drivesList) {
+  const isWindows = currentHost && currentHost.os_type === 'windows';
+  if (!isWindows) return '';
+
+  let currentDrive = 'C:';
+  if (currentPath && currentPath.length >= 2 && currentPath[1] === ':') {
+    currentDrive = currentPath.slice(0, 2).toUpperCase();
+  }
+
+  let drives = Array.isArray(drivesList) && drivesList.length > 0 
+    ? drivesList.slice() 
+    : (currentHost && currentHost._drives ? currentHost._drives.slice() : ['C:']);
+  if (!drives.includes(currentDrive)) {
+    drives.push(currentDrive);
+  }
+  if (drives.length === 0) drives = ['C:'];
+  drives.sort();
+
+  const driveButtons = drives.map(d => {
+    const dUpper = d.toUpperCase();
+    const isActive = (dUpper === currentDrive);
+    return `
+      <button type="button" 
+        class="file-drive-btn ${isActive ? 'active' : ''}" 
+        onclick="loadFiles('${escapeHtml(dUpper)}/')" 
+        title="${t('switch_to_drive', 'Switch to drive')} ${escapeHtml(dUpper)}">
+        <span class="drive-icon">💾</span> <b>${escapeHtml(dUpper)}</b>
+      </button>
+    `;
+  }).join('');
+
+  return `
+    <div class="file-drive-switcher" title="${t('drive_switcher', 'Drive Switcher')}">
+      ${driveButtons}
+      <button type="button" class="file-drive-btn file-drive-custom-btn" onclick="openCustomDriveModal()" title="${t('custom_drive_prompt', 'Open specific drive or path')}">
+        <span>➕</span>
+      </button>
+    </div>
+  `;
+}
+
+function openCustomDriveModal() {
+  const input = document.getElementById('customDriveInput');
+  if (input) input.value = '';
+  openModal('customDriveModal');
+  if (input) setTimeout(() => input.focus(), 50);
+}
+
+function submitCustomDrive() {
+  const input = document.getElementById('customDriveInput');
+  if (!input) return;
+  const val = input.value.trim();
+  if (!val) return;
+  closeModal('customDriveModal');
+  let p = val.replace(/\\/g, '/');
+  if (/^[a-zA-Z]:$/.test(p)) {
+    p += '/';
+  }
+  loadFiles(p);
 }
 
 function renderBreadcrumbs(currentPath) {
@@ -12244,6 +12390,7 @@ function renderFilesView() {
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; flex-wrap: wrap;">
       <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 260px;">
         <button class="btn btn-sm" onclick="loadFiles('${escapeHtml(parent)}')" ${isAtRoot ? 'disabled' : ''} style="flex-shrink: 0;">${t('up_dir')}</button>
+        ${renderDriveSwitcher(data.path, data.drives)}
         <div class="file-breadcrumb-bar" style="flex: 1;">
           ${renderBreadcrumbs(data.path)}
         </div>
@@ -14025,7 +14172,11 @@ function extractPathFromTerminalTitle(title) {
   // Check for Windows drive path pattern e.g. C:\Users\Admin or C:/Users/Admin
   const winMatch = str.match(/(?:^|[:\s])([a-zA-Z]:[\\/][^\s]*)/);
   if (winMatch) {
-    return winMatch[1].replace(/\\/g, '/');
+    const rawWinPath = winMatch[1].replace(/\\/g, '/');
+    if (/\.(exe|cmd|bat|com|ps1)$/i.test(rawWinPath)) {
+      return null;
+    }
+    return rawWinPath;
   }
   const colonIdx = str.lastIndexOf(':');
   if (colonIdx !== -1) {
@@ -14033,6 +14184,9 @@ function extractPathFromTerminalTitle(title) {
   }
   str = str.replace(/[\$#%]\s*$/, '').trim();
   if (!str) return null;
+  if (/\.(exe|cmd|bat|com|ps1)$/i.test(str)) {
+    return null;
+  }
   if (str.startsWith('/') || str.startsWith('~')) {
     return str;
   }

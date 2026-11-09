@@ -366,6 +366,9 @@ func TestBatchDeleteAPIEndpoint(t *testing.T) {
 	defer db.Close()
 
 	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (stdout, stderr string, exitCode int, err error) {
+		return "C: D:", "", 0, nil
+	}
 	mockRunner.SFTPProvider = func() (*sftp.Client, error) {
 		sConn, cConn := net.Pipe()
 		server, err := sftp.NewServer(sConn)
@@ -459,6 +462,148 @@ func TestBatchDeleteAPIEndpoint(t *testing.T) {
 	}
 	if _, err := os.Stat(fileB); !os.IsNotExist(err) {
 		t.Errorf("expected fileB to be deleted")
+	}
+}
+
+func TestFileManagerDriveSwitcherUI(t *testing.T) {
+	html := string(embeddedHTML)
+
+	// Check Drive Switcher CSS & DOM elements
+	driveElements := []string{
+		"file-drive-switcher",
+		"file-drive-btn",
+		"file-drive-custom-btn",
+		"renderDriveSwitcher",
+		"customDriveModal",
+		"openCustomDriveModal",
+		"submitCustomDrive",
+	}
+	for _, el := range driveElements {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected index.html to contain drive switcher element %q", el)
+		}
+	}
+
+	// Check i18n keys exist in at least 2 dictionaries (EN and ID)
+	i18nKeys := []string{
+		`"drive_switcher":`,
+		`"switch_to_drive":`,
+		`"custom_drive_prompt":`,
+		`"custom_drive_title":`,
+		`"enter_drive_path_label":`,
+		`"enter_drive_path_prompt":`,
+	}
+	for _, k := range i18nKeys {
+		cnt := strings.Count(html, k)
+		if cnt < 2 {
+			t.Errorf("expected i18n key %q to exist in at least 2 dictionaries, found %d", k, cnt)
+		}
+	}
+}
+
+func TestFileManagerDrivesEndpoint(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau_test_fm_drives_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.DefaultExec = func(cmd string) (stdout, stderr string, exitCode int, err error) {
+		return "C: D:", "", 0, nil
+	}
+	mockRunner.SFTPProvider = func() (*sftp.Client, error) {
+		sConn, cConn := net.Pipe()
+		server, err := sftp.NewServer(sConn)
+		if err != nil {
+			return nil, err
+		}
+		go func() {
+			_ = server.Serve()
+		}()
+		return sftp.NewClientPipe(cConn, cConn)
+	}
+
+	ins := inspector.New(db, func(h string, p int, u, k string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	srv := NewServer(db, ins, nil)
+	token := "test_batch_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authCookie := &http.Cookie{Name: "pantau_session", Value: token}
+
+	// 1. Linux host drives endpoint returns ["/"]
+	linuxHostID, err := db.CreateHost(&store.Host{
+		Name:   "Linux Host",
+		Host:   "127.0.0.1",
+		Port:   22,
+		User:   "root",
+		OSType: "linux",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	recLinux := httptest.NewRecorder()
+	rLinux := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/hosts/%d/files/drives", linuxHostID), nil)
+	rLinux.AddCookie(authCookie)
+	srv.mux.ServeHTTP(recLinux, rLinux)
+	if recLinux.Code != http.StatusOK {
+		t.Fatalf("expected 200 for linux drives, got %d: %s", recLinux.Code, recLinux.Body.String())
+	}
+	var linuxResp struct {
+		Drives []string `json:"drives"`
+	}
+	_ = json.Unmarshal(recLinux.Body.Bytes(), &linuxResp)
+	if len(linuxResp.Drives) != 1 || linuxResp.Drives[0] != "/" {
+		t.Errorf("expected linux drives to be ['/'], got %+v", linuxResp.Drives)
+	}
+
+	// 2. Windows host drives endpoint returns at least C:
+	winHostID, err := db.CreateHost(&store.Host{
+		Name:   "Windows Host",
+		Host:   "127.0.0.1",
+		Port:   22,
+		User:   "Administrator",
+		OSType: "windows",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	recWin := httptest.NewRecorder()
+	rWin := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/hosts/%d/files/drives", winHostID), nil)
+	rWin.AddCookie(authCookie)
+	srv.mux.ServeHTTP(recWin, rWin)
+	if recWin.Code != http.StatusOK {
+		t.Fatalf("expected 200 for windows drives, got %d: %s", recWin.Code, recWin.Body.String())
+	}
+	var winResp struct {
+		Drives []string `json:"drives"`
+	}
+	_ = json.Unmarshal(recWin.Body.Bytes(), &winResp)
+	if len(winResp.Drives) == 0 || winResp.Drives[0] != "C:" {
+		t.Errorf("expected windows drives to start with 'C:', got %+v", winResp.Drives)
+	}
+
+	// 3. Requesting getHostAvailableDrives with path on D: ensures D: is included
+	drivesWithD := srv.getHostAvailableDrives(&store.Host{ID: winHostID, OSType: "windows"}, mockRunner, nil, "D:/data")
+	hasD := false
+	for _, d := range drivesWithD {
+		if d == "D:" {
+			hasD = true
+			break
+		}
+	}
+	if !hasD {
+		t.Errorf("expected drivesWithD to include 'D:', got %+v", drivesWithD)
 	}
 }
 

@@ -466,6 +466,7 @@ Pantau allows immediate in-place duplication of files or folders on the remote s
 ### Drive-Aware Windows File Navigation & Path Protection
 
 When managing remote Windows targets via the integrated SFTP File Manager and Web Terminal:
+- **Instant Drive Switcher**: A dedicated drive switcher bar (`[ 💾 C: ]`, `[ 💾 D: ]`, `[ ➕ ]`) automatically appears next to the directory Up button on Windows hosts, discovering all available mounted drives and allowing one-click switching across drives (C:, D:, etc.) or opening custom paths without opening a terminal.
 - **Drive-Aware Navigation**: Seamlessly navigate across drive letters (`C:/`, `D:/`) and Git Bash virtual mounts (`/c/`, `/d/`) via `CleanWindowsRemotePath`.
 - **Root Drive Protection**: Parent folder navigation (`..` or Up button) strictly anchors to the active drive root (e.g. `C:\`), preventing invalid root escape attempts.
 - **Buffer-Safe File Previews**: Remote SFTP file reading employs a strict 2MB limit reader (`io.ReadAll` with `LimitReader`), preventing large log files or binary dumps from exhausting server memory.
