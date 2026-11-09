@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.32.2] - 2026-11-09
+### Added
+- Windows Drive Switcher in File Manager (#89):
+  - Dynamic Windows drive discovery via PowerShell CIM (`Win32_LogicalDisk`) with automatic SFTP probe fallback and 5-minute memory caching.
+  - Interactive drive switcher bar in remote File Manager for 1-click navigation between mounted Windows drives (`C:`, `D:`, etc.).
+  - Custom Drive modal allowing direct path navigation to any custom mount or drive letter.
+
+### Fixed
+- Terminal Working Directory Tracking (#89):
+  - Ignore executable paths (`.exe`, `.cmd`, `.bat`, `.com`, `.ps1`) when parsing terminal window titles.
+  - Prevents appending invalid executable targets to Windows terminal `cd` commands.
+
 ## [0.32.1] - 2026-11-09
 ### Added
 - Manual Storage Path Monitoring & Capacity Thresholds (#87):
