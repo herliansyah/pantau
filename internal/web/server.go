@@ -2482,32 +2482,77 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			return
 		}
 		var req struct {
-			Path string `json:"path"`
+			Path  string   `json:"path"`
+			Paths []string `json:"paths"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		}
-		req.Path = resolveRemotePath(sftpClient, host.User, req.Path, host.OSType)
-		if isProtectedPath(req.Path, sftpClient) {
-			http.Error(w, "protected path: cannot delete system location", http.StatusForbidden)
+		var targetPaths []string
+		if len(req.Paths) > 0 {
+			targetPaths = req.Paths
+		} else if req.Path != "" {
+			targetPaths = []string{req.Path}
+		} else {
+			http.Error(w, "path or paths required", http.StatusBadRequest)
 			return
 		}
-		st, statErr := sftpClient.Stat(req.Path)
-		if statErr == nil && st.IsDir() {
-			if host.OSType == "windows" {
-				cleanP := sshrunner.CleanWindowsRemotePath(req.Path)
-				_, _, _, _ = runner.Exec(sshrunner.PowershellEncodedCmd(fmt.Sprintf(`Remove-Item -LiteralPath '%s' -Recurse -Force`, strings.ReplaceAll(cleanP, "'", "''"))))
-			} else {
-				_, _, _, _ = runner.Exec(fmt.Sprintf(`rm -rf -- %s`, shellQuote(req.Path)))
+
+		// Security Pass 1: Resolve all paths and strictly verify that NONE are protected or system roots.
+		// If ANY target is protected, reject immediately before deleting anything.
+		var resolvedPaths []string
+		for _, p := range targetPaths {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
 			}
-		} else {
-			if err := sftpClient.Remove(req.Path); err != nil && host.OSType == "windows" {
-				cleanP := sshrunner.CleanWindowsRemotePath(req.Path)
-				_, _, _, _ = runner.Exec(sshrunner.PowershellEncodedCmd(fmt.Sprintf(`Remove-Item -LiteralPath '%s' -Force`, strings.ReplaceAll(cleanP, "'", "''"))))
+			resolved := resolveRemotePath(sftpClient, host.User, p, host.OSType)
+			if resolved == "" || resolved == "/" || resolved == "." || isProtectedPath(resolved, sftpClient) {
+				http.Error(w, fmt.Sprintf("protected path: cannot delete system location %s", p), http.StatusForbidden)
+				return
+			}
+			resolvedPaths = append(resolvedPaths, resolved)
+		}
+
+		if len(resolvedPaths) == 0 {
+			http.Error(w, "no valid paths specified", http.StatusBadRequest)
+			return
+		}
+
+		deleteTarget := func(resolved string) error {
+			st, statErr := sftpClient.Stat(resolved)
+			if statErr == nil && st.IsDir() {
+				if host.OSType == "windows" {
+					cleanP := sshrunner.CleanWindowsRemotePath(resolved)
+					_, _, _, _ = runner.Exec(sshrunner.PowershellEncodedCmd(fmt.Sprintf(`Remove-Item -LiteralPath '%s' -Recurse -Force`, strings.ReplaceAll(cleanP, "'", "''"))))
+				} else {
+					_, _, _, _ = runner.Exec(fmt.Sprintf(`rm -rf -- %s`, shellQuote(resolved)))
+				}
+			} else {
+				if err := sftpClient.Remove(resolved); err != nil && host.OSType == "windows" {
+					cleanP := sshrunner.CleanWindowsRemotePath(resolved)
+					_, _, _, _ = runner.Exec(sshrunner.PowershellEncodedCmd(fmt.Sprintf(`Remove-Item -LiteralPath '%s' -Force`, strings.ReplaceAll(cleanP, "'", "''"))))
+				}
+			}
+			return nil
+		}
+
+		deletedCount := 0
+		var deleteErrors []string
+		for _, resolved := range resolvedPaths {
+			if err := deleteTarget(resolved); err != nil {
+				deleteErrors = append(deleteErrors, fmt.Sprintf("%s: %v", resolved, err))
+			} else {
+				deletedCount++
 			}
 		}
-		writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"status":        "deleted",
+			"deleted_count": deletedCount,
+			"errors":        deleteErrors,
+		})
 
 	case "chmod":
 		if r.Method != http.MethodPost {

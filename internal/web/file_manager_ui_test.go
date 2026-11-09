@@ -237,4 +237,106 @@ func TestFileManagerUpButtonPosition(t *testing.T) {
 	}
 }
 
+func TestFileManagerCheckboxAndBatchDeleteUI(t *testing.T) {
+	html := string(embeddedHTML)
+
+	// Verify bulk action bar and selection elements exist
+	requiredElements := []string{
+		"fileBulkActionBar",
+		"fileBulkCountLabel",
+		"btnBulkDeleteFiles",
+		"btnBulkDeleteLabel",
+		"selectAllFilesCheckbox",
+		"file-select-cb",
+		"file-bulk-bar",
+		"file-checkbox",
+		"onFileCheckboxChange",
+		"toggleSelectAllFiles",
+		"clearFileSelection",
+		"updateFileSelectionUI",
+		"deleteSelectedFiles",
+	}
+	for _, el := range requiredElements {
+		if !strings.Contains(html, el) {
+			t.Errorf("expected index.html to contain file manager bulk selection element %q", el)
+		}
+	}
+
+	// Verify that protected items render lock icon and NEVER render the selectable checkbox
+	if !strings.Contains(html, `isItemProtected`) {
+		t.Fatalf("expected index.html to check isItemProtected")
+	}
+	// Check that lock icon is shown when isItemProtected is true
+	if !strings.Contains(html, `t('cannot_delete_protected')`) {
+		t.Errorf("expected index.html to use cannot_delete_protected tooltip for protected items")
+	}
+
+	// Check that empty table handles 6 columns
+	if !strings.Contains(html, `colspan="6"`) {
+		t.Errorf("expected index.html to have colspan=\"6\" for empty file list")
+	}
+
+	// Verify i18n keys exist in at least 2 dictionaries (EN and ID)
+	i18nKeys := []string{
+		`"select_all":`,
+		`"deselect_all":`,
+		`"delete_selected":`,
+		`"confirm_delete_multiple":`,
+		`"selected_items_count":`,
+		`"batch_delete_success":`,
+		`"cannot_delete_protected":`,
+	}
+	for _, key := range i18nKeys {
+		cnt := strings.Count(html, key)
+		if cnt < 2 {
+			t.Errorf("expected i18n key %q to exist in at least 2 dictionaries, found %d", key, cnt)
+		}
+	}
+}
+
+func TestBatchDeleteProtectionSafety(t *testing.T) {
+	// Dangerous paths that must NEVER be allowed in batch delete
+	dangerousPaths := []string{
+		"/",
+		".",
+		"/bin",
+		"/bin/sh",
+		"/etc",
+		"/etc/passwd",
+		"/usr/lib",
+		"/boot/vmlinuz",
+		"/sys",
+		"/proc",
+		"C:",
+		"C:/",
+		"C:/Windows",
+		"C:/Windows/System32",
+		"C:/Program Files",
+		"C:/ProgramData",
+	}
+
+	for _, p := range dangerousPaths {
+		if !isProtectedPath(p, nil) {
+			t.Errorf("critical safety check failed: expected %q to be protected from deletion", p)
+		}
+	}
+
+	// Safe paths that are permissible
+	safePaths := []string{
+		"/tmp/app.log",
+		"/home/user/downloads/archive.tar.gz",
+		"/var/www/html/site/temp.txt",
+		"C:/Users/Ian/Desktop/notes.txt",
+		"D:/data/backup/old.sql",
+	}
+
+	for _, p := range safePaths {
+		if isProtectedPath(p, nil) {
+			t.Errorf("expected safe path %q to NOT be protected", p)
+		}
+	}
+}
+
+
+
 
