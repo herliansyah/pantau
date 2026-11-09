@@ -54,6 +54,80 @@ type GhostFile struct {
 	HumanSize string `json:"human_size"`
 }
 
+type MonitoredItem struct {
+	ID           int64   `json:"id,omitempty"`
+	Path         string  `json:"path"`
+	Label        string  `json:"label,omitempty"`
+	Exists       bool    `json:"exists"`
+	IsDir        bool    `json:"is_dir"`
+	SizeBytes    int64   `json:"size_bytes"`
+	HumanSize    string  `json:"human_size"`
+	MaxSizeBytes int64   `json:"max_size_bytes,omitempty"`
+	MaxSizeHuman string  `json:"max_size_human,omitempty"`
+	UsedPercent  float64 `json:"used_percent,omitempty"`
+	IsOverLimit  bool    `json:"is_over_limit,omitempty"`
+	IsWarning    bool    `json:"is_warning,omitempty"`
+	ModTime      string  `json:"mod_time,omitempty"`
+	Error        string  `json:"error,omitempty"`
+}
+
+func (m *MonitoredItem) CalculateLimitStats() {
+	if m.MaxSizeBytes > 0 {
+		m.MaxSizeHuman = FormatBytes(m.MaxSizeBytes)
+		if m.SizeBytes > 0 {
+			m.UsedPercent = (float64(m.SizeBytes) / float64(m.MaxSizeBytes)) * 100.0
+		} else {
+			m.UsedPercent = 0
+		}
+		if m.SizeBytes > m.MaxSizeBytes {
+			m.IsOverLimit = true
+			m.IsWarning = true
+		} else if m.UsedPercent >= 75.0 {
+			m.IsOverLimit = false
+			m.IsWarning = true
+		} else {
+			m.IsOverLimit = false
+			m.IsWarning = false
+		}
+	} else {
+		m.MaxSizeHuman = ""
+		m.UsedPercent = 0
+		m.IsOverLimit = false
+		m.IsWarning = false
+	}
+}
+
+func parseMonitoredItemLine(l string) (status string, sz int64, p string, ok bool) {
+	l = strings.TrimSpace(l)
+	if l == "" {
+		return "", 0, "", false
+	}
+	parts := strings.Split(l, "\t")
+	if len(parts) < 3 {
+		parts = strings.Split(l, `\t`)
+	}
+	if len(parts) < 3 {
+		f := strings.Fields(l)
+		if len(f) >= 3 {
+			parts = []string{f[0], f[1], strings.Join(f[2:], " ")}
+		} else {
+			return "", 0, "", false
+		}
+	}
+	status = strings.ToUpper(strings.TrimSpace(parts[0]))
+	sz, _ = strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
+	p = strings.TrimSpace(strings.Join(parts[2:], " "))
+	return status, sz, p, true
+}
+
+func normalizePathKey(p string) string {
+	p = strings.TrimSpace(p)
+	p = strings.ReplaceAll(p, "\\", "/")
+	p = strings.TrimRight(p, "/")
+	return strings.ToLower(p)
+}
+
+
 type ReclaimItem struct {
 	Key            string `json:"key"`
 	Name           string `json:"name"`
@@ -76,23 +150,24 @@ type PartitionInfo struct {
 }
 
 type TriageResult struct {
-	HostID            int64          `json:"host_id"`
-	HostName          string         `json:"host_name"`
-	ScanDurationMs    int64          `json:"scan_duration_ms"`
-	ScannedAt         string         `json:"scanned_at,omitempty"`
-	IsRoot            bool           `json:"is_root"`
-	HasSudo           bool           `json:"has_sudo"`
-	WriteRateBps      int64          `json:"write_rate_bps"`
-	Partition         PartitionInfo  `json:"partition"`
-	SpaceHogs         []DirectoryHog `json:"space_hogs"`
-	TopFiles          []FileHog      `json:"top_files"`
-	RunawayFiles      []RunawayFile  `json:"runaway_files"`
-	GhostFiles        []GhostFile    `json:"ghost_files"`
-	Reclaimables      []ReclaimItem  `json:"reclaimables"`
-	TotalReclaimBytes int64          `json:"total_reclaim_bytes"`
-	TotalReclaimHuman string         `json:"total_reclaim_human"`
-	Warning           string         `json:"warning,omitempty"`
-	WarningID         string         `json:"warning_id,omitempty"`
+	HostID            int64           `json:"host_id"`
+	HostName          string          `json:"host_name"`
+	ScanDurationMs    int64           `json:"scan_duration_ms"`
+	ScannedAt         string          `json:"scanned_at,omitempty"`
+	IsRoot            bool            `json:"is_root"`
+	HasSudo           bool            `json:"has_sudo"`
+	WriteRateBps      int64           `json:"write_rate_bps"`
+	Partition         PartitionInfo   `json:"partition"`
+	SpaceHogs         []DirectoryHog  `json:"space_hogs"`
+	TopFiles          []FileHog       `json:"top_files"`
+	RunawayFiles      []RunawayFile   `json:"runaway_files"`
+	GhostFiles        []GhostFile     `json:"ghost_files"`
+	Reclaimables      []ReclaimItem   `json:"reclaimables"`
+	MonitoredItems    []MonitoredItem `json:"monitored_items"`
+	TotalReclaimBytes int64           `json:"total_reclaim_bytes"`
+	TotalReclaimHuman string          `json:"total_reclaim_human"`
+	Warning           string          `json:"warning,omitempty"`
+	WarningID         string          `json:"warning_id,omitempty"`
 }
 
 type ReclaimRequest struct {
@@ -685,6 +760,51 @@ func (s *Service) SetLastResultForTest(hostID int64, res *TriageResult) {
 	s.lastResults.Store(hostID, res)
 }
 
+// buildLinuxProbeScript builds the Linux probe command, appending custom monitored targets if defined.
+func (s *Service) buildLinuxProbeScript(hostID int64) string {
+	if s.db == nil {
+		return TriageProbeScript
+	}
+	monitors, err := s.db.GetStorageMonitors(hostID)
+	if err != nil || len(monitors) == 0 {
+		return TriageProbeScript
+	}
+	var sb strings.Builder
+	sb.WriteString("\necho \"===MONITORED_PATHS===\"\n")
+	for _, m := range monitors {
+		p := ShellQuote(m.Path)
+		sb.WriteString(fmt.Sprintf(`p=%s
+if [ -d "$p" ]; then
+    sz=$($RUN_FAST du -skx "$p" 2>/dev/null | awk '{print $1*1024}')
+    printf 'DIR\t%%s\t%%s\n' "${sz:-0}" "$p"
+elif [ -e "$p" ] || [ -L "$p" ]; then
+    sz=$(stat -c %%s "$p" 2>/dev/null || stat -f %%z "$p" 2>/dev/null || ls -ln "$p" 2>/dev/null | awk '{print $5}')
+    printf 'FILE\t%%s\t%%s\n' "${sz:-0}" "$p"
+else
+    printf 'MISSING\t0\t%%s\n' "$p"
+fi
+`, p))
+	}
+	return strings.Replace(TriageProbeScript, "PANTAU_TRIAGE_EOF\n", sb.String()+"PANTAU_TRIAGE_EOF\n", 1)
+}
+
+// buildWindowsProbeScript builds the Windows probe command, appending custom monitored targets if defined.
+func (s *Service) buildWindowsProbeScript(hostID int64) string {
+	if s.db == nil {
+		return WindowsTriageProbeScript
+	}
+	monitors, err := s.db.GetStorageMonitors(hostID)
+	if err != nil || len(monitors) == 0 {
+		return WindowsTriageProbeScript
+	}
+	var paths []string
+	for _, m := range monitors {
+		paths = append(paths, fmt.Sprintf("'%s'", strings.ReplaceAll(m.Path, "'", "''")))
+	}
+	monScript := fmt.Sprintf("\n\"===MONITORED_PATHS===\";@(%s)|%%{$p=$_;if(Test-Path -Lit $p){if(Test-Path -Lit $p -PathType Container){$s=$p|_sz;\"DIR`t$s`t$p\"}else{$s=(gi -Lit $p -ea 0).Length;\"FILE`t$s`t$p\"}}else{\"MISSING`t0`t$p\"}};\n", strings.Join(paths, ","))
+	return strings.Replace(WindowsTriageProbeScript, "del \"$env:TEMP\\pantau_triage.pid\"", monScript+"del \"$env:TEMP\\pantau_triage.pid\"", 1)
+}
+
 // RunTriage executes an on-demand storage diagnostic probe on the target host.
 // ponytail: Concurrency guard / inFlight map guarantees no parallel du thrashing on the remote host.
 func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*TriageResult, error) {
@@ -749,9 +869,9 @@ func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*
 
 	var probeCmd string
 	if isWindows {
-		probeCmd = sshrunner.PowershellEncodedCmd(WindowsTriageProbeScript)
+		probeCmd = sshrunner.PowershellEncodedCmd(s.buildWindowsProbeScript(hostID))
 	} else {
-		probeCmd = TriageProbeScript
+		probeCmd = s.buildLinuxProbeScript(hostID)
 	}
 
 	probeTimeout := 60 * time.Second
@@ -782,6 +902,43 @@ func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*
 	res.ScannedAt = time.Now().Format("2006-01-02 15:04:05")
 	res.WriteRateBps = h.DiskWriteSpeedBps
 
+	// Attach DB metadata for manual monitored items
+	if s.db != nil {
+		monitors, err := s.db.GetStorageMonitors(hostID)
+		if err == nil && len(monitors) > 0 {
+			monMap := make(map[string]store.StorageMonitorTarget)
+			for _, m := range monitors {
+				norm := strings.ToLower(strings.ReplaceAll(m.Path, "\\", "/"))
+				monMap[norm] = m
+			}
+			seen := make(map[string]bool)
+			for i := range res.MonitoredItems {
+				norm := strings.ToLower(strings.ReplaceAll(res.MonitoredItems[i].Path, "\\", "/"))
+				if m, ok := monMap[norm]; ok {
+					res.MonitoredItems[i].ID = m.ID
+					res.MonitoredItems[i].Label = m.Label
+					res.MonitoredItems[i].MaxSizeBytes = m.MaxSizeBytes
+					res.MonitoredItems[i].CalculateLimitStats()
+					seen[norm] = true
+				}
+			}
+			for norm, m := range monMap {
+				if !seen[norm] {
+					item := MonitoredItem{
+						ID:           m.ID,
+						Path:         m.Path,
+						Label:        m.Label,
+						Exists:       false,
+						HumanSize:   "Not Evaluated",
+						MaxSizeBytes: m.MaxSizeBytes,
+					}
+					item.CalculateLimitStats()
+					res.MonitoredItems = append(res.MonitoredItems, item)
+				}
+			}
+		}
+	}
+
 	if isWindows && !res.IsRoot && !res.HasSudo {
 		res.Warning = "Limited privileges: SSH user is not running as Administrator. Protected system directories may not be fully scanned."
 		res.WarningID = "Privilese terbatas: SSH user tidak berjalan sebagai Administrator. Direktori sistem terlindung mungkin tidak terbaca seluruhnya."
@@ -797,11 +954,12 @@ func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*
 // ParseTriageOutput parses the raw sectioned output from TriageProbeScript.
 func ParseTriageOutput(raw string) *TriageResult {
 	res := &TriageResult{
-		SpaceHogs:    make([]DirectoryHog, 0),
-		TopFiles:     make([]FileHog, 0),
-		RunawayFiles: make([]RunawayFile, 0),
-		GhostFiles:   make([]GhostFile, 0),
-		Reclaimables: make([]ReclaimItem, 0),
+		SpaceHogs:      make([]DirectoryHog, 0),
+		TopFiles:       make([]FileHog, 0),
+		RunawayFiles:   make([]RunawayFile, 0),
+		GhostFiles:     make([]GhostFile, 0),
+		Reclaimables:   make([]ReclaimItem, 0),
+		MonitoredItems: make([]MonitoredItem, 0),
 	}
 
 	sections := make(map[string]string)
@@ -906,6 +1064,12 @@ func ParseTriageOutput(raw string) *TriageResult {
 				sections[currentSec] = strings.Join(currentLines, "\n")
 			}
 			currentSec = "RECLAIM_IIS"
+			currentLines = nil
+		} else if strings.HasPrefix(trimmed, "===MONITORED_PATHS===") {
+			if currentSec != "" {
+				sections[currentSec] = strings.Join(currentLines, "\n")
+			}
+			currentSec = "MONITORED_PATHS"
 			currentLines = nil
 		} else {
 			currentLines = append(currentLines, line)
@@ -1278,6 +1442,30 @@ func ParseTriageOutput(raw string) *TriageResult {
 		}
 	}
 
+	// 8. Monitored Paths
+	monSec := strings.TrimSpace(sections["MONITORED_PATHS"])
+	if monSec != "" {
+		for _, l := range strings.Split(monSec, "\n") {
+			status, sizeBytes, p, ok := parseMonitoredItemLine(l)
+			if !ok {
+				continue
+			}
+			exists := status != "MISSING" && status != "NOT_FOUND" && status != "ERR"
+			isDir := status == "DIR"
+			humanSize := FormatBytes(sizeBytes)
+			if !exists {
+				humanSize = "Not Found"
+			}
+			res.MonitoredItems = append(res.MonitoredItems, MonitoredItem{
+				Path:      p,
+				Exists:    exists,
+				IsDir:     isDir,
+				SizeBytes: sizeBytes,
+				HumanSize: humanSize,
+			})
+		}
+	}
+
 	res.TotalReclaimBytes = totalReclaim
 	res.TotalReclaimHuman = FormatBytes(totalReclaim)
 
@@ -1614,4 +1802,267 @@ func decodeClixmlString(in string) string {
 	out = strings.ReplaceAll(out, "&quot;", "\"")
 	out = strings.ReplaceAll(out, "&apos;", "'")
 	return out
+}
+
+// InspectAllMonitored queries and inspects all registered manual storage monitors for the given host.
+func (s *Service) InspectAllMonitored(ctx context.Context, hostID int64) ([]MonitoredItem, error) {
+	if s.db == nil {
+		return []MonitoredItem{}, nil
+	}
+	monitors, err := s.db.GetStorageMonitors(hostID)
+	if err != nil {
+		return nil, fmt.Errorf("get storage monitors: %w", err)
+	}
+	if len(monitors) == 0 {
+		return []MonitoredItem{}, nil
+	}
+	if s.inspector == nil {
+		res := make([]MonitoredItem, len(monitors))
+		for i, m := range monitors {
+			res[i] = MonitoredItem{
+				ID:        m.ID,
+				Path:      m.Path,
+				Label:     m.Label,
+				Exists:    false,
+				HumanSize: "N/A",
+				Error:     "inspector service unavailable",
+			}
+		}
+		return res, nil
+	}
+	h, err := s.db.GetHost(hostID)
+	if err != nil || h == nil {
+		return nil, errors.New("host not found")
+	}
+	if strings.EqualFold(h.Status, "down") {
+		res := make([]MonitoredItem, len(monitors))
+		for i, m := range monitors {
+			res[i] = MonitoredItem{
+				ID:        m.ID,
+				Path:      m.Path,
+				Label:     m.Label,
+				Exists:    false,
+				HumanSize: "Host Offline",
+			}
+		}
+		return res, nil
+	}
+	runner, err := s.inspector.GetRunnerForHost(h)
+	if err != nil {
+		res := make([]MonitoredItem, len(monitors))
+		for i, m := range monitors {
+			res[i] = MonitoredItem{
+				ID:        m.ID,
+				Path:      m.Path,
+				Label:     m.Label,
+				Exists:    false,
+				HumanSize: "SSH Error",
+				Error:     err.Error(),
+			}
+		}
+		return res, nil
+	}
+	defer runner.Close()
+
+	isWindows := strings.EqualFold(h.OSType, "windows") ||
+		((h.OSType == "" || strings.EqualFold(h.OSType, "auto")) && len(monitors) > 0 && ((len(monitors[0].Path) >= 2 && monitors[0].Path[1] == ':') || strings.Contains(monitors[0].Path, "\\")))
+
+	var rawOutput string
+	if isWindows {
+		var paths []string
+		for _, m := range monitors {
+			paths = append(paths, fmt.Sprintf("'%s'", strings.ReplaceAll(m.Path, "'", "''")))
+		}
+		psCmd := fmt.Sprintf(`$ProgressPreference=0;$td="$env:TEMP\pn";if(!(Test-Path -Lit $td)){md $td -ea 0|Out-Null};filter _sz{try{$r=robocopy $_ $td /L /E /BYTES /NFL /NDL /NJH /NP /XJ /LEV:3 /MT:16 /R:0 /W:0 2>$null;if(($r-join"`+"`"+`n")-match"Bytes\s*:\s*(\d+)"){$matches[1]}else{[int64](gci -Lit $_ -Rec -Depth 2 -File -ea 0|measure -s Length).Sum}}catch{0}};@(%s)|%%{$p=$_;if(Test-Path -Lit $p){if(Test-Path -Lit $p -PathType Container){$s=$p|_sz;"DIR`+"`"+`t$s`+"`"+`t$p"}else{$s=(gi -Lit $p -ea 0).Length;"FILE`+"`"+`t$s`+"`"+`t$p"}}else{"MISSING`+"`"+`t0`+"`"+`t$p"}};del $td -Rec -ea 0`, strings.Join(paths, ","))
+		stdout, _, _, err := runner.ExecTimeout(sshrunner.PowershellEncodedCmd(psCmd), 20*time.Second)
+		if err != nil {
+			logger.Error("storagetriage", h.Name, "Inspect all monitored failed: "+err.Error())
+		}
+		rawOutput = cleanWindowsOutput(stdout)
+	} else {
+		var sb strings.Builder
+		sb.WriteString("TARGET_SHELL=\"sh\"\nif command -v bash >/dev/null 2>&1; then TARGET_SHELL=\"bash\"; fi\n$TARGET_SHELL -s << 'PANTAU_MON_EOF'\n")
+		sb.WriteString("RUN_FAST=\"\"\nif [ \"$(id -u)\" != \"0\" ] && sudo -n true 2>/dev/null; then RUN_FAST=\"sudo -n \"; fi\n")
+		for _, m := range monitors {
+			p := ShellQuote(m.Path)
+			sb.WriteString(fmt.Sprintf(`p=%s
+if [ -d "$p" ]; then
+    sz=$($RUN_FAST du -skx "$p" 2>/dev/null | awk '{print $1*1024}')
+    printf 'DIR\t%%s\t%%s\n' "${sz:-0}" "$p"
+elif [ -e "$p" ] || [ -L "$p" ]; then
+    sz=$(stat -c %%s "$p" 2>/dev/null || stat -f %%z "$p" 2>/dev/null || ls -ln "$p" 2>/dev/null | awk '{print $5}')
+    printf 'FILE\t%%s\t%%s\n' "${sz:-0}" "$p"
+else
+    printf 'MISSING\t0\t%%s\n' "$p"
+fi
+`, p))
+		}
+		sb.WriteString("PANTAU_MON_EOF\n")
+		stdout, _, _, err := runner.ExecTimeout(sb.String(), 15*time.Second)
+		if err != nil {
+			logger.Error("storagetriage", h.Name, "Inspect all monitored failed: "+err.Error())
+		}
+		rawOutput = stdout
+	}
+
+	itemsMap := make(map[string]MonitoredItem)
+	lines := strings.Split(rawOutput, "\n")
+	for _, l := range lines {
+		status, sz, p, ok := parseMonitoredItemLine(l)
+		if !ok {
+			continue
+		}
+		norm := normalizePathKey(p)
+		exists := status != "MISSING" && status != "NOT_FOUND" && status != "ERR"
+		hSize := FormatBytes(sz)
+		if !exists {
+			hSize = "Not Found"
+		}
+		itemsMap[norm] = MonitoredItem{
+			Path:      p,
+			Exists:    exists,
+			IsDir:     status == "DIR",
+			SizeBytes: sz,
+			HumanSize: hSize,
+		}
+	}
+
+	res := make([]MonitoredItem, len(monitors))
+	for i, m := range monitors {
+		norm := normalizePathKey(m.Path)
+		if item, ok := itemsMap[norm]; ok {
+			item.ID = m.ID
+			item.Label = m.Label
+			item.MaxSizeBytes = m.MaxSizeBytes
+			item.CalculateLimitStats()
+			res[i] = item
+		} else {
+			it := MonitoredItem{
+				ID:           m.ID,
+				Path:         m.Path,
+				Label:        m.Label,
+				MaxSizeBytes: m.MaxSizeBytes,
+				Exists:       false,
+				HumanSize:   "Not Found",
+			}
+			it.CalculateLimitStats()
+			res[i] = it
+		}
+	}
+
+	if lastRes := s.GetLastResult(hostID); lastRes != nil {
+		lastRes.MonitoredItems = res
+	}
+
+	return res, nil
+}
+
+// InspectMonitoredPath inspects a single target path on the remote host.
+func (s *Service) InspectMonitoredPath(ctx context.Context, hostID int64, targetPath string, label string, maxSizeBytes ...int64) (*MonitoredItem, error) {
+	targetPath = strings.TrimSpace(targetPath)
+	if targetPath == "" {
+		return nil, errors.New("target path required")
+	}
+
+	var limitBytes int64
+	if len(maxSizeBytes) > 0 && maxSizeBytes[0] > 0 {
+		limitBytes = maxSizeBytes[0]
+	} else if s.db != nil {
+		if monitors, err := s.db.GetStorageMonitors(hostID); err == nil {
+			norm := strings.ToLower(strings.ReplaceAll(targetPath, "\\", "/"))
+			for _, m := range monitors {
+				if strings.ToLower(strings.ReplaceAll(m.Path, "\\", "/")) == norm {
+					limitBytes = m.MaxSizeBytes
+					if label == "" {
+						label = m.Label
+					}
+					break
+				}
+			}
+		}
+	}
+
+	item := &MonitoredItem{
+		Path:         targetPath,
+		Label:        label,
+		MaxSizeBytes: limitBytes,
+		HumanSize:    "Not Found",
+	}
+	defer item.CalculateLimitStats()
+
+	if s.db == nil || s.inspector == nil {
+		return item, nil
+	}
+
+	h, err := s.db.GetHost(hostID)
+	if err != nil || h == nil {
+		return nil, errors.New("host not found")
+	}
+	if strings.EqualFold(h.Status, "down") {
+		item.HumanSize = "Host Offline"
+		return item, nil
+	}
+
+	runner, err := s.inspector.GetRunnerForHost(h)
+	if err != nil {
+		item.HumanSize = "SSH Error"
+		item.Error = err.Error()
+		return item, nil
+	}
+	defer runner.Close()
+
+	isWindows := strings.EqualFold(h.OSType, "windows") ||
+		((h.OSType == "" || strings.EqualFold(h.OSType, "auto")) && ((len(targetPath) >= 2 && targetPath[1] == ':') || strings.Contains(targetPath, "\\")))
+
+	var stdout string
+	if isWindows {
+		psEscaped := strings.ReplaceAll(targetPath, "'", "''")
+		psCmd := fmt.Sprintf(`$ProgressPreference=0;$td="$env:TEMP\pn";if(!(Test-Path -Lit $td)){md $td -ea 0|Out-Null};filter _sz{try{$r=robocopy $_ $td /L /E /BYTES /NFL /NDL /NJH /NP /XJ /LEV:3 /MT:16 /R:0 /W:0 2>$null;if(($r-join"`+"`"+`n")-match"Bytes\s*:\s*(\d+)"){$matches[1]}else{[int64](gci -Lit $_ -Rec -Depth 2 -File -ea 0|measure -s Length).Sum}}catch{0}};$p='%s';if(Test-Path -Lit $p){if(Test-Path -Lit $p -PathType Container){$s=$p|_sz;"DIR`+"`"+`t$s`+"`"+`t$p"}else{$s=(gi -Lit $p -ea 0).Length;"FILE`+"`"+`t$s`+"`"+`t$p"}}else{"MISSING`+"`"+`t0`+"`"+`t$p"};del $td -Rec -ea 0`, psEscaped)
+		out, _, _, _ := runner.ExecTimeout(sshrunner.PowershellEncodedCmd(psCmd), 10*time.Second)
+		stdout = cleanWindowsOutput(out)
+	} else {
+		shCmd := fmt.Sprintf(`RUN_FAST=""; if [ "$(id -u)" != "0" ] && sudo -n true 2>/dev/null; then RUN_FAST="sudo -n "; fi; p=%s; if [ -d "$p" ]; then sz=$($RUN_FAST du -skx "$p" 2>/dev/null | awk '{print $1*1024}'); printf 'DIR\t%%s\t%%s\n' "${sz:-0}" "$p"; elif [ -e "$p" ] || [ -L "$p" ]; then sz=$(stat -c %%s "$p" 2>/dev/null || stat -f %%z "$p" 2>/dev/null || ls -ln "$p" 2>/dev/null | awk '{print $5}'); printf 'FILE\t%%s\t%%s\n' "${sz:-0}" "$p"; else printf 'MISSING\t0\t%%s\n' "$p"; fi`, ShellQuote(targetPath))
+		out, _, _, _ := runner.ExecTimeout(shCmd, 6*time.Second)
+		stdout = out
+	}
+
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	for _, l := range lines {
+		status, sz, p, ok := parseMonitoredItemLine(l)
+		if !ok {
+			continue
+		}
+		exists := status != "MISSING" && status != "NOT_FOUND" && status != "ERR"
+		if p != "" {
+			item.Path = p
+		}
+		item.Exists = exists
+		item.IsDir = status == "DIR"
+		item.SizeBytes = sz
+		if exists {
+			item.HumanSize = FormatBytes(sz)
+		} else {
+			item.HumanSize = "Not Found"
+		}
+		break
+	}
+	item.CalculateLimitStats()
+
+	// Update cached TriageResult if exists
+	if lastRes := s.GetLastResult(hostID); lastRes != nil {
+		norm := normalizePathKey(item.Path)
+		found := false
+		for idx := range lastRes.MonitoredItems {
+			if normalizePathKey(lastRes.MonitoredItems[idx].Path) == norm {
+				lastRes.MonitoredItems[idx] = *item
+				found = true
+				break
+			}
+		}
+		if !found {
+			lastRes.MonitoredItems = append(lastRes.MonitoredItems, *item)
+		}
+	}
+
+	return item, nil
 }

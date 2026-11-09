@@ -135,6 +135,87 @@ func TestStorageTriageEndpoints(t *testing.T) {
 	if throttleResp["state"] == nil || throttleResp["allowed"] == nil {
 		t.Errorf("expected state and allowed in throttle response, got %v", throttleResp)
 	}
+
+	// 6. Storage Monitors Endpoints (POST / GET / DELETE)
+	// 6a. Empty path validation
+	badBody, _ := json.Marshal(map[string]string{"path": "", "label": "test"})
+	rec6a := httptest.NewRecorder()
+	req6a := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-monitors", hostID), bytes.NewReader(badBody))
+	req6a.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec6a, req6a)
+	if rec6a.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for empty path, got %d", rec6a.Code)
+	}
+
+	// 6b. Traversal path validation
+	travBody, _ := json.Marshal(map[string]string{"path": "/var/log/../../etc", "label": "test"})
+	rec6b := httptest.NewRecorder()
+	req6b := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-monitors", hostID), bytes.NewReader(travBody))
+	req6b.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec6b, req6b)
+	if rec6b.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for path traversal, got %d", rec6b.Code)
+	}
+
+	// 6c. Valid POST storage monitor with max_size threshold
+	validBody, _ := json.Marshal(map[string]interface{}{"path": "/var/log/custom.log", "label": "Custom Log", "max_size": "10 GB"})
+	rec6c := httptest.NewRecorder()
+	req6c := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-monitors", hostID), bytes.NewReader(validBody))
+	req6c.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec6c, req6c)
+	if rec6c.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for valid storage-monitor POST, got %d: %s", rec6c.Code, rec6c.Body.String())
+	}
+	var postResp map[string]interface{}
+	if err := json.Unmarshal(rec6c.Body.Bytes(), &postResp); err != nil || postResp["ok"] != true {
+		t.Errorf("unexpected post response: %v", rec6c.Body.String())
+	}
+
+	// 6d. GET storage monitors
+	rec6d := httptest.NewRecorder()
+	req6d := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/hosts/%d/storage-monitors", hostID), nil)
+	req6d.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec6d, req6d)
+	if rec6d.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for GET storage-monitors, got %d: %s", rec6d.Code, rec6d.Body.String())
+	}
+	var monList []storagetriage.MonitoredItem
+	if err := json.Unmarshal(rec6d.Body.Bytes(), &monList); err != nil {
+		t.Fatalf("failed to decode GET storage-monitors json: %v", err)
+	}
+	if len(monList) != 1 || monList[0].Path != "/var/log/custom.log" || monList[0].Label != "Custom Log" || monList[0].MaxSizeBytes != 10*1024*1024*1024 {
+		t.Errorf("unexpected monList: %+v", monList)
+	}
+
+	// 6d2. PATCH storage monitor limit
+	patchBody, _ := json.Marshal(map[string]interface{}{"path": "/var/log/custom.log", "max_size": "25 GB"})
+	rec6d2 := httptest.NewRecorder()
+	req6d2 := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/api/hosts/%d/storage-monitors", hostID), bytes.NewReader(patchBody))
+	req6d2.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec6d2, req6d2)
+	if rec6d2.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for PATCH storage-monitors, got %d: %s", rec6d2.Code, rec6d2.Body.String())
+	}
+
+	// 6e. DELETE storage monitor
+	rec6e := httptest.NewRecorder()
+	req6e := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/hosts/%d/storage-monitors?path=%s", hostID, "/var/log/custom.log"), nil)
+	req6e.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec6e, req6e)
+	if rec6e.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for DELETE storage-monitors, got %d: %s", rec6e.Code, rec6e.Body.String())
+	}
+
+	// 6f. GET storage monitors after delete
+	rec6f := httptest.NewRecorder()
+	req6f := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/hosts/%d/storage-monitors", hostID), nil)
+	req6f.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec6f, req6f)
+	var emptyList []storagetriage.MonitoredItem
+	_ = json.Unmarshal(rec6f.Body.Bytes(), &emptyList)
+	if len(emptyList) != 0 {
+		t.Errorf("expected 0 monitors after delete, got %d", len(emptyList))
+	}
 }
 
 func TestStorageTriageUIInIndexHTML(t *testing.T) {
@@ -182,6 +263,18 @@ func TestStorageTriageUIInIndexHTML(t *testing.T) {
 		"showForceScanConfirmModal",
 		"btnForceStorageTriage",
 		"triageThrottleBadge",
+		"renderMonitoredPathsPanel",
+		"showAddMonitoredPathModal",
+		"closeAddMonitoredPathModal",
+		"submitAddMonitoredPath",
+		"quickAddMonitoredPath",
+		"deleteMonitoredPath",
+		"refreshMonitoredPaths",
+		"checkSingleMonitoredPath",
+		"showEditMonitorLimitModal",
+		"closeEditMonitorLimitModal",
+		"submitEditMonitorLimit",
+		"storage-monitors",
 	}
 	for _, fn := range jsFunctions {
 		if !strings.Contains(html, fn) {
@@ -217,6 +310,13 @@ func TestStorageTriageUIInIndexHTML(t *testing.T) {
 		`"triage_analyzing_sub_win"`,
 		`"triage_no_reclaim_win"`,
 		`"triage_no_hogs_win"`,
+		`"triage_monitored_title"`,
+		`"triage_add_monitor_btn"`,
+		`"triage_no_monitors"`,
+		`"triage_max_size_label"`,
+		`"triage_status_over_limit"`,
+		`"triage_status_warning"`,
+		`"triage_set_limit_btn"`,
 		`Stop-Process -Name robocopy -Force`,
 	}
 	for _, check := range i18nChecks {

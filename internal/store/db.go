@@ -215,6 +215,15 @@ type GlobalFilePin struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type StorageMonitorTarget struct {
+	ID           int64     `json:"id"`
+	HostID       int64     `json:"host_id"`
+	Path         string    `json:"path"`
+	Label        string    `json:"label"`
+	MaxSizeBytes int64     `json:"max_size_bytes"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 func Open(dbPath string) (*DB, error) {
 	if dir := filepath.Dir(dbPath); dir != "." && dir != "" {
 		_ = os.MkdirAll(dir, 0755)
@@ -422,6 +431,17 @@ func (d *DB) migrate() error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_host_file_pins_host ON host_file_pins(host_id);
 
+	CREATE TABLE IF NOT EXISTS host_storage_monitors (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
+		path TEXT NOT NULL,
+		label TEXT NOT NULL DEFAULT '',
+		max_size_bytes INTEGER NOT NULL DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(host_id, path)
+	);
+	CREATE INDEX IF NOT EXISTS idx_host_storage_monitors_host ON host_storage_monitors(host_id);
+
 	CREATE TABLE IF NOT EXISTS metric_samples (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		host_id INTEGER NOT NULL REFERENCES hosts(id) ON DELETE CASCADE,
@@ -540,6 +560,7 @@ func (d *DB) migrate() error {
 	_ = d.alterAddColumn("probe_target_presets", "db_port", "INTEGER DEFAULT 0")
 	_ = d.alterAddColumn("probe_target_presets", "auto_triage_enabled", "INTEGER DEFAULT 0")
 	_ = d.alterAddColumn("probe_target_presets", "source_host_id", "INTEGER NULL")
+	_ = d.alterAddColumn("host_storage_monitors", "max_size_bytes", "INTEGER NOT NULL DEFAULT 0")
 
 	return nil
 }
@@ -1802,6 +1823,87 @@ func (d *DB) SaveFilePin(hostID int64, path string, isDir bool, note string) err
 
 func (d *DB) DeleteFilePin(hostID int64, path string) error {
 	_, err := d.Exec(`DELETE FROM host_file_pins WHERE host_id = ? AND path = ?`, hostID, path)
+	return err
+}
+
+func (d *DB) GetStorageMonitors(hostID int64) ([]StorageMonitorTarget, error) {
+	rows, err := d.Query(`
+		SELECT id, host_id, path, label, max_size_bytes, created_at
+		FROM host_storage_monitors
+		WHERE host_id = ?
+		ORDER BY path ASC
+	`, hostID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var monitors []StorageMonitorTarget
+	for rows.Next() {
+		var m StorageMonitorTarget
+		if err := rows.Scan(&m.ID, &m.HostID, &m.Path, &m.Label, &m.MaxSizeBytes, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		monitors = append(monitors, m)
+	}
+	if monitors == nil {
+		monitors = []StorageMonitorTarget{}
+	}
+	return monitors, rows.Err()
+}
+
+func (d *DB) SaveStorageMonitor(hostID int64, path string, label string, maxSizeBytes ...int64) (*StorageMonitorTarget, error) {
+	path = strings.TrimSpace(path)
+	label = strings.TrimSpace(label)
+	var limitBytes int64
+	if len(maxSizeBytes) > 0 && maxSizeBytes[0] > 0 {
+		limitBytes = maxSizeBytes[0]
+	}
+	_, err := d.Exec(`
+		INSERT INTO host_storage_monitors (host_id, path, label, max_size_bytes, created_at)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(host_id, path) DO UPDATE SET
+			label = CASE WHEN excluded.label != '' THEN excluded.label ELSE host_storage_monitors.label END,
+			max_size_bytes = CASE WHEN excluded.max_size_bytes > 0 THEN excluded.max_size_bytes ELSE host_storage_monitors.max_size_bytes END
+	`, hostID, path, label, limitBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	var m StorageMonitorTarget
+	var createdAt sql.NullTime
+	scanErr := d.QueryRow(`SELECT id, host_id, path, COALESCE(label, ''), COALESCE(max_size_bytes, 0), created_at FROM host_storage_monitors WHERE host_id = ? AND path = ?`, hostID, path).Scan(
+		&m.ID, &m.HostID, &m.Path, &m.Label, &m.MaxSizeBytes, &createdAt,
+	)
+	if scanErr != nil {
+		return &StorageMonitorTarget{
+			HostID:       hostID,
+			Path:         path,
+			Label:        label,
+			MaxSizeBytes: limitBytes,
+			CreatedAt:    time.Now(),
+		}, nil
+	}
+	if createdAt.Valid {
+		m.CreatedAt = createdAt.Time
+	}
+	return &m, nil
+}
+
+func (d *DB) UpdateStorageMonitorLimit(hostID int64, path string, maxSizeBytes int64) error {
+	if maxSizeBytes < 0 {
+		maxSizeBytes = 0
+	}
+	_, err := d.Exec(`
+		UPDATE host_storage_monitors
+		SET max_size_bytes = ?
+		WHERE host_id = ? AND path = ?
+	`, maxSizeBytes, hostID, strings.TrimSpace(path))
+	return err
+}
+
+func (d *DB) DeleteStorageMonitor(hostID int64, path string) error {
+	_, err := d.Exec(`DELETE FROM host_storage_monitors WHERE host_id = ? AND path = ?`, hostID, strings.TrimSpace(path))
 	return err
 }
 

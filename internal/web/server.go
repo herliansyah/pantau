@@ -1675,6 +1675,200 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, res)
 		return
 
+	case "storage-monitors":
+		// GET, POST, DELETE /api/hosts/{id}/storage-monitors
+		switch r.Method {
+		case http.MethodGet:
+			if r.URL.Query().Get("refresh") == "true" || r.URL.Query().Get("check") == "true" {
+				if s.storageTriage != nil {
+					items, err := s.storageTriage.InspectAllMonitored(r.Context(), hostID)
+					if err != nil {
+						writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": err.Error()})
+						return
+					}
+					writeJSON(w, http.StatusOK, items)
+					return
+				}
+			}
+			monitors, err := s.db.GetStorageMonitors(hostID)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": err.Error()})
+				return
+			}
+			// Check if we have cached live sizes in last triage result
+			var cachedMap map[string]storagetriage.MonitoredItem
+			if s.storageTriage != nil {
+				if lastRes := s.storageTriage.GetLastResult(hostID); lastRes != nil {
+					cachedMap = make(map[string]storagetriage.MonitoredItem)
+					for _, it := range lastRes.MonitoredItems {
+						norm := strings.ToLower(strings.TrimRight(strings.ReplaceAll(it.Path, "\\", "/"), "/"))
+						cachedMap[norm] = it
+					}
+				}
+			}
+			var items []storagetriage.MonitoredItem
+			for _, m := range monitors {
+				norm := strings.ToLower(strings.TrimRight(strings.ReplaceAll(m.Path, "\\", "/"), "/"))
+				if it, ok := cachedMap[norm]; ok {
+					it.ID = m.ID
+					it.Label = m.Label
+					it.MaxSizeBytes = m.MaxSizeBytes
+					it.CalculateLimitStats()
+					items = append(items, it)
+				} else {
+					it := storagetriage.MonitoredItem{
+						ID:           m.ID,
+						Path:         m.Path,
+						Label:        m.Label,
+						MaxSizeBytes: m.MaxSizeBytes,
+						HumanSize:    "Not scanned",
+					}
+					it.CalculateLimitStats()
+					items = append(items, it)
+				}
+			}
+			if items == nil {
+				items = []storagetriage.MonitoredItem{}
+			}
+			writeJSON(w, http.StatusOK, items)
+			return
+
+		case http.MethodPost:
+			var req struct {
+				Path         string      `json:"path"`
+				Label        string      `json:"label"`
+				MaxSize      interface{} `json:"max_size"`
+				MaxSizeBytes int64       `json:"max_size_bytes"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "bad request", http.StatusBadRequest)
+				return
+			}
+			req.Path = strings.TrimSpace(req.Path)
+			if req.Path == "" {
+				http.Error(w, "path is required", http.StatusBadRequest)
+				return
+			}
+			if strings.Contains(req.Path, "..") {
+				http.Error(w, "path traversal characters are forbidden", http.StatusBadRequest)
+				return
+			}
+			limitBytes := req.MaxSizeBytes
+			if limitBytes <= 0 && req.MaxSize != nil {
+				switch v := req.MaxSize.(type) {
+				case float64:
+					limitBytes = int64(v)
+				case string:
+					limitBytes = storagetriage.ParseHumanBytes(v)
+				}
+			}
+			target, err := s.db.SaveStorageMonitor(hostID, req.Path, req.Label, limitBytes)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": err.Error()})
+				return
+			}
+			var item *storagetriage.MonitoredItem
+			if s.storageTriage != nil {
+				item, _ = s.storageTriage.InspectMonitoredPath(r.Context(), hostID, target.Path, target.Label, target.MaxSizeBytes)
+			}
+			if item == nil {
+				item = &storagetriage.MonitoredItem{
+					ID:           target.ID,
+					Path:         target.Path,
+					Label:        target.Label,
+					MaxSizeBytes: target.MaxSizeBytes,
+					HumanSize:    "Saved",
+				}
+				item.CalculateLimitStats()
+			} else {
+				item.ID = target.ID
+				item.Label = target.Label
+				item.MaxSizeBytes = target.MaxSizeBytes
+				item.CalculateLimitStats()
+			}
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "item": item})
+			return
+
+		case http.MethodPatch:
+			var req struct {
+				Path         string      `json:"path"`
+				MaxSize      interface{} `json:"max_size"`
+				MaxSizeBytes int64       `json:"max_size_bytes"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				http.Error(w, "bad request", http.StatusBadRequest)
+				return
+			}
+			req.Path = strings.TrimSpace(req.Path)
+			if req.Path == "" {
+				http.Error(w, "path is required", http.StatusBadRequest)
+				return
+			}
+			limitBytes := req.MaxSizeBytes
+			if limitBytes <= 0 && req.MaxSize != nil {
+				switch v := req.MaxSize.(type) {
+				case float64:
+					limitBytes = int64(v)
+				case string:
+					limitBytes = storagetriage.ParseHumanBytes(v)
+				}
+			}
+			if err := s.db.UpdateStorageMonitorLimit(hostID, req.Path, limitBytes); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": err.Error()})
+				return
+			}
+			if s.storageTriage != nil {
+				if lastRes := s.storageTriage.GetLastResult(hostID); lastRes != nil {
+					norm := strings.ToLower(strings.ReplaceAll(req.Path, "\\", "/"))
+					for idx := range lastRes.MonitoredItems {
+						if strings.ToLower(strings.ReplaceAll(lastRes.MonitoredItems[idx].Path, "\\", "/")) == norm {
+							lastRes.MonitoredItems[idx].MaxSizeBytes = limitBytes
+							lastRes.MonitoredItems[idx].CalculateLimitStats()
+							break
+						}
+					}
+				}
+			}
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "max_size_bytes": limitBytes, "max_size_human": storagetriage.FormatBytes(limitBytes)})
+			return
+
+		case http.MethodDelete:
+			filePath := strings.TrimSpace(r.URL.Query().Get("path"))
+			if filePath == "" {
+				var delReq struct {
+					Path string `json:"path"`
+				}
+				_ = json.NewDecoder(r.Body).Decode(&delReq)
+				filePath = strings.TrimSpace(delReq.Path)
+			}
+			if filePath == "" {
+				http.Error(w, "path parameter required", http.StatusBadRequest)
+				return
+			}
+			if err := s.db.DeleteStorageMonitor(hostID, filePath); err != nil {
+				writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": err.Error()})
+				return
+			}
+			if s.storageTriage != nil {
+				if lastRes := s.storageTriage.GetLastResult(hostID); lastRes != nil {
+					norm := strings.ToLower(strings.ReplaceAll(filePath, "\\", "/"))
+					var updated []storagetriage.MonitoredItem
+					for _, it := range lastRes.MonitoredItems {
+						if strings.ToLower(strings.ReplaceAll(it.Path, "\\", "/")) != norm {
+							updated = append(updated, it)
+						}
+					}
+					lastRes.MonitoredItems = updated
+				}
+			}
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true})
+			return
+
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
 	case "metrics":
 		// GET /api/hosts/{id}/metrics?range=24h&category=all
 		if r.Method != http.MethodGet {
