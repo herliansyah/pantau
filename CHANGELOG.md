@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.32.1] - 2026-11-09
+### Added
+- Manual Storage Path Monitoring & Capacity Thresholds (#87):
+  - Register custom file or directory paths for ongoing storage monitoring across Linux and Windows hosts.
+  - Configurable optional capacity limits with visual progress bars and warning / over-limit threshold alerts.
+  - Direct 1-click target pinning from Space Hogs and Top Files directly into storage monitors.
+  - Monitored paths injected into Linux and Windows triage probe scripts with dedicated on-demand inspection API endpoints.
+- Batch File Deletion Support in File Manager (#86):
+  - Multi-select item checkboxes, 'Select All' toggle, and sticky bulk action bar in remote File Manager.
+  - Multi-path `/files/delete` API endpoint with path safety checks preventing accidental selection or deletion of protected system paths.
+
+### Fixed
+- Storage Triage Monitoring & File Deletion Hardening (#88):
+  - Normalized Windows and Unix path keys across storage monitors to prevent duplicate entries and separator mismatches.
+  - Process-isolated temporary directories and forced cleanup for Windows PowerShell triage probes.
+  - Path control character validation and structured JSON error responses across monitoring APIs.
+  - File deletion safety enhancements with path deduplication, execution error checking, and safer path encoding in the web UI.
+
 ## [0.32.0] - 2026-11-09
 ### Added
 - Agentless Windows Target Observability via Native OpenSSH (#82):
