@@ -7,3 +7,4 @@ data/
 *.db.lock
 *.tar.gz
 dist/
+graphify-out/

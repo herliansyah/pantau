@@ -10260,7 +10260,7 @@ function getStorageTriageScanningHTML(hostID) {
         </div>
         <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; margin-top: 4px;">
           ${t('triage_manual_kill_hint', '💡 <em>If you want to stop it manually via server terminal:</em>')}<br>
-          <code style="color: #f87171; background: rgba(239, 68, 68, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.74rem;">${isWin ? 'Stop-Process -Name robocopy -Force' : 'sudo pkill -9 -f "du -skx" ; sudo pkill -9 -f "find /"'}</code>
+          <code style="color: #f87171; background: rgba(239, 68, 68, 0.1); padding: 2px 6px; border-radius: 3px; font-size: 0.74rem;">${isWin ? 'Stop-Process -Name robocopy -Force; Stop-Process -Id (Get-Content $env:TEMP\\pantau_triage.pid)' : 'sudo pkill -9 -f "du -skx" ; sudo pkill -9 -f "find /"'}</code>
         </div>
       </div>
 

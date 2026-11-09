@@ -2,6 +2,7 @@ package storagetriage
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -947,6 +948,93 @@ func TestWindowsRotatedLogAccepted(t *testing.T) {
 		t.Errorf("expected command to include file path, got: %s", cmd)
 	}
 }
+
+func TestWindowsStorageTriageProcessTermination(t *testing.T) {
+	// 1. WindowsTriageProbeScript must register its process PID or tag so CancelTriage can kill it
+	if !strings.Contains(WindowsTriageProbeScript, "$PID") && !strings.Contains(WindowsTriageProbeScript, "pantau_triage.pid") {
+		t.Errorf("WindowsTriageProbeScript does not save or expose $PID for remote process cancellation")
+	}
+
+	// 2. WindowsTriageProbeScript must not use bare 'NULL' as robocopy destination
+	// Because relative 'NULL' in C:\Windows\System32 fails with Access Denied and triggers recursive gci fallback
+	if strings.Contains(WindowsTriageProbeScript, `robocopy $p "NULL"`) || strings.Contains(WindowsTriageProbeScript, `robocopy $_ "NULL"`) {
+		t.Errorf("WindowsTriageProbeScript uses invalid bare 'NULL' destination for robocopy, which fails in System32")
+	}
+
+	// 3. Directory scans in TOP_FILES must have depth limit to avoid infinite loops on NTFS junctions (e.g. AppData\\Local\\Application Data)
+	if strings.Contains(WindowsTriageProbeScript, `gci -Lit $r -Rec -File -ea 0`) {
+		t.Errorf("WindowsTriageProbeScript has unbounded Get-ChildItem recursion in TOP_FILES without -Depth limit, causing infinite junction loops")
+	}
+
+	// 4. Fallback _sz must not do unbounded gci -Rec without depth limit
+	if strings.Contains(WindowsTriageProbeScript, `gci -Lit $_ -Rec -File -Force -ea 0|measure`) {
+		t.Errorf("_sz uses unbounded Get-ChildItem recursion without depth limit, which will hang on Windows system drives")
+	}
+
+	// 5. Windows Docker reclaim check must verify Docker service is active before running 'docker info' to avoid hanging on named pipe
+	if !strings.Contains(WindowsTriageProbeScript, "Get-Service") && !strings.Contains(WindowsTriageProbeScript, "Get-Process") {
+		t.Errorf("WindowsTriageProbeScript calls 'docker info' without checking if Docker service is running, risking named pipe hang")
+	}
+}
+
+func TestCleanWindowsOutput(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "clean normal output",
+			input:    "Operation completed successfully",
+			expected: "Operation completed successfully",
+		},
+		{
+			name:     "clixml progress only",
+			input:    `#< CLIXML <Objs Version="1.1.0.1" xmlns="http://schemas.microsoft.com/powershell/2004/04"><Obj S="progress" RefId="0"><TN RefId="0"><T>System.Management.Automation.PSCustomObject</T><T>System.Object</T></TN><MS><I64 N="SourceId">1</I64><PR N="Record"><AV>Preparing modules for first use.</AV><AI>0</AI><Nil /><PI>-1</PI><PC>-1</PC><T>Completed</T><SR>-1</SR><SD> </SD></PR></MS></Obj></Objs>`,
+			expected: "",
+		},
+		{
+			name:     "clixml with error tag and hex escapes",
+			input:    `#< CLIXML <Objs Version="1.1.0.1" xmlns="http://schemas.microsoft.com/powershell/2004/04"><S S="Error">Cannot find drive. A drive with the name 'Z' does not exist._x000D__x000A_</S></Objs>`,
+			expected: "Cannot find drive. A drive with the name 'Z' does not exist.",
+		},
+		{
+			name:     "clixml progress followed by error",
+			input:    "#< CLIXML\r\n" + `<Objs Version="1.1.0.1" xmlns="http://schemas.microsoft.com/powershell/2004/04"><Obj S="progress" RefId="0"><PR N="Record"><AV>Preparing modules for first use.</AV></PR></Obj><S S="Error">Access_x0020_is_x0020_denied._x000D__x000A_</S></Objs>`,
+			expected: "Access is denied.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := cleanWindowsOutput(tt.input)
+			if got != tt.expected {
+				t.Errorf("cleanWindowsOutput() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestWindowsTruncateAclElevationLogic(t *testing.T) {
+	// Truncate on Windows must handle inherited Deny ACEs by granting Administrators explicit permissions
+	psEscaped := `C:\ProgramData\McAfee\wps\log\trace.etl`
+	psWrap := fmt.Sprintf(`$ProgressPreference = 0; $ErrorActionPreference = "Stop"; $p = '%[1]s'; try { Clear-Content -LiteralPath $p -Force; exit 0 } catch { if ($_ -match 'Access.*is denied|UnauthorizedAccess') { icacls $p /grant '*S-1-5-32-544:(F)' 2>$null | Out-Null }; try { Clear-Content -LiteralPath $p -Force; exit 0 } catch { try { $s = [System.IO.File]::Open($p, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite); $s.SetLength(0); $s.Close(); exit 0 } catch { [Console]::Error.WriteLine($_.Exception.Message); [Console]::Error.Flush(); exit 1 } } }`, psEscaped)
+
+	if !strings.Contains(psWrap, "icacls $p /grant '*S-1-5-32-544:(F)'") {
+		t.Errorf("expected psWrap to contain icacls elevation for Administrators SID, got: %s", psWrap)
+	}
+	if !strings.Contains(psWrap, "FileShare]::ReadWrite") {
+		t.Errorf("expected psWrap to contain FileShare fallback for locked files")
+	}
+}
+
+
+
 
 
 

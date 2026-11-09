@@ -319,37 +319,29 @@ func (r *LiveSSHRunner) ExecTimeout(cmd string, timeout time.Duration) (stdout, 
 		timeout = DefaultExecTimeout
 	}
 
-	var timedOut bool
-	var mu sync.Mutex
-	timer := time.AfterFunc(timeout, func() {
-		mu.Lock()
-		timedOut = true
-		mu.Unlock()
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- session.Run(cmd)
+	}()
+
+	select {
+	case <-time.After(timeout):
 		_ = session.Close()
-	})
-	defer timer.Stop()
+		return stdoutBuf.String(), stderrBuf.String(), -1, fmt.Errorf("command timed out after %v", timeout)
+	case execErr := <-errChan:
+		stdout = stdoutBuf.String()
+		stderr = stderrBuf.String()
 
-	execErr := session.Run(cmd)
-	stdout = stdoutBuf.String()
-	stderr = stderrBuf.String()
-
-	mu.Lock()
-	isTimeout := timedOut
-	mu.Unlock()
-
-	if isTimeout {
-		return stdout, stderr, -1, fmt.Errorf("command timed out after %v", timeout)
-	}
-
-	if execErr != nil {
-		if exitErr, ok := execErr.(*ssh.ExitError); ok {
-			exitCode = exitErr.ExitStatus()
-			return stdout, stderr, exitCode, nil
+		if execErr != nil {
+			if exitErr, ok := execErr.(*ssh.ExitError); ok {
+				exitCode = exitErr.ExitStatus()
+				return stdout, stderr, exitCode, nil
+			}
+			return stdout, stderr, -1, execErr
 		}
-		return stdout, stderr, -1, execErr
-	}
 
-	return stdout, stderr, 0, nil
+		return stdout, stderr, 0, nil
+	}
 }
 
 func (r *LiveSSHRunner) Stream(cmd string, out io.Writer) error {
