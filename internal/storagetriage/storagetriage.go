@@ -102,28 +102,43 @@ func parseMonitoredItemLine(l string) (status string, sz int64, p string, ok boo
 	if l == "" {
 		return "", 0, "", false
 	}
+	delim := "\t"
 	parts := strings.Split(l, "\t")
 	if len(parts) < 3 {
+		delim = `\t`
 		parts = strings.Split(l, `\t`)
 	}
 	if len(parts) < 3 {
-		f := strings.Fields(l)
-		if len(f) >= 3 {
-			parts = []string{f[0], f[1], strings.Join(f[2:], " ")}
-		} else {
-			return "", 0, "", false
-		}
+		return "", 0, "", false
 	}
 	status = strings.ToUpper(strings.TrimSpace(parts[0]))
+	switch status {
+	case "DIR", "FILE", "MISSING", "NOT_FOUND", "ERR":
+	default:
+		return "", 0, "", false
+	}
 	sz, _ = strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
-	p = strings.TrimSpace(strings.Join(parts[2:], " "))
+	if sz < 0 {
+		sz = 0
+	}
+	p = strings.TrimSpace(strings.Join(parts[2:], delim))
+	if p == "" {
+		return "", 0, "", false
+	}
 	return status, sz, p, true
 }
 
-func normalizePathKey(p string) string {
+// NormalizePathKey trims whitespace, standardizes slashes to '/', trims trailing '/', and lowercases.
+func NormalizePathKey(p string) string {
 	p = strings.TrimSpace(p)
+	if p == "" {
+		return ""
+	}
 	p = strings.ReplaceAll(p, "\\", "/")
 	p = strings.TrimRight(p, "/")
+	if p == "" {
+		return "/"
+	}
 	return strings.ToLower(p)
 }
 
@@ -363,7 +378,7 @@ func IsLogOrDisposableFile(filePath string) bool {
 
 // WindowsTriageProbeScript is the PowerShell probe script to collect partition metrics, space hogs, large files, runaway logs, and reclaimable caches on Windows.
 // ponytail: Compact single-shot script kept under 3000 chars raw (well below Windows cmd.exe 8191 limit when Base64 encoded).
-const WindowsTriageProbeScript = `$ProgressPreference=0;$PID>"$env:TEMP\pantau_triage.pid";$td="$env:TEMP\pn";if(!(Test-Path -Lit $td)){md $td -ea 0|Out-Null};
+const WindowsTriageProbeScript = `$ProgressPreference=0;$PID>"$env:TEMP\pantau_triage.pid";$td="$env:TEMP\pn_$PID";if(!(Test-Path -Lit $td)){md $td -ea 0|Out-Null};
 "===SUDO_STATUS===";if(([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(544)){"admin` + "`" + `n0"}else{"user` + "`" + `n1000"};
 "===PARTITION===";$d=gcim Win32_LogicalDisk -f "DriveType=3" -ea 0|sort -d {$_.DeviceID -eq "C:"}|select -f 1;
 if(!$d){$i=[IO.DriveInfo]::GetDrives()[0];$d=@{DeviceID=$i.Name.TrimEnd("\");Size=$i.TotalSize;FreeSpace=$i.TotalFreeSpace;FileSystem=$i.DriveFormat}};
@@ -390,7 +405,7 @@ $ds+=(gi -Lit "$w\MEMORY.DMP" -ea 0).Length;"$ds";
 "===RECLAIM_RECYCLEBIN===";(Join-Path "$sd\" '$Recycle.Bin')|_sz;
 "===RECLAIM_IIS===";$ip="$sd\inetpub\logs\LogFiles";if(Test-Path -Lit $ip){[int64](gci -Lit $ip -Rec -Depth 3 -File -ea 0|?{$_.LastWriteTime -lt (Get-Date).AddDays(-7)}|measure -s Length).Sum}else{0};
 "===RECLAIM_DOCKER===";if((gcm docker -ea 0) -and (Get-Service *docker* -ea 0|?{$_.Status -eq "Running"})){docker info 2>$null;if(!$LASTEXITCODE){"active";docker system df --format "{{.Reclaimable}}" 2>$null}else{"none"}}else{"none"};
-del "$env:TEMP\pantau_triage.pid",$td -Rec -ea 0`
+del "$env:TEMP\pantau_triage.pid",$td -Rec -Force -ea 0`
 
 const TriageProbeScript = `TARGET_SHELL="sh"
 if command -v bash >/dev/null 2>&1; then
@@ -908,12 +923,12 @@ func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*
 		if err == nil && len(monitors) > 0 {
 			monMap := make(map[string]store.StorageMonitorTarget)
 			for _, m := range monitors {
-				norm := strings.ToLower(strings.ReplaceAll(m.Path, "\\", "/"))
+				norm := NormalizePathKey(m.Path)
 				monMap[norm] = m
 			}
 			seen := make(map[string]bool)
 			for i := range res.MonitoredItems {
-				norm := strings.ToLower(strings.ReplaceAll(res.MonitoredItems[i].Path, "\\", "/"))
+				norm := NormalizePathKey(res.MonitoredItems[i].Path)
 				if m, ok := monMap[norm]; ok {
 					res.MonitoredItems[i].ID = m.ID
 					res.MonitoredItems[i].Label = m.Label
@@ -922,7 +937,8 @@ func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*
 					seen[norm] = true
 				}
 			}
-			for norm, m := range monMap {
+			for _, m := range monitors {
+				norm := NormalizePathKey(m.Path)
 				if !seen[norm] {
 					item := MonitoredItem{
 						ID:           m.ID,
@@ -934,6 +950,7 @@ func (s *Service) RunTriage(ctx context.Context, hostID int64, force ...bool) (*
 					}
 					item.CalculateLimitStats()
 					res.MonitoredItems = append(res.MonitoredItems, item)
+					seen[norm] = true
 				}
 			}
 		}
@@ -1873,7 +1890,7 @@ func (s *Service) InspectAllMonitored(ctx context.Context, hostID int64) ([]Moni
 		for _, m := range monitors {
 			paths = append(paths, fmt.Sprintf("'%s'", strings.ReplaceAll(m.Path, "'", "''")))
 		}
-		psCmd := fmt.Sprintf(`$ProgressPreference=0;$td="$env:TEMP\pn";if(!(Test-Path -Lit $td)){md $td -ea 0|Out-Null};filter _sz{try{$r=robocopy $_ $td /L /E /BYTES /NFL /NDL /NJH /NP /XJ /LEV:3 /MT:16 /R:0 /W:0 2>$null;if(($r-join"`+"`"+`n")-match"Bytes\s*:\s*(\d+)"){$matches[1]}else{[int64](gci -Lit $_ -Rec -Depth 2 -File -ea 0|measure -s Length).Sum}}catch{0}};@(%s)|%%{$p=$_;if(Test-Path -Lit $p){if(Test-Path -Lit $p -PathType Container){$s=$p|_sz;"DIR`+"`"+`t$s`+"`"+`t$p"}else{$s=(gi -Lit $p -ea 0).Length;"FILE`+"`"+`t$s`+"`"+`t$p"}}else{"MISSING`+"`"+`t0`+"`"+`t$p"}};del $td -Rec -ea 0`, strings.Join(paths, ","))
+		psCmd := fmt.Sprintf(`$ProgressPreference=0;$td="$env:TEMP\pn_$PID";if(!(Test-Path -Lit $td)){md $td -ea 0|Out-Null};filter _sz{try{$r=robocopy $_ $td /L /E /BYTES /NFL /NDL /NJH /NP /XJ /LEV:3 /MT:16 /R:0 /W:0 2>$null;if(($r-join"`+"`"+`n")-match"Bytes\s*:\s*(\d+)"){$matches[1]}else{[int64](gci -Lit $_ -Rec -Depth 2 -File -ea 0|measure -s Length).Sum}}catch{0}};@(%s)|%%{$p=$_;if(Test-Path -Lit $p){if(Test-Path -Lit $p -PathType Container){$s=$p|_sz;"DIR`+"`"+`t$s`+"`"+`t$p"}else{$s=(gi -Lit $p -ea 0).Length;"FILE`+"`"+`t$s`+"`"+`t$p"}}else{"MISSING`+"`"+`t0`+"`"+`t$p"}};del $td -Rec -Force -ea 0`, strings.Join(paths, ","))
 		stdout, _, _, err := runner.ExecTimeout(sshrunner.PowershellEncodedCmd(psCmd), 20*time.Second)
 		if err != nil {
 			logger.Error("storagetriage", h.Name, "Inspect all monitored failed: "+err.Error())
@@ -1912,7 +1929,7 @@ fi
 		if !ok {
 			continue
 		}
-		norm := normalizePathKey(p)
+		norm := NormalizePathKey(p)
 		exists := status != "MISSING" && status != "NOT_FOUND" && status != "ERR"
 		hSize := FormatBytes(sz)
 		if !exists {
@@ -1929,7 +1946,7 @@ fi
 
 	res := make([]MonitoredItem, len(monitors))
 	for i, m := range monitors {
-		norm := normalizePathKey(m.Path)
+		norm := NormalizePathKey(m.Path)
 		if item, ok := itemsMap[norm]; ok {
 			item.ID = m.ID
 			item.Label = m.Label
@@ -1965,17 +1982,22 @@ func (s *Service) InspectMonitoredPath(ctx context.Context, hostID int64, target
 	}
 
 	var limitBytes int64
+	var monitorID int64
 	if len(maxSizeBytes) > 0 && maxSizeBytes[0] > 0 {
 		limitBytes = maxSizeBytes[0]
-	} else if s.db != nil {
+	}
+	if s.db != nil {
 		if monitors, err := s.db.GetStorageMonitors(hostID); err == nil {
-			norm := strings.ToLower(strings.ReplaceAll(targetPath, "\\", "/"))
+			norm := NormalizePathKey(targetPath)
 			for _, m := range monitors {
-				if strings.ToLower(strings.ReplaceAll(m.Path, "\\", "/")) == norm {
-					limitBytes = m.MaxSizeBytes
+				if NormalizePathKey(m.Path) == norm {
+					if limitBytes <= 0 {
+						limitBytes = m.MaxSizeBytes
+					}
 					if label == "" {
 						label = m.Label
 					}
+					monitorID = m.ID
 					break
 				}
 			}
@@ -1983,6 +2005,7 @@ func (s *Service) InspectMonitoredPath(ctx context.Context, hostID int64, target
 	}
 
 	item := &MonitoredItem{
+		ID:           monitorID,
 		Path:         targetPath,
 		Label:        label,
 		MaxSizeBytes: limitBytes,
@@ -2017,12 +2040,12 @@ func (s *Service) InspectMonitoredPath(ctx context.Context, hostID int64, target
 	var stdout string
 	if isWindows {
 		psEscaped := strings.ReplaceAll(targetPath, "'", "''")
-		psCmd := fmt.Sprintf(`$ProgressPreference=0;$td="$env:TEMP\pn";if(!(Test-Path -Lit $td)){md $td -ea 0|Out-Null};filter _sz{try{$r=robocopy $_ $td /L /E /BYTES /NFL /NDL /NJH /NP /XJ /LEV:3 /MT:16 /R:0 /W:0 2>$null;if(($r-join"`+"`"+`n")-match"Bytes\s*:\s*(\d+)"){$matches[1]}else{[int64](gci -Lit $_ -Rec -Depth 2 -File -ea 0|measure -s Length).Sum}}catch{0}};$p='%s';if(Test-Path -Lit $p){if(Test-Path -Lit $p -PathType Container){$s=$p|_sz;"DIR`+"`"+`t$s`+"`"+`t$p"}else{$s=(gi -Lit $p -ea 0).Length;"FILE`+"`"+`t$s`+"`"+`t$p"}}else{"MISSING`+"`"+`t0`+"`"+`t$p"};del $td -Rec -ea 0`, psEscaped)
-		out, _, _, _ := runner.ExecTimeout(sshrunner.PowershellEncodedCmd(psCmd), 10*time.Second)
+		psCmd := fmt.Sprintf(`$ProgressPreference=0;$td="$env:TEMP\pn_$PID";if(!(Test-Path -Lit $td)){md $td -ea 0|Out-Null};filter _sz{try{$r=robocopy $_ $td /L /E /BYTES /NFL /NDL /NJH /NP /XJ /LEV:3 /MT:16 /R:0 /W:0 2>$null;if(($r-join"`+"`"+`n")-match"Bytes\s*:\s*(\d+)"){$matches[1]}else{[int64](gci -Lit $_ -Rec -Depth 2 -File -ea 0|measure -s Length).Sum}}catch{0}};$p='%s';if(Test-Path -Lit $p){if(Test-Path -Lit $p -PathType Container){$s=$p|_sz;"DIR`+"`"+`t$s`+"`"+`t$p"}else{$s=(gi -Lit $p -ea 0).Length;"FILE`+"`"+`t$s`+"`"+`t$p"}}else{"MISSING`+"`"+`t0`+"`"+`t$p"};del $td -Rec -Force -ea 0`, psEscaped)
+		out, _, _, _ := runner.ExecTimeout(sshrunner.PowershellEncodedCmd(psCmd), 15*time.Second)
 		stdout = cleanWindowsOutput(out)
 	} else {
 		shCmd := fmt.Sprintf(`RUN_FAST=""; if [ "$(id -u)" != "0" ] && sudo -n true 2>/dev/null; then RUN_FAST="sudo -n "; fi; p=%s; if [ -d "$p" ]; then sz=$($RUN_FAST du -skx "$p" 2>/dev/null | awk '{print $1*1024}'); printf 'DIR\t%%s\t%%s\n' "${sz:-0}" "$p"; elif [ -e "$p" ] || [ -L "$p" ]; then sz=$(stat -c %%s "$p" 2>/dev/null || stat -f %%z "$p" 2>/dev/null || ls -ln "$p" 2>/dev/null | awk '{print $5}'); printf 'FILE\t%%s\t%%s\n' "${sz:-0}" "$p"; else printf 'MISSING\t0\t%%s\n' "$p"; fi`, ShellQuote(targetPath))
-		out, _, _, _ := runner.ExecTimeout(shCmd, 6*time.Second)
+		out, _, _, _ := runner.ExecTimeout(shCmd, 15*time.Second)
 		stdout = out
 	}
 
@@ -2030,6 +2053,9 @@ func (s *Service) InspectMonitoredPath(ctx context.Context, hostID int64, target
 	for _, l := range lines {
 		status, sz, p, ok := parseMonitoredItemLine(l)
 		if !ok {
+			continue
+		}
+		if p != "" && NormalizePathKey(p) != NormalizePathKey(targetPath) {
 			continue
 		}
 		exists := status != "MISSING" && status != "NOT_FOUND" && status != "ERR"
@@ -2050,10 +2076,10 @@ func (s *Service) InspectMonitoredPath(ctx context.Context, hostID int64, target
 
 	// Update cached TriageResult if exists
 	if lastRes := s.GetLastResult(hostID); lastRes != nil {
-		norm := normalizePathKey(item.Path)
+		norm := NormalizePathKey(item.Path)
 		found := false
 		for idx := range lastRes.MonitoredItems {
-			if normalizePathKey(lastRes.MonitoredItems[idx].Path) == norm {
+			if NormalizePathKey(lastRes.MonitoredItems[idx].Path) == norm {
 				lastRes.MonitoredItems[idx] = *item
 				found = true
 				break

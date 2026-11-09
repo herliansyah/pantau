@@ -1164,3 +1164,61 @@ func TestMonitoredItemCalculateLimitStats(t *testing.T) {
 		t.Errorf("unexpected itOver stats: %+v", itOver)
 	}
 }
+
+func TestParseMonitoredItemLineFiltering(t *testing.T) {
+	validCases := []struct {
+		input  string
+		status string
+		sz     int64
+		path   string
+	}{
+		{"DIR\t1024\t/var/log", "DIR", 1024, "/var/log"},
+		{"FILE\t2048\tC:\\app.txt", "FILE", 2048, "C:\\app.txt"},
+		{"MISSING\t0\t/opt/missing", "MISSING", 0, "/opt/missing"},
+		{"ERR\t0\t/root/secure", "ERR", 0, "/root/secure"},
+	}
+	for _, tc := range validCases {
+		status, sz, p, ok := parseMonitoredItemLine(tc.input)
+		if !ok || status != tc.status || sz != tc.sz || p != tc.path {
+			t.Errorf("expected valid for %q: got status=%s sz=%d p=%s ok=%v", tc.input, status, sz, p, ok)
+		}
+	}
+
+	invalidCases := []string{
+		"Authorized uses only. All activity may be monitored and reported.",
+		"Last login: Mon Nov 9 14:00:00 2026 from 1.2.3.4",
+		"sudo: a password is required",
+		"UNKNOWN\t100\t/some/path",
+		"DIR\t100",
+		"",
+		"   ",
+	}
+	for _, tc := range invalidCases {
+		_, _, _, ok := parseMonitoredItemLine(tc)
+		if ok {
+			t.Errorf("expected false for invalid line %q, got ok=true", tc)
+		}
+	}
+}
+
+func TestNormalizePathKey(t *testing.T) {
+	cases := []struct {
+		p1, p2 string
+		same   bool
+	}{
+		{"/var/log/app/", "/var/log/app", true},
+		{"C:\\inetpub\\logs\\", "c:/inetpub/logs", true},
+		{" /opt/data ", "/opt/data", true},
+		{"/", "/", true},
+		{"/", "", false},
+		{"/var/log/app1", "/var/log/app2", false},
+	}
+	for _, c := range cases {
+		k1 := NormalizePathKey(c.p1)
+		k2 := NormalizePathKey(c.p2)
+		if (k1 == k2) != c.same {
+			t.Errorf("NormalizePathKey(%q)=%q vs NormalizePathKey(%q)=%q: expected same=%v", c.p1, k1, c.p2, k2, c.same)
+		}
+	}
+}
+

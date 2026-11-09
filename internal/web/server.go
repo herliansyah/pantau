@@ -1686,6 +1686,9 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 						writeJSON(w, http.StatusInternalServerError, map[string]interface{}{"ok": false, "error": err.Error()})
 						return
 					}
+					if items == nil {
+						items = []storagetriage.MonitoredItem{}
+					}
 					writeJSON(w, http.StatusOK, items)
 					return
 				}
@@ -1701,14 +1704,14 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 				if lastRes := s.storageTriage.GetLastResult(hostID); lastRes != nil {
 					cachedMap = make(map[string]storagetriage.MonitoredItem)
 					for _, it := range lastRes.MonitoredItems {
-						norm := strings.ToLower(strings.TrimRight(strings.ReplaceAll(it.Path, "\\", "/"), "/"))
+						norm := storagetriage.NormalizePathKey(it.Path)
 						cachedMap[norm] = it
 					}
 				}
 			}
 			var items []storagetriage.MonitoredItem
 			for _, m := range monitors {
-				norm := strings.ToLower(strings.TrimRight(strings.ReplaceAll(m.Path, "\\", "/"), "/"))
+				norm := storagetriage.NormalizePathKey(m.Path)
 				if it, ok := cachedMap[norm]; ok {
 					it.ID = m.ID
 					it.Label = m.Label
@@ -1741,16 +1744,16 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 				MaxSizeBytes int64       `json:"max_size_bytes"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				http.Error(w, "bad request", http.StatusBadRequest)
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "bad request"})
 				return
 			}
 			req.Path = strings.TrimSpace(req.Path)
 			if req.Path == "" {
-				http.Error(w, "path is required", http.StatusBadRequest)
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "path is required"})
 				return
 			}
-			if strings.Contains(req.Path, "..") {
-				http.Error(w, "path traversal characters are forbidden", http.StatusBadRequest)
+			if strings.Contains(req.Path, "..") || strings.ContainsAny(req.Path, "\r\n\t\x00") {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "invalid characters in path"})
 				return
 			}
 			limitBytes := req.MaxSizeBytes
@@ -1796,12 +1799,16 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 				MaxSizeBytes int64       `json:"max_size_bytes"`
 			}
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				http.Error(w, "bad request", http.StatusBadRequest)
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "bad request"})
 				return
 			}
 			req.Path = strings.TrimSpace(req.Path)
 			if req.Path == "" {
-				http.Error(w, "path is required", http.StatusBadRequest)
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "path is required"})
+				return
+			}
+			if strings.Contains(req.Path, "..") || strings.ContainsAny(req.Path, "\r\n\t\x00") {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "invalid characters in path"})
 				return
 			}
 			limitBytes := req.MaxSizeBytes
@@ -1819,9 +1826,9 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			}
 			if s.storageTriage != nil {
 				if lastRes := s.storageTriage.GetLastResult(hostID); lastRes != nil {
-					norm := strings.ToLower(strings.ReplaceAll(req.Path, "\\", "/"))
+					norm := storagetriage.NormalizePathKey(req.Path)
 					for idx := range lastRes.MonitoredItems {
-						if strings.ToLower(strings.ReplaceAll(lastRes.MonitoredItems[idx].Path, "\\", "/")) == norm {
+						if storagetriage.NormalizePathKey(lastRes.MonitoredItems[idx].Path) == norm {
 							lastRes.MonitoredItems[idx].MaxSizeBytes = limitBytes
 							lastRes.MonitoredItems[idx].CalculateLimitStats()
 							break
@@ -1829,7 +1836,11 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
-			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "max_size_bytes": limitBytes, "max_size_human": storagetriage.FormatBytes(limitBytes)})
+			maxHuman := ""
+			if limitBytes > 0 {
+				maxHuman = storagetriage.FormatBytes(limitBytes)
+			}
+			writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "max_size_bytes": limitBytes, "max_size_human": maxHuman})
 			return
 
 		case http.MethodDelete:
@@ -1842,7 +1853,11 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 				filePath = strings.TrimSpace(delReq.Path)
 			}
 			if filePath == "" {
-				http.Error(w, "path parameter required", http.StatusBadRequest)
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "path parameter required"})
+				return
+			}
+			if strings.Contains(filePath, "..") || strings.ContainsAny(filePath, "\r\n\t\x00") {
+				writeJSON(w, http.StatusBadRequest, map[string]interface{}{"ok": false, "error": "invalid characters in path"})
 				return
 			}
 			if err := s.db.DeleteStorageMonitor(hostID, filePath); err != nil {
@@ -1851,10 +1866,10 @@ func (s *Server) handleHostDetailRoute(w http.ResponseWriter, r *http.Request) {
 			}
 			if s.storageTriage != nil {
 				if lastRes := s.storageTriage.GetLastResult(hostID); lastRes != nil {
-					norm := strings.ToLower(strings.ReplaceAll(filePath, "\\", "/"))
+					norm := storagetriage.NormalizePathKey(filePath)
 					var updated []storagetriage.MonitoredItem
 					for _, it := range lastRes.MonitoredItems {
-						if strings.ToLower(strings.ReplaceAll(it.Path, "\\", "/")) != norm {
+						if storagetriage.NormalizePathKey(it.Path) != norm {
 							updated = append(updated, it)
 						}
 					}
@@ -2680,7 +2695,7 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			Paths []string `json:"paths"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "bad request", http.StatusBadRequest)
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"status": "error", "error": "bad request"})
 			return
 		}
 		var targetPaths []string
@@ -2689,12 +2704,13 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 		} else if req.Path != "" {
 			targetPaths = []string{req.Path}
 		} else {
-			http.Error(w, "path or paths required", http.StatusBadRequest)
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"status": "error", "error": "path or paths required"})
 			return
 		}
 
 		// Security Pass 1: Resolve all paths and strictly verify that NONE are protected or system roots.
 		// If ANY target is protected, reject immediately before deleting anything.
+		seenPaths := make(map[string]bool)
 		var resolvedPaths []string
 		for _, p := range targetPaths {
 			p = strings.TrimSpace(p)
@@ -2703,14 +2719,24 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			}
 			resolved := resolveRemotePath(sftpClient, host.User, p, host.OSType)
 			if resolved == "" || resolved == "/" || resolved == "." || isProtectedPath(resolved, sftpClient) {
-				http.Error(w, fmt.Sprintf("protected path: cannot delete system location %s", p), http.StatusForbidden)
+				writeJSON(w, http.StatusForbidden, map[string]interface{}{
+					"status": "error",
+					"error":  fmt.Sprintf("protected path: cannot delete system location %s", p),
+				})
 				return
 			}
-			resolvedPaths = append(resolvedPaths, resolved)
+			normKey := resolved
+			if host.OSType == "windows" {
+				normKey = strings.ToLower(strings.ReplaceAll(resolved, "\\", "/"))
+			}
+			if !seenPaths[normKey] {
+				seenPaths[normKey] = true
+				resolvedPaths = append(resolvedPaths, resolved)
+			}
 		}
 
 		if len(resolvedPaths) == 0 {
-			http.Error(w, "no valid paths specified", http.StatusBadRequest)
+			writeJSON(w, http.StatusBadRequest, map[string]interface{}{"status": "error", "error": "no valid paths specified"})
 			return
 		}
 
@@ -2719,14 +2745,36 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			if statErr == nil && st.IsDir() {
 				if host.OSType == "windows" {
 					cleanP := sshrunner.CleanWindowsRemotePath(resolved)
-					_, _, _, _ = runner.Exec(sshrunner.PowershellEncodedCmd(fmt.Sprintf(`Remove-Item -LiteralPath '%s' -Recurse -Force`, strings.ReplaceAll(cleanP, "'", "''"))))
+					_, stderr, exitCode, err := runner.Exec(sshrunner.PowershellEncodedCmd(fmt.Sprintf(`Remove-Item -LiteralPath '%s' -Recurse -Force`, strings.ReplaceAll(cleanP, "'", "''"))))
+					if err != nil {
+						return err
+					}
+					if exitCode != 0 {
+						return fmt.Errorf("exit %d: %s", exitCode, strings.TrimSpace(stderr))
+					}
 				} else {
-					_, _, _, _ = runner.Exec(fmt.Sprintf(`rm -rf -- %s`, shellQuote(resolved)))
+					_, stderr, exitCode, err := runner.Exec(fmt.Sprintf(`rm -rf -- %s`, shellQuote(resolved)))
+					if err != nil {
+						return err
+					}
+					if exitCode != 0 {
+						return fmt.Errorf("exit %d: %s", exitCode, strings.TrimSpace(stderr))
+					}
 				}
 			} else {
-				if err := sftpClient.Remove(resolved); err != nil && host.OSType == "windows" {
-					cleanP := sshrunner.CleanWindowsRemotePath(resolved)
-					_, _, _, _ = runner.Exec(sshrunner.PowershellEncodedCmd(fmt.Sprintf(`Remove-Item -LiteralPath '%s' -Force`, strings.ReplaceAll(cleanP, "'", "''"))))
+				if err := sftpClient.Remove(resolved); err != nil {
+					if host.OSType == "windows" {
+						cleanP := sshrunner.CleanWindowsRemotePath(resolved)
+						_, stderr, exitCode, rErr := runner.Exec(sshrunner.PowershellEncodedCmd(fmt.Sprintf(`Remove-Item -LiteralPath '%s' -Recurse -Force`, strings.ReplaceAll(cleanP, "'", "''"))))
+						if rErr != nil {
+							return rErr
+						}
+						if exitCode != 0 {
+							return fmt.Errorf("exit %d: %s", exitCode, strings.TrimSpace(stderr))
+						}
+					} else {
+						return err
+					}
 				}
 			}
 			return nil
@@ -2740,6 +2788,15 @@ func (s *Server) handleFilesRoute(hostID int64, subparts []string, w http.Respon
 			} else {
 				deletedCount++
 			}
+		}
+
+		if deletedCount == 0 && len(deleteErrors) > 0 {
+			writeJSON(w, http.StatusInternalServerError, map[string]interface{}{
+				"status": "error",
+				"error":  deleteErrors[0],
+				"errors": deleteErrors,
+			})
+			return
 		}
 
 		writeJSON(w, http.StatusOK, map[string]interface{}{
