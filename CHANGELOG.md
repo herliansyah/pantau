@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.32.0] - 2026-11-09
 ### Added
 - Agentless Windows Target Observability via Native OpenSSH (#82):
   - Comprehensive zero-agent monitoring, desired state verification, and management for Windows targets (Windows Server 2019/2022/2025 and Windows 10/11) over native OpenSSH without remote agents or third-party background daemons.
@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Display rendered Markdown preview by default when opening host or global note dialogs, with in-place Edit button to toggle editing mode and return to preview immediately upon save.
   - Zero-dependency XSS-safe Markdown micro-parser for headings, code blocks, lists, bold/italic, and links.
   - Expanded modal width to `modal-dialog-lg` with comfortable minimum height (240px).
+
+### Fixed
+- Windows Storage Triage Reliability & Process Cleanup (#85):
+  - Refactored SSH command execution timeout with robust channel-based cancellation preventing hung sessions.
+  - Optimized PowerShell storage triage probe with dynamic depth limits, PID tracking, and scratch path management to prevent recursion and process leakage.
+  - Process tree cleanup terminating lingering robocopy and child PowerShell probes upon timeout or cancellation.
+  - Cleaned CLIXML header artifacts from PowerShell output streams and enhanced ACL elevation handling during log truncation.
 
 ## [0.31.1] - 2026-11-04
 ### Added
