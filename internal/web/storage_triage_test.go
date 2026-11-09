@@ -157,6 +157,25 @@ func TestStorageTriageEndpoints(t *testing.T) {
 		t.Errorf("expected 400 Bad Request for path traversal, got %d", rec6b.Code)
 	}
 
+	// 6b2. Newline and Tab path validation
+	nlBody, _ := json.Marshal(map[string]string{"path": "/var/log/app.log\nreboot", "label": "test"})
+	rec6b2 := httptest.NewRecorder()
+	req6b2 := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-monitors", hostID), bytes.NewReader(nlBody))
+	req6b2.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec6b2, req6b2)
+	if rec6b2.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for newline in path, got %d", rec6b2.Code)
+	}
+
+	tabBody, _ := json.Marshal(map[string]string{"path": "/var/log/app.log\t123", "label": "test"})
+	recTab := httptest.NewRecorder()
+	reqTab := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/storage-monitors", hostID), bytes.NewReader(tabBody))
+	reqTab.AddCookie(authCookie)
+	srv.mux.ServeHTTP(recTab, reqTab)
+	if recTab.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 Bad Request for tab in path, got %d", recTab.Code)
+	}
+
 	// 6c. Valid POST storage monitor with max_size threshold
 	validBody, _ := json.Marshal(map[string]interface{}{"path": "/var/log/custom.log", "label": "Custom Log", "max_size": "10 GB"})
 	rec6c := httptest.NewRecorder()
@@ -197,9 +216,9 @@ func TestStorageTriageEndpoints(t *testing.T) {
 		t.Errorf("expected 200 OK for PATCH storage-monitors, got %d: %s", rec6d2.Code, rec6d2.Body.String())
 	}
 
-	// 6e. DELETE storage monitor
+	// 6e. DELETE storage monitor (with trailing slash flexibility)
 	rec6e := httptest.NewRecorder()
-	req6e := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/hosts/%d/storage-monitors?path=%s", hostID, "/var/log/custom.log"), nil)
+	req6e := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/api/hosts/%d/storage-monitors?path=%s", hostID, "/var/log/custom.log/"), nil)
 	req6e.AddCookie(authCookie)
 	srv.mux.ServeHTTP(rec6e, req6e)
 	if rec6e.Code != http.StatusOK {

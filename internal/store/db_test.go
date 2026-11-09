@@ -455,8 +455,8 @@ func TestStorageMonitorsCRUD(t *testing.T) {
 		}
 	}
 
-	// 4. Delete monitor
-	if err := db.DeleteStorageMonitor(hostID, "/var/log/app.log"); err != nil {
+	// 4. Delete monitor (supports trailing slash & alternate slash)
+	if err := db.DeleteStorageMonitor(hostID, "/var/log/app.log/"); err != nil {
 		t.Fatalf("delete monitor: %v", err)
 	}
 	monitors, err = db.GetStorageMonitors(hostID)
@@ -468,6 +468,38 @@ func TestStorageMonitorsCRUD(t *testing.T) {
 	}
 	if monitors[0].Path != "/opt/data" {
 		t.Errorf("expected remaining monitor /opt/data, got %q", monitors[0].Path)
+	}
+
+	// 5. Windows slash flexibility
+	mWin, err := db.SaveStorageMonitor(hostID, "C:\\inetpub\\logs\\", "IIS Logs", 5*1024*1024*1024)
+	if err != nil {
+		t.Fatalf("save windows monitor: %v", err)
+	}
+	if mWin.Path != "C:\\inetpub\\logs" {
+		t.Errorf("expected clean path without trailing slash, got %q", mWin.Path)
+	}
+
+	// Saving with alternate slashes should update existing target instead of creating duplicate row
+	mWin2, err := db.SaveStorageMonitor(hostID, "C:/inetpub/logs", "Updated IIS Logs", 6*1024*1024*1024)
+	if err != nil {
+		t.Fatalf("upsert with alternate slash: %v", err)
+	}
+	monitors, err = db.GetStorageMonitors(hostID)
+	if err != nil {
+		t.Fatalf("get monitors: %v", err)
+	}
+	if len(monitors) != 2 {
+		t.Fatalf("expected 2 monitors (no duplicates), got %d", len(monitors))
+	}
+	if mWin2.Label != "Updated IIS Logs" || mWin2.MaxSizeBytes != 6*1024*1024*1024 {
+		t.Errorf("expected updated label and limit, got label=%q limit=%d", mWin2.Label, mWin2.MaxSizeBytes)
+	}
+
+	if err := db.UpdateStorageMonitorLimit(hostID, "C:/inetpub/logs", 8*1024*1024*1024); err != nil {
+		t.Fatalf("update windows monitor: %v", err)
+	}
+	if err := db.DeleteStorageMonitor(hostID, "C:/inetpub/logs/"); err != nil {
+		t.Fatalf("delete windows monitor: %v", err)
 	}
 }
 

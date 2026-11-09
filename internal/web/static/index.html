@@ -11546,6 +11546,13 @@ async function executeReloadServiceWithPassword(hostID, unitName, sudoPassword) 
   }
 }
 
+function normalizeMonitorPathKey(p) {
+  if (!p) return '';
+  let s = String(p).trim().replace(/\\/g, '/');
+  s = s.replace(/\/+$/, '');
+  return s.toLowerCase();
+}
+
 function showAddMonitoredPathModal(hostID) {
   closeAddMonitoredPathModal();
   const isID = (typeof currentLang !== 'undefined' ? currentLang : 'en') === 'id';
@@ -11659,7 +11666,8 @@ async function submitAddMonitoredPath(event, hostID) {
     if (!currentStorageTriageData.monitored_items) {
       currentStorageTriageData.monitored_items = [];
     }
-    const idx = currentStorageTriageData.monitored_items.findIndex(m => m.path === item.path);
+    const targetKey = normalizeMonitorPathKey(item.path);
+    const idx = currentStorageTriageData.monitored_items.findIndex(m => normalizeMonitorPathKey(m.path) === targetKey);
     if (idx >= 0) {
       currentStorageTriageData.monitored_items[idx] = item;
     } else {
@@ -11767,7 +11775,8 @@ async function submitEditMonitorLimit(event, hostID, path) {
     showToast(t('triage_limit_updated_toast', 'Monitoring threshold limit updated'), 'success');
 
     if (currentStorageTriageData && currentStorageTriageData.monitored_items) {
-      const it = currentStorageTriageData.monitored_items.find(m => m.path === path);
+      const targetKey = normalizeMonitorPathKey(path);
+      const it = currentStorageTriageData.monitored_items.find(m => normalizeMonitorPathKey(m.path) === targetKey);
       if (it) {
         it.max_size_bytes = result.max_size_bytes || 0;
         it.max_size_human = result.max_size_human || '';
@@ -11817,7 +11826,8 @@ async function quickAddMonitoredPath(hostID, path) {
     if (!currentStorageTriageData.monitored_items) {
       currentStorageTriageData.monitored_items = [];
     }
-    const idx = currentStorageTriageData.monitored_items.findIndex(m => m.path === item.path);
+    const targetKey = normalizeMonitorPathKey(item.path);
+    const idx = currentStorageTriageData.monitored_items.findIndex(m => normalizeMonitorPathKey(m.path) === targetKey);
     if (idx >= 0) {
       currentStorageTriageData.monitored_items[idx] = item;
     } else {
@@ -11855,7 +11865,8 @@ async function deleteMonitoredPath(hostID, path) {
     }
     showToast(t('triage_monitor_removed_toast', 'Path removed from manual monitoring'), 'success');
     if (currentStorageTriageData && currentStorageTriageData.monitored_items) {
-      currentStorageTriageData.monitored_items = currentStorageTriageData.monitored_items.filter(m => m.path !== path);
+      const targetKey = normalizeMonitorPathKey(path);
+      currentStorageTriageData.monitored_items = currentStorageTriageData.monitored_items.filter(m => normalizeMonitorPathKey(m.path) !== targetKey);
       if (storageTriageCache[hostID]) {
         storageTriageCache[hostID].monitored_items = currentStorageTriageData.monitored_items;
       }
@@ -11910,7 +11921,8 @@ async function checkSingleMonitoredPath(hostID, encodedPath) {
     if (!currentStorageTriageData.monitored_items) {
       currentStorageTriageData.monitored_items = [];
     }
-    const idx = currentStorageTriageData.monitored_items.findIndex(m => m.path === item.path);
+    const targetKey = normalizeMonitorPathKey(item.path);
+    const idx = currentStorageTriageData.monitored_items.findIndex(m => normalizeMonitorPathKey(m.path) === targetKey);
     if (idx >= 0) {
       currentStorageTriageData.monitored_items[idx] = item;
     } else {
@@ -12393,9 +12405,9 @@ function renderFilesTableBody() {
           }
         </td>
         <td style="word-break: break-all;">
-          <button type="button" class="btn-file-pin ${isPinned ? 'pinned' : ''}" onclick="openPinModal('${escapeHtml(fullPath)}', ${f.is_dir})" title="${isPinned ? escapeHtml(pin.note || t('pinned')) : t('pin_this_item')}">${isPinned ? '📌' : '📍'}</button>
+          <button type="button" class="btn-file-pin ${isPinned ? 'pinned' : ''}" onclick="openPinModal(decodeURIComponent('${encodeURIComponent(fullPath)}'), ${f.is_dir})" title="${isPinned ? escapeHtml(pin.note || t('pinned')) : t('pin_this_item')}">${isPinned ? '📌' : '📍'}</button>
           ${f.is_dir 
-            ? `<a class="folder-link" href="javascript:void(0)" onclick="loadFiles('${escapeHtml(fullPath)}')"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>${escapeHtml(f.name)}</b></a>` 
+            ? `<a class="folder-link" href="javascript:void(0)" onclick="loadFiles(decodeURIComponent('${encodeURIComponent(fullPath)}'))"><span style="color: #fbbf24; font-size: 1.1em;">📁</span> <b>${escapeHtml(f.name)}</b></a>` 
             : '<span style="font-size: 1.05em; margin-right: 4px;">' + icon + '</span> ' + escapeHtml(f.name)}
           ${isPinned && pin.note ? `<span class="file-pin-badge" title="${escapeHtml(pin.note)}">📝 ${escapeHtml(pin.note)}</span>` : ''}
           ${isItemProtected ? '<span title="' + t('protected_path') + '" style="margin-left: 6px; font-size: 0.85em;">🔒</span>' : ''}
@@ -12405,16 +12417,16 @@ function renderFilesTableBody() {
         <td style="text-align: center; font-size: 0.8rem; color: var(--text-muted); white-space: nowrap;">${f.mod_time}</td>
         <td style="text-align: right; white-space: nowrap; padding-right: 14px;">
           <div class="action-grid" style="margin-left: auto;">
-            <button class="btn btn-sm" title="${t('open_terminal_here', 'Open Terminal Here')}\" onclick=\"openTerminalForPath('${escapeHtml(targetTermPath)}')\">💻</button>
+            <button class="btn btn-sm" title="${t('open_terminal_here', 'Open Terminal Here')}" onclick="openTerminalForPath(decodeURIComponent('${encodeURIComponent(targetTermPath)}'))">💻</button>
             ${!f.is_dir 
-              ? `<button class="btn btn-primary btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openEditor('${escapeHtml(fullPath)}')">${t('edit')}</button>` 
+              ? `<button class="btn btn-primary btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openEditor(decodeURIComponent('${encodeURIComponent(fullPath)}'))">${t('edit')}</button>` 
               : '<span style="display:inline-block;"></span>'}
-            <button class="btn btn-sm action-btn-duplicate" title="${t('duplicate')}" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openDuplicateModal('${escapeHtml(fullPath)}', ${f.is_dir}, '${escapeHtml(f.name)}')">📋</button>
+            <button class="btn btn-sm action-btn-duplicate" title="${t('duplicate')}" ${isItemProtected ? 'disabled title="' + t('cannot_modify_protected') + '"' : ''} onclick="openDuplicateModal(decodeURIComponent('${encodeURIComponent(fullPath)}'), ${f.is_dir}, decodeURIComponent('${encodeURIComponent(f.name)}'))">📋</button>
             ${f.is_dir 
-              ? `<button class="btn btn-sm action-btn-download" title="${t('download_folder', 'Download Folder Archive')}" onclick="downloadFolder('${escapeHtml(fullPath)}')">⬇️</button>` 
+              ? `<button class="btn btn-sm action-btn-download" title="${t('download_folder', 'Download Folder Archive')}" onclick="downloadFolder(decodeURIComponent('${encodeURIComponent(fullPath)}'))">⬇️</button>` 
               : `<a class="btn btn-sm action-btn-download" title="${t('download_file', 'Download File')}" href="/api/hosts/${currentHost.id}/files/download?path=${encodeURIComponent(fullPath)}" download>⬇️</a>`}
-            ${currentHost && currentHost.os_type === 'windows' ? '' : `<button class="btn btn-warning btn-sm" onclick="openTransferDialog('${escapeHtml(fullPath)}', ${f.is_dir})">${t('copy_to_host')}</button>`}
-            <button class="btn btn-danger btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_delete_protected') + '"' : ''} onclick="deleteRemoteFile('${escapeHtml(fullPath)}', '${escapeHtml(currentFilesData.path)}')">🗑️</button>
+            ${currentHost && currentHost.os_type === 'windows' ? '' : `<button class="btn btn-warning btn-sm" onclick="openTransferDialog(decodeURIComponent('${encodeURIComponent(fullPath)}'), ${f.is_dir})">${t('copy_to_host')}</button>`}
+            <button class="btn btn-danger btn-sm" ${isItemProtected ? 'disabled title="' + t('cannot_delete_protected') + '"' : ''} onclick="deleteRemoteFile(decodeURIComponent('${encodeURIComponent(fullPath)}'), decodeURIComponent('${encodeURIComponent(currentFilesData.path)}'))">🗑️</button>
           </div>
         </td>
       </tr>
@@ -12511,11 +12523,37 @@ async function deleteRemoteFile(path, parentDir) {
     body: JSON.stringify({ path })
   });
   if (res.status === 403) {
-    showToast(t('cannot_delete_protected'), 'error');
+    let err = t('cannot_delete_protected');
+    try {
+      const text = await res.text();
+      if (text) {
+        try {
+          const data = JSON.parse(text);
+          if (data.error) err = data.error;
+        } catch {
+          if (text.trim()) err = text.trim();
+        }
+      }
+    } catch(e) {}
+    showToast(t('failed_prefix', 'Failed: ') + err, 'error');
     return;
   }
   if (!res.ok) {
-    showToast(t('failed_prefix', 'Failed: ') + 'Failed to delete', 'error');
+    let err = 'Failed to delete';
+    try {
+      const text = await res.text();
+      if (text) {
+        try {
+          const data = JSON.parse(text);
+          if (data.error) err = data.error;
+          else if (data.errors && data.errors.length > 0) err = data.errors.join('; ');
+          else if (text.trim()) err = text.trim();
+        } catch {
+          if (text.trim()) err = text.trim();
+        }
+      }
+    } catch(e) {}
+    showToast(t('failed_prefix', 'Failed: ') + err, 'error');
     return;
   }
   if (selectedFileItems.has(path)) {
@@ -12645,17 +12683,54 @@ async function deleteSelectedFiles() {
       body: JSON.stringify({ paths })
     });
     if (res.status === 403) {
-      showToast(t('cannot_delete_protected'), 'error');
+      let err = t('cannot_delete_protected');
+      try {
+        const text = await res.text();
+        if (text) {
+          try {
+            const data = JSON.parse(text);
+            if (data.error) err = data.error;
+          } catch {
+            if (text.trim()) err = text.trim();
+          }
+        }
+      } catch(e) {}
+      showToast(t('failed_prefix', 'Failed: ') + err, 'error');
       return;
     }
     if (!res.ok) {
-      const errText = await res.text();
-      showToast(t('failed_prefix', 'Failed: ') + (errText || 'Failed to delete'), 'error');
+      let errMsg = 'Failed to delete';
+      try {
+        const text = await res.text();
+        if (text) {
+          try {
+            const errJson = JSON.parse(text);
+            if (errJson.error) {
+              errMsg = errJson.error;
+            } else if (errJson.errors && errJson.errors.length > 0) {
+              errMsg = errJson.errors.join('; ');
+            } else if (text.trim()) {
+              errMsg = text.trim();
+            }
+          } catch {
+            if (text.trim()) errMsg = text.trim();
+          }
+        }
+      } catch(e) {}
+      showToast(t('failed_prefix', 'Failed: ') + errMsg, 'error');
       return;
     }
     const data = await res.json().catch(() => ({}));
     const deletedCount = data.deleted_count !== undefined ? data.deleted_count : count;
-    showToast(t('batch_delete_success').replace('{count}', deletedCount), 'success');
+    if (data.errors && data.errors.length > 0) {
+      if (deletedCount > 0) {
+        showToast(t('batch_delete_success').replace('{count}', deletedCount) + ` (${data.errors.length} failed)`, 'warning');
+      } else {
+        showToast(t('failed_prefix', 'Failed: ') + data.errors.join('; '), 'error');
+      }
+    } else {
+      showToast(t('batch_delete_success').replace('{count}', deletedCount), 'success');
+    }
     clearFileSelection();
     if (currentFilesData && currentFilesData.path) {
       loadFiles(currentFilesData.path);

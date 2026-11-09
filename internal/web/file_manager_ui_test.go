@@ -1,9 +1,24 @@
 package web
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/pkg/sftp"
+
+	"pantau/internal/inspector"
+	"pantau/internal/sshrunner"
+	"pantau/internal/store"
 )
 
 func TestFileManagerActionButtonsGrid(t *testing.T) {
@@ -336,6 +351,117 @@ func TestBatchDeleteProtectionSafety(t *testing.T) {
 		}
 	}
 }
+
+func TestBatchDeleteAPIEndpoint(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "pantau-web-batch-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	db, err := store.Open(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	mockRunner := sshrunner.NewMockRunner()
+	mockRunner.SFTPProvider = func() (*sftp.Client, error) {
+		sConn, cConn := net.Pipe()
+		server, err := sftp.NewServer(sConn)
+		if err != nil {
+			return nil, err
+		}
+		go func() {
+			_ = server.Serve()
+		}()
+		return sftp.NewClientPipe(cConn, cConn)
+	}
+
+	ins := inspector.New(db, func(h string, p int, u, k string) (sshrunner.Runner, error) {
+		return mockRunner, nil
+	}, nil)
+
+	srv := NewServer(db, ins, nil)
+	token := "test_batch_token"
+	srv.sessions.Store(token, time.Now().Add(time.Hour))
+	authCookie := &http.Cookie{Name: "pantau_session", Value: token}
+
+	hostID, err := db.CreateHost(&store.Host{
+		Name: "Batch Delete Host",
+		Host: "127.0.0.1",
+		Port: 22,
+		User: "root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// 1. Missing path and paths -> 400 Bad Request JSON
+	reqEmpty, _ := json.Marshal(map[string]interface{}{})
+	rec1 := httptest.NewRecorder()
+	r1 := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/files/delete", hostID), bytes.NewReader(reqEmpty))
+	r1.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec1, r1)
+	if rec1.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for empty delete request, got %d", rec1.Code)
+	}
+	var res1 map[string]interface{}
+	_ = json.Unmarshal(rec1.Body.Bytes(), &res1)
+	if res1["status"] != "error" || res1["error"] == nil {
+		t.Errorf("expected JSON error response for missing paths, got %v", rec1.Body.String())
+	}
+
+	// 2. Protected system path in batch -> 403 Forbidden JSON
+	reqProtected, _ := json.Marshal(map[string]interface{}{
+		"paths": []string{"/tmp/safe.txt", "/etc/passwd"},
+	})
+	rec2 := httptest.NewRecorder()
+	r2 := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/files/delete", hostID), bytes.NewReader(reqProtected))
+	r2.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec2, r2)
+	if rec2.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for protected path in batch delete, got %d", rec2.Code)
+	}
+	var res2 map[string]interface{}
+	_ = json.Unmarshal(rec2.Body.Bytes(), &res2)
+	if res2["status"] != "error" || !strings.Contains(fmt.Sprint(res2["error"]), "protected path") {
+		t.Errorf("expected JSON error response citing protected path, got %v", rec2.Body.String())
+	}
+
+	// 3. Successful batch delete of real files with deduplication
+	fileA := filepath.Join(tmpDir, "file_a.txt")
+	fileB := filepath.Join(tmpDir, "file_b.txt")
+	_ = os.WriteFile(fileA, []byte("data a"), 0644)
+	_ = os.WriteFile(fileB, []byte("data b"), 0644)
+
+	reqBatch, _ := json.Marshal(map[string]interface{}{
+		"paths": []string{fileA, fileB, fileA}, // fileA included twice to test deduplication
+	})
+	rec3 := httptest.NewRecorder()
+	r3 := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/hosts/%d/files/delete", hostID), bytes.NewReader(reqBatch))
+	r3.AddCookie(authCookie)
+	srv.mux.ServeHTTP(rec3, r3)
+	if rec3.Code != http.StatusOK {
+		t.Errorf("expected 200 OK for batch delete, got %d: %s", rec3.Code, rec3.Body.String())
+	}
+	var res3 struct {
+		Status       string   `json:"status"`
+		DeletedCount int      `json:"deleted_count"`
+		Errors       []string `json:"errors"`
+	}
+	_ = json.Unmarshal(rec3.Body.Bytes(), &res3)
+	if res3.Status != "deleted" || res3.DeletedCount != 2 || len(res3.Errors) > 0 {
+		t.Errorf("unexpected batch delete result: %+v", res3)
+	}
+	if _, err := os.Stat(fileA); !os.IsNotExist(err) {
+		t.Errorf("expected fileA to be deleted")
+	}
+	if _, err := os.Stat(fileB); !os.IsNotExist(err) {
+		t.Errorf("expected fileB to be deleted")
+	}
+}
+
 
 
 

@@ -1852,13 +1852,49 @@ func (d *DB) GetStorageMonitors(hostID int64) ([]StorageMonitorTarget, error) {
 	return monitors, rows.Err()
 }
 
+func cleanMonitorPath(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" || p == "/" {
+		return p
+	}
+	// Preserve Windows drive root like C:/ or C:\
+	if len(p) >= 2 && p[1] == ':' {
+		if len(p) == 2 {
+			return p + `\`
+		}
+		if len(p) == 3 && (p[2] == '/' || p[2] == '\\') {
+			return p[:2] + `\`
+		}
+	}
+	return strings.TrimRight(p, "/\\")
+}
+
 func (d *DB) SaveStorageMonitor(hostID int64, path string, label string, maxSizeBytes ...int64) (*StorageMonitorTarget, error) {
-	path = strings.TrimSpace(path)
+	p := strings.TrimSpace(path)
+	pClean := cleanMonitorPath(p)
+	pAltSlash := strings.ReplaceAll(pClean, "\\", "/")
+	pBackSlash := strings.ReplaceAll(pClean, "/", "\\")
 	label = strings.TrimSpace(label)
 	var limitBytes int64
 	if len(maxSizeBytes) > 0 && maxSizeBytes[0] > 0 {
 		limitBytes = maxSizeBytes[0]
 	}
+
+	// Check if a monitor already exists with alternate slashes/trailing slash to prevent duplicates
+	var existingID int64
+	var existingPath string
+	row := d.QueryRow(`
+		SELECT id, path FROM host_storage_monitors
+		WHERE host_id = ? AND (
+			path = ? OR path = ? OR path = ? OR path = ? OR path = ? OR path = ?
+		) LIMIT 1
+	`, hostID, p, pClean, pAltSlash, pBackSlash, pClean+"/", pClean+"\\")
+	if err := row.Scan(&existingID, &existingPath); err == nil && existingID > 0 {
+		path = existingPath
+	} else {
+		path = pClean
+	}
+
 	_, err := d.Exec(`
 		INSERT INTO host_storage_monitors (host_id, path, label, max_size_bytes, created_at)
 		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -1894,16 +1930,31 @@ func (d *DB) UpdateStorageMonitorLimit(hostID int64, path string, maxSizeBytes i
 	if maxSizeBytes < 0 {
 		maxSizeBytes = 0
 	}
+	p := strings.TrimSpace(path)
+	pClean := cleanMonitorPath(p)
+	pAltSlash := strings.ReplaceAll(pClean, "\\", "/")
+	pBackSlash := strings.ReplaceAll(pClean, "/", "\\")
 	_, err := d.Exec(`
 		UPDATE host_storage_monitors
 		SET max_size_bytes = ?
-		WHERE host_id = ? AND path = ?
-	`, maxSizeBytes, hostID, strings.TrimSpace(path))
+		WHERE host_id = ? AND (
+			path = ? OR path = ? OR path = ? OR path = ? OR path = ? OR path = ?
+		)
+	`, maxSizeBytes, hostID, p, pClean, pAltSlash, pBackSlash, pClean+"/", pClean+"\\")
 	return err
 }
 
 func (d *DB) DeleteStorageMonitor(hostID int64, path string) error {
-	_, err := d.Exec(`DELETE FROM host_storage_monitors WHERE host_id = ? AND path = ?`, hostID, strings.TrimSpace(path))
+	p := strings.TrimSpace(path)
+	pClean := cleanMonitorPath(p)
+	pAltSlash := strings.ReplaceAll(pClean, "\\", "/")
+	pBackSlash := strings.ReplaceAll(pClean, "/", "\\")
+	_, err := d.Exec(`
+		DELETE FROM host_storage_monitors
+		WHERE host_id = ? AND (
+			path = ? OR path = ? OR path = ? OR path = ? OR path = ? OR path = ?
+		)
+	`, hostID, p, pClean, pAltSlash, pBackSlash, pClean+"/", pClean+"\\")
 	return err
 }
 
