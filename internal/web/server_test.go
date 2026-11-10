@@ -2752,9 +2752,24 @@ func TestWindowsTerminalUIAndPathHandling(t *testing.T) {
 		t.Errorf("expected extractPathFromTerminalTitle to contain Windows path regex")
 	}
 
+	// Verify terminal title cleaning does not strip hyphens in directory names (e.g. docker-data)
+	if !strings.Contains(html, `(?:\s+-\s+[A-Za-z0-9_.-]+|\s*\([^)]*\))+`) {
+		t.Errorf("expected extractPathFromTerminalTitle to only strip shell indicators with leading whitespace")
+	}
+
+	// Verify getTerminalActivePath prioritizes live screen buffer prompt
+	if !strings.Contains(html, `// 1. Inspect live terminal screen buffer first (authoritative prompt on screen)`) {
+		t.Errorf("expected getTerminalActivePath to prioritize live screen buffer prompt")
+	}
+
 	// Verify Windows terminal drive switch in path tracking
 	if !strings.Contains(html, `cmd.match(/^([a-zA-Z]):$/)`) {
 		t.Errorf("expected setupTerminalPathTracking to handle Windows drive switch")
+	}
+
+	// Verify tab completion protection in setupTerminalPathTracking
+	if !strings.Contains(html, `let hadTab = false;`) || !strings.Contains(html, `if (tabUsed)`) {
+		t.Errorf("expected setupTerminalPathTracking to protect against partial tab-completion keystroke poisoning")
 	}
 
 	// Verify Windows config / ps1 editor modes

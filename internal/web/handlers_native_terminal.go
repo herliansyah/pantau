@@ -475,7 +475,7 @@ func detectDefaultTerminal(goos string) (termType, termPath string) {
 
 // buildLaunchCommand constructs the exec.Cmd for native terminal execution.
 func buildLaunchCommand(goos, termPath, customTemplate, keyPath, user, host string, port int, initialDir string, hostOSType ...string) (*exec.Cmd, error) {
-	sshBase := fmt.Sprintf(`ssh -i "%s" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s`, keyPath, port, user, host)
+	sshBase := fmt.Sprintf(`ssh -i "%s" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s`, keyPath, port, user, host)
 	cdClause := buildRemoteCdClause(initialDir, hostOSType...)
 	if cdClause != "" {
 		escapedCD := strings.ReplaceAll(cdClause, `"`, `\"`)
@@ -668,7 +668,7 @@ func generateWindowsCmdScript(ticket *NativeTicket) string {
 	sb.WriteString("@echo off\r\n")
 	sb.WriteString("REM Pantau Remote Ephemeral Terminal Launcher\r\n")
 	psCmd := fmt.Sprintf(
-		`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$b='%s'; $key=[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b)); $k=[System.IO.Path]::GetTempFileName(); [IO.File]::WriteAllText($k, $key, [Text.Encoding]::ASCII); icacls $k /inheritance:r /grant:r \"$($env:USERNAME):(R)\" | Out-Null; Write-Host '[Pantau] Connecting to %s (%s)...'; ssh -i $k -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s; $code=$LASTEXITCODE; Remove-Item -Force $k -ErrorAction SilentlyContinue; if ($code -ne 0) { Write-Host ''; Write-Host \"[Pantau] Sesi SSH terputus atau gagal (exit code: $code).\"; pause }"`,
+		`powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$b='%s'; $k=[System.IO.Path]::GetTempFileName(); [System.IO.File]::WriteAllBytes($k, [System.Convert]::FromBase64String($b)); icacls $k /inheritance:r /grant:r \"$($env:USERNAME):(R)\" | Out-Null; $sshDir=Join-Path $env:USERPROFILE '.ssh'; if (-not (Test-Path $sshDir)) { New-Item -ItemType Directory -Path $sshDir -Force | Out-Null }; $kh=Join-Path $sshDir 'known_hosts'; if (-not (Test-Path $kh)) { New-Item -ItemType File -Path $kh -Force | Out-Null }; Write-Host '[Pantau] Connecting to %s (%s)...'; ssh -i $k -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s; $code=$LASTEXITCODE; Remove-Item -Force $k -ErrorAction SilentlyContinue; if ($code -ne 0) { Write-Host ''; Write-Host \"[Pantau] Sesi SSH terputus atau gagal (exit code: $code).\"; pause }"`,
 		keyB64, displayName, ticket.HostAddress, port, ticket.HostUser, ticket.HostAddress, remoteCmd,
 	)
 	sb.WriteString(psCmd)
@@ -704,19 +704,19 @@ func generateUnixScript(ticket *NativeTicket, isMac bool) string {
 	if isMac {
 		// macOS Terminal runs under GUI session without attached tty on launch
 		sb.WriteString("if [ -t 0 ]; then\n")
-		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
+		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
 		sb.WriteString("elif [ -c /dev/tty ]; then\n")
-		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s < /dev/tty\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
+		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s < /dev/tty\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
 		sb.WriteString("else\n")
-		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
+		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
 		sb.WriteString("fi\n")
 	} else {
 		sb.WriteString("if [ -t 0 ]; then\n")
-		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
+		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
 		sb.WriteString("elif [ -c /dev/tty ]; then\n")
-		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s < /dev/tty\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
+		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s < /dev/tty\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
 		sb.WriteString("else\n")
-		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
+		sb.WriteString(fmt.Sprintf("    ssh -i \"$KEYFILE\" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s\n", port, ticket.HostUser, ticket.HostAddress, remoteCmd))
 		sb.WriteString("fi\n")
 	}
 	sb.WriteString("SSH_EXIT=$?\n\n")
@@ -991,17 +991,17 @@ func (s *Server) handleNativeTerminalRun(w http.ResponseWriter, r *http.Request)
 			remoteCmd = fmt.Sprintf(` -t "%s"`, escapedCD)
 		}
 
-		// Output PowerShell friendly script.
-		// ponytail: [IO.File]::WriteAllText with ASCII encoding preserves Unix \n line endings
-		// required by OpenSSH — Set-Content would silently write CRLF and corrupt the PEM key.
+		keyB64 := base64.StdEncoding.EncodeToString(ticket.EphemeralKey.PrivateKey)
 		content = fmt.Sprintf(`$k = [System.IO.Path]::GetTempFileName()
-[IO.File]::WriteAllText($k, @"
-%s
-"@, [Text.Encoding]::ASCII)
+[System.IO.File]::WriteAllBytes($k, [System.Convert]::FromBase64String('%s'))
 icacls "$k" /inheritance:r /grant:r "$($env:USERNAME):(R)" | Out-Null
-ssh -i "$k" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s
+$sshDir = Join-Path $env:USERPROFILE '.ssh'
+if (-not (Test-Path $sshDir)) { New-Item -ItemType Directory -Path $sshDir -Force | Out-Null }
+$kh = Join-Path $sshDir 'known_hosts'
+if (-not (Test-Path $kh)) { New-Item -ItemType File -Path $kh -Force | Out-Null }
+ssh -i "$k" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o HostKeyAlgorithms=+ssh-rsa,ssh-dss -o PubkeyAcceptedKeyTypes=+ssh-rsa -p %d %s@%s%s
 Remove-Item -Force "$k" -ErrorAction SilentlyContinue
-`, strings.TrimSpace(string(ticket.EphemeralKey.PrivateKey)), port, ticket.HostUser, ticket.HostAddress, remoteCmd)
+`, keyB64, port, ticket.HostUser, ticket.HostAddress, remoteCmd)
 	} else {
 		content = generateUnixScript(ticket, strings.Contains(ua, "macintosh") || strings.Contains(ua, "darwin"))
 	}

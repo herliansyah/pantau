@@ -14168,7 +14168,7 @@ function extractPathFromTerminalTitle(title) {
   if (!title || typeof title !== 'string') return null;
   let str = title.trim().replace(/[\x00\x07]/g, '').trim();
   // Strip trailing shell or window manager indicators (e.g. " - bash", " (tmux)")
-  str = str.replace(/\s*-\s*[A-Za-z0-9_.-]+$/, '').replace(/\s*\([^)]*\)$/, '').trim();
+  str = str.replace(/(?:\s+-\s+[A-Za-z0-9_.-]+|\s*\([^)]*\))+$/, '').replace(/\s+-\s*$/, '').trim();
   // Check for Windows drive path pattern e.g. C:\Users\Admin or C:/Users/Admin
   const winMatch = str.match(/(?:^|[:\s])([a-zA-Z]:[\\/][^\s]*)/);
   if (winMatch) {
@@ -14213,7 +14213,7 @@ function extractPathFromTerminalBuffer(term) {
     const m3 = text.match(/[:]([~/][^\s\$#%>]*)\s*[\$#%>]/);
     if (m3 && m3[1]) return m3[1].trim();
     // 4. Windows prompts: PS C:\Users\Admin> or C:\Users\Admin> or PS C:/Users/Admin>
-    const mWin = text.match(/(?:PS\s+)?([a-zA-Z]:[\\/][^>]*?)>\s*$/);
+    const mWin = text.match(/(?:^|[\s\[])(?:PS\s+)?([a-zA-Z]:[\\/][^>\]\r\n]*?)[>\]](?:\s*|$)/) || text.match(/(?:PS\s+)?([a-zA-Z]:[\\/][^>]*?)>\s*$/);
     if (mWin && mWin[1]) return mWin[1].trim().replace(/\\/g, '/');
   }
   return null;
@@ -14233,22 +14233,24 @@ function getTerminalActivePath(tabId) {
   if (!tab) return '/';
   const isRight = (tab.isSplit && tab.focusedPane === 'right');
   const targetHostId = isRight ? (tab.hostIDRight || tab.hostID) : tab.hostID;
-  let currentPath = isRight ? tab.currentDirRight : tab.currentDirLeft;
 
-  if (!currentPath || currentPath === '/') {
-    const term = isRight ? tab.termRight : tab.termLeft;
-    if (term) {
-      const bufPath = extractPathFromTerminalBuffer(term);
-      if (bufPath) {
-        setTabActivePath(tab, isRight ? 'right' : 'left', bufPath);
-        currentPath = bufPath;
-      }
+  // 1. Inspect live terminal screen buffer first (authoritative prompt on screen)
+  const term = isRight ? tab.termRight : tab.termLeft;
+  if (term) {
+    const bufPath = extractPathFromTerminalBuffer(term);
+    if (bufPath && bufPath !== '/') {
+      setTabActivePath(tab, isRight ? 'right' : 'left', bufPath);
+      return bufPath;
     }
   }
 
+  // 2. Fall back to cached current directory (from OSC 7 or cd tracking)
+  let currentPath = isRight ? tab.currentDirRight : tab.currentDirLeft;
   if (currentPath && currentPath !== '/') {
     return currentPath;
   }
+
+  // 3. Fall back to initialDir or host root
   const hostObj = (allRawHosts || []).find(h => h.id === targetHostId);
   const defaultRoot = (hostObj && hostObj.os_type === 'windows') ? 'C:/' : '/';
   return tab.initialDir || getHostFilesPath(targetHostId) || defaultRoot;
@@ -14289,12 +14291,33 @@ function setupTerminalPathTracking(tab, pane, term) {
 
   // 3. Command input line tracking for explicit cd invocations
   let inputBuffer = '';
+  let hadTab = false;
   term.onData(data => {
     for (let i = 0; i < data.length; i++) {
       const ch = data[i];
-      if (ch === '\r' || ch === '\n') {
+      if (ch === '\t') {
+        hadTab = true;
+      } else if (ch === '\r' || ch === '\n') {
         const cmd = inputBuffer.trim();
+        const tabUsed = hadTab;
         inputBuffer = '';
+        hadTab = false;
+
+        // Schedule delayed buffer reads for when remote shell finishes & renders new prompt
+        setTimeout(() => {
+          const bp = extractPathFromTerminalBuffer(term);
+          if (bp) setTabActivePath(tab, pane, bp);
+        }, 150);
+        setTimeout(() => {
+          const bp = extractPathFromTerminalBuffer(term);
+          if (bp) setTabActivePath(tab, pane, bp);
+        }, 500);
+
+        if (tabUsed) {
+          // Tab completion was used: do not trust keystroke buffer which only has partial text
+          continue;
+        }
+
         const driveMatch = cmd.match(/^([a-zA-Z]):$/);
         if (driveMatch) {
           setTabActivePath(tab, pane, driveMatch[1].toUpperCase() + ':/');
@@ -14644,9 +14667,10 @@ function sendTabCommand(tabId, cmd) {
   if (!tab) return;
   if (cmd && typeof cmd === 'string') {
     const trimmed = cmd.trim();
-    const cdMatch = trimmed.match(/^cd\s+['"]?([^'";\s]+)['"]?/i);
-    if (cdMatch && cdMatch[1] && (cdMatch[1].startsWith('/') || cdMatch[1].startsWith('~') || /^[a-zA-Z]:/.test(cdMatch[1]))) {
-      setTabActivePath(tab, tab.focusedPane, cdMatch[1].replace(/\\/g, '/'));
+    const cdMatch = trimmed.match(/^cd\s+(?:'([^']+)'|"([^"]+)"|([^\s;]+))/i);
+    const cdTarget = cdMatch ? (cdMatch[1] || cdMatch[2] || cdMatch[3]) : null;
+    if (cdTarget && (cdTarget.startsWith('/') || cdTarget.startsWith('~') || /^[a-zA-Z]:/.test(cdTarget))) {
+      setTabActivePath(tab, tab.focusedPane, cdTarget.replace(/\\/g, '/'));
     }
   }
   const ws = (tab.focusedPane === 'right' && tab.isSplit) ? tab.socketRight : tab.socketLeft;
