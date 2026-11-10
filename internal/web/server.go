@@ -3222,16 +3222,8 @@ func (s *Server) handleWSTerminal(w http.ResponseWriter, r *http.Request) {
 				cleanDir := strings.TrimSpace(dirParam)
 				if host.OSType == "windows" {
 					cleanPath := sshrunner.CleanWindowsRemotePath(cleanDir)
-					drive := ""
-					if len(cleanPath) >= 2 && cleanPath[1] == ':' {
-						drive = strings.ToUpper(cleanPath[:2])
-					}
-					var cdCmd string
-					if drive != "" {
-						cdCmd = fmt.Sprintf("%s\r\ncd \"%s\"\r\n", drive, cleanPath)
-					} else {
-						cdCmd = fmt.Sprintf("cd \"%s\"\r\n", cleanPath)
-					}
+					winPath := strings.ReplaceAll(cleanPath, "/", "\\")
+					cdCmd := fmt.Sprintf("cd /d \"%s\" & cls & ver | find \"Windows\" & echo (c) Microsoft Corporation. All rights reserved.& echo.\r\n", winPath)
 					_, _ = inWriter.Write([]byte(cdCmd))
 				} else {
 					escapedDir := strings.ReplaceAll(cleanDir, `'`, `'\''`)
